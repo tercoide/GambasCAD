@@ -1,0 +1,229 @@
+  Case "save"
+      For i = 1 To 99
+        If File.Name(CurrentFile) = "drawing" & CStr(i) & "." & File.Ext(CurrentFile) Then
+          template = True
+          Break
+        Endif
+      Next
+
+      If template = True Then
+        gTask("saveas")
+      Else
+        '' Transfer data from arrEntitites to cModel
+        gcd.ExportBlocks(gcd.CurrentDrawing.cModel)
+        gcd.ExportEntities(gcd.CurrentDrawing.cModel["Entities"], gcd.CurrentDrawing.arrEntities)
+        cad.SaveGaucho(CurrentFile, gcd.CurrentDrawing.cModel)
+      Endif
+
+    Case "saveas"
+
+      Dialog.Filter = ["*.gcad", "GauchoCAD"]
+      If Dialog.SaveFile() Then Return
+      FilePath = Dialog.Path
+      If File.Ext(FilePath) <> "gcad" Then
+        FilePath = FilePath & ".gcad"
+      Endif
+
+      '' Transfer data from arrEntitites to cModel
+      gcd.ExportBlocks(gcd.CurrentDrawing.cModel)
+      gcd.ExportEntities(gcd.CurrentDrawing.cModel["Entities"], gcd.CurrentDrawing.arrEntities)
+      gcd.CurrentDrawing.cModel["File"] = FilePath
+      cad.SaveGaucho(FilePath, gcd.CurrentDrawing.cModel)
+      gcd.CurrentDrawing.Text = File.Name(FilePath)
+
+      ' Catch
+      '   Message.Info(Error.Text)
+
+    Case "export"
+
+      Dialog.Filter = ["*.json", "JavaScript Object Notation"]
+      If Dialog.SaveFile() Then Return
+      FilePath = Dialog.Path
+      If File.Ext(FilePath) <> "json" Then
+        FilePath = FilePath & ".json"
+      Endif
+      Content = ""
+      For Each vrt In gcd.CurrentDrawing.cImport
+        Content &= dwg.JSONEncode(vrt) & "\n"
+      Next
+      'Content = ""
+      'For Each tag In ["Layers", "Objects", "Entities"]
+      '  If gcd.CurrentDrawing.cModel.Exist(tag) Then
+      '    If gcd.CurrentDrawing.cModel[tag].Count > 0 Then
+      '      For Each vrt In gcd.CurrentDrawing.cModel[tag]
+      '        Content &= dwg.JSONEncode(vrt) & "\n"
+      '      Next
+      '    Endif
+      '  Endif
+      'Next
+
+      File.Save(FilePath, Content)
+      'cadDxf.Start(, 1)
+
+    Case "import"
+      ProgressBar1.Visible = True
+      ProgressBar1.Value = 0
+      stx = dsk.FileChooser(User.Home, ["dxf", "dwg", "json"])
+      If stx.count > 0 Then
+        FilePath = stx[0]
+        FileExt = String.LCase(File.Ext(FilePath))
+
+        Select FileExt 'String.LCase(File.Ext(FilePath))
+            'Case "dxf"
+            ' mdl = cad.DXFImport(FilePath)       ' esto crea una coleccion con lo importado del DXF
+            ' ProgressBar1.Value = 1
+            ' If mdl.Count > 0 Then
+            '   gcd.CurrentDrawing.cImport = mdl  ' Copio la coleccion de datos a cImport, previo a trnasferir a cModel
+            '   gcd.EntitiesTransfer2()           ' Transfiero las entidades a cModel
+            '   gcd.BlocksTransfer()              ' transfiero los bloques
+            '   gcd.LayersTransfer()              ' transfiero los Layers
+            '   'LoadDrawingMap2()                               ' lleno el TreeView
+            '   LoadComboboxes(gcd.CurrentDrawing.cModel)       ' recargo los ComboBox
+            '   gcd.ImportBlocks(gcd.CurrentDrawing.cModel)     ' Importo los Bloques de cModel a formato binario
+            '   gcd.ImportModel(gcd.CurrentDrawing.cModel["Entities"], gcd.CurrentDrawing.arrEntities)  ' idem entidades
+            '   gcd.CurrentDrawing.cImport.Clear    ' libero espacio, limpiando cImport
+            '   gcd.ApplyLayerProperties(1)         ' aplico las propiedades de los layers a las entidades
+            '   'clsMouseTracking.ReBuildPOIPoints   ' construyo los puntos de interes para el tracking del mouse
+            '   Regen                               ' Genero las listas de OpenGL
+            '   cadZoomE.Start()                    ' Hago un Zoom Extents
+            '
+            ' Endif
+            '
+            ' ProgressBar1.Visible = False
+
+          Case "json", "dwg", "dxf"
+            If FileExt = "dxf" Then
+              FileTmp = dwg.Todxf(FilePath)
+              gcd.CurrentDrawing.cImport = dwg.Read(FileTmp)
+            Else
+              gcd.CurrentDrawing.cImport = dwg.Read(FilePath)
+            Endif
+
+            sRewrite = dwg.Write(gcd.CurrentDrawing.cImport)
+            FileTest = File.Dir(FilePath) &/ File.BaseName(FilePath) & "-test.json"
+            File.Save(FileTest, sRewrite)
+
+            ProgressBar1.Value = 1
+            If gcd.CurrentDrawing.cImport.Count > 0 Then
+              'Import: Move data from cImport to cModel
+              If dwg.Import(gcd.CurrentDrawing.cImport, gcd.CurrentDrawing.cModel).Count > 0 Then
+                Print "Ok"
+                'If mdl.Count > 0 Then
+                'gcd.CurrentDrawing.cImport = mdl  ' Copio la coleccion de datos a cImport, previo a trnasferir a cModel
+                'gcd.EntitiesTransfer2()           ' Transfiero las entidades a cModel
+                'gcd.BlocksTransfer()              ' transfiero los bloques
+                'gcd.LayersTransfer()              ' transfiero los Layers
+                'LoadDrawingMap2()                               ' lleno el TreeView
+                LoadComboboxes(gcd.CurrentDrawing.cModel)       ' recargo los ComboBox
+                gcd.ImportBlocks(gcd.CurrentDrawing.cModel)     ' Importo los Bloques de cModel a formato binario
+                gcd.ImportModel(gcd.CurrentDrawing.cModel["Entities"], gcd.CurrentDrawing.arrEntities)  ' idem entidades
+                'gcd.CurrentDrawing.cImport.Clear    ' libero espacio, limpiando cImport
+                gcd.ApplyLayerProperties(1)         ' aplico las propiedades de los layers a las entidades
+                'clsMouseTracking.ReBuildPOIPoints   ' construyo los puntos de interes para el tracking del mouse
+                Regen                               ' Genero las listas de OpenGL
+                cadZoomE.Start()                    ' Hago un Zoom Extents
+                'Endif
+                ProgressBar1.Visible = False
+
+              Else
+                Message.Info(("No information was added to the model"))
+              Endif
+
+            Else
+              Message.Info(("The drawing did not return useful information"))
+            Endif
+
+            ' If p.Count > 0 Then
+            '   gcd.CurrentDrawing.cImport = p
+            '   gcd.EntitiesTransfer2()
+            '   gcd.LayersTransfer()
+            '   'LoadDrawingMap2()
+            '   LoadComboboxes(gcd.CurrentDrawing.cModel)
+            '   'gcd.ImportBlocks(gcd.CurrentDrawing.cModel)
+            ' Endif
+            ' ProgressBar1.Visible = False
+
+            ' Case "dwg"
+            ' mdl = dwg.info(FilePath)
+            ' ' mdl = cad.DWGImport(FilePath)
+            ' ProgressBar1.Value = 1
+            ' If mdl.Count > 0 Then
+            '   gcd.CurrentDrawing.cImport = mdl  ' Copio la coleccion de datos a cImport, previo a trnasferir a cModel
+            '   gcd.EntitiesTransfer2()           ' Transfiero las entidades a cModel
+            '   'gcd.BlocksTransfer()              ' transfiero los bloques
+            '   gcd.LayersTransfer()              ' transfiero los Layers
+            '   'LoadDrawingMap2()                               ' lleno el TreeView
+            '   LoadComboboxes(gcd.CurrentDrawing.cModel)       ' recargo los ComboBox
+            '   'gcd.ImportBlocks(gcd.CurrentDrawing.cModel)     ' Importo los Bloques de cModel a formato binario
+            '   gcd.ImportModel2(gcd.CurrentDrawing.cModel["Entities"], gcd.CurrentDrawing.arrEntities)  ' idem entidades
+            '   gcd.CurrentDrawing.cImport.Clear    ' libero espacio, limpiando cImport
+            '   gcd.ApplyLayerProperties(1)         ' aplico las propiedades de los layers a las entidades
+            '   'clsMouseTracking.ReBuildPOIPoints   ' construyo los puntos de interes para el tracking del mouse
+            '   Regen                               ' Genero las listas de OpenGL
+            '   cadZoomE.Start()                    ' Hago un Zoom Extents
+            '
+            ' Endif
+            ' ProgressBar1.Visible = False
+
+        End Select
+
+      Endif
+
+    Case "open"
+
+      Dialog.Title = ("Open file")
+      Dialog.Filter = ["*.gcad", "GauchoCAD"]
+      Dialog.OpenFile(False)
+      FilePath = Dialog.Path
+
+      If Exist(FilePath) Then
+        Select String.LCase(File.Ext(FilePath))
+          Case "gcad"
+            cModel = cad.GauchoLoad(FilePath)
+            LoadComboboxes(cModel)
+
+            wtag = FilePath
+            If gcd.Drawings.Count = 0 Or ExistWin(wtag) < 0 Then
+              gcd.CurrentDrawing.cModel = cad.GauchoLoad(FilePath)
+              LoadComboboxes(cModel)
+              NewDrawing = New ClsDrawing
+              GCD.Drawings.Add(NewDrawing)
+              gcd.CurrentDrawing = New FCAD(cModel.Copy())
+              gcd.CurrentDrawing.Tag = wtag
+              gcd.CurrentDrawing.Title = File.Name(FilePath)
+
+            Else
+              gcd.CurrentDrawing = ExistWin(wtag)
+            Endif
+        End Select
+      Endif
+    Case "new"
+
+      FileDef = adi &/ "default.gcad"
+      If Exist(FileDef) = False Then
+        Copy "./def.gcad" To FileDef
+      Endif
+
+      For i = 1 To 99
+        FilePath = User.Home &/ "drawing" & CStr(i) & ".gcad"
+
+        If ExistWin(FilePath) < 0 Then Break
+
+      Next
+
+      FileDef = adi &/ "default.gcad"
+      If Exist(FileDef) Then
+        If Exist(FilePath) = False Then
+          Copy FileDef To FilePath
+        Endif
+      Endif
+
+      NewDrawing = New ClsDrawing
+      gcd.Drawings.Add(NewDrawing)
+      gcd.CurrentDrawing = gcd.Drawings.Last
+
+      'gcd.CurrentDrawing.cModel = cad.GauchoLoad(FilePath)
+      ''TODO: Improve the creation file way
+      'gcd.CurrentDrawing.cModel = cad.Skeleton()
+
+      LoadComboboxes(gcd.CurrentDrawing.cModel.Copy())

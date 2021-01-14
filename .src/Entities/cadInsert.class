@@ -1,0 +1,412 @@
+' Gambas class file
+
+' GauchoCAD
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+Create Static
+
+Public Const Gender As String = "Insert"
+Public Const HelperTrabajo As String = ("Inserts a block")
+Public Const ParamType As String = "TPFFF"
+Public Const ParamHelper As String = "BlockName; Position ; X scale ; Y scale ; Rotation"
+Public Const ParamDefault As String = "<no name>; 0,0 ; 1 ;1 ; 0"
+Public Const GAMBASCADENTITY As String = "EntityBase"
+Public Const USEWITH As String = "EntityBuilder"
+Public Const DrawingOrder As Integer = 0        ' 1 = draws first
+Public Const PointsToDraw As Integer = 1             ' minimal point requered for drawing something usefull
+Public Const OrthogonalIgnored As Boolean = False
+Public Const OrthogonalForced As Boolean = False
+Public Const StretchAble As Boolean = True           ' Si lo puedo deformar
+Public Selected As Boolean
+
+Public DrawAble As Boolean = False          ' True si durante la construccion ya tiene suficientes elementos para poder hacer una representacion digna
+Public Visible As Boolean = True            ' si esta entidad puede ser mostrada independientmente
+Public Finished As Boolean = False          ' colocar en true cuando se llegue a completar
+Public StepsDone As Integer                 ' esto lo cambia cls ElementBuilder durante la construccion
+
+' JSON and DXF Read/Export
+Public Const JSON_Reading As Boolean = True
+Public Const JSON_Export As Boolean = False
+
+Public Const DXF_Reading As Boolean = True
+Public Const DXF_Export As Boolean = True
+
+' fParam helpers
+Public Const TotalParams As Integer = 4
+Public Const ipaEscX As Integer = 0
+Public Const ipaEscY As Integer = 1
+Public Const ipaEscZ As Integer = 2
+Public Const ipaRotacion As Integer = 3
+
+Public Sub Translate(e As Entity, dX As Float, dY As Float, Optional OnlySelected As Boolean = False)
+
+  Dim i As Integer
+
+  If OnlySelected Then
+
+    For i = 0 To e.Psel.Max
+      If e.Psel[i] Then
+
+        e.P[i * 2] += dx
+        e.P[i * 2 + 1] += dy
+
+      Endif
+    Next
+
+  Else
+
+    puntos.Translate(e.p, dx, dy)
+  Endif
+
+End
+
+Public Sub Rotate(e As Entity, radians As Float)
+
+  puntos.Rotate(e.P, radians)
+  E.fParam[Me.ipaRotacion] += radians
+
+End
+
+Public Sub Scale(e As Entity, sX As Float, sY As Float)
+
+  Dim i As Integer
+
+  E.fParam[Me.ipaEscX] *= sX
+  E.fParam[Me.ipaEscY] *= sY
+  For i = 0 To e.p.max Step 2
+
+    e.P[i] = e.P[i] * sX
+    e.P[i + 1] = e.P[i + 1] * sY
+
+  Next
+
+End
+
+Public Sub Draw(oE As Entity)
+
+  Dim ET As Entity, i As Integer
+  Dim pBlockToDraw As Block
+
+  If Not oe.Finished Then Return
+  If UCase(Left(oe.Gender, 3)) <> "INS" Then
+    If Not IsNull(oe.pBlock) Then
+      pBlockToDraw = oe.pBlock
+    Else
+      i = clsEntities.FIndBlockIDbyHandle(oE.Block)
+      pBlockToDraw = gcd.CurrentDrawing.arrBlocks[i]
+    End If
+  Else
+    i = clsEntities.FIndBlockID(oE.Block)
+    Try pBlockToDraw = gcd.CurrentDrawing.arrBlocks[i]
+  End If
+  If i < 0 Then Return
+
+  gl.PushMatrix
+  gl.Translatef(APPMain.pixels(oE.p[0]) / gcd.CurrentDrawing.ScaleZoom, APPMain.pixels(oE.p[1]) / gcd.CurrentDrawing.ScaleZoom, 0)
+  gl.Rotatef(oE.fParam[Me.ipaRotacion], 0, 0, 1)
+  gl.Scalef(oE.fParam[Me.ipaEscX], oE.fParam[Me.ipaEscY], oE.fParam[Me.ipaEscZ])
+
+  For Each ET In pBlockToDraw.entities
+    et.visible = True
+    et.LineType = oe.LineType
+    et.colour = oe.colour
+    et.LineWidth = oe.LineWidth
+    'If et.Gender = "MText" Then Stop
+    et.ClassHandler.Draw(et)
+
+
+    'Debug et.Gender, et.LineType
+  Next
+  gl.PopMatrix
+
+End
+
+'' A selected version of the entity
+Public Sub DrawSelected(oE As Entity)
+
+  ' Dim ET As Entity, i As Integer
+  '
+  ' ' FIXME this does not work for Inserts cointaining other inserst
+  '
+  ' For i = oe.iInsert + 1 To gcd.CurrentDrawing.arrEntities.max
+  '   If gcd.CurrentDrawing.arrEntities[i].iInsert <> oe.iInsert Then Break
+  '   gcd.CurrentDrawing.arrEntities[i].ClassHandler.DrawSelected(gcd.CurrentDrawing.arrEntities[i])
+  '
+  ' Next
+
+End
+
+'' A fat version of the entity
+Public Sub DrawRemark(oE As Entity)
+
+  Dim ET As Entity, i As Integer
+
+  For i = oe.iInsert + 1 To gcd.CurrentDrawing.arrEntities.max
+    If gcd.CurrentDrawing.arrEntities[i].iInsert = -1 Then Break
+    gcd.CurrentDrawing.arrEntities[i].ClassHandler.DrawRemark(gcd.CurrentDrawing.arrEntities[i])
+
+  Next
+
+End
+
+'' A fat version of the entity
+' Public Sub DrawRemarkBackup(oE As Entity)
+'
+'   Dim ET As Entity, i As Integer
+'
+'   i = clsEntities.FIndBlockID(oE.Block)
+'   If i < 0 Then Return
+'
+'   gl.PushMatrix
+'   gl.Translatef(appmain.pixels(oE.p[0]) / gcd.CurrentDrawing.ScaleZoom, appmain.pixels(oE.p[1]) / gcd.CurrentDrawing.ScaleZoom, 0)
+'   gl.Rotatef(oE.fParam[2], 0, 0, 1)
+'   gl.Scalef(oE.fParam[0], oE.fParam[1], 1)
+'
+'   For Each ET In gcd.CurrentDrawing.arrBlocks[i].entities
+'     et.visible = True
+'     et.ClassHandler.DrawRemark(et)
+'   Next
+'   gl.PopMatrix
+'
+' End
+
+Public Function Draw2(oE As Entity)
+
+  ' If Not oE.Visible Then Return
+  '
+  ' Dim ET As Entity, i As Integer
+  ' paint.save
+  ' paint.Translate(appmain.pixels(oE.p[0]) / gcd.CurrentDrawing.ScaleZoom, appmain.pixels(oE.p[1]) / gcd.CurrentDrawing.ScaleZoom)
+  ' paint.Scale(oE.fParam[0], oE.fParam[1])
+  ' paint.Rotate(oE.fParam[2])
+  ' gcd.ScaleLines = (Abs(oE.fParam[0]) + Abs(oE.fParam[1])) / 2
+  ' For Each ET In gcd.CurrentDrawing.arrBlocks[i].entities
+  '   et.Draw
+  ' Next
+  ' gcd.ScaleLines = 1
+  ' paint.Restore
+
+End
+'' Creo los puntos de interes
+'' Build point of interest
+
+Public Function BuildPOI(oE As Entity, Optional arrIndex As Integer = -1) As Integer
+
+  If arrIndex < 0 Then arrIndex = gcd.CurrentDrawing.arrEntities.Max       ' si este valor no es provisto , estos POI son de la ultima entidad
+
+  oe.PoiPoints.Clear
+  oe.PoiType.Clear
+
+  ' points
+  oe.poiPoints.insert([oE.p[0], oE.p[1]])
+  oe.poiType.Add(gcd.poiBasePoint)
+  'oe.poiEntities.Add(arrIndex)
+
+End
+
+' This function will return False if the element couldn't be created for some reason: bad or incomple user input
+' True means all is good, False will instruct the clsEntityBuilder to delete it
+Public Sub Finish(oE As Entity) As Boolean
+
+  Dim ET As Entity, i, iInsert As Integer
+
+  'Print "Finish en EntityBase"
+
+  BuildPOI(oe)
+
+  ' busco el tipo de linea, si hace falta
+  If oE.LineTypeName = "Dashed" Then oE.LineType = 1
+
+  oE.psel.resize(oE.p.count / 2)
+
+  oE.DrawAble = True
+  oE.Selected = False
+  oE.Finished = True
+
+  i = clsEntities.FIndBlockID(oE.Block)
+  If i < 0 Then Return
+
+  ' en este momento la ultima entidad es este Insert, guardo el numero
+  iInsert = gcd.CurrentDrawing.arrEntities.Max
+
+  ' hay un caso particular: cuando un bloque contiene un Insert, debo prevenir esta situacion
+  If iInsert >= 0 Then
+
+    ' esta linea no haria falta
+    'gcd.CurrentDrawing.arrEntities.Last.iInsert = iInsert
+    For Each ET In gcd.CurrentDrawing.arrBlocks[i].entities
+      gcd.CurrentDrawing.arrEntities.Add(clsEntities.ClonEntity(et))
+      et.LineType = oe.LineType
+      et.colour = oe.colour
+      et.LineWidth = oe.LineWidth
+      'gcd.CurrentDrawing.arrEntities.Last.Block = oe.block
+      gcd.CurrentDrawing.arrEntities.Last.iInsert = iInsert
+
+      ' ------------------------------ ERROR TODO: verificar esto, lo puse para evitar recursividad infinita
+      gcd.CurrentDrawing.arrEntities.Last.ClassHandler.finish(gcd.CurrentDrawing.arrEntities.Last)
+
+      gcd.CurrentDrawing.arrEntities.Last.ClassHandler.Scale(gcd.CurrentDrawing.arrEntities.Last, oe.fParam[Me.ipaEscX], oE.fParam[Me.ipaEscY])
+      gcd.CurrentDrawing.arrEntities.Last.ClassHandler.Rotate(gcd.CurrentDrawing.arrEntities.Last, oE.fParam[Me.ipaRotacion] * Pi / 180)
+      gcd.CurrentDrawing.arrEntities.Last.ClassHandler.Translate(gcd.CurrentDrawing.arrEntities.Last, oE.p[0], oE.p[1])
+    Next
+  End If
+
+End
+
+' Importo los datos que puedo procesar de una coleccion y genero un Entity para ser agregado a un array
+Public Function ImportJsonCol(c As Collection, e As Entity) As Boolean
+
+
+  e.fParam.Resize(Me.TotalParams)
+
+
+  '    MANEJADO EN clsEntities
+  '============================
+  '   "entity": "INSERT",
+  '   "index": 2370,
+  '   "type": 7,
+  '   "handle": [0, 1182141],
+  '   "size": 64,
+  '   "bitsize": 437,
+  '   "ownerhandle": [12, 1, 27, 1182114],
+  '   "_subclass": "AcDbEntity",
+  '   "layer": [5, 2, 16840, 16840],
+  '   "preview_exists": 0,
+  '   "entmode": 0,
+  '   "nolinks": 1,
+  '   "color": 0,
+  '   "ltype_scale": 0.2,
+  '   "ltype_flags": 0,
+  '   "plotstyle_flags": 0,
+  '   "invisible": 0,
+  '   "linewt": 30,
+  '   "_subclass": "AcDbBlockReference",
+
+
+  '   "ins_pt": [2897.47088581027083, 1635.43128744943124, 0.0],
+  e.P.Add(c["ins_pt"][0])
+  e.P.Add(c["ins_pt"][1])
+
+  '   "scale_flag": 2,
+  '   "scale": [0.1, 0.1, 0.1],
+  e.fParam[Me.ipaEscX] = c["scale"][0]
+  e.fParam[Me.ipaEscY] = c["scale"][1]
+  e.fParam[Me.ipaEscZ] = c["scale"][2]
+
+  '   "rotation": 1.5707963267949,
+  e.fParam[Me.ipaRotacion] = c["rotation"] * 180 / Pi
+
+  '   "extrusion": [0.0, 0.0, 1.0],
+  '   "has_attribs": 0,
+  '   "block_header": [5, 2, 606, 606]
+  e.Block = gcd.CurrentDrawing.cModel["BLOCKS"][c["block_header"][3]]["name"]
+
+  Return True
+
+
+Catch
+
+  Return False
+
+End
+
+Public Sub ExportDXFCol(e As Entity, ByRef cExport As Collection) As Boolean
+
+  cExport.Add("INSERT", dxf.codEntity)
+  clsEntities.DXFExportCommonCol(e, cExport)
+  cExport.Add("AcDbBlockReference", "100")
+  cExport.Add(e.Block, dxf.codName)
+  cExport.Add(CStr(e.p[0]), dxf.codX0)
+  cExport.Add(CStr(e.p[1]), dxf.codY0)
+  cExport.Add("0", dxf.codZ0)
+
+  cExport.Add(CStr(e.fParam[Me.ipaEscX]), "40")           ' X scale factor
+  cExport.Add(CStr(e.fParam[Me.ipaEscY]), "41")           ' Y scale factor
+  cExport.Add(CStr(e.fParam[Me.ipaEscZ]), "42")           ' Z scale factor
+  cExport.Add(CStr(e.fParam[Me.ipaRotacion]), "50")       ' rotation
+
+  cExport.Add("1", "70")
+  cExport.Add("1", "71")
+  cExport.Add("0", "44")
+  cExport.Add("0", "45")
+
+End
+
+Public Sub ExportDXF(e As Entity, hFile As File)
+
+  Print #hFIle, "  0"
+  Print #hFIle, "INSERT"
+  clsEntities.DXFExportCommon(e, hFile)
+  Print #hFIle, "100"
+  Print #hFIle, "AcDbBlockReference"
+  Print #hFIle, "  2"
+  Print #hFIle, e.Block
+  Print #hFIle, " 10"                      ' X0
+  Print #hFIle, CStr(e.p[0])
+  Print #hFIle, " 20"                      ' Y0
+  Print #hFIle, CStr(e.p[1])
+  Print #hFIle, " 30"                      ' Z0
+  Print #hFIle, "0"
+  Print #hFIle, " 41"                      ' X scale factor
+  Print #hFIle, CStr(e.fParam[Me.ipaEscX])
+  Print #hFIle, " 42"                      ' Y scale factor
+  Print #hFIle, CStr(e.fParam[Me.ipaEscY])
+  Print #hFIle, " 43"                      ' Z scale factor
+  Print #hFIle, CStr(e.fParam[Me.ipaEscZ])
+  Print #hFIle, " 50"                      ' rotation angle deg
+  Print #hFIle, CStr(e.fParam[Me.ipaRotacion])
+  Print #hFIle, " 70"                      ' row count
+  Print #hFIle, "1" 'CStr(RowCol[0])
+  Print #hFIle, " 71"                      ' column count
+  Print #hFIle, "1" ' CStr(RowCol[1])
+  Print #hFIle, " 44"                      ' row spacing
+  Print #hFIle, "0" ' CStr(RowColSpacing[2])
+  Print #hFIle, " 45"                      ' column spacing
+  Print #hFIle, "0" 'CStr(RowColSpacing[3])
+
+End
+
+Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
+
+  Dim i As Integer
+
+  e.fParam.Resize(Me.TotalParams)
+  ' tengo q presuponer que las escalas son = 1
+  e.fParam[Me.ipaEscX] = 1    ' esc X
+  e.fParam[Me.ipaEscY] = 1    ' esc Y
+  e.fParam[Me.ipaEscZ] = 1    ' esc Z
+
+  For i = 0 To sClaves.Max
+
+    If sClaves[i] = "2" Then e.Block = sValues[i]
+    If sClaves[i] = "10" Then e.P.Add(CFloat(sValues[i]))         ' X
+    If sClaves[i] = "20" Then e.P.Add(CFloat(sValues[i]))         ' Y
+    If sClaves[i] = "41" Then e.fParam[Me.ipaEscX] = CFloat(sValues[i])         ' esc X
+    If sClaves[i] = "42" Then e.fParam[Me.ipaEscY] = CFloat(sValues[i])         ' esc Y
+    If sClaves[i] = "43" Then e.fParam[Me.ipaEscZ] = CFloat(sValues[i])         ' esc Z
+    If sClaves[i] = "50" Then e.fParam[Me.ipaRotacion] = CFloat(sValues[i])      ' rotacion
+  Next
+  Return True
+
+
+Catch
+
+  Return False
+
+End

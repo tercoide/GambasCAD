@@ -1,0 +1,1419 @@
+' Gambas class file
+
+' GauchoCAD
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+
+Create Static
+
+Public Function FIndBlockIDbyHandle(BlockHandle As String) As Integer
+
+  Dim i As Integer
+
+  For i = 0 To gcd.CurrentDrawing.arrBlocks.Max
+    If gcd.CurrentDrawing.arrBlocks[i].handle = BlockHandle Then Return i
+  Next
+  Return -1
+
+End
+
+Public Function FIndBlockID(BlockName As String) As Integer
+
+  Dim i As Integer
+
+  For i = 0 To gcd.CurrentDrawing.arrBlocks.Max
+    If gcd.CurrentDrawing.arrBlocks[i].name = BlockName Then Return i
+  Next
+  Return -1
+
+End
+
+Public Sub setEntity(e As Entity)
+
+  e.fParam.Resize(e.ClassHandler.TotalParams)
+  e.StringData.Resize(e.ClassHandler.sdaTotalParams) ' text, style
+
+End
+
+Public Function ReconstruirBloques() As Boolean
+
+  ' busco bloques y coloco puntos de referencias
+  ' Armamos los bolques, que extraemos de las entidades
+  Dim i, i2 As Integer, PartesEncontradas As Boolean, iStart As Integer
+  Dim t As Float = Timer
+
+  Print "Recostruyendo bloques"
+
+  For i = 0 To gcd.CurrentDrawing.arrEntities.Max
+    clsDrawingAids.HelperTrabajo = ("Loading blocks ") & Format$(i / gcd.CurrentDrawing.arrEntities.Max, "0.00%")
+    Wait 0.0001
+    If gcd.CurrentDrawing.arrEntities[i].gender = "Block" Then
+      Dim newBlock As New Block
+      newBlock.name = gcd.CurrentDrawing.arrEntities[i].block
+      newBlock.x = gcd.CurrentDrawing.arrEntities[i].p[0]
+      newBlock.y = gcd.CurrentDrawing.arrEntities[i].p[1]
+      newBlock.entities = New Entity[]
+      ' busco los objetos de este bloque y los reconstruyo
+      For i2 = iStart To gcd.CurrentDrawing.arrEntities.max
+        If gcd.CurrentDrawing.arrEntities[i2].block = newBlock.name And gcd.CurrentDrawing.arrEntities[i2].gender <> "Block" Then ' sin recursividad en bloques
+          If gcd.CurrentDrawing.arrEntities[i2].block = newBlock.name And gcd.CurrentDrawing.arrEntities[i2].gender <> "Insert" Then 'no quiero insertarme a mi mismo
+            PartesEncontradas = True
+            Dim o2 As Entity
+            o2 = ClonEntity(gcd.CurrentDrawing.arrEntities[i2])
+
+            o2.ClassHandler.finish(o2)
+            newBlock.entities.Add(o2)
+          End If
+        Else
+          If PartesEncontradas Then ' estaba armando un bloque, pero ya termine porque esta entidad es otra cosa
+            PartesEncontradas = False
+            iStart = i2
+            Break
+          End If
+
+        Endif
+      Next
+      gcd.CurrentDrawing.arrBlocks.Add(newBlock)
+    End If
+  Next
+
+  Wait 0.001
+  Debug "Reconstruccion finalizada en ", Str$(Timer - t)
+
+End
+
+Public Sub _new()
+
+End
+
+'' Busca un numero de bloque que no haya sido usado
+'' Looks for a free block number
+Public Sub GetFreeBlockNumber() As Integer
+
+  Dim i, n As Integer = 1
+
+  For i = 0 To gcd.CurrentDrawing.arrEntities.Max
+
+    If gcd.CurrentDrawing.arrEntities[i].BlockNumber > n Then n = gcd.CurrentDrawing.arrEntities[i].BlockNumber + 1
+
+  Next
+  Return n
+
+End
+
+Public Sub FillEntity(o As Entity)
+
+  '  ' lets add the points, if number of points is not determined (like a poli-line) at least we need one
+  '  ' make all arrays acording to param list
+  Dim n As Integer
+
+  For n = 1 To Len(o.ClassHandler.ParamType)
+    Select Case UCase(Mid(o.ClassHandler.ParamType, n, 1))
+      Case "P"
+        o.p.add(0)
+        o.p.add(0)
+
+        o.psel.add(0)
+      Case "F", "A", "M", "L", "R"
+        o.fParam.Add(0)
+
+      Case "T"
+        o.StringData.Add("")
+
+      Case "C"
+
+    End Select
+
+  Next
+
+End
+
+'' Genera las listas GL de cada entidad individual, y la version seleccionada
+'' Borra la lista anterior y genera una nueva
+Public Sub glGenDrawList(Optional iEntity As Integer = -1)
+
+  Dim idDrawing As Integer ' la instancia de dibujo en la que estamos
+  Dim i As Integer
+
+  If iEntity >= 0 Then
+
+    If Not gl.islist(gcd.CurrentDrawing.arrEntities[iEntity].glDrwList) Then gcd.CurrentDrawing.arrEntities[iEntity].glDrwList = gl.GenLists(1)
+    gl.NewList(gcd.CurrentDrawing.arrEntities[iEntity].glDrwList, gl.COMPILE)
+    gcd.CurrentDrawing.arrEntities[iEntity].ClassHandler.Draw(gcd.CurrentDrawing.arrEntities[iEntity])
+    gl.EndList
+
+    If Not gl.islist(gcd.CurrentDrawing.arrEntities[iEntity].glDrwListSel) Then gcd.CurrentDrawing.arrEntities[iEntity].glDrwListSel = gl.GenLists(1)
+    gl.NewList(gcd.CurrentDrawing.arrEntities[iEntity].glDrwListSel, gl.COMPILE)
+    gcd.CurrentDrawing.arrEntities[iEntity].ClassHandler.DrawSelected(gcd.CurrentDrawing.arrEntities[iEntity])
+    gl.EndList
+
+  Else
+
+    If Not gl.islist(gcd.CurrentDrawing.GlListAllEntities) Then gcd.CurrentDrawing.GlListAllEntities = gl.GenLists(1)
+    Dim t As Float = Timer
+    ' listas de entidades
+    For i = 0 To gcd.CurrentDrawing.arrEntities.Max
+
+      If Not gl.islist(gcd.CurrentDrawing.arrEntities[i].glDrwList) Then gcd.CurrentDrawing.arrEntities[i].glDrwList = gl.GenLists(1)
+      gl.NewList(gcd.CurrentDrawing.arrEntities[i].glDrwList, gl.COMPILE)
+      gcd.CurrentDrawing.arrEntities[i].ClassHandler.Draw(gcd.CurrentDrawing.arrEntities[i])
+      gl.EndList
+
+    Next
+
+    ' lista de entidaes seleccionadas
+    For i = 0 To gcd.CurrentDrawing.arrEntities.Max
+      If Not gl.islist(gcd.CurrentDrawing.arrEntities[i].glDrwListSel) Then gcd.CurrentDrawing.arrEntities[i].glDrwListSel = gl.GenLists(1)
+      gl.NewList(gcd.CurrentDrawing.arrEntities[i].glDrwListSel, gl.COMPILE)
+      gcd.CurrentDrawing.arrEntities[i].ClassHandler.DrawSelected(gcd.CurrentDrawing.arrEntities[i])
+      gl.EndList
+    Next
+
+    ' lista de todas las entidades
+    t = Timer
+    GLGenDrawListAll
+
+    Debug "GLlista de todas generada en  ", Timer - t
+  End If
+
+End
+
+'' Generates a GL list for the selected
+'' Mode: 0=Selected version 1=Normal version
+Public Sub glGenDrawListSel(Optional mode As Integer = 0)
+
+  Dim idDrawing As Integer ' la instancia de dibujo en la que estamos
+  Dim i As Integer
+
+  If Not gl.islist(gcd.CurrentDrawing.GlListSelectedEntities) Then gcd.CurrentDrawing.GlListSelectedEntities = gl.GenLists(1)
+
+  gl.NewList(gcd.CurrentDrawing.GlListSelectedEntities, gl.COMPILE)
+
+  For i = 0 To gcd.CurrentDrawing.arrEntities.Max
+
+    If gcd.CurrentDrawing.arrEntities[i].Selected Then
+      If mode = 0 Then gl.CallList(gcd.CurrentDrawing.arrEntities[i].glDrwListSel)
+      If mode = 1 Then gl.CallList(gcd.CurrentDrawing.arrEntities[i].glDrwList)
+    End If
+  Next
+
+  gl.EndList
+
+End
+
+'' Generates a GL list for the selected
+'' Mode: 0=Selected version 1=Normal version
+Public Sub glGenDrawListAll(Optional ExcludeSelected As Boolean = False)
+
+  Dim i As Integer
+
+  gl.NewList(gcd.CurrentDrawing.GlListAllEntities, gl.COMPILE)
+
+  For i = 0 To gcd.CurrentDrawing.arrEntities.max
+    If Not (gcd.CurrentDrawing.arrEntities[i].Selected And ExcludeSelected) Then gl.CallList(gcd.CurrentDrawing.arrEntities[i].glDrwList)
+
+  Next
+
+  gl.EndList
+
+End
+
+Public Sub DrawPoiSymbolsAll()
+
+  Dim i, total As Integer
+
+  For i = 0 To gcd.CurrentDrawing.arrEntities.Max
+
+    If gcd.CurrentDrawing.arrEntities[i].Selected Then
+
+      If (gcd.CurrentDrawing.arrEntities[i].iInsert < 0) Or (gcd.CurrentDrawing.arrEntities[i].Gender = "Insert") Then
+        DrawPoiSymbols(gcd.CurrentDrawing.arrEntities[i])
+        Inc total
+      End If
+    End If
+    If total = 100 Then Break                           ' limitamos la cantidad de enganches a un numero sensato
+  Next
+
+End
+
+Public Sub DrawPoiSymbols(oE As Entity)
+
+  Dim i As Integer
+
+  For i = 0 To oe.PoiPoints.Max Step 2
+    Select Case oe.PoiType[i / 2]
+      Case gcd.poiEndPoint
+        glPlus.Rectangle2D(oe.PoiPoints[i] - gcd.Metros(4), oe.PoiPoints[i + 1] - gcd.Metros(4), gcd.Metros(8), gcd.Metros(8), Color.Blue,,,, Color.Cyan, 1, 1)
+
+      Case gcd.poiMidPoint
+        glPlus.Rectangle2D(oe.PoiPoints[i] - gcd.Metros(4), oe.PoiPoints[i + 1] - gcd.Metros(4), gcd.Metros(8), gcd.Metros(8), Color.Cyan,,,, Color.Blue, 1, 1)
+
+      Case gcd.poiCenter
+        glPlus.Rectangle2D(oe.PoiPoints[i] - gcd.Metros(4), oe.PoiPoints[i + 1] - gcd.Metros(4), gcd.Metros(8), gcd.Metros(8), Color.Cyan,,,, Color.Blue, 1, 1)
+
+      Case gcd.poiQuadrant
+        glPlus.Rectangle2D(oe.PoiPoints[i] - gcd.Metros(4), oe.PoiPoints[i + 1] - gcd.Metros(4), gcd.Metros(8), gcd.Metros(8), Color.Blue,,,, Color.Cyan, 1, 1)
+
+      Case gcd.poiBasePoint
+        glPlus.Rectangle2D(oe.PoiPoints[i] - gcd.Metros(4), oe.PoiPoints[i + 1] - gcd.Metros(4), gcd.Metros(8), gcd.Metros(8), Color.Cyan,,,, Color.Blue, 1, 1)
+
+    End Select
+
+  Next
+
+End
+
+Public Sub Finish(Optional selected As Boolean = True)
+
+  ' creo copias de cada elemento seleccionado
+  Dim m As Integer, i As Integer
+
+  m = gcd.CurrentDrawing.arrEntities.Max
+  For i = 0 To m
+    If selected Then                                                    ' apply to only the selected ones
+      If gcd.CurrentDrawing.arrEntities[i].Selected Then gcd.CurrentDrawing.arrEntities[i].ClassHandler.Finish(gcd.CurrentDrawing.arrEntities[i])
+    Else                                                                ' apply to all
+      gcd.CurrentDrawing.arrEntities[i].ClassHandler.Finish(gcd.CurrentDrawing.arrEntities[i])
+    End If
+
+  Next
+
+End
+
+Public Sub ClonElements(Optional selected As Boolean = True, SkipParts As Boolean = True)
+
+  ' creo copias de cada elemento seleccionado
+  Dim m, i As Integer
+
+  m = gcd.CurrentDrawing.arrEntities.Max
+  For i = 0 To m
+    If gcd.CurrentDrawing.arrEntities[i].Selected Then
+
+      If SkipParts Then
+        If (gcd.CurrentDrawing.arrEntities[i].iInsert < 0) Or (gcd.CurrentDrawing.arrEntities[i].iInsert = i) Then
+          gcd.CurrentDrawing.arrEntities.Add(ClonEntity(gcd.CurrentDrawing.arrEntities[i]))
+          gcd.CurrentDrawing.arrEntities.Last.ClassHandler.finish(gcd.CurrentDrawing.arrEntities.Last)
+        End If
+      Else
+        gcd.CurrentDrawing.arrEntities.Add(ClonEntity(gcd.CurrentDrawing.arrEntities[i]))
+        gcd.CurrentDrawing.arrEntities.Last.ClassHandler.finish(gcd.CurrentDrawing.arrEntities.Last)
+
+      Endif
+
+    End If
+  Next
+
+End
+
+Public Sub ClonEntity(e As Entity) As Entity
+  ' clona una entidad
+  ' copia todos sus elementos
+  ' llama a las rutinas de reconstruccion del contorno y de los POI
+
+  Dim o As New Entity
+
+  CopyElemData(e, o)                              ' copy important values
+  'o.ClassHandler.Finish(o, -1)                       ' do all good stuff, -1 means self check
+
+  Return o
+
+End
+
+'' Busca elementos seleccionados y arma un array nuevo con ellos, eliminandolos del anterior
+Public Function SelectArrayMake() As Integer
+
+End
+
+Public Function DeSelection(Optional elementos As String = "todo", Accion As String = "deseleccionar") As Integer
+  ' Esta rutina analiza si los elemento seleccionados para alguna accion pueden realizarla, caso contrario los deselecciona
+  ' se basa en los puntos que tengan la propiedad .Selected = True
+  ' tambien puede deseleccionar todo
+  ' Devuelve la cantidad de elementos que quedaron seleccionados despues de filtrar
+
+  Dim i As Integer, c As Integer, Clase As String, iii As Integer
+
+  ' por las dudas vengan alguna letra mayuscula
+  If Accion = "" Then accion = "deseleccionar"
+  accion = LCase(accion)
+  elementos = LCase(elementos)
+
+  '   primero vacio la seleccion anterior
+  gcd.CurrentDrawing.arrSelecIndex.Clear
+
+  For iii = 0 To gcd.CurrentDrawing.arrEntities.Max
+
+    clase = gcd.CurrentDrawing.arrEntities[iii].Gender
+
+    Select Case accion
+
+      Case "mover", "copiar", "borrar", "escalar" ' necesito que todos los puntos esten seleccionados
+
+        If SelFull() And (elementos = "todo" Or elementos = clase) Then
+
+          gcd.CurrentDrawing.arrSelecIndex.Add(iii)
+          SelectElem(iii)
+          Inc i
+
+        Else
+
+          DeSelectElem(iii)
+
+        End If
+
+      Case "estirar" ' necesito que dos puntos contiguos esten seleccionados
+
+        If SelPArtial() And (elementos = "todo" Or elementos = clase) Then
+          gcd.CurrentDrawing.arrSelecIndex.Add(iii)
+          SelectElem(iii, False) ' dont touch the points
+          Inc i
+
+        Else
+
+          DeSelectElem(iii)
+
+        End If
+
+      Case "deseleccionar" ' todas las acciones
+
+        If (elementos = "todo" Or elementos = clase) Then
+
+          Inc i
+          DeSelectElem(iii)
+
+        End If
+
+    End Select
+
+  Next
+
+  Return i
+
+End
+
+Public Function GetSelectionCount() As Integer
+
+  Dim i, ii As Integer
+
+  gcd.CurrentDrawing.arrSelecIndex.Clear
+  For i = 0 To gcd.CurrentDrawing.arrEntities.Max
+    If gcd.CurrentDrawing.arrEntities[i].Selected Then
+      Inc ii
+      gcd.CurrentDrawing.arrSelecIndex.Add(i)
+    End If
+  Next
+  Return ii
+
+End Function
+
+Public Function DeleteSelected() As Integer
+
+  Dim i As Integer, c As Integer
+
+  '  Purgue will also delete those with .ForDeletion = true
+
+  For i = gcd.CurrentDrawing.arrEntities.Max To 0 Step -1
+
+    If gcd.CurrentDrawing.arrEntities[i].Selected Then
+      gcd.CurrentDrawing.arrEntities.Remove(i)
+      Inc c
+    End If
+
+  Next
+
+  Return c
+
+End Function
+
+Public Function SelectFromPoint(Xr As Float, Zr As Float, Optional Autoselect As Boolean = True) As Entity
+
+  Dim i As Integer
+
+  For i = gcd.CurrentDrawing.arrEntities.Max To 0 Step -1
+    ' last elements are drawn last so the click belongs to them
+    If gcd.CurrentDrawing.arrEntities[i].PointClick(Xr, Zr) Then
+      If Autoselect Then
+        If Not gcd.CurrentDrawing.arrEntities[i].Selected Then
+          SelectElem(gcd.CurrentDrawing.arrEntities[i])
+        Else
+          DeSelectElem(gcd.CurrentDrawing.arrEntities[i])
+        End If
+      End If
+      Return gcd.CurrentDrawing.arrEntities[i]
+    End If
+
+  Next
+
+End
+
+Public Sub DrawPoint(x As Float, y As Float, Optional colour As Integer = -1, Optional LargoReal As Float = 0.4)
+
+  If colour <> -1 Then
+    paint.brush = Paint.Color(colour)
+  Else
+    paint.brush = Paint.Color(Color.Blue)
+  End If
+  paint.LineWidth = 1
+  paint.MoveTo(x - LargoReal / 2, y)
+  paint.RelLineTo(LargoReal, 0)
+
+  paint.MoveTo(x, y - LargoReal / 2)
+  paint.RelLineTo(0, -LargoReal)
+  paint.Stroke
+
+End
+
+' Public Sub SelectElem(iEntity As Integer, Optional AndItsPoints As Boolean = True)
+'
+'   ' select all points and myself
+'
+'   Dim i As Integer
+'
+'   If gcd.CurrentDrawing.arrEntities[iEntity].iInsert >= 0 Then
+'     ' es parte de un bloque, lo selecciono completo
+'     i = GetParentBlock(iEntity)
+'     SelectAllElemFromBlock(iEntity, AndItsPoints)
+'     Return
+'   Endif
+'
+'   If AndItsPoints Then
+'     For i = 0 To gcd.CurrentDrawing.arrEntities[iEntity].Psel.Max
+'       gcd.CurrentDrawing.arrEntities[iEntity].Psel[i] = True
+'     Next
+'
+'   End If
+'   gcd.CurrentDrawing.arrEntities[iEntity].selected = True
+'
+' End
+
+' Public Sub SelectAllElemFromBlock(iBlock As Integer, Optional AndItsPoints As Boolean = True)
+'
+'   ' select all elements from a block
+'
+'   Dim i, ii, iii As Integer
+'
+'   gcd.CurrentDrawing.arrEntities[iBlock].selected = True                                                   ' seleccionamos el insert
+'
+'   For i = gcd.CurrentDrawing.arrEntities[iBlock].iInsert + 1 To gcd.CurrentDrawing.arrEntities.max             ' y sus entidades
+'
+'     If gcd.CurrentDrawing.arrEntities[i].iInsert <> gcd.CurrentDrawing.arrEntities[iBlock].iInsert Then Break
+'
+'     If AndItsPoints Then
+'       For ii = 0 To gcd.CurrentDrawing.arrEntities[i].Psel.Max
+'         gcd.CurrentDrawing.arrEntities[i].Psel[ii] = True                                      ' y sus puntos
+'       Next
+'
+'     End If
+'
+'     gcd.CurrentDrawing.arrEntities[i].selected = True
+'
+'   Next
+'
+' End
+
+' Public Sub DeSelectAllElemFromBlock(iBlock As Integer, Optional AndItsPoints As Boolean = True)
+'
+'   ' deselect all elements from a block
+'
+'   Dim i, ii, iii As Integer
+'
+'   For i = iBlock + 1 To gcd.CurrentDrawing.arrEntities.max             ' y sus entidades
+'
+'     If gcd.CurrentDrawing.arrEntities[i].iInsert <> iBlock Then Break
+'
+'     If AndItsPoints Then
+'       For ii = 0 To gcd.CurrentDrawing.arrEntities[i].Psel.Max
+'         gcd.CurrentDrawing.arrEntities[i].Psel[ii] = False                                      ' y sus puntos
+'       Next
+'
+'     End If
+'
+'     gcd.CurrentDrawing.arrEntities[i].selected = False
+'
+'   Next
+'
+' End
+
+Public Sub SelectElem(iEntity As Integer, Optional AndItsPoints As Boolean = True)
+
+  Dim i, ii As Integer
+
+  If gcd.CurrentDrawing.arrEntities[iEntity].Gender = "Insert" Then          ' es un inserto
+    If gcd.CurrentDrawing.arrEntities[iEntity].iInsert >= 0 Then             ' esta dentro de otro insert?
+      If Not gcd.CurrentDrawing.arrEntities[iEntity].selected Then               ' si estaba seleccionada
+        SelectElem(gcd.CurrentDrawing.arrEntities[iEntity].iInsert, AndItsPoints)  ' llamo recursivamente
+      End If
+    Else                                                                ' no, deselecciono hasta encontrar un -1
+      gcd.CurrentDrawing.arrEntities[iEntity].selected = True
+      For i = iEntity + 1 To gcd.CurrentDrawing.arrEntities.max              ' y sus entidades
+
+        If gcd.CurrentDrawing.arrEntities[i].iInsert = -1 Then Break
+
+        gcd.CurrentDrawing.arrEntities[i].selected = True
+
+        If AndItsPoints Then
+          For ii = 0 To gcd.CurrentDrawing.arrEntities[i].Psel.Max
+            gcd.CurrentDrawing.arrEntities[i].Psel[ii] = True                                      ' y sus puntos
+          Next
+
+        End If
+
+      Next
+    End If
+  Else                                                          ' no es un inserto, pero es parte de uno?
+
+    If gcd.CurrentDrawing.arrEntities[iEntity].iInsert >= 0 Then     ' si, llamo recursivamente
+      If Not gcd.CurrentDrawing.arrEntities[iEntity].selected Then       ' pero solo si estaba seleccionada
+        SelectElem(gcd.CurrentDrawing.arrEntities[iEntity].iInsert, AndItsPoints)
+        Return
+      End If
+    Else                                                        ' no, simplemente deselecciono esta entidad
+
+      gcd.CurrentDrawing.arrEntities[iEntity].selected = True
+      If AndItsPoints Then
+        For i = 0 To gcd.CurrentDrawing.arrEntities[iEntity].Psel.Max
+          gcd.CurrentDrawing.arrEntities[iEntity].Psel[i] = True
+        Next
+
+      End If
+    End If
+
+  Endif
+
+End
+
+Public Sub DeSelectElem(iEntity As Integer, Optional AndItsPoints As Boolean = True)
+
+  ' deselect all points and myself
+
+  Dim i, ii As Integer
+
+  If gcd.CurrentDrawing.arrEntities[iEntity].Gender = "Insert" Then          ' es un inserto
+    If gcd.CurrentDrawing.arrEntities[iEntity].iInsert >= 0 Then             ' esta dentro de otro insert?
+      If gcd.CurrentDrawing.arrEntities[iEntity].selected Then               ' si estaba seleccionada
+        DeSelectElem(gcd.CurrentDrawing.arrEntities[iEntity].iInsert, AndItsPoints)  ' llamo recursivamente
+      End If
+    Else                                                                ' no, deselecciono hasta encontrar un -1
+      gcd.CurrentDrawing.arrEntities[iEntity].selected = False
+      For i = iEntity + 1 To gcd.CurrentDrawing.arrEntities.max              ' y sus entidades
+
+        If gcd.CurrentDrawing.arrEntities[i].iInsert = -1 Then Break
+
+        gcd.CurrentDrawing.arrEntities[i].selected = False
+
+        If AndItsPoints Then
+          For ii = 0 To gcd.CurrentDrawing.arrEntities[i].Psel.Max
+            gcd.CurrentDrawing.arrEntities[i].Psel[ii] = False                                      ' y sus puntos
+          Next
+
+        End If
+
+      Next
+    End If
+  Else                                                          ' no es un inserto, pero es parte de uno?
+
+    If gcd.CurrentDrawing.arrEntities[iEntity].iInsert >= 0 Then     ' si, llamo recursivamente
+      If gcd.CurrentDrawing.arrEntities[iEntity].selected Then       ' pero solo si estaba seleccionada
+        DeSelectElem(gcd.CurrentDrawing.arrEntities[iEntity].iInsert, AndItsPoints)
+        Return
+      End If
+    Else                                                        ' no, simplemente deselecciono esta entidad
+
+      gcd.CurrentDrawing.arrEntities[iEntity].selected = False
+      If AndItsPoints Then
+        For i = 0 To gcd.CurrentDrawing.arrEntities[iEntity].Psel.Max
+          gcd.CurrentDrawing.arrEntities[iEntity].Psel[i] = False
+        Next
+
+      End If
+    End If
+
+  Endif
+
+End
+
+Public Sub CopyElemData(origen As Entity, destino As Entity)
+
+  ' when adding stuff to the elements, it must be added here
+  Dim i As Integer
+
+  destino.p.resize(origen.p.count)
+  destino.fparam.resize(origen.fparam.count)
+
+  destino.psel.resize(origen.psel.count)
+  destino.StringData.resize(origen.StringData.count)
+  For i = 0 To origen.p.Max
+    destino.P[i] = origen.P[i]
+  Next
+
+  For i = 0 To origen.fparam.Max
+    destino.fparam[i] = origen.fparam[i]
+  Next
+  For i = 0 To origen.StringData.Max
+    destino.StringData[i] = origen.StringData[i]
+  Next
+  destino.Gender = origen.Gender
+  destino.ClassHandler = origen.ClassHandler
+  destino.layerID = origen.LayerID
+
+  destino.Block = origen.Block
+
+  destino.Group = origen.Group
+  destino.colour = origen.colour
+  destino.ColorToPaint = origen.ColorToPaint
+  destino.LineType = origen.LineType
+  destino.LineWidth = origen.LineWidth
+
+End
+
+Public Sub Move(dX As Float, dY As Float, Optional OnlySelected As Boolean = False, OnlyPointSelected As Boolean = False)
+
+  ' crea un backup de todos los puntos
+  Dim e As Entity, i As Integer
+
+  For Each e In gcd.CurrentDrawing.arrEntities
+    If (e.selected And OnlySelected) Or Not OnlySelected Then
+
+      e.ClassHandler.Translate(e, dX, dY, OnlyPointSelected)
+
+    Endif
+
+  Next
+
+End
+
+Public Sub Rotate(degAngle As Float, Optional OnlySelected As Boolean = False, OnlyPointSelected As Boolean = False)
+
+  ' crea un backup de todos los puntos
+  Dim e As Entity, i As Integer
+
+  For Each e In gcd.CurrentDrawing.arrEntities
+    If (e.selected And OnlySelected) Or Not OnlySelected Then
+
+      e.ClassHandler.Rotate(e, degAngle)
+
+    Endif
+
+  Next
+
+End
+
+Public Sub Scale(sX As Float, sY As Float, Optional sZ As Float = 1, OnlySelected As Boolean = False, OnlyPointSelected As Boolean = False)
+
+  ' crea un backup de todos los puntos
+  Dim e As Entity, i As Integer
+
+  For Each e In gcd.CurrentDrawing.arrEntities
+    If (e.selected And OnlySelected) Or Not OnlySelected Then
+
+      e.ClassHandler.Scale(e, sX, sY)
+
+    Endif
+
+  Next
+
+End
+
+Public Function SelectionSquare(X1real As Float, Y1real As Float, X2real As Float, Y2real As Float, Optional NuevaSumaResta As String = "nueva", crossing As Boolean) As Integer
+
+  ' Veo que accion estoy tomando
+  Dim e As Entity, i, i2, TotalSeleccionados As Integer
+
+  NuevaSumaResta = LCase$(NuevaSumaResta)
+
+  If NuevaSumaResta = "nueva" Then ' nueva seleccion
+    For i = 0 To gcd.CurrentDrawing.arrEntities.Max
+      gcd.CurrentDrawing.arrEntities[i].selected = False
+      For i2 = 0 To gcd.CurrentDrawing.arrEntities[i].Psel.max
+        gcd.CurrentDrawing.arrEntities[i].Psel[i2] = False
+      Next
+    Next
+    TotalSeleccionados = 0
+  End If
+
+  For i = 0 To gcd.CurrentDrawing.arrEntities.Max
+    ' cada entidad debe decidir si esta seleccionada o no
+    If crossing Then
+      If SelPArtial(i, X1real, Y1real, X2real, Y2real) Then
+        ' el punto esta en el recuadro
+        If NuevaSumaResta <> "resta" Then
+          Inc TotalSeleccionados
+          Me.SelectElem(i, False)
+
+        Else If NuevaSumaResta = "resta" Then
+          Dec TotalSeleccionados
+          Me.DeSelectElem(i, False)
+
+        End If
+
+      Endif
+    Else
+      If SelFull(i, X1real, Y1real, X2real, Y2real) Then
+        ' el punto esta en el recuadro
+        If NuevaSumaResta <> "resta" Then
+          Inc TotalSeleccionados
+          Me.SelectElem(i, False)
+
+        Else If NuevaSumaResta = "resta" Then
+          Dec TotalSeleccionados
+          Me.DeSelectElem(i, False)
+
+        End If
+
+      Endif
+
+    End If
+  Next
+
+  GetSelectionHandles(gcd.CurrentDrawing.hSelection)
+
+  Return TotalSeleccionados
+
+End
+
+Public Function GetSelectionHandles(sHandles As String[]) As Integer
+
+  Dim i As Integer
+  Dim itotal As Integer
+
+  Dim t As Float = Timer
+
+  sHandles.Clear
+  'sHandles.Resize
+  For i = 0 To gcd.CurrentDrawing.arrEntities.Max
+    If gcd.CurrentDrawing.arrEntities[i].Selected Then
+      sHandles.Add(gcd.CurrentDrawing.arrEntities[i].Handle)
+      Inc itotal
+    End If
+  Next
+  Debug itotal, " en ", t - Timer, " seg"
+  Return itotal
+
+End
+
+' Public Function SelectionSquare2(X1real As Float, Y1real As Float, X2real As Float, Y2real As Float, Optional NuevaSumaResta As String = "nueva", crossing As Boolean) As Integer
+'
+'     ' Veo que accion estoy tomando
+'     Dim e As Entity, i, i2, CurrentEntityIndex, TotalSeleccionados As Integer, Todos As Boolean
+'     Dim t As Float = Timer
+'
+'     NuevaSumaResta = LCase$(NuevaSumaResta)
+'
+'     If NuevaSumaResta = "nueva" Then
+'         For i = 0 To gcd.CurrentDrawing.arrEntities.Max
+'             gcd.CurrentDrawing.arrEntities[i].selected = False
+'             For i2 = 0 To gcd.CurrentDrawing.arrEntities[i].Psel.max
+'                 gcd.CurrentDrawing.arrEntities[i].Psel[i2] = False
+'             Next
+'         Next
+'     End If
+'     Debug "Deselect time ", Timer - t
+'
+'     ' reviso los poligonos
+'     For i = 0 To gcd.CurrentDrawing.poiPoligonEntities.Max
+'
+'         If crossing Then
+'             If puntos.IsPoligonCrossingRect(gcd.CurrentDrawing.poiPoligons, X1real, Y1real, X2real, Y2real, gcd.CurrentDrawing.poiPoligonStartIndex[i], gcd.CurrentDrawing.poiPoligonElements[i]) Then
+'                 ' el punto esta en el recuadro
+'                 If NuevaSumaResta <> "resta" Then
+'                     Inc TotalSeleccionados
+'                     gcd.CurrentDrawing.arrEntities[i].selected = True
+'
+'                 Else If NuevaSumaResta = "resta" Then
+'                     Dec TotalSeleccionados
+'                     gcd.CurrentDrawing.arrEntities[i].selected = False
+'
+'                 End If
+'
+'             Endif
+'         Else
+'             If puntos.IsPoligonInsideRect(gcd.CurrentDrawing.poiPoligons, X1real, Y1real, X2real, Y2real, gcd.CurrentDrawing.poiPoligonStartIndex[i], gcd.CurrentDrawing.poiPoligonElements[i]) Then
+'                 ' el punto esta en el recuadro
+'                 If NuevaSumaResta <> "resta" Then
+'                     Inc TotalSeleccionados
+'                     gcd.CurrentDrawing.arrEntities[i].selected = True
+'
+'                 Else If NuevaSumaResta = "resta" Then
+'                     Dec TotalSeleccionados
+'                     gcd.CurrentDrawing.arrEntities[i].selected = False
+'
+'                 End If
+'
+'             Endif
+'
+'         End If
+'     Next
+'
+'     ' reviso las lineas
+'     If crossing Then
+'         For i = 0 To gcd.CurrentDrawing.poiLines.Max Step 2                                                                                                  ' para cada punto
+'             If puntos.InBetween(gcd.CurrentDrawing.poiLines[i], X1real, X2real) And puntos.InBetween(gcd.CurrentDrawing.poiLines[i + 1], Y1real, Y2real) Then     ' esta dentro
+'                 ' el punto esta en el recuadro
+'                 If NuevaSumaResta <> "resta" Then
+'                     Inc TotalSeleccionados
+'                     gcd.CurrentDrawing.arrEntities[gcd.CurrentDrawing.poiLinesEntities[i / 4]].selected = True
+'                     gcd.CurrentDrawing.arrEntities[gcd.CurrentDrawing.poiLinesEntities[i / 4]].Psel[gcd.CurrentDrawing.poiLinesRelPoint[i / 2]] = True
+'                 Else If NuevaSumaResta = "resta" Then
+'                     Dec TotalSeleccionados
+'                     gcd.CurrentDrawing.arrEntities[gcd.CurrentDrawing.poiLinesEntities[i / 4]].selected = False
+'                     gcd.CurrentDrawing.arrEntities[gcd.CurrentDrawing.poiLinesEntities[i / 4]].Psel[gcd.CurrentDrawing.poiLinesRelPoint[i / 2]] = False
+'
+'                 End If
+'
+'             Endif
+'
+'         Next
+'
+'     Else    ' full selection
+'         ' hago un crossing primero y luego me fijo si estan todos
+'         For i = 0 To gcd.CurrentDrawing.poiLines.Max Step 2                                                                                                  ' para cada punto
+'             If puntos.InBetween(gcd.CurrentDrawing.poiLines[i], X1real, X2real) And puntos.InBetween(gcd.CurrentDrawing.poiLines[i + 1], Y1real, Y2real) Then     ' esta dentro
+'                 ' el punto esta en el recuadro
+'                 If NuevaSumaResta <> "resta" Then
+'                     Inc TotalSeleccionados
+'                     gcd.CurrentDrawing.arrEntities[gcd.CurrentDrawing.poiLinesEntities[i / 4]].selected = True
+'                     gcd.CurrentDrawing.arrEntities[gcd.CurrentDrawing.poiLinesEntities[i / 4]].Psel[gcd.CurrentDrawing.poiLinesRelPoint[i / 2]] = True
+'                 Else If NuevaSumaResta = "resta" Then
+'                     Dec TotalSeleccionados
+'                     gcd.CurrentDrawing.arrEntities[gcd.CurrentDrawing.poiLinesEntities[i / 4]].selected = False
+'                     gcd.CurrentDrawing.arrEntities[gcd.CurrentDrawing.poiLinesEntities[i / 4]].Psel[gcd.CurrentDrawing.poiLinesRelPoint[i / 2]] = False
+'
+'                 End If
+'
+'             Endif
+'
+'         Next
+'
+'         CurrentEntityIndex = 0
+'         For i = 0 To gcd.CurrentDrawing.arrEntities.Max
+'
+'             If gcd.CurrentDrawing.arrEntities[i].Selected Then 'chequeo si todos estan seleccionados
+'                 todos = True
+'                 For i2 = 0 To gcd.CurrentDrawing.arrEntities[i].Psel.Max
+'                     If gcd.CurrentDrawing.arrEntities[i].Psel = False Then
+'                         todos = False
+'                         Break
+'                     Endif
+'                 Next
+'
+'                 If (todos And NuevaSumaResta = "resta") Or Not todos Then
+'                     Dec TotalSeleccionados
+'                     gcd.CurrentDrawing.arrEntities[i].selected = False
+'                     For i2 = 0 To gcd.CurrentDrawing.arrEntities[i].Psel.Max
+'                         gcd.CurrentDrawing.arrEntities[i].Psel = False
+'
+'                     Next
+'
+'                 End If
+'
+'             Endif
+'
+'         Next
+'
+'     Endif
+'
+'     Return TotalSeleccionados
+'
+' End
+
+'Return bound limits for all verices in the array of entities
+Public Function ComputeLimits(Optional entities As Entity[], OnlyVisibles As Boolean = True) As Float[]
+
+  Dim e As Entity, i As Integer
+  Dim entGroup As Entity[]
+  Dim Xmenor As Float = 1e10, Ymenor As Float = 1e10, Xmayor As Float = -1e10, Ymayor As Float = -1e10
+
+  If Not entities Then entGroup = gcd.CurrentDrawing.arrEntities Else entGroup = Entities
+
+  For Each e In entGroup
+    'If e.block = "" Then
+    If (OnlyVisibles And e.Visible) Or Not OnlyVisibles Then
+
+      For i = 0 To e.p.max Step 2
+        'If e.p[i] > 0 Then Debug e.gender
+
+        If e.p[i] < Xmenor Then Xmenor = e.p[i]
+
+        If e.p[i + 1] < Ymenor Then Ymenor = e.p[i + 1]
+
+        If e.p[i] > Xmayor Then Xmayor = e.p[i]
+
+        If e.p[i + 1] > Ymayor Then Ymayor = e.p[i + 1]
+
+      Next
+      For i = 0 To e.Polygon.max Step 2
+        'If e.p[i] > 0 Then Debug e.gender
+
+        If e.Polygon[i] < Xmenor Then Xmenor = e.Polygon[i]
+
+        If e.Polygon[i + 1] < Ymenor Then Ymenor = e.Polygon[i + 1]
+
+        If e.Polygon[i] > Xmayor Then Xmayor = e.Polygon[i]
+
+        If e.Polygon[i + 1] > Ymayor Then Ymayor = e.Polygon[i + 1]
+
+      Next
+    End If
+    'End If
+  Next
+
+  Return [Xmenor, Ymenor, Xmayor, Ymayor]
+
+End
+
+'' Determines if the entity was selected by a rectanle surrounding al points
+'' by default, if ALL points are selected, it can.
+Public Function SelFull(i As Integer, X1real As Float, Y1real As Float, X2real As Float, Y2real As Float) As Boolean
+
+  Dim ii As Integer, puedo As Boolean
+
+  Select Case gcd.CurrentDrawing.arrEntities[i].Gender
+
+    Case Else
+
+      ' Si tengo un bounding poligon, entonces verifico que todos los puntos esten dentro
+      If gcd.CurrentDrawing.arrEntities[i].Polygon.Count > 0 Then
+
+        Return puntos.IsPoligonInsideRect(gcd.CurrentDrawing.arrEntities[i].Polygon, X1real, Y1real, X2real, Y2real)
+
+      Else    ' no tengo un poligono, entonces verifico que todos los puntos definitorios de al entidad esten dentro
+
+        puedo = True                     ' supongamos que puedo, por ahora
+        For ii = 0 To gcd.CurrentDrawing.arrEntities[i].p.max Step 2
+          If Not (gcd.CurrentDrawing.arrEntities[i].p[ii] >= X1real And gcd.CurrentDrawing.arrEntities[i].p[ii] <= X2real) And (gcd.CurrentDrawing.arrEntities[i].p[ii + 1] >= Y1real And gcd.CurrentDrawing.arrEntities[i].p[ii + 1] <= Y2real) Then
+            puedo = False
+          End If
+        Next
+
+        If puedo Then
+          For ii = 0 To gcd.CurrentDrawing.arrEntities[i].PSel.Max
+            gcd.CurrentDrawing.arrEntities[i].PSel[ii] = True
+          Next
+
+          Return True
+        Else
+          For ii = 0 To gcd.CurrentDrawing.arrEntities[i].PSel.Max
+            gcd.CurrentDrawing.arrEntities[i].PSel[ii] = False
+          Next
+
+          Return False
+        End If
+      Endif
+  End Select
+
+End
+'
+' '' Determines if the entity
+' '' by default, if ANY point is selected, it can.
+
+Public Function SelPartial(i As Integer, X1real As Float, Y1real As Float, X2real As Float, Y2real As Float) As Boolean
+
+  Dim ii As Integer, puedo As Boolean = False
+
+  Select Case gcd.CurrentDrawing.arrEntities[i].Gender
+
+    Case Else
+
+      ' Si tengo un bounding poligon, entonces verifico que alguna linea lo cruce
+      puedo = puntos.IsPoligonCrossingRect(gcd.CurrentDrawing.arrEntities[i].Polygon, X1real, Y1real, X2real, Y2real)
+
+      For Ii = 0 To gcd.CurrentDrawing.arrEntities[i].p.max Step 2
+        If (gcd.CurrentDrawing.arrEntities[i].p[iI] >= X1real And gcd.CurrentDrawing.arrEntities[i].p[Ii] <= X2real) And (gcd.CurrentDrawing.arrEntities[i].p[iI + 1] >= Y1real And gcd.CurrentDrawing.arrEntities[i].p[iI + 1] <= Y2real) Then
+          gcd.CurrentDrawing.arrEntities[i].PSel[iI / 2] = True
+          puedo = True
+        End If
+      Next
+
+      If puedo Then
+
+        Return True
+      Else
+        Return False
+      End If
+
+  End Select
+
+End
+
+Public Function GetParentBlock(iEntity As Integer) As Integer
+
+  Dim iParent As Integer
+
+  iParent = iEntity
+  Do
+
+    If gcd.CurrentDrawing.arrEntities[iParent].iInsert >= 0 Then
+      If iParent = gcd.CurrentDrawing.arrEntities[iParent].iInsert Then Break
+      iParent = gcd.CurrentDrawing.arrEntities[iParent].iInsert
+    Else
+      Break
+    End If
+
+  Loop
+
+  Return iParent
+
+End
+
+
+'' Imports data from a collection to an entity. True if the entity is handled by GauchoCAD at this version,
+'' False if entity couldn't be created for some reason.
+Public Function ImportDxfToEntity(c As Collection, e As Entity) As Boolean
+
+  Dim clsHandler As Object
+  Dim sClave As New String[]
+  Dim sValue As New String[]
+  Dim lpValue, lpclave As String
+  Dim i As Integer
+
+  ' If Not c.Exist("entity") Then Return False
+  ' If Not c "entity") Then Return False
+
+  clsHandler = Object.New("cad" & c[dxf.codEntity])  ' obtenemos el tipo de entidad y buscamos su clase. Si no manjemos esa entidad, esto de error.
+  'Finally
+
+  For Each lpValue In c
+    lpclave = c.Key
+    I = InStr(lpclave, "_")
+    If i > 0 Then lpclave = Left(lpclave, i - 1)
+    sClave.Add(lpclave)           ' el codigo es el tipo de variable
+    sValue.Add(lpValue)
+
+  Next
+  e.ClassHandler = clsHandler
+  e.Gender = clsHandler.Gender
+
+  If clsHandler.ImportDXF(e, sClave, sValue) Then      ' le pedimos a la clase que arme un objeto Entity para agregar al Drawing actual
+    ' llenamos Common data:
+    e.layerID = c[dxf.codLayer]
+    Try e.colour = c[dxf.codColor]            ' no es obligatorio
+    Try e.LineWidth = c[dxf.codLWht] / 100    ' por eso el try
+    If e.LineWidth < 1 Then e.LineWidth = 1
+
+    clsHandler.Finish(e)
+
+    Return True
+
+  Else
+
+    Return False
+
+  End If
+
+Catch
+  'e.ClassHandler = cadDummy
+  Return False
+
+End
+
+Public Function GetEntityIndex(dDrawing As ClsDrawing, sHandle As String, Optional iStart As Integer = 0) As Integer
+
+  Dim i As Integer
+
+  For i = iStart To dDrawing.arrEntities.Max
+
+    If dDrawing.arrEntities[i].Handle = sHandle Then Return i
+
+  Next
+
+  Return -1           ' no hay handle asociada a esa entidad
+
+End
+
+Public Sub DXFExportCommonCol(e As Entity, ByRef cExported As Collection)
+
+  cExported.add(e.Handle, dxf.codHandle)
+  cExported.Add("AcDbEntity", "100")
+  cExported.Add(gcd.CurrentDrawing.cLayers[e.LayerId][dxf.codName], dxf.codLayer)
+  cExported.Add(e.LineType, dxf.codLType)
+  cExported.Add(e.colour, dxf.codColor)
+  cExported.Add(CStr(e.LineWidth), dxf.codLWht)
+
+End
+
+Public Sub DXFExportCommon(e As Entity, hFile As File)
+
+  Print #hFIle, "  5"
+  Print #hFIle, e.Handle
+  Print #hFIle, "100"
+  Print #hFIle, "AcDbEntity"
+  Print #hFIle, "  8"                       ' Layer
+  Print #hFIle, gcd.CurrentDrawing.layers[e.LayerId].name
+  Print #hFIle, "  6"                       ' Linetype name (present if not BYLAYER). The special name BYBLOCK indicates a floating linetype (optional)
+  Print #hFIle, e.LineType
+  Print #hFIle, " 62"                      ' Color number (present if not BYLAYER); zero indicates the BYBLOCK (floating) color; 256 indicates BYLAYER;
+  Print #hFIle, e.colour
+  Print #hFIle, "370"                     ' Lineweight enum value. Stored and moved around as a 16-bit integer.
+  Print #hFIle, CStr(e.LineWidth)
+
+End
+' importing
+
+Public Function AddLine(obxContainer As Entity[], Points As Float[], Optional colour As Integer = 0, Optional LineWidth As Float = 1, Optional Linetype As String, Optional Layer As String, Optional Block As String) As Boolean
+
+  ' points are in x,y,x,y,x,y....
+  Dim oEntity As New Entity
+
+  oEntity.ClassHandler = cadLine
+  oEntity.Gender = oEntity.ClassHandler.gender
+  oEntity.P.insert(points)                    ' recibimos los dos vertices de la linea x1,y1,x2,y2
+  oEntity.layerid = Layer
+  oEntity.colour = colour
+  oEntity.LineWidth = 1 'LineWidth               ' datos CAD
+  oEntity.linetypename = linetype
+  oEntity.Block = Block
+  If oEntity.Block <> "" Then oEntity.visible = False
+  obxContainer.Add(oEntity)
+  oEntity.ClassHandler.finish(oEntity)
+  oEntity = Null                  ' free entity
+
+End
+
+Public Function AddPoint(obxContainer As Entity[], Points As Float[], Optional colour As Integer = 0, Optional LineWidth As Float = 1, Optional Linetype As String, Optional Layer As String, Optional Block As String) As Boolean
+
+  ' points are in x,y,x,y,x,y....
+  Dim oEntity As New Entity
+
+  oEntity.ClassHandler = cadPoint
+  oEntity.Gender = oEntity.ClassHandler.gender
+  oEntity.P.insert(points)                    ' recibimos los dos vertices de la linea x1,y1,x2,y2
+  oEntity.layerid = Layer
+  oEntity.colour = colour
+  oEntity.LineWidth = 1 'LineWidth               ' datos CAD
+  oEntity.linetypename = linetype
+  oEntity.Block = Block
+  If oEntity.Block <> "" Then oEntity.visible = False
+  obxContainer.Add(oEntity)
+  oEntity.ClassHandler.finish(oEntity)
+  oEntity = Null                  ' free entity
+
+End
+
+Public Function AddPolyLine(obxContainer As Entity[], Points As Float[], Optional iClosed As Integer = 0, Optional colour As Integer = 0, Optional LineWidth As Float = 1, Optional Linetye As String, Optional Layer As String, Optional Block As String) As Boolean
+
+  ' points are in x,y,x,y,x,y....
+
+  Dim oEntity As New Entity
+
+  oEntity.ClassHandler = cadLWPolyline
+  oEntity.Gender = oEntity.ClassHandler.gender
+  oEntity.P.insert(points)                    ' recibimos los dos vertices de la linea x1,y1,x2,y2
+  oEntity.fParam.Add(iClosed)                 ' cerrada o abierta
+  oentity.layerid = Layer
+  oEntity.colour = colour
+  oEntity.LineWidth = 1 ' LineWidth               ' datos CAD
+  oEntity.Block = Block
+  If oEntity.Block <> "" Then oEntity.visible = False
+  obxContainer.Add(oEntity)
+  oEntity.ClassHandler.finish(oEntity)
+  oEntity = Null                  ' free entity
+
+End
+
+Public Function AddSolid(obxContainer As Entity[], Points As Float[], Optional colour As Integer = 0, Optional LineWidth As Float = 1, Optional Linetye As String, Optional Layer As String, Optional Block As String) As Boolean
+
+  ' points are in x,y,x,y,x,y....
+  ' points are in x,y,x,y,x,y....
+  Dim oEntity As New Entity
+
+  oEntity.ClassHandler = cadSolid             ' create the new entity of proper class
+  oEntity.Gender = oEntity.ClassHandler.gender
+  oEntity.P.insert(points)                    ' recibimos los dos vertices de la linea x1,y1,x2,y2
+
+  oentity.layerid = Layer
+  oEntity.colour = colour
+  oEntity.LineWidth = LineWidth               ' datos CAD
+  oEntity.Block = Block
+  If oEntity.Block <> "" Then oEntity.visible = False
+  obxContainer.Add(oEntity)
+  oEntity.ClassHandler.finish(oEntity)
+  oEntity = Null                  ' free entity
+
+End
+
+Public Function AddSPLine(obxContainer As Entity[], Points As Float[], Optional iClosed As Integer = 0, Optional colour As Integer = 0, Optional LineWidth As Float = 1, Optional Linetye As String, Optional Layer As String, Optional Block As String) As Boolean
+
+  ' points are in x,y,x,y,x,y....
+  Dim oEntity As New Entity
+
+  oEntity.ClassHandler = cadSPLine
+  oEntity.Gender = oEntity.ClassHandler.gender
+  oEntity.P.insert(points)                    ' recibimos los dos vertices de la linea x1,y1,x2,y2
+  oEntity.fParam.Add(iClosed)                 ' cerrada o abierta
+  oentity.layerid = Layer
+  oEntity.colour = colour
+  oEntity.LineWidth = LineWidth               ' datos CAD
+  oEntity.Block = Block
+  If oEntity.Block <> "" Then oEntity.visible = False
+  obxContainer.Add(oEntity)
+  oEntity.ClassHandler.finish(oEntity)
+  oEntity = Null                  ' free entity
+
+End
+
+Public Function AddCircle(obxContainer As Entity[], Points As Float[], radious As Float, Optional colour As Integer = 0, Optional LineWidth As Float = 1, Optional Linetye As String, Optional Layer As String, Optional Block As String) As Boolean
+
+  ' points are in x,y,x,y,x,y....
+  Dim oEntity As New Entity
+
+  oEntity.ClassHandler = cadCircle
+  oEntity.Gender = oEntity.ClassHandler.gender
+  oEntity.P.insert(points)                    ' centro x1,y1
+  oEntity.fParam.Add(radious)                 ' radio
+  oentity.layerid = Layer
+  oEntity.colour = colour
+  oEntity.LineWidth = LineWidth               ' datos CAD
+  oEntity.Block = Block
+  If oEntity.Block <> "" Then oEntity.visible = False
+  obxContainer.Add(oEntity)
+  oEntity.ClassHandler.finish(oEntity)
+  oEntity = Null                  ' free entity
+
+End
+
+Public Function AddArc(obxContainer As Entity[], Points As Float[], r As Float, angle1 As Float, angle2 As Float, Optional colour As Integer = 0, Optional LineWidth As Float = 1, Optional Linetye As String, Optional Layer As String, Optional Block As String) As Boolean
+
+  ' points are in x,y,x,y,x,y....
+  Dim oEntity As New Entity
+
+  oEntity.ClassHandler = cadArc
+  oEntity.Gender = oEntity.ClassHandler.gender
+  oEntity.P.insert(points)                    ' centro x1,y1
+  oEntity.fParam.Add(r)                      ' radio
+  oEntity.fParam.Add(angle1)                   ' angulo
+  oEntity.fParam.Add(angle2)                   ' angulo
+  oentity.layerid = Layer
+  oEntity.colour = colour
+  oEntity.LineWidth = LineWidth               ' datos CAD
+  oEntity.Block = Block
+  If oEntity.Block <> "" Then oEntity.visible = False
+  obxContainer.Add(oEntity)
+  oEntity.ClassHandler.finish(oEntity)
+  oEntity = Null                  ' free entity
+
+End
+
+Public Function AddEllipse(obxContainer As Entity[], Points As Float[], r As Float, angle1 As Float, angle2 As Float, Optional colour As Integer = 0, Optional LineWidth As Float = 1, Optional Linetye As String, Optional Layer As String, Optional Block As String) As Boolean
+
+  ' points are in x,y,x,y,x,y....
+  Dim oEntity As New Entity
+
+  oEntity.ClassHandler = cadEllipse
+  oEntity.Gender = oEntity.ClassHandler.gender
+  oEntity.P.insert(points)                    ' centro x1,y1
+  oEntity.p[2] += oEntity.p[0]                ' un pequeño truco porque gaucho usa los puntos de manera diferente a DXF
+  oEntity.p[3] += oEntity.p[1]
+  oEntity.fParam.Add(r)                      ' ratio minor/major
+  oEntity.fParam.Add(angle1 * 180 / Pi)     ' start angle
+  oEntity.fParam.Add(angle2 * 180 / Pi)      ' end angle
+  oentity.layerid = Layer
+  oEntity.colour = colour
+  oEntity.LineWidth = LineWidth               ' datos CAD
+  oEntity.Block = Block
+  If oEntity.Block <> "" Then oEntity.visible = False
+  obxContainer.Add(oEntity)
+  oEntity.ClassHandler.finish(oEntity)
+  oEntity = Null                  ' free entity
+
+End
+
+Public Function AddText(obxContainer As Entity[], Points As Float[], angle As Float, height As Float, _Text As String, Optional colour As Integer = Color.Blue, Optional LineWidth As Float = 1, Optional Linetye As String, Optional Layer As String, Optional Block As String) As Boolean
+
+  Dim oEntity As New Entity
+
+  oEntity.ClassHandler = cadText
+  oEntity.Gender = oEntity.ClassHandler.gender
+  oEntity.P.insert(points)                    ' recibimos position x1,y1
+  oEntity.fParam.Add(angle)                   ' grados
+  oEntity.fParam.Add(height)                  ' alto letras
+  oEntity.stringdata.Add(_text)                  ' el texto
+  oentity.layerid = Layer
+  oEntity.colour = colour
+  oEntity.LineWidth = LineWidth               ' datos CAD
+  oEntity.Block = Block
+  If oEntity.Block <> "" Then oEntity.visible = False
+  obxContainer.Add(oEntity)
+  oEntity.ClassHandler.finish(oEntity)
+  oEntity = Null                  ' free entity
+
+End
+
+Public Function AddMText(obxContainer As Entity[], Points As Float[], angle As Float, height As Float, _Text As String, Optional colour As Integer = Color.Blue, Optional LineWidth As Float = 1, Optional Linetye As String, Optional Layer As String, Optional Block As String) As Boolean
+
+  Dim oEntity As New Entity
+
+  oEntity.ClassHandler = cadMText
+  oEntity.Gender = oEntity.ClassHandler.gender
+  setEntity(oentity)
+  oEntity.P.insert(points)                    ' recibimos position x1,y1 pero tal vez venga un recuadro
+  oEntity.fParam[cadMText.ipaTextAngle] = angle                  ' GRADOS
+  oEntity.fParam[cadMText.ipaTextHeight] = height                  ' alto letras
+  oEntity.stringdata[cadMText.sdaText] = _text                  ' el texto
+  oentity.layerid = Layer
+  oEntity.colour = colour
+  oEntity.LineWidth = LineWidth               ' datos CAD
+  oEntity.Block = Block
+  If oEntity.Block <> "" Then oEntity.visible = False
+  obxContainer.Add(oEntity)
+  oEntity.ClassHandler.finish(oEntity)
+  oEntity = Null                  ' free entity
+
+End
+
+Public Function AddCurve(obxContainer As Entity[], Points As Float[], Optional colour As Integer = 0, Optional LineWidth As Float = 1, Optional Linetye As String, Optional Layer As String, Optional Block As String) As Boolean
+
+  ' points are in x,y,x,y,x,y....
+  Dim oEntity As New Entity
+
+  oEntity.Gender = oEntity.ClassHandler.gender
+
+End
+
+Public Function AddInsert(obxContainer As Entity[], Points As Float[], scaleX As Float, scaleY As Float, angulo As Float, Optional colour As Integer = Color.Blue, Optional Linetye As String, Optional Layer As String, Optional Block As String) As Boolean
+
+  Dim oEntity As New Entity
+
+  oEntity.ClassHandler = cadInsert
+  oEntity.Gender = oEntity.ClassHandler.gender
+  oEntity.P.insert(points)                    ' recibimos position x1,y1
+  oEntity.fParam.Add(scaleX)
+  oEntity.fParam.Add(scaleY)
+  oEntity.fParam.Add(angulo)                  ' GRADOS
+  oentity.layerid = Layer
+  oEntity.colour = colour
+  oEntity.Block = Block
+  obxContainer.Add(oEntity)
+  oEntity.ClassHandler.finish(oEntity)
+
+  oEntity = Null                  ' free entity
+
+End
+
+' Public Function AddBlock(Points As Float[], Block As String) As Entity[]
+'
+'   Dim newBlock As New ArrBlockSt
+'
+'   newBlock.entities = New Entity[]
+'   newBlock.name = block
+'   newBlock.x = Points[0]
+'   newBlock.y = Points[1]
+'   gcd.CurrentDrawing.arrBlocks.Add(newBlock)
+'
+'   Return newBlock.entities
+'
+' End

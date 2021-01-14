@@ -1,0 +1,1186 @@
+' Gambas module file
+
+' GauchoCAD
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+
+' El mundo segun OpenGL
+'       +-------------------------------------------------------------------------------------------+
+'       | 0,0                                     |top         x  P2 x,y                            |
+'       |                                         |           /                                     |
+'       |                                         |          /                                      |
+'       |                                         |         /                                       |
+'       |                                         |        /                                        |
+'       |                                         |       x P1 x,y                                  |
+'       |left                                     |                                           rigth | = glOrtho(left, rigth, bottom, top)
+'       |-----------------------------------------+-------------------------------------------------|   el papel donde voy a dibujar
+'       |                xxxxxxxxxxx              |0,0                                              |   = metros o lo que sea
+'       |                xxxxxxxxxxx              |                                                 |   Establece la ProjectionMatrix
+'       |                xxxx0,0xxxx              |                                                 |   y no se la toca mas
+'       |                xxxxxxxxxxx              |                                                 |
+'       |                xxxxxxxxxxx              |                                                 |
+'       |                                         |                                                 |
+'       |                     |<------------------|                                                 |
+'       |             ModelMatrix>Translate       |                                                 |
+'       |                                         |bottom                                           |gldrwArea.w,.h = Gl.Viewport = el area donde dibujo
+'       +-------------------------------------------------------------------------------------------+           = pixeles
+
+' una lbreria de funciones para pasar de Paint a OpenGL
+Library "libGL"
+
+' declaraciones faltantes en Gambas
+
+Public Extern BufferData(target As Integer, size As Integer, data As Integer[], usage As Integer)
+Public Extern DrawArrays(mode As Integer, first As Integer, count As Integer)
+'Public Extern MultiDrawArrays(mode As Integer, int * first, sizei * count, primcount As Integer)
+Public Extern DrawElements(mode As Integer, count As Integer, type As Integer, indices As Integer[])
+'Public Extern MultiDrawElements(mode As Integer, sizei * count, type As Integer, void * * indices, sizei primcount)
+Public Extern DrawRangeElements(mode As Integer, start As Integer, _end As Integer, count As Integer, type As Integer, indices As Integer[])
+'Public Extern InterleavedArrays(format As Integer, stride As Integer, void * pointer)
+Public Extern BindBuffer(target As Integer, buffer As Integer)
+Public Extern DeleteBuffers(n As Integer, buffers As Integer[])
+Public Extern GenBuffers(n As Integer, buffers As Integer[])
+
+Public Extern BufferSubData(target As Integer, offset As Integer, size As Integer, data As Integer[])
+'Public Extern * MapBufferRange(target As Integer, intptr offset, sizeiptr length, bitfield access)
+'Public Extern * MapBuffer(target As Integer, access As Integer)
+'Public Extern FlushMappedBufferRange(target As Integer, intptr offset, sizeiptr length)
+'Public Extern Function UnmapBuffer(target As Integer) As Boolean
+
+'' Genera n arrays de vertices
+Public Extern GenVertexArrays(n As Integer, arrays As Integer[])
+Public Extern DeleteVertexArrays(n As Integer, arrays As Integer[])
+Public Extern BindVertexArray(array As Integer)
+Public Extern VertexPointer(size As Integer, type As Integer, stride As Integer, pointer As Integer[])
+Public Extern NormalPointer(type As Integer, stride As Integer, pointer As Integer[])
+Public Extern ColorPointer(size As Integer, type As Integer, stride As Integer, pointer As Integer[])
+Public Extern SecondaryColorPointer(size As Integer, type As Integer, stride As Integer, pointer As Integer[])
+Public Extern IndexPointer(type As Integer, stride As Integer, pointer As Integer)
+Public Extern EdgeFlagPointer(stride As Integer, pointer As Integer[])
+'Public Extern FogCoordPointer(type As Integer, stride As Integer, void * pointer)
+'Public Extern TexCoordPointer(size As Integer, type As Integer, stride As Integer, void * pointer)
+Public Extern VertexAttribPointer(index As Integer, size As Integer, type As Integer, normalized As Boolean, stride As Integer, pointer As Integer[])
+Public Extern VertexAttribIPointer(index As Integer, size As Integer, type As Integer, stride As Integer, pointer As Integer[])
+Public Extern EnableClientState(array As Integer)
+Public Extern DisableClientState(array As Integer)
+Public Extern EnableVertexAttribArray(index As Integer)
+Public Extern DisableVertexAttribArray(index As Integer)
+Public Extern ClientActiveTexture(texture As Integer)
+Public Extern ArrayElement(i As Integer)
+
+Public Struct letterSt
+
+  Code As Integer
+  FontGlyps As Float[]             ' las lineas que dibujan uns letra
+End Struct
+
+Public Struct fontSt
+  FileName As String
+  FontName As String
+  LetterSpacing As Float
+  WordSpacing As Float
+  LineSpacingFactor As Float
+  Letter As LetterSt[]                ' Codigo UTF-8 de las letras
+
+End Struct
+
+Public ActualFont As FontSt                         ' the class
+Public ActualFontName As String = "romanc"          ' the name
+Public ActualFontHeigth As Float = 1                ' the letter heigth
+Public FontScale As Float = 0.1                     ' the general scale factor
+
+Public FontsNameList As String[]            ' lista de fuentes LFF disponibles ya cargadas
+
+Public FontsCAllLists As Integer[]          ' listas de listas de caracteres
+
+Public glFont As New FontSt[]
+
+Public Struct textureSt
+  FileName As String
+  TextureName As String
+  handle As Integer
+  hImage As Image
+End Struct
+
+Public glTextures As New TextureSt[]
+
+Public Struct punto3d
+  x As Float
+  Y As Float
+  z As Float
+End Struct
+
+Public Struct punto2d
+  x As Float
+  Y As Float
+End Struct
+
+Public Struct GLColorSt
+
+  r As Float
+  g As Float
+  b As Float
+  Alpha As Float
+
+End Struct
+' A shader is a small C program that the GPU understands
+' minimal shaders we need to compile at the GPU
+
+Public shaVertexShaderSource As String
+Public shaFragmentShaderSource As String
+
+Public shaVert1 As Integer              '  main vertex shader
+Public shaFrag1 As Integer              '  main fragment shader
+Public shaderProgram As Integer       '  el programa que corre en la GPU
+
+Public escalaGL As Float
+
+Public ViewportWidth As Integer
+Public ViewportHeight As Integer
+
+Public hText As New Integer[]
+
+' new OpenGL stuff
+Public GLDrwList As New Integer[]                       ' all entities, each one
+Public GLDrwListEditing As New Integer[]                ' all entities on edit by some tool, including new ones
+
+' lineas de puntos
+Public LineStipples As New Integer[]
+Public LineStippleScales As New Integer[]
+
+Public Sub Resize(drwContext As Object) ' only glArea for now
+
+  shaVertexShaderSource = "#version 330 core" & gb.cr &
+    "layout (location = 0) in vec3 aPos;" & gb.cr &
+    "void main()" & gb.cr &
+    "{" & gb.cr &
+    "   gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);" & gb.cr &
+    "}"
+  shaFragmentShaderSource = "#version 330 core" & gb.cr &
+    "out vec4 FragColor;" & gb.cr &
+    "void main()" & gb.cr &
+    "{" & gb.cr &
+    "   FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);" & gb.cr &
+    "}"
+
+  ' establecemos adonde vamos a dibujar, porque puede ser en algun lugar mas chico de la misma glDrawingArea
+  ' pero en general sera en todo el control
+  gl.Viewport(0, 0, drwContext.W, drwContext.h)
+  ' le avisamos a GL que queremos usar texturas
+  gl.Enable(gl.TEXTURE_2D)
+
+  ' borramos lo que haya dibujado
+  gl.Clear(gl.DEPTH_BUFFER_BIT Or gl.COLOR_BUFFER_BIT)
+
+  ' le decimos que queremos usar cosas 3D y lo que esta mas lejos quede tapado por lo que esta mas cerca, esto en 2D no es necesario
+  gl.Enable(gl.DEPTH_TEST)
+
+  ' no tengo idea, debe ser algo de AntiAlias
+  gl.Enable(gl.SMOOTH)
+  gl.Enable(gl.BLEND)
+  gl.BlendFunc(GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA)
+  ' usaremos luces
+  ' Gl.Enable(Gl.LIGHTING)
+  ' Gl.Enable(Gl.LIGHT0)
+  ' esto le dice que las normales las tiene que normalizar a 1
+  Gl.Enable(Gl.NORMALIZE)
+
+  ' las coordenadas que le pasemos deberan estar entre -1 y 1
+  ' todo lo que sea > 1 NO SE MOSTRARA
+
+  gl.MatrixMode(gl.PROJECTION)
+  gl.LoadIdentity
+  Glu.Ortho2D(-drwContext.w / 2, drwContext.w / 2, -drwContext.h / 2, drwContext.h / 2)
+
+  gl.MatrixMode(gl.MODELVIEW)
+  gl.LoadIdentity
+
+End
+
+Public Sub Init(drwContext As Object) ' only glArea for now
+
+  Resize(drwContext)
+
+  shaVertexShaderSource = "#version 330 core" & gb.cr &
+    "layout (location = 0) in vec3 aPos;" & gb.cr &
+    "void main()" & gb.cr &
+    "{" & gb.cr &
+    "   gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);" & gb.cr &
+    "}"
+  shaFragmentShaderSource = "#version 330 core" & gb.cr &
+    "out vec4 FragColor;" & gb.cr &
+    "void main()" & gb.cr &
+    "{" & gb.cr &
+    "   FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);" & gb.cr &
+    "}"
+
+  ' con este color limpiamos la pantalla
+  If Starter.flgWindowBackColor = 0 Then
+    gl.ClearColor(0, 0, 0, 1)
+  Else
+    gl.ClearColor(1, 1, 1, 1)
+
+  Endif
+
+  ' line stipples
+
+  ' continuo
+  LineStipples.Add(&X00000000000000001111111111111111)
+  LineStippleScales.Add(1)
+
+  ' Dashed
+  LineStipples.Add(&X00000000000000000000111100001111)
+  LineStippleScales.Add(1)
+
+  ' Dash-Dot
+  LineStipples.Add(&X00000000000000000001100011111111)
+  LineStippleScales.Add(1)
+
+  ' Dot
+  LineStipples.Add(&X00000000000000000001000100010001)
+  LineStippleScales.Add(1)
+
+  ' Divide
+  LineStipples.Add(&X00000000000000000011001100111111)
+  LineStippleScales.Add(1)
+
+  'Print GLplus.GetString(gl.SHADING_LANGUAGE_VERSION)
+
+  ' ' lets make shaders
+  '
+  ' ' create the VertexShader and get Id
+  ' shaVert1 = GLplus.CreateShader(gl.VERTEX_SHADER)
+  ' 'shaVert1 = GL.CreateShader(gl.VERTEX_SHADER)
+  ' ' set the source code
+  ' Gl.ShaderSource(shaVert1, shaVertexShaderSource)
+  ' ' compile
+  ' gl.CompileShader(shaVert1)
+  ' ' chequeamos que todo haya salido OK
+  ' Debug gl.GetShaderInfoLog(shaVert1)
+  '
+  '
+  ' ' creamos el shader de coloreado o Fragment
+  ' shaFrag1 = gl.CreateShader(gl.FRAGMENT_SHADER)
+  ' gl.ShaderSource(shaFrag1, shaFragmentShaderSource)
+  ' gl.CompileShader(shaFrag1)
+  ' Debug gl.GetShaderInfoLog(shaFrag1)
+  '
+  '
+  ' shaderProgram = gl.CreateProgram()
+  ' gl.AttachShader(shaderProgram, shaVert1)
+  ' gl.AttachShader(shaderProgram, shaFrag1)
+  ' gl.LinkProgram(shaderProgram)
+  '
+  ' Debug gl.GetShaderInfoLog(shaderProgram)
+  '
+  ' ' una vez complilados, no se necesitan mas
+  '
+  ' gl.DeleteShader(shaVert1)
+  ' gl.DeleteShader(shaFrag1)
+
+  ' Fin de la inicializacion de openGL
+
+End
+
+'' Dibuja un rectangulo, relleno o vacio.
+'' Puede dibujar un contorno del mismo de otro color->Bounding
+'' Mode: 0=relleno, 1=relleno y recuadro, 2=solo recuadro
+Public Sub Rectangle2D(x1 As Float, y1 As Float, w As Float, h As Float, Optional colour1 As Integer = Color.Blue, colour2 As Integer = -14, colour3 As Integer = -14, colour4 As Integer = -14, BoundingColor As Integer, BoundingWidth As Integer = 1, Dashes As Integer = 0, mode As Integer = 0)
+
+  Dim c2, c3, c4 As Integer
+
+  ' Quad esta obsoleto , reemplazo por dos triangulos
+  If mode = 0 Or mode = 1 Then
+
+    If colour2 = -14 Then c2 = colour1 Else c2 = colour2
+    If colour3 = -14 Then c3 = colour1 Else c3 = colour3
+    If colour4 = -14 Then c4 = colour1 Else c4 = colour4
+
+    gl.begin(gl.TRIANGLES)
+
+    Vertex2D(x1, y1, colour1)
+    Vertex2D(x1 + w, y1, c2)
+    Vertex2D(x1 + w, y1 + h, c3)
+
+    gl.End
+
+    gl.begin(gl.TRIANGLEs)
+
+    Vertex2D(x1, y1, colour1)
+    Vertex2D(x1 + w, y1 + h, c4)
+    Vertex2D(x1, y1 + h, c3)
+
+    gl.end
+
+  End If
+
+  If mode >= 1 Then                                      ' solo recuadro
+
+    gl.LineWidth(BoundingWidth)
+
+    If dashes > 0 Then
+      gl.LineStipple(LineStippleScales[dashes], LineStipples[dashes])
+      gl.Enable(GL.LINE_STIPPLE)
+    Else
+
+      gl.Disable(GL.LINE_STIPPLE)
+
+    Endif
+    gl.Begin(gl.LINE_LOOP)
+
+    Vertex2D(x1, y1, BoundingColor)
+    Vertex2D(x1 + w, y1, BoundingColor)
+    Vertex2D(x1 + w, y1 + h, BoundingColor)
+    Vertex2D(x1, y1 + h, BoundingColor)
+
+    gl.End
+    If dashes > 0 Then gl.Disable(GL.LINE_STIPPLE)
+
+  End If
+
+End
+
+'' Dibuja un serie de lineas
+Public Function Lines(vertices As Float[], Optional colour As Integer = 0, LineWidth As Float = 1, dashes As Integer = 0)
+
+  Dim i As Integer
+
+  'glColorRGB(colour)
+  gl.LineWidth(LineWidth) ' obsoleto en WebGL
+  If dashes > 0 Then
+    gl.LineStipple(LineStippleScales[dashes], LineStipples[dashes])
+    gl.Enable(GL.LINE_STIPPLE)
+  Else
+
+    gl.Disable(GL.LINE_STIPPLE)
+
+  Endif
+
+  gl.Begin(gl.Lines)
+
+  For i = 0 To vertices.Max Step 2
+    glColorRGB(colour)
+    gl.Vertex2f(vertices[i], vertices[i + 1])
+
+  Next
+  gl.end
+
+  If dashes > 0 Then gl.Disable(GL.LINE_STIPPLE)
+
+End
+
+'' Dibuja un seria de polilinea
+Public Function PolygonFilled(vertices As Float[], Optional colour As Integer = 0, FillColor As Integer = 0, LineWidth As Float = 1, dashes As Integer)
+
+  Dim i As Integer
+
+  'glColorRGB(colour)
+  gl.LineWidth(LineWidth) ' obsoleto en WebGL
+
+  If dashes > 0 Then
+    gl.LineStipple(LineStippleScales[dashes], LineStipples[dashes])
+    gl.Enable(GL.LINE_STIPPLE)
+  Else
+
+    gl.Disable(GL.LINE_STIPPLE)
+
+  Endif
+
+  gl.Begin(gl.POLYGON)
+
+  For i = 0 To vertices.Max Step 2
+    glColorRGB(colour)
+    gl.Vertex2f(vertices[i], vertices[i + 1])
+
+  Next
+  gl.end
+
+End
+
+'' Dibuja un seria de polilinea
+Public Function Polygon(vertices As Float[], Optional colour As Integer = 0, LineWidth As Float = 1, dashes As Integer)
+
+  Dim i As Integer
+
+  'glColorRGB(colour)
+  gl.LineWidth(LineWidth) ' obsoleto en WebGL
+  If dashes > 0 Then
+    gl.LineStipple(LineStippleScales[dashes], LineStipples[dashes])
+    gl.Enable(GL.LINE_STIPPLE)
+  Else
+
+    gl.Disable(GL.LINE_STIPPLE)
+
+  Endif
+
+  gl.Begin(gl.LINE_LOOP)
+
+  For i = 0 To vertices.Max Step 2
+    glColorRGB(colour)
+    gl.Vertex2f(vertices[i], vertices[i + 1])
+
+  Next
+  gl.end
+
+  If dashes > 0 Then gl.Disable(GL.LINE_STIPPLE)
+
+End
+'' Dibuja un arco, suponiendo que el centro esta en 0,0 (despues de un Translate())
+'' Siempre gira en sentido anti-horario
+'' Las medidas de los angulo inicial y recorrido estan en RADIANES
+
+Public Function Arc(Optional radio As Float, start_angle As Float, length As Float, colour As Integer = 0, LineWidth As Float = 1, dashes As Integer)
+
+  GL.Begin(gl.LINE_STRIP)
+  Dim theta, angle_increment As Float
+
+  'double max_angle = 2 * Math.PI
+  'double angle_increment = Math.PI / 1000
+  angle_increment = Pi * 2 / 360
+
+  For theta = 0 To length Step angle_increment
+
+    GLplus.Vertex2D(radio * Cos(start_angle + theta), radio * Sin(start_angle + theta), colour)
+  Next
+
+  GL.End
+
+End
+
+Public Sub Arrow(fBase As Float[], fPunta As Float[], Optional colour As Integer = 0, LineWidth As Float = 1, Style As Integer = 0, ArrowSize As Integer = 0)
+
+  ' Style: 0 = Simple lines, 1 = ...to do
+  ' ArrowSize: 0 = 20% of length, other = length of angled lines
+
+
+  Dim i As Integer
+
+  'glColorRGB(colour)
+  gl.LineWidth(LineWidth) ' obsoleto en WebGL
+
+  gl.Begin(gl.LINE_STRIP)
+
+  ' Select vertices.Count
+  '     Case 2
+  '
+  '         For i = 0 To 1 ' Step 2
+  '             glColorRGB(colour)
+  '             gl.Vertex2f(vertices[i], vertices[i + 1])
+  '
+  '         Next
+  '     Case 3
+  '         For i = 0 To 2 'Step 2
+  '             glColorRGB(colour)
+  '             gl.Vertex2f(vertices[i], vertices[i + 1])
+  '         Next
+  '
+  '     Case Else
+  '
+  '         Print "Error mas puntos"
+  '
+  ' End Select
+  ' '
+  ' For i = 0 To vertices.Max Step 2
+  '   glColorRGB(colour)
+  '   gl.Vertex2f(vertices[i], vertices[i + 1])
+  ' Next
+  '
+  ' If iClosed Then
+  '   gl.Vertex2f(vertices[0], vertices[1])
+  ' End If
+  '
+  ' gl.end
+  ' If dashes > 0 Then gl.Disable(GL.LINE_STIPPLE)
+
+End
+'' Dibuja un seria de polilinea
+
+Public Function PolyLines(vertices As Float[], Optional colour As Integer = 0, LineWidth As Float = 1, dashes As Integer, Optional iClosed As Boolean = False)
+
+  Dim i As Integer
+
+  'glColorRGB(colour)
+  gl.LineWidth(LineWidth) ' obsoleto en WebGL
+  If dashes > 0 Then
+    gl.LineStipple(LineStippleScales[dashes], LineStipples[dashes])
+    gl.Enable(GL.LINE_STIPPLE)
+  Else
+
+    gl.Disable(GL.LINE_STIPPLE)
+
+  Endif
+
+  gl.Begin(gl.LINE_STRIP)
+
+  ' Select vertices.Count
+  '     Case 2
+  '
+  '         For i = 0 To 1 ' Step 2
+  '             glColorRGB(colour)
+  '             gl.Vertex2f(vertices[i], vertices[i + 1])
+  '
+  '         Next
+  '     Case 3
+  '         For i = 0 To 2 'Step 2
+  '             glColorRGB(colour)
+  '             gl.Vertex2f(vertices[i], vertices[i + 1])
+  '         Next
+  '
+  '     Case Else
+  '
+  '         Print "Error mas puntos"
+  '
+  ' End Select
+  '
+  For i = 0 To vertices.Max Step 2
+    glColorRGB(colour)
+    gl.Vertex2f(vertices[i], vertices[i + 1])
+  Next
+
+  If iClosed Then
+    gl.Vertex2f(vertices[0], vertices[1])
+  End If
+
+  gl.end
+  If dashes > 0 Then gl.Disable(GL.LINE_STIPPLE)
+
+End
+
+'' Dibuja un circulo
+Public Function Circle(center As Float[], radious As Float, Optional colour As Integer = 0, Filled As Boolean = False, LineWidth As Float = 1, dashes As Integer = 0)
+
+  Dim x, y, theta, angle_increment As Float
+
+  gl.LineWidth(LineWidth) ' obsoleto en WebGL
+  If dashes > 0 Then
+    gl.LineStipple(LineStippleScales[dashes], LineStipples[dashes])
+    gl.Enable(GL.LINE_STIPPLE)
+  Else
+
+    gl.Disable(GL.LINE_STIPPLE)
+
+  Endif
+
+  If filled Then
+    GL.Begin(gl.POLYGON)
+  Else
+    GL.Begin(gl.LINE_STRIP)
+  End If
+
+  angle_increment = Pi * 2 / 360
+  For theta = 0 To 2 * Pi Step angle_increment
+    ' el punto considerando 0,0 al centro
+    x = center[0] + radious * Cos(theta)
+    y = center[1] + radious * Sin(theta)
+    GLplus.Vertex2D(x, y, Colour)
+  Next
+  gl.End
+  If dashes > 0 Then gl.Disable(GL.LINE_STIPPLE)
+
+End
+
+Public Sub glColorRGB(gbColor As Integer)
+  ' set the color to GL
+
+  Dim r, g, b, a As Float
+
+  a = 1 - Color.GetAlpha(gbColor) / 255
+  r = (Shr(gbColor, 16) And 255) / 255
+  g = (Shr(gbColor, 8) And 255) / 255
+  b = (gbColor And 255) / 255
+  glColor4f(r, g, b, a)
+  'Debug r, g, b, a
+
+End
+
+Public Sub glColor4f(r As Float, g As Float, b As Float, Optional Alpha As Float = 1)
+
+  gl.Color4f(r, g, b, Alpha)
+
+End
+
+Public Sub glMaterial(gbColor As Integer, Optional Alpha As Float = 0)
+  ' set the color to GL
+
+  Dim r As Float, g As Float, b As Float
+  Dim MyColor As New Float[]
+
+  'If gbcolor > 0 Then Stop
+  r = (Shr(gbColor, 16) And 255) / 256
+  g = (Shr(gbColor, 8) And 255) / 256
+  b = (gbColor And 255) / 256
+  MyColor = [r, g, b, Alpha]
+
+  gl.Materialfv(gl.FRONT_AND_BACK, gl.AMBIENT_AND_DIFFUSE, MyColor)
+  gl.Materialf(gl.FRONT_AND_BACK, gl.SHININESS, 45)
+
+End
+
+Public Sub glMaterialHierro(Optional Alpha As Float = 0)
+  ' set the color to GL
+
+  Dim r As Float, g As Float, b As Float
+  Dim MyColor As New Float[]
+
+  MyColor = [0.05375, 0.05, 0.06625, 1.0]
+
+  gl.Materialfv(gl.FRONT_AND_BACK, gl.AMBIENT, MyColor)
+
+  MyColor = [0.18275, 0.17, 0.22525]
+
+  gl.Materialfv(gl.FRONT_AND_BACK, gl.DIFFUSE, MyColor)
+
+  MyColor = [0.332741, 0.328634, 0.346435]
+
+  gl.Materialfv(gl.FRONT_AND_BACK, gl.SPECULAR, MyColor)
+
+  gl.Materialf(gl.FRONT_AND_BACK, gl.SHININESS, 0.3 * 128)
+
+End
+
+Public Sub glMaterialMadera(Optional Alpha As Float = 0)
+  ' set the color to GL
+
+  Dim r As Float, g As Float, b As Float
+  Dim MyColor As New Float[]
+
+  MyColor = [0.05, 0.05, 0.0, 1.0]
+
+  gl.Materialfv(gl.FRONT_AND_BACK, gl.AMBIENT, MyColor)
+
+  MyColor = [0.5, 0.5, 0.4]
+
+  gl.Materialfv(gl.FRONT_AND_BACK, gl.DIFFUSE, MyColor)
+
+  MyColor = [0.7, 0.7, 0.04]
+
+  gl.Materialfv(gl.FRONT_AND_BACK, gl.SPECULAR, MyColor)
+
+  gl.Materialf(gl.FRONT_AND_BACK, gl.SHININESS, 0.07815 * 128)
+
+End
+
+Public Sub glMaterialConcreto(Optional Alpha As Float = 0)
+  ' set the color to GL
+
+  Dim r As Float, g As Float, b As Float
+  Dim MyColor As New Float[]
+
+  MyColor = [0.2, 0.2, 0.2, 1.0]
+
+  gl.Materialfv(gl.FRONT_AND_BACK, gl.AMBIENT, MyColor)
+
+  MyColor = [0.4, 0.4, 0.4]
+
+  gl.Materialfv(gl.FRONT_AND_BACK, gl.DIFFUSE, MyColor)
+
+  MyColor = [0.6, 0.6, 0.6]
+
+  gl.Materialfv(gl.FRONT_AND_BACK, gl.SPECULAR, MyColor)
+
+  gl.Materialf(gl.FRONT_AND_BACK, gl.SHININESS, 0.25 * 128)
+
+End
+
+Public Sub DibujarCargaPuntual3(punta As Punto3d, cola As Punto3d, colorflecha As Integer)
+
+  ' esto podria llamarse dibujarFlecha
+
+  Dim lw As Float, co As Integer, cola2 As New Punto3d
+
+  ' linea pricipal
+
+  ' 2020
+  ' debido a limitaciones en WebGL voy a redibujar esto como una flecha hecha de lineas del mismo ancho
+
+  ' la linea principal
+  ' linea(cola, punta, colorflecha, 1)
+  '
+  ' lw = ((cola.x - punta.x) * 0.1 + (cola.y - punta.y) * 0.1 + (cola.z - punta.z) * 0.1) / 6
+  '
+  ' cola.x = punta.x + (cola.x - punta.x) * 0.1
+  ' cola.y = punta.y + (cola.y - punta.y) * 0.1
+  ' cola.z = punta.z + (cola.z - punta.z) * 0.1
+  '
+  ' cola2.x = cola.x + lw
+  ' cola2.y = cola.y
+  ' cola2.z = cola.z
+  '
+  ' linea(cola2, punta, colorflecha)
+  '
+  ' cola2.x = cola.x
+  ' cola2.y = cola.y + lw
+  ' cola2.z = cola.z
+  '
+  ' linea(cola2, punta, colorflecha)
+  '
+  ' cola2.x = cola.x
+  ' cola2.y = cola.y
+  ' cola2.z = cola.z + lw
+  '
+  ' linea(cola2, punta, colorflecha)
+  '
+  ' cola2.x = cola.x - lw
+  ' cola2.y = cola.y
+  ' cola2.z = cola.z
+  '
+  ' linea(cola2, punta, colorflecha)
+  '
+  ' cola2.x = cola.x
+  ' cola2.y = cola.y - lw
+  ' cola2.z = cola.z
+  '
+  ' linea(cola2, punta, colorflecha)
+  '
+  ' cola2.x = cola.x
+  ' cola2.y = cola.y
+  ' cola2.z = cola.z - lw
+  '
+  ' linea(cola2, punta, colorflecha)
+
+End Sub
+
+Public Sub Vertex2D(x2d As Float, y2d As Float, Optional colour As Integer = Color.Red)
+  '
+  '
+  '     '2020 el color va primero
+  ' '
+
+  If colour Then
+    Me.glColorRGB(colour)
+
+  Endif
+
+  gl.Vertex2f(x2d, y2d)
+  '
+
+End
+
+Public Sub Vertex3D(p As Punto3d, Optional colour4F As GLColorSt)
+  '
+  '
+  '     '2020 el color va primero
+  '
+  '     If colour4F Then
+  '         gl.Color4f(colour4F.r, colour4F.g, colour4F.b, colour4F.Alpha)
+  '
+  '     Endif
+  '     gl.Vertex3f(p.x, p.y, p.z)
+  '
+
+End
+'
+
+Public Sub Normal3D(p As Punto3d)
+  '
+  '     gl.Normal3f(p.x, p.y, p.z)
+  ' '
+
+End
+
+Public Sub Get2DpointFrom3Dworld(p1 As Punto3d, ByRef x2 As Float, ByRef y2 As Float, Optional ByRef z2 As Float)
+
+  Dim modelmatrix As New Float[16]
+  Dim projMatrix As New Float[16]
+  Dim miMatrix As New Float[16]
+
+  Dim vp As New Integer[4]
+
+  Dim p2 As New Float[3]
+
+  modelMatrix = gl.GetFloatv(GL.MODELVIEW_MATRIX)
+  projMatrix = gl.GetFloatv(GL.PROJECTION_MATRIX)
+  vp = gl.GetIntegerv(GL.VIEWPORT_)
+
+  p2 = glu.Project(p1.x, p1.y, p1.z, modelMatrix, projMatrix, vp)
+
+  If IsNull(p2) Then Return
+
+  x2 = p2[0]
+  y2 = p2[1]
+
+  ' z<=1  --> el punto esta frente a la camara
+  ' z> 1  ---> el punto es invisible
+  z2 = p2[2]
+
+End
+
+'' Trnasforma un punto de la pantalla en un punto del espacio, que en realidad es un rayo en 3D
+'' que en 2D es perpendicular a la pantalla
+Public Sub Get3DpointFromScreen(Xscreen As Integer, Yscreen As Integer) As Float[]
+
+  Dim modelmatrix As New Float[16]
+  Dim projMatrix As New Float[16]
+  Dim miMatrix As New Float[16]
+
+  Dim vp As New Integer[4]
+
+  Dim p2 As New Float[3]
+
+  modelMatrix = gl.GetFloatv(GL.MODELVIEW_MATRIX)
+  projMatrix = gl.GetFloatv(GL.PROJECTION_MATRIX)
+  vp = gl.GetIntegerv(GL.VIEWPORT_)
+
+  p2 = glu.UnProject(Xscreen, Yscreen, 0, modelMatrix, projMatrix, vp)
+
+  If IsNull(p2) Then Return
+
+  ' p2[2]
+  ' z<=1  --> el punto esta frente a la camara
+  ' z> 1  ---> el punto es invisible
+
+  ' test
+  'Debug "Screen", Xscreen, Yscreen, " -> Real ", p2[0], p2[1]
+
+  Return p2
+
+End
+
+'' Establece la fuente con que se dibujaran los textos
+Public Function SelectFont(FontName As String) As Boolean
+
+  Dim f As FontSt
+
+  For Each f In glFont
+    If LCase(f.FontName) = LCase(FontName) Then
+      ActualFont = f
+      Return True ' fuente encontrada
+
+    Endif
+  Next
+  Return False  ' fuente no encontrada
+
+End
+
+'' Lee todas las fuentes del directorio provisto y devuelve un listado con sus nombres
+Public Function LoadFonts(DirPath As String) As String[]
+  ' This class loads all fonts available at startup
+  ' LibreCAD format fonts come in this fashion
+
+  ' #Format: LibreCAD Font 1
+  ' #Creator: LibreCAD
+  ' #Version: master
+  ' #Name: Roman Complex
+  ' #Encoding: UTF - 8
+  ' #LetterSpacing: 3
+  ' #WordSpacing: 6.75
+  ' #LineSpacingFactor: 1
+  ' #Author: Hershey fonts
+  ' #Author: Adam Radlowski < adamr@informatyka.gdansk.pl > (Polish)
+  ' #License: Public domain
+  '
+  ' [0021]!
+  ' 0.428572, 9; 0, 8.14286
+  ' 0, 8.14286; 0.428572, 2.99999
+  ' 0.428572, 2.99999; 0.857143, 8.14286
+  ' 0.857143, 8.14286; 0.428572, 9
+  ' 0.428572, 8.14286; 0.428572, 5.57144
+  ' 0.428572, 0.857143; 0, 0.428572
+  ' 0, 0.428572; 0.428572, 0
+  ' 0.428572, 0; 0.857143, 0.428572
+  ' 0.857143, 0.428572; 0.428572, 0.857143
+  '
+  ' [0022]""
+  ' 0.428572, 6.00001; 0, 5.57144
+  ' 0, 5.571
+
+  Dim sFilename As String, fFile As File, sData, sCoord As String
+  Dim sPuntos As String[], Lista As New String[]
+
+  For Each sFilename In Dir(DirPath, "*.lff")
+
+    Dim fntNuevas As New FontSt
+
+    fntNuevas.FileName = sFilename
+    fntNuevas.WordSpacing = 6.75
+    fntNuevas.LetterSpacing = 3
+    fntNuevas.LineSpacingFactor = 1
+    fntNuevas.Letter = New LetterSt[]
+
+    ffile = Open DirPath &/ sFilename For Input
+    Do
+      Line Input #fFile, sDAta
+      If Left$(sData, 1) = "[" Then                           ' nueva letra
+        Dim Letra As New LetterSt
+        letra.Code = Val("&H0000" & Mid(sData, 2, 4))       ' [0021]!
+        letra.FontGlyps = New Float[]
+        While sdata <> ""
+          Line Input #fFile, sDAta                        ' 0.428572, 0.857143; 0, 0.428572
+          If Left(sData, 1) = "C" Then                       ' Copio datos de otra letra
+            Dim CopyCode As Integer
+            CopyCode = Val("&H0000" & Mid(sData, 2, 4))       ' C0021
+            CopyCode = GetCodeIndex(fntNuevas, CopyCode)
+            Dim flt1 As Float
+            For Each flt1 In fntNuevas.Letter[CopyCode].FontGlyps
+              letra.FontGlyps.Add(flt1)
+            Next
+          Else
+            sPuntos = Split(sDAta, ";,")
+            For Each sCoord In sPuntos
+              Try letra.FontGlyps.Add(CFloat(sCoord))
+            Next
+          End If
+        Wend                                                ' fin de la letra
+        fntNuevas.Letter.Add(letra)
+
+      Endif                                                   ' ignoro todos los comentarios
+
+    Loop Until Eof(fFile)
+    fntNuevas.FontName = Left$(sFilename, -4)
+    glFont.Add(fntNuevas)
+    ActualFont = fntNuevas
+
+    Debug "Leidas ", fntNuevas.Letter.Count, " letras en ", sFilename
+    lista.Add(fntNuevas.FontName)
+
+  Next
+
+  Return lista
+
+End
+
+'' Busca el codigo UTF y devuelve la posicion en el indice de letras
+Public Function GetCodeIndex(LaFont As FontSt, UTFcode As Integer) As Integer
+
+  Dim i As Integer
+
+  For i = 0 To LaFont.Letter.Max
+    If LaFont.Letter[i].Code = UTFcode Then Return i
+
+  Next
+
+End
+
+'' Grafica un texto en el contexto actual de acuerdo a los parametros pasados
+'' Debe estar definida la Font con nombre y altura
+''
+Public Function DrawText(UTFstring As String, posX As Float, posY As Float, Optional angle As Float = 0, textH As Float = 1, colour As Integer = -14, linewidth As Float = 1, rectW As Float = 0, rectH As Float = 0, alignHoriz As Integer = 0, alignVert As Integer = 0) As Boolean
+
+  Dim i, iii, UTFcode, LetterIndex As Integer, Xadvance As Float
+
+  gl.PushMatrix                                                               ' para evitar peleas, guardo la matriz de trnasformacion
+  gl.Translatef(posX, posY, 0)
+  gl.Rotatef(angle, 0, 0, 1)                                                  ' en grados
+  gl.Scalef(textH * FontScale, textH * FontScale, 1)
+  If colour <> -14 Then Me.glColorRGB(colour)
+  For i = 1 To Len(UTFstring)                                                 ' para cada letra
+    UTFcode = String.Code(UTFstring, i)                                     ' obtengo el UTF code
+    If UTFcode = 32 Then                                                    ' es un espacio
+      gl.Translatef(ActualFont.LetterSpacing, 0, 0)                       ' muevo el puntero a la siguiente posicion
+    Else
+      LetterIndex = GetCodeIndex(ActualFont, UTFcode)                     ' obtengo el indice de la letra
+      Lines(ActualFont.Letter[LetterIndex].FontGlyps, colour)                     ' la dibujo
+      For iii = 0 To ActualFont.Letter[LetterIndex].FontGlyps.Max Step 2  ' calculo cuanto tiene que avanzar el puntero
+        If ActualFont.Letter[LetterIndex].FontGlyps[iii] > Xadvance Then Xadvance = ActualFont.Letter[LetterIndex].FontGlyps[iii]
+      Next
+      gl.Translatef(Xadvance + ActualFont.LetterSpacing, 0, 0)                                       ' muevo el puntero a la siguiente posicion
+      'Debug Xadvance
+      Xadvance = 0
+    End If
+  Next
+  gl.PopMatrix
+
+End
+
+'' Grafica un texto de varias lineas en el contexto actual de acuerdo a los parametros pasados
+'' Debe estar definida la Font con nombre y altura
+''
+Public Function DrawMultilineText(UTFMultiString As String, posX As Float, posY As Float, Optional angle As Float = 0, textH As Float = 1, colour As Integer = -14, linewidth As Float = 1, rectW As Float = 0, rectH As Float = 0, alignHoriz As Integer = 0, alignVert As Integer = 0) As Boolean
+
+  Dim i, iii, UTFcode, LetterIndex As Integer, Xadvance, xtotaladvance, Yadvance, ytotaladvance As Float
+  Dim mLines As String[], dH As Float, tLine As String
+  Dim tRect As New Float[]
+
+  tRect.Insert([0, 0])
+  mlines = Split(UTFMultiString, gb.CrLf & gb.Cr & gb.lf)
+
+  gl.PushMatrix                                                               ' para evitar peleas, guardo la matriz de trnasformacion
+  gl.Translatef(posX, posY, 0)
+  gl.Rotatef(angle, 0, 0, 1)
+  gl.Scalef(textH * FontScale, textH * FontScale, 1)
+  If colour <> -14 Then Me.glColorRGB(colour)
+  For Each tLine In mLines
+
+    For i = 1 To Len(tLine)                                                 ' para cada letra
+      UTFcode = String.Code(tLine, i)                                     ' obtengo el UTF code
+      If UTFcode = 32 Then                                                    ' es un espacio
+        gl.Translatef(ActualFont.LetterSpacing, 0, 0)                       ' muevo el puntero a la siguiente posicion
+        xtotaladvance += ActualFont.LetterSpacing
+      Else
+        LetterIndex = GetCodeIndex(ActualFont, UTFcode)                     ' obtengo el indice de la letra
+        Lines(ActualFont.Letter[LetterIndex].FontGlyps, colour)                     ' la dibujo
+        For iii = 0 To ActualFont.Letter[LetterIndex].FontGlyps.Max Step 2  ' calculo cuanto tiene que avanzar el puntero
+          If ActualFont.Letter[LetterIndex].FontGlyps[iii] > Xadvance Then Xadvance = ActualFont.Letter[LetterIndex].FontGlyps[iii]
+          If ActualFont.Letter[LetterIndex].FontGlyps[iii + 1] > tRect[1] Then tRect[1] = ActualFont.Letter[LetterIndex].FontGlyps[iii + 1]
+        Next
+        tRect[0] += (Xadvance + ActualFont.LetterSpacing) * textH * FontScale
+        gl.Translatef(Xadvance + ActualFont.LetterSpacing, 0, 0)                                       ' muevo el puntero a la siguiente posicion
+
+        xtotaladvance += Xadvance + ActualFont.LetterSpacing
+        'Debug Xadvance
+        Xadvance = 0
+      End If
+    Next
+
+    gl.Translatef(-xtotaladvance, -(ActualFont.WordSpacing + tRect[1]), 0)
+    xtotaladvance = 0
+  Next
+
+  gl.PopMatrix
+
+End
+
+'' devuelve un rectangulo que contiene al texto
+'' [ancho,alto]
+Public Function TextExtends(UTFstring As String, textH As Float) As Float[]
+
+  Dim i, iii, UTFcode, LetterIndex As Integer, Xadvance As Float
+  Dim tRect As New Float[]
+
+  tRect.Insert([0, 0])
+
+  For i = 1 To Len(UTFstring)                                                 ' para cada letra
+    UTFcode = String.Code(UTFstring, i)                                     ' obtengo el UTF code
+    If UTFcode = 32 Then                                                    ' es un espacio
+      tRect[0] += ActualFont.LetterSpacing * textH * FontScale
+    Else
+      LetterIndex = GetCodeIndex(ActualFont, UTFcode)                     ' obtengo el indice de la letra
+      For iii = 0 To ActualFont.Letter[LetterIndex].FontGlyps.Max Step 2  ' calculo cuanto tiene que avanzar el puntero
+        If ActualFont.Letter[LetterIndex].FontGlyps[iii] > Xadvance Then Xadvance = ActualFont.Letter[LetterIndex].FontGlyps[iii]
+        If ActualFont.Letter[LetterIndex].FontGlyps[iii + 1] > tRect[1] Then tRect[1] = ActualFont.Letter[LetterIndex].FontGlyps[iii + 1]
+      Next
+      tRect[0] += (Xadvance + ActualFont.LetterSpacing) * textH * FontScale
+
+      Xadvance = 0
+    End If
+  Next
+
+  tRect[1] *= textH * FontScale * 1.15
+
+  Return tRect
+
+End
+
+'' devuelve un rectangulo que contiene al texto
+'' [x,y,ancho,alto]
+Public Function MTextExtends(UTFMultiString As String, posX As Float, posY As Float, textH As Float) As Float[]
+
+  Dim i, iii, UTFcode, LetterIndex As Integer, Yadvance, Xadvance, xtotaladvance, xmaxadvance As Float
+  Dim mLines As String[], dH As Float, tLine As String, FirstYadvance As Boolean = False
+  Dim tRect As New Float[]
+
+  tRect.Insert([posX, posY, 0, 0])
+  mlines = Split(UTFMultiString, gb.CrLf & gb.Cr & gb.lf)
+
+  For Each tLine In mLines
+    For i = 1 To Len(tLine)                                                 ' para cada letra
+      UTFcode = String.Code(tLine, i)                                         ' obtengo el UTF code
+      If UTFcode = 32 Then                                                    ' es un espacio
+        tRect[2] += ActualFont.LetterSpacing * textH * FontScale
+      Else
+        LetterIndex = GetCodeIndex(ActualFont, UTFcode)                     ' obtengo el indice de la letra
+        For iii = 0 To ActualFont.Letter[LetterIndex].FontGlyps.Max Step 2  ' calculo cuanto tiene que avanzar el puntero
+          If ActualFont.Letter[LetterIndex].FontGlyps[iii] > Xadvance Then Xadvance = ActualFont.Letter[LetterIndex].FontGlyps[iii]
+          If ActualFont.Letter[LetterIndex].FontGlyps[iii + 1] > Yadvance Then Yadvance = ActualFont.Letter[LetterIndex].FontGlyps[iii + 1]
+        Next
+        xtotaladvance += (Xadvance + ActualFont.LetterSpacing) * textH * FontScale
+        Xadvance = 0
+      End If
+    Next
+    If Not FirstYadvance Then
+
+      tRect[1] = ((Yadvance) * textH * FontScale)
+      FirstYadvance = True
+    Endif
+    If xtotaladvance > tRect[2] Then tRect[2] = xtotaladvance
+    xtotaladvance = 0
+    tRect[3] -= ((Yadvance + ActualFont.WordSpacing) * textH * FontScale)
+    Yadvance = 0
+  Next
+  Return tRect
+
+End
+
+'' Lee todas las texturas del directorio provisto y devuelve un listado con sus nombres
+Public Function LoadTextures(DirPath As String) As String[]
+
+  Dim sFilename As String, fFile As File, sData, sCoord As String
+  Dim sPuntos As String[], Lista As New String[]
+  Dim imgTexture As Image
+  Dim picTexture As Picture
+  Dim iTexture As Integer = 0
+  Dim newTexture As TextureSt
+
+  hText = Gl.GenTextures(1)
+
+  For Each sFilename In Dir(DirPath, "*.png")
+
+    newTexture = New TextureSt
+
+    glTextures.Add(newTexture)
+
+    newTexture.FileName = Left$(sFilename, -4)                          ' agrego el nombre de la textura a la lista que voy a retornar
+
+    lista.Add(newTexture.FileName)
+
+    newTexture.hImage = Image.Load(DirPath &/ sFilename)                                  ' cargo la imagen en memoria
+
+    Gl.TexImage2D(newTexture.hImage)                                           ' genero un objeto OpenGL
+
+    Gl.TexParameteri(Gl.TEXTURE_2D, Gl.TEXTURE_MIN_FILTER, Gl.NEAREST)  ' parametros basicos opengl
+
+    Gl.TexParameteri(Gl.TEXTURE_2D, Gl.TEXTURE_MAG_FILTER, Gl.NEAREST)  ' parametros basicos opengl
+
+    gl.BindTexture(gl.TEXTURE_2D, hText[iTexture])                      ' enlazo la textura a una handle
+
+    newTexture.handle = hText[iTexture]
+
+    Inc iTexture
+    Break
+  Next
+
+  Debug "Leidas ", iTexture, " texturas en ", sFilename
+
+  Return lista
+
+End
+
+'' Dibuja un triangulo con una textura ya cargada
+
+Public Sub TexturedTriangle2D(x1 As Float, y1 As Float, x2 As Float, y2 As Float, x3 As Float, y3 As Float, TextureHandle As Integer, Scale As Float)
+
+  Gl.TexImage2D(glTextures[TextureHandle].hImage)                                           ' genero un objeto OpenGL
+  gl.BindTexture(gl.TEXTURE_2D, hText[TextureHandle])                      ' enlazo la textura a una handle
+  gl.begin(gl.TRIANGLES)
+
+  gl.TexCoord2f(0, 0)
+
+  gl.Vertex2f(x1, y1)
+
+  gl.TexCoord2f((x2 - x1) / scale / 1000, (y2 - y1) / scale / 1000)
+
+  gl.Vertex2f(x2, y2)
+
+  gl.TexCoord2f((x3 - x1) / scale / 1000, (y3 - y1) / scale / 1000)
+
+  gl.Vertex2f(x3, y3)
+
+  gl.End
+
+End

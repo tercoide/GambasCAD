@@ -1,0 +1,1426 @@
+' Gambas module file
+
+'
+' RADG
+' Rapid Application Development for Gambas
+'
+' Copyright (C) Martín Belmonte
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 2 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+'
+
+Export
+
+'' Returns the parent directory of another one that is passed as a parameter.
+
+Public Function DirParent(strPath As String) As String
+
+  Dim strParent As String
+  Dim intLast As Integer
+
+  If strPath <> "" Then
+    intLast = String.RInStr(strPath, "/")
+    strParent = String.Mid(strPath, 1, intLast)
+    If String.Len(strParent) > 1 Then
+      If String.Right(strParent) = "/" Then
+        strParent = String.Mid(strParent, 1, String.Len(strParent) - 1)
+
+      Endif
+    Endif
+  Endif
+
+  If Exist(strParent) = False Then
+    strParent = "-1"
+  Else
+    If Stat(strParent).Type <> gb.Directory Then
+      strParent = "-1"
+    Endif
+  Endif
+
+  Return strParent
+
+End
+
+'' Returns the directory without the path to it, that is, returns the name of the directory. if you give "/home/user/music" it will return "music"
+
+Public Function DirBase(strPath As String) As String
+
+  Dim strBase As String
+  Dim stx As New String[]
+
+  If InStr(strPath, "/") > 0 Then
+    stx = Split(strPath, "/")
+    strBase = stx[stx.Max]
+  Endif
+
+  Return strBase
+
+End
+
+''Create an array with the gambas language structures that, for example, can be used to interpret the code.
+
+Public Function CodeStructure() As String[]
+
+  Dim stxStructure As New String[]
+  ' "X#Function #As " X es el primer caracter de comienzo de la línea de código
+
+  stxStructure.Add("F#Function #Method Start")
+  stxStructure.Add("S#Sub #Method Start")
+  stxStructure.Add("S#Sub #) As #Method Start")
+  stxStructure.Add("E#End#Method End")
+  stxStructure.Add(" #Dim #As #Variable Local")
+  stxStructure.Add("P#Public # As #Variable Public")
+  stxStructure.Add("P#Private # As #Variable Private")
+  stxStructure.Add("P#Public #Function #) As #Method Start")
+  stxStructure.Add("P#Private #Function #) As #Method Start")
+  stxStructure.Add("'#'#Commentary 1")
+  stxStructure.Add("'#''#Commentary 2")
+  stxStructure.Add("##Blank Line")
+  stxStructure.Add(" #If #Then#Conditional structure Start")
+  stxStructure.Add(" #If #Then #Break#Conditional structure Start-End")
+  stxStructure.Add(" #Else#Conditional structure Middle")
+  stxStructure.Add(" #Endif#Conditional structure End")
+  stxStructure.Add(" #For #To #Loop Control Start")
+  stxStructure.Add(" #For #To #Step #Loop Control Start")
+  stxStructure.Add(" #For #Each #Loop Control Start")
+  stxStructure.Add(" #For #Each #In #Loop Control Start")
+  stxStructure.Add(" #Repeat#Loop Control Start")
+  stxStructure.Add(" #Do #While #Loop Control Start")
+  stxStructure.Add(" #While #Loop Control Start")
+  stxStructure.Add(" #Do#Loop Control Start")
+  stxStructure.Add(" #Continue#Loop Control Middle")
+  stxStructure.Add(" #Next#Loop Control End")
+  stxStructure.Add(" #Loop#Loop Control End")
+  stxStructure.Add(" #Until#Loop Control End")
+  stxStructure.Add(" #Wend#Loop Control End")
+  stxStructure.Add(" #Inc #Increment")
+  stxStructure.Add(" #Wait #Wait")
+  stxStructure.Add(" #Select #Select Control Start")
+  stxStructure.Add(" #Select Case #Select Control Start")
+  stxStructure.Add(" #Case #Select Control Middle")
+  stxStructure.Add(" #End Select#Select Control End")
+  stxStructure.Add(" #Open # For Input#Open Stream")
+  stxStructure.Add(" #Open # For Read#Open Stream")
+  stxStructure.Add(" #Open # For Write#Open Stream")
+  stxStructure.Add(" #Open # For Output#Open Stream")
+  stxStructure.Add(" #Open # For Create#Open Stream")
+  stxStructure.Add(" #Open # For Append#Open Stream")
+  stxStructure.Add(" #Open # For Watch#Open Stream")
+  stxStructure.Add(" #Print #Print")
+  ' Faltan mas estructuras
+  stxStructure.Add(" #Close #Close Stream")
+  stxStructure.Add(" #Kill #Shell Command")
+  stxStructure.Add(" #Shell #Shell Command")
+  stxStructure.Add(" #Shell #To #Shell Command")
+  stxStructure.Add(" #Move #Shell Command")
+  stxStructure.Add(" #Copy #Shell Command")
+  stxStructure.Add(" #Catch#Error Catch")
+  stxStructure.Add(" #Try #Error Try")
+  stxStructure.Add(" #Return #Method Middle")
+
+  Return stxStructure
+
+End
+
+'' Function that returns the type of container according to the variable that is passed as a parameter
+
+Public Function ConType(vrt As Variant) As String
+
+  Dim obj As Object
+  Dim typ As String
+
+  If TypeOf(vrt) = 16 Then
+    obj = vrt
+    Select Object.Type(obj)
+      Case "Panel", "Frame", "VBox", "VPanel", "VSplit", "HBox", "HPanel", "HSplit"
+        typ = Object.Type(obj)
+      Case Else
+        If obj.Caption Then
+          If obj.FullScreen Then
+            typ = "Form"
+          Endif
+        Endif
+    End Select
+  Else
+    typ = Object.Type(obj)
+  Endif
+
+  Return typ
+
+End
+
+'' It parses a text string that is passed as a parameter and, in the context of a code snippet, returns what that phrase is.
+
+Public Function CodeTag(str As String) As String
+
+  Dim stxStruc As New String[]
+  Dim stxSTmp As New String[]
+  Dim stxCoin As New Integer[] 'Coincidencia
+  Dim int1 As Integer
+  Dim int2 As Integer
+  Dim int3 As Integer 'Coincidencia
+  Dim inxCoin As New Integer[]
+  Dim intCoin As Integer
+  Dim strOutput As String
+  Dim strType As String
+  Dim strJob As String
+  Dim stxSplitText As String[]
+  Dim strIsComment As String
+  Dim intCh As Integer
+
+  stxStruc = CodeStructure()
+  stxCoin.Clear
+
+  strJob = Replace(str, "  ", " ")
+  strJob = Replace(strJob, " '", "'")
+
+  Select strJob
+    Case "", " ", "  ", "   "
+      For int1 = 0 To stxStruc.Max
+        If stxStruc[int1] = "##Blank Line" Then
+          inxCoin.Add(1)
+        Else
+          inxCoin.Add(0)
+        Endif
+      Next
+
+    Case Else
+
+      If String.Mid(strJob, 1, 1) = " " Then
+        ' verificar si es una linea comentada
+        stxSplitText = vag.SplitText(strJob)
+        strIsComment = "no"
+
+        For intCh = 0 To stxSplitText.Max
+          If stxSplitText[intCh] = " " Then
+            Select intCh
+              Case stxSplitText.Max
+                'skip
+              Case Else
+                If stxSplitText[intCh + 1] = "'" Then
+                  ' La fraase es un comentario
+                  strIsComment = "yes"
+                  Break
+                Endif
+            End Select
+
+          Endif
+        Next
+        Select strIsComment
+          Case "yes"
+            strJob = "'c"
+        End Select
+      Endif
+
+      For int1 = 0 To stxStruc.Max ' alrededor de 50 frases
+        stxSTmp = Split(stxStruc[int1], "#")
+        int3 = 0
+
+        If String.Mid(strJob, 1, 1) = stxSTmp[0] Then
+          For int2 = 1 To stxSTmp.Max - 1
+            If InStr(strJob, stxSTmp[int2]) > 0 Then
+              Inc int3
+            Endif
+          Next
+          inxCoin.Add(int3)
+        Else 'si la 1º letra no coincide > es 0, es decir no hay coincidencia
+          inxCoin.Add(int3) ' en esta instancia int3 vale 0
+        Endif
+      Next
+  End Select
+
+  For intCoin = 0 To stxStruc.Max
+    If inxCoin[intCoin] > 0 Then
+      If inxCoin[intCoin] = ArrayMax(inxCoin) Then
+        strType = Split(stxStruc[intCoin], "#")[Split(stxStruc[intCoin], "#").Max]
+      Endif
+
+    Endif
+  Next
+
+  Select strType
+    Case ""
+      strType = "Code"
+  End Select
+
+  strOutput = strType & "\t" & str
+
+  Return strOutput
+
+End
+
+Public Function CodeMthod(stxPart As String[]) As String[]
+
+  Dim intPart As Integer
+  Dim stxFunc As New String[]
+  Dim strFast As String
+  Dim strMode As String
+  Dim strScope As String
+  Dim strType As String
+  Dim strName As String
+  Dim stxMethd As New String[]
+  Dim strDesc As String
+  Dim strRetn As String
+  Dim strArgs As String
+  Dim stxArgs As New String[]
+  Dim strExtr As String
+  Dim strTemp As String
+  Dim intRetn As Integer
+  Dim intDesc As Integer
+
+  intRetn = 0
+  For intPart = 0 To stxPart.Max
+
+    Select intPart
+      Case 0
+        strTemp = Split(stxPart[0], "\t")[1]
+
+        stxFunc = Split(strTemp, " ")
+
+        If stxFunc.Find("Fast") > -1 Then
+          strFast = "Fast"
+        Else
+          strFast = ""
+        Endif
+
+        If stxFunc.Find("Static") > -1 Then
+          strMode = "Static"
+        Else
+          strMode = ""
+        Endif
+
+        If stxFunc.Find("Public") > -1 Then
+          strScope = "Public"
+        Else
+          If stxFunc.Find("Private") > -1 Then
+            strScope = "Private"
+          Else
+            strScope = "Other"
+          Endif
+        Endif
+
+        If stxFunc.Find("Function") > -1 Then
+          strType = "Function"
+        Else
+          If stxFunc.Find("Procedure") > -1 Then
+            strType = "Procedure"
+          Else
+            If stxFunc.Find("Sub") > -1 Then
+              strType = "Sub"
+            Endif
+          Endif
+        Endif
+        strName = stxFunc[stxFunc.Max]
+        ' ---------------
+      Case 1
+        strArgs = Replace(stxPart[1], ", ", "#")
+        strArgs = Replace(strArgs, " As ", "~")
+        If InStr(strArgs, "#") > 0 Then
+          stxArgs = Split(strArgs, "#") ' intArg1>Integer#strArg2>String
+        Else
+          If InStr(strArgs, "~") > 0 Then
+            stxArgs.Add(strArgs)
+          Endif
+        Endif
+        ' ---------------
+      Case 2
+        strExtr = Replace(stxPart[2], " As ", "\tReturn: ")
+        strExtr = Replace(strExtr, "''", "\tDescription: ")
+
+        If InStr(strExtr, "\tReturn: ") > 0 Then
+          intDesc = InStr(strExtr, "\tReturn: ")
+          If intRetn > 0 Then
+            strDesc = String.Mid(strExtr, intRetn + 9)
+          Endif
+        Else
+          strRetn = ""
+        Endif
+
+        If InStr(strExtr, "\tDescription: ") > 0 Then
+          intDesc = InStr(strExtr, "\tDescription: ")
+          If intDesc > 0 Then
+            strDesc = String.Mid(strExtr, intDesc + 14)
+          Endif
+        Else
+          strDesc = ""
+        Endif
+
+    End Select
+  Next
+
+  stxMethd.Add(strFast) '
+  stxMethd.Add(strMode) '
+  stxMethd.Add(strScope) '
+  stxMethd.Add(strType) '
+  stxMethd.Add(strName) '
+  stxMethd.Add(Replace(stxArgs.Join("/"), "~", " As "))
+  stxMethd.Add(strRetn) '
+  stxMethd.Add(strDesc) '
+
+  Return stxMethd
+
+End
+
+'' Read the method and code matrices of the project and then analyze the relationships between them generating a matrix with these relationships.
+
+Public Function RelationProj(stxClass As String[], stxMet As String[], stxCod As String[]) As String[]
+
+  Dim stxReltn As New String[] ' Lista de métodos
+  Dim intCod As Integer
+  Dim intMet As Integer
+
+  For intCod = 0 To stxCod.Max
+    'Print "// " & stxClass[intCod] & "." & stxMet[intCod]
+
+    For intMet = 0 To stxMet.Max
+
+      Select stxClass[intMet] = stxClass[intCod]
+        Case True
+
+          If InStr(stxCod[intCod], stxMet[intMet] & "(") > 0 Then
+            stxReltn.Add(stxClass[intCod] & "." & stxMet[intCod] & "\t" & stxClass[intMet] & "." & stxMet[intMet])
+          Else
+            stxReltn.Add(stxClass[intMet] & "." & stxMet[intMet])
+          Endif
+        Case False
+
+          If InStr(stxCod[intCod], stxClass[intMet] & "." & stxMet[intMet] & "(") > 0 Then
+            stxReltn.Add(stxClass[intCod] & "." & stxMet[intCod] & "\t" & stxClass[intMet] & "." & stxMet[intMet])
+          Else
+            stxReltn.Add(stxClass[intMet] & "." & stxMet[intMet])
+          Endif
+      End Select
+
+    Next
+  Next
+
+  Return stxReltn
+
+End
+
+'' Read all the classes and modules of a gambas project, collect information from it in an open way and translate it into a text matrix.
+
+Public Function DokuProj(strPath As String) As String[]
+
+  Dim stxFiles As New String[]
+  Dim strFile As String
+  Dim strFileExt As String
+  Dim stxText As New String[]
+  Dim int As Integer
+  Dim intEnd As Integer
+  Dim strFileBase As String
+  Dim strType As String
+  Dim intPlus As Integer
+  Dim strMethod As String
+  Dim strCode As String
+  Dim stxCode As New String[]
+  Dim stxVars As New String[]
+  Dim stxPart As New String[]
+  Dim stxMethod As New String[]
+  Dim stxProj As New String[]
+  Dim strTypeCode As String
+  Dim intInit As Integer
+
+  '' strPath It is the root directory that is passed to the function, and from there it will look for the .project files
+  stxFiles = ScanDir(strPath)
+  stxFiles.Sort
+
+  If stxFiles.Count > 0 Then
+    For Each strFile In stxFiles
+      strFileExt = File.Ext(strFile)
+      strFileBase = File.BaseName(strFile)
+      Select strFileExt
+        Case "module", "class"
+          stxText = fil.FileLoadRaw(strFile)
+
+          For int = 0 To stxText.Max
+            intInit = int
+            strMethod = CodeTag(Replace(stxText[int], "\t", " "))
+            strType = Split(strMethod, "\t")[0]
+
+            If strType = "Method Start" Then
+              ' Resto del código
+              stxPart = Split(strMethod, "()")
+              stxMethod = CodeMthod(stxPart)
+
+              intPlus = 1
+              stxCode.Clear
+
+              If int + intPlus <= stxText.Max Then
+
+                Repeat
+
+                  strCode = CodeTag(Replace(stxText[int + intPlus], "\t", " "))
+                  strTypeCode = Split(strCode, "\t")[0]
+                  Select strTypeCode
+                    Case "Commentary 1", "Blank Line", "Method End"
+                      'skip
+                    Case "Variable Local"
+                      stxVars.Add(Split(strCode, "\t")[1])
+                      'skip
+                    Case Else
+                      stxCode.Add(Split(strCode, "\t")[1])
+                  End Select
+
+                  If (int + intPlus) < stxText.Max Then
+                    Inc IntPlus
+                  Endif
+                  If strTypeCode = "Method End" Then
+
+                    intEnd = int + intPlus
+                    Break
+                  Else
+                    intEnd = int
+                  Endif
+
+                Until int + intPlus >= stxText.Max
+
+              Endif
+
+              '' Here is the complete method
+
+              stxProj.Add(strFile & "\t" & strFileBase & "\t" & stxMethod.Join("\n") & "\t" & stxCode.Join("\n") & "\t" & stxVars.Join("\n") & "\t" & CStr(intInit) & "\t" & CStr(intEnd))
+
+            Endif
+          Next
+      End Select
+    Next
+  End If
+
+  Return stxProj
+
+End
+
+'' It returns an html with the functions of a module and all the data of these, as an input parameter it requires the root directory from which to search the modules.
+
+Public Function DokuHtml(strPath As String) As String
+
+  Dim stxFiles As String[]
+  Dim strHtml As String
+  Dim strFile As String
+  Dim strLine As String
+  Dim intPub As Integer
+  Dim strFunName As String
+  Dim strFunParam As String
+  Dim strFunReturn As String
+  Dim strFunDesc As String
+  Dim stxFunky As New String[]
+  Dim intPrm As Integer
+  Dim intModule As Integer        '' Number of modules
+  Dim intQty As Integer           '' Number of methods
+
+  Dim strKey As String
+  Dim strAttr As String
+
+  Dim stxInfo As New String[]
+  Dim strFunCode As String
+
+  stxInfo = sog.ProjInfo()
+
+  stxFiles = ScanDir(strPath, "class:module")
+  strKey = "Public Function "
+  intPub = String.Len(strKey)
+  ' Header
+  strHtml &= "<!DOCTYPE html><html>"
+  strHtml &= "<head>" ""
+  strHtml &= "<meta charset=\"utf-8\"/>"
+  strHtml &= "<meta name=\"description\"content=\" Wiki Of GEF " > " " ""
+  strHtml &= "<meta name=\"keywords\"content=\"Gambas, GEF" > " " ""
+  strHtml &= "<meta name=\"author\"content=\"" & stxInfo[2] & "\">"
+  strHtml &= "<meta name=\"viewport\"content=\"width=device-width, initial-scale=1.0\">"
+  strHtml &= "<title>" & Application.Name & "</title>"
+  strHtml &= "</head><body>"
+  strHtml &= "<style>.center {text-align: center;}</style>"
+  strHtml &= "<div class=\"center\">"
+  strHtml &= "<img src=\"./" & stxInfo[8] & "\" alt=\"Logo\" width=\"200\" height=\"200\">"
+  strHtml &= "</div>"
+
+  strHtml &= "<h1>" & Application.Name & "</h1>"
+  strHtml &= "<p>" & ("Author") & ": <b>" & stxInfo[2] & "</b></p>"
+  strHtml &= "<p>" & ("Vendor") & ": <b>" & stxInfo[3] & "</b></p>"
+  strHtml &= "<p>" & ("Version") & ": <b>" & stxInfo[4] & "</b></p>"
+  strHtml &= "<p>" & ("Date of this document") & ": <b>" & Format(Now(), "yyyy.mm.dd hh:nn:ss") & "</b></p>"
+  strHtml &= "<p>" & ("Components") & ": <b>" & Replace(stxInfo[5], ":", ", ") & "</b></p>"
+
+  strHtml &= "<p>" & Application.Name & " " & ("It is made up") & " <b>MMMOOODDDUUULLLOOOSSS</b> " & ("modules") & " y <b>FFUUNNCCIIOONNEESS</b> " & ("methods") & "</p>"
+
+  If stxFiles.Count > 0 Then
+    For Each strFile In stxFiles
+      If File.Ext(strFile) = "module" Then
+        strHtml &= "<h2>" & File.Name(strFile) & "</h2>"
+        Inc intModule
+
+        For Each strLine In fil.FileLoad(strFile)
+          If String.Left(strLine, intPub) = strKey Then
+            Inc intQty
+
+            strline = Replace(strline, strKey, "")
+            strline = Replace(strline, "(", "\t")
+            strline = Replace(strline, ") ", "\t")
+            strline = Replace(strline, " ''", "\t")
+
+            stxFunky.Clear
+            stxFunky = Split(strline, "\t")
+
+            Select stxFunky.Count
+              Case 0
+                strFunName = ""
+                strFunParam = ""
+                strFunReturn = ""
+                strFunDesc = ""
+                strFunCode = ""
+
+              Case 2
+                strFunName = stxFunky[0]
+                strFunParam = stxFunky[1]
+                strFunReturn = ""
+                strFunDesc = ""
+                strFunCode = ""
+
+              Case 3
+                strFunName = stxFunky[0]
+                strFunParam = stxFunky[1]
+                If String.len(stxFunky[2]) > 2 Then
+                  If String.Mid(stxFunky[2], 1, 3) = "As " Then
+                    strFunReturn = stxFunky[2]
+                    strFunDesc = ""
+                  Else
+                    strFunReturn = ""
+                    strFunDesc = stxFunky[2]
+                  Endif
+                Endif
+
+              Case 4
+                strFunName = stxFunky[0]
+                strFunParam = stxFunky[1]
+                strFunReturn = stxFunky[2]
+                strFunDesc = stxFunky[3]
+
+            End Select
+
+            strHtml &= "<h3>" & strFunName & "</h3>"
+
+            strFunParam = Replace(strFunParam, ", ", "\t")
+            strFunParam = Replace(strFunParam, "Optional ", "Optional~")
+            strFunParam = Replace(strFunParam, " As ", "#")
+
+            If strFunParam <> "" Then
+              strHtml &= "<ul>"
+              For intPrm = 0 To Split(strFunParam, "\t").Count - 1
+
+                strAttr = Split(Split(strFunParam, "\t")[intPrm], "#")[0]
+
+                If InStr(strAttr, "Optional") > 0 Then
+                  strHtml &= "<li><i>" & Split(strAttr, "~")[0] & "</i> <b>" & Split(strAttr, "~")[1] & "</b><i> As "
+                Else
+                  strHtml &= "<li><b>" & strAttr & "</b><i> As "
+                Endif
+
+                strHtml &= Split(Split(strFunParam, "\t")[intPrm], "#")[1] & "</i>" & "</li>"
+              Next
+              strHtml &= "</ul>"
+            Endif
+
+            strFunDesc = Replace(strFunDesc, "\n", "")
+            strHtml &= "<p>" & strFunDesc & "</p>"
+
+          Endif
+        Next
+
+      Endif
+    Next
+  Endif
+
+  strHtml = Replace(strHtml, "MMMOOODDDUUULLLOOOSSS", CStr(intModule))
+  strHtml = Replace(strHtml, "FFUUNNCCIIOONNEESS", CStr(intQty))
+
+  Return strHtml
+
+End
+
+'' Returns a wiki with the functions of a module and all their data, as an input parameter it requires the root directory from which to look for the modules.
+
+Public Function Dokuwiki(strPath As String) As String
+
+  Dim stxFiles As String[]
+  Dim strWiki As String
+  Dim strFile As String
+  Dim strLine As String
+  Dim intPub As Integer
+  Dim strFunName As String
+  Dim strFunParam As String
+  Dim strFunReturn As String
+  Dim strFunDesc As String
+  Dim stxFunky As New String[]
+  Dim intPrm As Integer
+
+  Dim strKey As String
+  Dim i As Integer
+  Dim intLine As Integer
+
+  stxFiles = ScanDir(strPath)
+  strKey = "Public Function "
+  intPub = String.Len(strKey)
+
+  If stxFiles.Count > 0 Then
+    For Each strFile In stxFiles
+      If File.Ext(strFile) = "module" Then
+        strWiki &= "### " & File.Name(strFile)
+        strWiki &= "\n"
+
+        intLine = 0
+        For Each strLine In fil.FileLoad(strFile)
+          If String.Left(strLine, intPub) = strKey Then
+
+            strline = Replace(strline, strKey, "")
+            strline = Replace(strline, "(", "\t")
+            strline = Replace(strline, ") ", "\t")
+            strline = Replace(strline, " ''", "\t")
+
+            stxFunky.Clear
+            stxFunky = Split(strline, "\t")
+
+            Select stxFunky.Count
+              Case 0
+                strFunName = ""
+                strFunParam = ""
+                strFunReturn = ""
+                strFunDesc = ""
+
+              Case 2
+                strFunName = stxFunky[0]
+                strFunParam = stxFunky[1]
+                strFunReturn = ""
+                strFunDesc = ""
+
+              Case 3
+                strFunName = stxFunky[0]
+                strFunParam = stxFunky[1]
+                If String.len(stxFunky[2]) > 2 Then
+                  If String.Mid(stxFunky[2], 1, 3) = "As " Then
+                    strFunReturn = stxFunky[2]
+                    strFunDesc = ""
+                  Else
+                    strFunReturn = ""
+                    strFunDesc = stxFunky[2]
+                  Endif
+                Endif
+
+              Case 4
+                strFunName = stxFunky[0]
+                strFunParam = stxFunky[1]
+                strFunReturn = stxFunky[2]
+                strFunDesc = stxFunky[3]
+
+            End Select
+
+            strWiki &= "*" & strFunName & "* " & " _" & strFunReturn & "_"
+            strWiki &= "\n"
+
+            strFunParam = Replace(strFunParam, ", ", "\t")
+            strFunParam = Replace(strFunParam, "Optional ", "Opt.")
+            strFunParam = Replace(strFunParam, " As ", "#")
+
+            If strFunParam <> "" Then
+              For i = 0 To Split(strFunParam, "\t").Count - 1
+                strWiki &= CStr(intPrm + 1) & ". " & Split(Split(strFunParam, "\t")[intPrm], "#")[0] & " _" & Split(Split(strFunParam, "\t")[intPrm], "#")[1] & "_"
+                strWiki &= "\n"
+              Next
+
+            Endif
+            strWiki &= Replace(strFunDesc, "\n", "")
+            strWiki &= "\n"
+
+          Endif
+          Inc intLine
+        Next
+
+      Endif
+    Next
+  Endif
+
+  Return strWiki
+
+End
+
+'' Returns a path without line breaks or problematic characters
+
+Public Function ArrangePath(strPathRaw As String) As String
+
+  Dim strPath As String
+
+  strPath = Replace(strPathRaw, "file://", "")
+  strPath = Replace(strPath, "\n", "")
+  strPath = Replace(strPath, "\r", "")
+  strPath = Replace(strPath, "\x00", "")
+
+  Return strPath
+
+End
+
+'' Returns a text string over time in "yyyymmddhhnnss" format. From years to seconds.
+
+Public Function Timestamp(datTime As Date) As String
+
+  Return Format(datTime, "yyyymmddhhnnss")
+
+End
+
+'' Returns the year from a text string that is passed as a parameter.
+
+Public Function TimeYear(str As String) As String
+
+  Dim strOut As String
+
+  Shell "date -d " & str & " +%Y 2>&1" To strOut
+
+  strOut = vag.OnlyNumbers(strOut)
+
+  Return strOut
+
+End
+
+'' Returns a text string over time in "yyyymmddhhnnssuu" format. From years to milliseconds with three digits.
+
+Public Function Timestampu(datTime As Date) As String
+
+  Return Format(datTime, "yyyymmddhhnnssuu")
+
+End
+
+'' Function that returns the type of variable as a word. As input parameter requires an integer number.
+
+Public Function TypeVar(intType As Integer) As String
+
+  Dim vrxType As String[]
+
+  vrxType = ["Null", "Boolean", "Byte", "Short", "Integer", "Long", "Single", "Float", "Date", "String", "Variant", "Object", "Pointer", "Function", "Class"]
+
+  Return vrxType[intType]
+
+End
+
+Public Function MouseButton(intKey As Integer) As String ''Funcion que retorna el nombre en ingés del boton del ratón que se ha presionado.
+
+  Dim strMouseButton As String
+
+  Select intKey
+    Case 1
+      strMouseButton = "Left"
+    Case 2
+      strMouseButton = "Right"
+    Case 4
+      strMouseButton = "Center"
+    Case 16
+      strMouseButton = "Function-1"
+    Case 8
+      strMouseButton = "Function-2"
+  End Select
+
+  Return strMouseButton
+
+End
+
+Public Function ArrayInclude(stxList As String[], strFind As String) As String[] ''Quita de la lista los textos que no tengan la cadena de texto pasada como parametro
+
+  Dim strItem As String
+  Dim stxAuxiliar As New String[]
+
+  stxAuxiliar.Clear
+
+  For Each strItem In stxList
+    If InStr(strItem, strFind) <> 0 Then
+
+      stxAuxiliar.Add(strItem)
+
+    Endif
+
+  Next
+
+  Return stxAuxiliar
+
+End
+
+Public Function XStat(f As String) As Collection
+
+  Dim cn As New Collection
+  Dim ino As String
+
+  If Exist(f) Then
+    If Stat(f).Type = gb.File Then
+      cn.Add(Stat(f).Auth, "Auth")
+      cn.Add(Stat(f).Group, "Group")
+      cn.Add(Stat(f).Hidden, "Hidden")
+      cn.Add(Stat(f).LastAccess, "LastAccess")
+      cn.Add(Stat(f).LastChange, "LastChange")
+      cn.Add(Stat(f).LastModified, "LastModified")
+      cn.Add(Stat(f).Link, "Link")
+      cn.Add(Stat(f).Mode, "Mode")
+      cn.Add(Stat(f).Path, "Path")
+      cn.Add(Stat(f).Perm, "Perm")
+      cn.Add(Stat(f).SetGID, "SetGID")
+      cn.Add(Stat(f).SetUID, "SetUID")
+      cn.Add(Stat(f).Size, "Size")
+      cn.Add(Stat(f).Sticky, "Sticky")
+      cn.Add(Stat(f).Time, "Time")
+      cn.Add(Stat(f).Type, "Type")
+      cn.Add(Stat(f).User, "User")
+
+      Shell "stat -c %i '" & f & "' 2>&1" To ino
+      ino = Replace(ino, "\n", "")
+
+      cn.Add(ino, "Inode")
+
+    Endif
+
+  Endif
+
+  Return cn
+
+End
+
+Public Function ArrayMax(inx As Integer[]) As Integer ''Devuelve el maximo valor de lalista de numeros enteros.
+
+  Dim int As Integer
+  Dim intRet As Integer
+
+  For Each int In inx
+
+    If int > intRet Then
+      intRet = int
+    Endif
+
+  Next
+
+  Return intRet
+
+End
+
+Public Function Between(str As String, str1 As String, Optional str2 As String) As String ''Devuelve la cadena de texto comprendida entre las dos que se pasan como parámetro
+  'Idea original de Juan Luis Lopez
+
+  Dim intL As Integer
+  Dim intU As Integer
+
+  Select str2
+    Case Null
+      intL = InStr(str, str1) + Len(str1)
+      intU = InStr(str, str2, intL)
+      Return Mid(str, intL, Len(str) - intL)
+    Case Else
+      intL = InStr(str, str1) + Len(str1)
+      intU = InStr(str, str2, intL)
+      Return Mid(str, intL, intU - intL)
+  End Select
+
+End
+
+Public Function Retab(str As String, Optional strSep As String) As String[] '' Función que devuelve una matriz de texto separando una cadena por el caracter separado pasado como parametro.
+
+  Dim stxOut As New String[]
+
+  If strSep <> Null Then
+    If strSep = "" Then
+      strSep = "\t"
+    Endif
+  Else
+    strSep = "\t"
+  Endif
+
+  If InStr(str, strSep) > 0 Then
+    stxOut = Split(str, strSep)
+  Endif
+
+  Return stxOut
+
+End
+
+Public Function ArrayOrder(stxList As String[], Optional strOrder As String) As String[] ''Ordena una lista de texto que tenga carateres con acentos y espacios, como parametro principal se le pasa la lista y opcionalmente el orden asc o desc.
+
+  Dim int As Integer
+  Dim stxOut As New String[]
+  Dim stxTmp As New String[]
+  Dim intLmax As Integer
+  Dim intLtmp As Integer
+  '  Dim strOrder As String
+  Dim intLtmp2 As Integer
+
+  stxTmp.Clear
+  intLmax = 0
+
+  Select String.LCase(strOrder)
+    Case "", "asc"
+      strOrder = "asc"
+    Case "desc", "des"
+      strOrder = "desc"
+    Case Else
+      strOrder = "asc"
+  End Select
+
+  For int = 0 To stxList.Max
+    intLtmp = String.Len(vag.NoSymbols(stxList[int] & " ")) / 3
+    If intLtmp > intLmax Then
+      intLmax = intLtmp
+    Endif
+  Next
+
+  For int = 0 To stxList.Max
+    strOrder = vag.NoSymbols(stxList[int] & " ")
+    intLtmp2 = String.Len(strOrder) / 3
+
+    If intLtmp2 < intLmax Then
+      strOrder &= strOrder & String(intLmax - intLtmp2, (Hex(Asc(" "), 3)))
+    Endif
+    strOrder = String.Mid(strOrder, 1, intLmax * 3)
+    stxTmp.Add(strOrder & "\t" & stxList[int])
+  Next
+
+  stxTmp.Sort
+
+  Select strOrder
+    Case "desc"
+      stxTmp.Reverse
+  End Select
+
+  For int = 0 To stxTmp.Max
+    stxOut.Add(Split(stxTmp[int], "\t")[1])
+  Next
+  Return stxOut
+
+End
+
+Public Function ArrayExclude(stxList As String[], strFind As String) As String[] ''Quita de la lista los textos que tengan la cadena de texto pasada como parametro
+
+  Dim strItem As String
+  Dim stxAuxiliar As New String[]
+
+  stxAuxiliar.Clear
+
+  For Each strItem In stxList
+    If InStr(strItem, strFind) = 0 Then
+
+      stxAuxiliar.Add(strItem)
+
+    Endif
+
+  Next
+
+  Return stxAuxiliar
+
+End
+
+Public Function ArrayNoVaccum(stxList As String[]) As String[] ''Quita de la lista los ítemes vacios.
+
+  Dim strItem As String
+  Dim stxOut As New String[]
+
+  For Each strItem In stxList
+    If String.Len(strItem) > 0 Then
+      stxOut.Add(strItem)
+    Endif
+  Next
+  Return stxOut
+
+End
+
+Public Function NamingCon() As String[] ''Devuelve una lista de nombres de controles y su abreviación de tres caracteres.
+
+  Dim stxNCon As New String[]
+
+  stxNCon.Add("Bolean:bol")
+  stxNCon.Add("ButtonBox:bto")
+  stxNCon.Add("Button:btn")
+  stxNCon.Add("CheckBox:cko")
+  stxNCon.Add("Collection:ctn")
+  stxNCon.Add("ColorButton:cob")
+  stxNCon.Add("ColorChooser:coc")
+  stxNCon.Add("ColorPalette:cop")
+  stxNCon.Add("ColumnView:cuw")
+  stxNCon.Add("ComboBox:cmo")
+  stxNCon.Add("Connection:con")
+  stxNCon.Add("Control:crl")
+  stxNCon.Add("DataBase:dbs")
+  stxNCon.Add("DataBrowser:dbw")
+  stxNCon.Add("DataCombo:dcm")
+  stxNCon.Add("DataComboView:dcv")
+  stxNCon.Add("DataControl:dcr")
+  stxNCon.Add("DataSource:dsr")
+  stxNCon.Add("DateBox:dto")
+  stxNCon.Add("DateChooser:dtc")
+  stxNCon.Add("Date:dat")
+  stxNCon.Add("Date[]:dtx")
+  stxNCon.Add("Dial:dal")
+  stxNCon.Add("DirBox:dio")
+  stxNCon.Add("DirChooser:dic")
+  stxNCon.Add("DirView:diw")
+  stxNCon.Add("DocumentView:dcw")
+  stxNCon.Add("DrawingArea:dra")
+  stxNCon.Add("Editor:edi")
+  stxNCon.Add("Expander:exn")
+  stxNCon.Add("FileChooser:fic")
+  stxNCon.Add("Fileld:fld")
+  stxNCon.Add("FileProperties:fii")
+  stxNCon.Add("FileView:fiw")
+  stxNCon.Add("Float:flo")
+  stxNCon.Add("Float[]:flx")
+  stxNCon.Add("FontBox:fno")
+  stxNCon.Add("FontChooser:fnc")
+  stxNCon.Add("Frame:fra")
+  stxNCon.Add("GambasEditor:gbe")
+  stxNCon.Add("GridView:grw")
+  stxNCon.Add("Hbox:hzo")
+  stxNCon.Add("Hpanel:hzn")
+  stxNCon.Add("Hsplit:hzs")
+  stxNCon.Add("IconPanel:icn")
+  stxNCon.Add("IconView:icw")
+  stxNCon.Add("ImageView:imw")
+  stxNCon.Add("InputBox:ito")
+  stxNCon.Add("Integer:int")
+  stxNCon.Add("Integer[]:inx")
+  stxNCon.Add("Label:lbl")
+  stxNCon.Add("LCDlabel:lcd")
+  stxNCon.Add("ListBox:lso")
+  stxNCon.Add("ListEditor:lse")
+  stxNCon.Add("ListView:lsw")
+  stxNCon.Add("MaskBox:mko")
+  stxNCon.Add("MenuButton:mub")
+  stxNCon.Add("MenuItem:mui")
+  stxNCon.Add("MessageView:mgw")
+  stxNCon.Add("MovieBox:mio")
+  stxNCon.Add("Object:obj")
+  stxNCon.Add("Panel:pnl")
+  stxNCon.Add("PictureBox:pio")
+  stxNCon.Add("Picture:pic")
+  stxNCon.Add("Printer:ptr")
+  stxNCon.Add("Process:prs")
+  stxNCon.Add("ProgressBar:psr")
+  stxNCon.Add("RadioButton:rdb")
+  stxNCon.Add("Result:res")
+  stxNCon.Add("ScrollArea:sca")
+  stxNCon.Add("ScrollBar:scr")
+  stxNCon.Add("ScrollView:scw")
+  stxNCon.Add("Separator:sep")
+  stxNCon.Add("SidePanel:sdn")
+  stxNCon.Add("SliderBox:sdo")
+  stxNCon.Add("Slider:sld")
+  stxNCon.Add("SpinBox:sio")
+  stxNCon.Add("Spiner:sir")
+  stxNCon.Add("String:str")
+  stxNCon.Add("String[]:stx")
+  stxNCon.Add("SwitchButton:swb")
+  stxNCon.Add("Table:tbl")
+  stxNCon.Add("TableView:tbw")
+  stxNCon.Add("TabPanel:tan")
+  stxNCon.Add("TabStrip:tat")
+  stxNCon.Add("TextArea:txa")
+  stxNCon.Add("TextBoxExplained:teo")
+  stxNCon.Add("TextBox:txo")
+  stxNCon.Add("TextEdit:txe")
+  stxNCon.Add("TextLabel:txl")
+  stxNCon.Add("TextList:tlo")
+  stxNCon.Add("TextView:txw")
+  stxNCon.Add("Timer:tmr")
+  stxNCon.Add("ToggleButton:tgb")
+  stxNCon.Add("ToolButton:tob")
+  stxNCon.Add("ToolPanel:ton")
+  stxNCon.Add("TreeView:trw")
+  stxNCon.Add("URLLabel:url")
+  stxNCon.Add("ValueBox:vao")
+  stxNCon.Add("Variant:vrt")
+  stxNCon.Add("Variant[]:vrx")
+  stxNCon.Add("Vbox:veo")
+  stxNCon.Add("Vpanel:ven")
+  stxNCon.Add("Vsplit:ves")
+  stxNCon.Add("Wizard:wiz")
+
+  Return stxNCon
+
+End
+
+Public Function HMStoSeconds(strTime As String) As Integer ''Devuelve el tiempo en segundos de una cadena que se le pase con el formato HH:MM:SS HORAS:MINUTOS:SEGUNDOS.
+
+  Dim stxTime As New String[]
+  Dim intTime As Integer
+
+  stxTime = Split(strTime, ":")
+
+  intTime = (stxTime[0] * 3600) + (stxTime[1] * 60) + stxTime[2]
+
+  Return intTime
+
+End
+
+Public Function SecondsToHMS(intTime As Integer) As Integer[] ''Devuelve el tiempo en una matriz donde: 0-Y 1-M 2-D 3-H 4-N 5-S y como parametro de entrada requiere el tiempo en segundos
+
+  Dim intH As Integer ' Horas
+  Dim intN As Integer ' Minutos
+  Dim intS As Integer ' Segundos
+  Dim stxTime As New String[]
+
+  Select intTime / 3600
+    Case 0
+      intH = 0
+    Case 1
+      intH = 1
+      intN = 0
+    Case Else
+      intH = intTime / 3600
+
+      Select (intTime Mod 3600) Mod 60
+        Case 0
+          intN = (intTime Mod 3600) / 60
+          intS = 0
+        Case Else
+          intN = (intTime Mod 3600) / 60
+          intS = (intTime Mod 3600) Mod 60
+
+      End Select
+  End Select
+
+  stxTime.Add(intH)
+  stxTime.Add(intN)
+  stxTime.Add(intS)
+
+  Return stxTime
+
+End
+
+Public Function ListDeldup(stxInput As String[]) As String[] ''Elimina elementos duplicados de una lista, requiere una String[] y devuelve una String[].
+
+  Dim strTmp As String
+  Dim stxOut As New String[]
+
+  stxInput.Sort
+
+  For Each strTmp In stxInput
+    If stxOut.Find(strTmp) = -1 Then
+      stxOut.Add(strTmp)
+    Endif
+  Next
+
+  Return stxOut
+
+End
+
+Public Function WhereRun() As Integer ''Indica si el programa se esta ejecutando desde el IDE o desde un ejecutable solo utilizando código de gambas.
+
+  Dim strProcess As String
+  Dim intRun As Integer
+
+  strProcess = File.Load("/proc" &/ CStr(Application.Id) &/ "comm")
+
+  If Left(strProcess, 4) = "gbx3" Then
+
+    intRun = 1
+  Else
+    intRun = 0
+  Endif
+
+  Return intRun
+
+End
+
+Public Function PathOrganizer(strPath As String, stxExt As String[], bolRecursive As Boolean) As String[] ''Esta función recibe una lista de rutas ya sean de archivos o de directorios entrega una matriz de texto con los archivos que coincidan con la extensión dada y, en caso que el parametro recursive este True tambien todos los archivos a partir de cada directorio.
+
+  Dim stxRaw As New String[]
+  Dim stxSubRaw As New String[]
+  Dim strExt As String
+  Dim strItem As String
+  Dim strFile As String
+  Dim stxFiles As New String[]
+
+  stxRaw = fil.FilesList(strPath)
+
+  For Each strItem In stxRaw
+    stxSubRaw.Clear
+    Select Stat(strItem).Type
+      Case gb.File
+        For Each strExt In stxExt
+          If String.LCase(File.Ext(strItem)) = strExt Then
+            If stxFiles.Find(strItem) = -1 Then
+              stxFiles.Add(strItem)
+            Endif
+          Endif
+        Next
+
+      Case gb.Directory
+
+        Select bolRecursive
+          Case True
+            stxSubRaw = uty.RListFiles(strItem, stxExt, True)
+          Case Else
+            stxSubRaw = uty.RListFiles(strItem, stxExt, False)
+        End Select
+
+        If stxSubRaw.Count > 0 Then
+          For Each strFile In stxSubRaw
+            If String.LCase(File.Ext(strFile)) = "epub" Then
+              If stxFiles.Find(strFile) = -1 Then
+                stxFiles.Add(strFile)
+              Endif
+            Endif
+          Next
+        Endif
+    End Select
+  Next
+
+  Return stxFiles
+
+End
+
+Public Function DirGambas(strPath As String) As Boolean ''Analiza si el directorio que se le pasa como paramentro de entrada es un direcotio de un proyecto gambas.
+
+  Dim strGambas As String
+
+  strGambas = ""
+
+  ' Hay que acertar en todo para dar el ok
+  If Exist(strPath &/ ".project") = True Then
+    strGambas = "gam"
+    If Exist(strPath &/ ".src") = True Then
+      strGambas &= "b"
+      If Exist(strPath &/ ".hidden") = True Then
+        strGambas &= "a"
+        If Exist(strPath &/ ".gitignore") = True Then
+          strGambas &= "s"
+        Endif
+      Endif
+    Endif
+  Endif
+
+  If strGambas = "gambas" Then
+    Return True
+  Else
+    Return False
+  Endif
+
+End
+
+Public Function ScanDir(strDir As String, Optional strExt As String) As String[] ''Escanea un directorio que se pasa como parametro en busca de archivos se puede filtrar con una lista de extensiones separadas por dos puntos ":".
+
+  Dim stxFiles As New String[]
+  Dim stxExt As New String[]
+
+  Dim intE As Integer
+  Dim intR As Integer
+
+  Dim strFileRaw As String
+  Dim strFilePro As String
+  Dim intA As Integer
+
+  If IsDir(strDir) = True Then
+
+    If strExt = "" Then
+
+      stxFiles = RDir(strDir)
+
+    Else
+      If InStr(strExt, ":") <> 0 Then
+
+        strExt = String.LCase(strExt)
+
+        stxExt = Split(strExt, ":")
+
+        If stxExt.Count > 1 Then
+
+          For intE = 0 To stxExt.Max
+
+            stxFiles.Insert(RDir(strDir, "*." & stxExt[intE], gb.File, True))
+
+          Next
+
+        Endif
+
+      Else
+        stxFiles = RDir(strDir, "*." & strExt, True)
+      Endif
+
+    Endif
+
+  Endif
+
+  stxFiles.Sort
+
+  For intA = 0 To stxFiles.Max
+
+    stxFiles[intA] = strDir &/ stxFiles[intA]
+
+  Next
+
+  For intR = 0 To stxFiles.Max
+
+    strFileRaw = stxFiles[intR]
+
+    If Stat(strFileRaw).Type = gb.File Then
+      strFilePro = vag.ConvertPath(strFileRaw)
+      strFilePro = vag.Chek4SQL(strFilePro)
+
+      If strFileRaw <> strFilePro Then
+
+        Try Copy strFileRaw To strFilePro
+
+        Wait 0.3
+        If Exist(strFilePro) = True Then
+          stxFiles[intR] = strFilePro
+          Kill strFileRaw
+        Endif
+
+      Endif
+    Endif
+
+  Next
+
+  Return stxFiles
+
+End
+
+Public Function Clocky(Optional str As String) As String
+
+  Dim strOut As String
+
+  Select str
+    Case "--"
+      strOut = "\\"
+    Case "\\"
+      strOut = "|"
+
+    Case "|"
+      strOut = "/"
+    Case "/"
+      strOut = "--"
+    Case Else
+
+      strOut = "--"
+  End Select
+
+  Return strOut
+
+End
+
+Public Function StringSerial(str As String) As String[] '' Función que devuelve una matriz de texto de una cadena donde cada ítem es un caracter de esta.
+
+  Dim stxOut As New String[]
+  Dim int As Integer
+
+  stxOut.Clear
+
+  For int = 1 To String.Len(str)
+    stxOut.Add(String.Mid(str, int, 1))
+  Next
+
+  Return stxOut
+
+End

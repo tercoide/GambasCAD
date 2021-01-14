@@ -1,0 +1,877 @@
+' Gambas module file
+
+'
+' RADG
+' Rapid Application Development for Gambas
+'
+' Copyright (C) Martín Belmonte
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 2 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+'
+
+Export
+Library "libc:6"
+
+Public Struct stat_
+  st_dev As Long
+  st_ino As Long
+  st_nlink As Long
+  st_mode As Integer
+  st_uid As Integer
+  st_gid As Integer
+  __pad0 As Integer
+  st_rdev As Long
+  st_size As Long
+  st_blksize As Long
+  st_blocks As Long
+  st_atime As Long
+  st_atimensec As Long
+  st_mtime As Long
+  st_mtimensec As Long
+  st_ctime As Long
+  st_ctimensec As Long
+  __glibc_reserved[3] As Long
+End Struct
+
+Private Const _STAT_VER_LINUX As Integer = 1
+Private Extern __xstat(_STAT_VER As Integer, __path As String, __statbuf As Stat_) As Integer
+
+'' Create a file parameters list using the GNU coreutils program stat. Note: the tags for access to the information are:<br>
+'' Dev, Ino, Path, Link, Mode, SetUID, SetGID, Rdev, Size, BlkSize, Blocks, LastAccess, LastModified, LastChange<br>
+'' Original <https://www.gambas-it.org/wiki/index.php?title=Stat_()>
+
+Public Sub Stat(f As String) As Collection
+
+  Dim i As Integer
+  Dim st As New Stat_
+  Dim inf As New Collection
+
+  i = __xstat(_STAT_VER_LINUX, f, st)
+  If i < 0 Then Error.Raise("Function error '__xstat()' !")
+
+  With st
+    inf.Add(.st_dev, "Dev")
+    inf.Add(.st_ino, "Ino")
+    inf.Add(f, "Path")
+    inf.Add(.st_nlink, "Link")
+    inf.Add(.st_mode, "Mode")
+    inf.Add(.st_uid, "SetUID")
+    inf.Add(.st_gid, "SetGID")
+    inf.Add(.st_rdev, "Rdev")
+    inf.Add(.st_size, "Size")
+    inf.Add(.st_blksize, "BlkSize")
+    inf.Add(.st_blocks, "Blocks")
+    inf.Add(.st_atime, "LastAccess")
+    inf.Add(.st_mtime, "LastModified")
+    inf.Add(.st_ctime, "LastChange")
+  End With
+
+  Return inf
+
+End
+' ###################### Manejo de Archivos
+
+Public Function ScanDir(strDir As String, Optional stxExt As String[]) As String[] ''Escanea un directorio que se pasa como parametro en busca de archivos se puede filtrar con una lista de extensiones separadas por dos puntos ":".
+
+  Dim stxFiles As New String[]
+  'Dim stxExt As New String[]
+
+  Dim intE As Integer
+  Dim intR As Integer
+
+  Dim strFileRaw As String
+  Dim strFilePro As String
+  Dim intA As Integer
+
+  If IsDir(strDir) = True Then
+
+    If stxExt.count = 0 Then
+
+      stxFiles = RDir(strDir)
+
+    Else
+      'If InStr(strExt, ":") <> 0 Then
+
+      '  strExt = String.LCase(strExt)
+
+      'stxExt = Split(strExt, ":")
+
+      'If stxExt.Count > 1 Then
+
+      For intE = 0 To stxExt.Max
+
+        stxFiles.Insert(RDir(strDir, "*." & stxExt[intE], gb.File, True))
+
+      Next
+
+    Endif
+
+  Endif
+
+  stxFiles.Sort
+
+  For intA = 0 To stxFiles.Max
+
+    stxFiles[intA] = strDir &/ stxFiles[intA]
+
+  Next
+
+  For intR = 0 To stxFiles.Max
+
+    strFileRaw = stxFiles[intR]
+
+    If Stat(strFileRaw).Type = gb.File Then
+      strFilePro = vag.ConvertPath(strFileRaw)
+      strFilePro = vag.Chek4SQL(strFilePro)
+
+      If strFileRaw <> strFilePro Then
+
+        Try Copy strFileRaw To strFilePro
+
+        Wait 0.3
+        If Exist(strFilePro) = True Then
+          stxFiles[intR] = strFilePro
+          Kill strFileRaw
+        Else
+          'skip
+        Endif
+
+      Endif
+    Endif
+
+  Next
+
+  Return stxFiles
+
+End
+
+Public Function RListDir(strPath As String) As String[] ''Devuelve una lista de directorios que se encuentran en la ruta que se pasa como parametro.
+
+  Dim stxTmp As New String[]
+  Dim stxDirs As New String[]
+  Dim strDir As String
+
+  Select Stat(strPath).Type
+    Case gb.File
+      stxTmp = RDir(File.Dir(strPath), "*", gb.Directory)
+    Case gb.Directory
+      stxTmp = RDir(strPath, "*", gb.Directory)
+  End Select
+  For Each strDir In stxTmp
+    stxDirs.Add(strPath &/ strDir)
+  Next
+
+  Return stxDirs
+
+End
+
+Public Function RListFiles(strPath As String, Optional stxExt As String[], Optional bolRec As Boolean) As String[] ''Devuelve una lista de archivos que se encuentran en la ruta que se pasa como parametro.
+
+  Dim stxTmp As New String[]
+  Dim stxFiles As New String[]
+  Dim strFile As String
+  Dim strExt As String
+
+  stxTmp.Clear
+  stxFiles.Clear
+
+  strPath = ArrangePath(strPath)
+
+  Select Stat(strPath).Type
+    Case gb.File
+      strPath = File.Dir(strPath)
+  End Select
+
+  If stxExt <> Null Then
+    Select stxExt.Count
+      Case 0
+        If bolRec = True Then
+          stxTmp.Insert(RDir(strPath, "*.*"))
+        Else
+          stxTmp.Insert(Dir(strPath, "*.*", gb.File))
+        Endif
+
+      Case Else
+        For Each strExt In stxExt
+          If bolRec = True Then
+            stxTmp.Insert(RDir(strPath, "*." & strExt))
+          Else
+            stxTmp.Insert(Dir(strPath, "*." & strExt, gb.File))
+          Endif
+        Next
+
+    End Select
+  Else
+
+    If bolRec = True Then
+      stxTmp.Insert(RDir(strPath, "*.*"))
+    Else
+      stxTmp.Insert(Dir(strPath, "*.*", gb.File))
+    Endif
+  Endif
+
+  For Each strFile In stxTmp
+    Select Stat(strPath &/ strFile).Type
+      Case gb.File
+        stxFiles.Add(strPath &/ strFile)
+    End Select
+  Next
+
+  Return stxFiles
+
+End
+
+'' Obtención del crc32 de un archivo del que se pasa como parametro la ruta comp
+'' leta, como parametro opcional sc puede ser U o L que parara todo a Ucase o Lc
+'' ase.
+Public Function FileCRC32(s As String, Optional sc As String) As String
+
+  Dim crc As String
+
+  Shell "crc32 '" & s & "'" To crc
+
+  crc = String.Mid(crc, 1, 8) ' Corte de 8 caracters para quitar el \n y demas carcteres si se produjeran
+
+  Select sc
+    Case "U", "u", ""
+      crc = String.UCase(crc)
+    Case "L", "l"
+      crc = String.LCase(crc)
+  End Select
+
+  Return crc
+
+End
+
+Public Function FilesNew(strDirectory As String, Optional stxFilesOpt As String[], Optional strFilterOpt As String) As String[] ''Devuelve una lista de archivos de un directorio que se pasa como parametro. Opcionalmente se puede pasar como parametro una lista de archivos existentes los cuales seran omitidos de la lista de salida si es que son encontrados y un filtro de extensiones de archivo de l estilo mp3:ods:txt
+
+  Dim stxFiles As New String[]
+  Dim intFile As Integer
+  Dim stxFilesNew As New String[] ' Archivos del directorio que existen en BBDD
+
+  stxFiles = uty.ScanDir(strDirectory, strFilterOpt)
+
+  'Para cada archivo verificar si este existe en la base de datos
+  If stxFilesOpt.Count > 0 Then
+    For intFile = 0 To stxFiles.Max
+      If stxFilesOpt.Find(stxFiles[intFile]) = -1 Then
+        stxFilesNew.Add(stxFiles[intFile])
+      Endif
+    Next
+  Else ' Todos los archivos que se encuentren seran nuevos
+    stxFilesNew = stxFiles
+  Endif
+
+  Return stxFilesNew
+
+End
+
+Public Function FilesExist(strDirectory As String, Optional stxFilesOpt As String[], Optional strFilterOpt As String) As String[] ''Devuelve una lista de archivos de un directorio que coinciden con los de la lista que se le pasa como parametro, es decir verifica que existen. Opcionalmente se le puede pasar un parametro de filtro de extensiones para acotar la busqueda.
+
+  Dim stxFiles As New String[]
+  Dim intFile As Integer
+  Dim stxFilesExist As New String[] ' Archivos del directorio que existen en BBDD
+
+  stxFiles = uty.ScanDir(strDirectory, strFilterOpt)
+
+  'Para cada archivo verificar si este existe en la base de datos
+  If stxFilesOpt.Count > 0 Then
+    For intFile = 0 To stxFiles.Max
+      If stxFilesOpt.Find(stxFiles[intFile]) > -1 Then
+        stxFilesExist.Add(stxFiles[intFile])
+      Endif
+    Next
+  Else
+    stxFilesExist.Clear
+  Endif
+
+  Return stxFilesExist
+
+End
+
+Public Function FilesNone(strDirectory As String, Optional stxFilesOpt As String[], Optional strFilterOpt As String) As String[] ''Devuelve una lista de archivos que no existen en el directorio, es necesario parar una lista de archivos para contrastar.
+
+  Dim stxFiles As New String[]
+  Dim intFile As Integer
+  Dim stxFilesNone As New String[] ' Archivos del directorio que existen en BBDD
+
+  stxFiles = uty.ScanDir(strDirectory, strFilterOpt)
+
+  'Para cada archivo verificar si este existe en la base de datos
+  If stxFilesOpt.Count > 0 Then
+    For intFile = 0 To stxFilesOpt.Max
+      If stxFiles.Find(stxFilesOpt[intFile]) = -1 Then
+        stxFilesNone.Add(stxFilesOpt[intFile])
+      Endif
+    Next
+  Else
+    stxFilesNone.Clear
+  Endif
+
+  Return stxFilesNone
+
+End
+
+Public Function FileVersion(strInputPath As String) As String ''Devuelve un texto con la versión del archivo que se le pasa como ruta. Usa el comando file de la terminal.
+
+  Dim strVersion As String
+
+  If InStr(strInputPath, "'") Then
+    strInputPath = Replace(strInputPath, "'", "'\\''")
+  Endif
+
+  Shell "file '" & strInputPath & "'" To strVersion
+
+  If InStr(strVersion, ":") > 0 Then
+    strVersion = Replace(strVersion, ": ", ":")
+    strVersion = Split(strVersion, ":")[1]
+    strVersion = ArrangePath(strVersion)
+  Endif
+  If InStr(strVersion, ",") > 0 Then
+    strVersion = Split(strVersion, ",")[0]
+  Endif
+
+  Return strVersion
+
+End
+
+Public Function FileTrash(strInputPath As String) As Boolean ''Mueve un archivo a la papelera. Requiere que se pase la ruta del archivo y si lo logra mover a la papelera devuelve TRUE y si no lo logra devuelve FALSE.
+
+  Dim out As Boolean
+
+  out = False
+
+  If Exist(strInputPath) Then
+    If Stat(strInputPath).Type = gb.File Then
+      Shell "gio trash '" & strInputPath & "'" Wait
+      If Exist(strInputPath) = False Then
+        out = True
+      Endif
+    Endif
+  Endif
+
+  Return out
+
+End
+
+Public Function FilesList(strPath As String) As String[] ''Devuelve una lista de archivos.
+
+  Dim strPathsTmp As String
+  Dim stxPaths As New String[]
+
+  strPathsTmp = Replace(strPath, "\n", "")
+  strPathsTmp = Replace(strPathsTmp, "\r", "")
+  If String.Mid(strPath, 1, 7) = "file://" Then
+    strPathsTmp = Right$(strPathsTmp, -7)  ' Quitando el primer "file://"
+  Endif
+
+  strPathsTmp = Replace(strPathsTmp, "file://", "\n") ' Este es por si existen mas de un archivo
+
+  strPathsTmp = Replace(strPathsTmp, "\x00", "") 'un caracter que da problemas
+
+  If InStr(strPathsTmp, "\n") Then
+    stxPaths = Split(strPathsTmp, "\n")
+  Else
+    stxPaths.Add(strPathsTmp)
+  Endif
+
+  Return stxPaths
+
+End
+
+Public Function FileReplace(strFileName As String, strSearch As String, strReplace As String) As Boolean ''Busca una cadena de texto en un archivo de entrada y la reemplaza por otra y luego pone todo en un archivo de salida. Archivos en modo input
+  '----------------------------------------------------------------------
+  'Creado por TercoIDE y formateado por Tincho
+  'https://www.gambas-es.org/viewtopic.php?f=5&t=6056&start=10
+  '----------------------------------------------------------------------
+
+  Dim f As File
+  Dim strFileOut As String
+  Dim a As String
+  Dim fo As File
+  Dim b As String
+
+  strFileOut = Mid$(strFileName, 1, Len(strFileName) - 3) & "tmp"
+
+  Try Kill strFileOut
+
+  f = Open strFileName For Input
+
+  fo = Open strFileOut For Create
+
+  Do
+    Line Input #f, a
+    '    Stop
+    b = Replace(a, strSearch, strReplace)
+
+    Write #fo, b & Chr$(13) & Chr$(10)
+  Loop Until Eof(f)
+  Close f
+  Close fo
+
+  Try Kill strFileName
+  Try Move strFileOut To strFileName
+
+  Return True
+
+Catch
+  Try Close f
+  Try Close fo
+  Return False
+
+End Function
+
+Public Function FileTemplate(strFileSeed As String, strFileProduct As String, stxTag As String[], stxDat As String[]) As String[] ''Tomando un archivo template reemplaza las etiquetas por valores. Retorna una matriz con una lista de archivos, primero el producto y luego el pdf, en cas que alguno de estos no exista en la posicion de la matriz hara una cadena vacia.
+
+  Dim strTextProduct As String
+  Dim intN As Integer
+  Dim strFilePdf As String
+  'Dim prsTemp As Process
+  Dim stxFilesOutput As New String[]
+  Dim strFileSvg As String
+
+  strFilePdf = File.Dir(strFileProduct) &/ File.BaseName(strFileProduct) & ".pdf"
+  strFileSvg = File.Dir(strFileProduct) &/ File.BaseName(strFileProduct) & ".svg"
+
+  If Exist(strFileSeed) = True Then
+    strTextProduct = File.Load(strFileSeed)
+
+    If strTextProduct <> "" Then
+      For intN = 0 To stxTag.Max
+
+        strTextProduct = Replace(strTextProduct, stxTag[intN], stxDat[intN])
+
+      Next
+
+      If Exist(strFileProduct) Then
+        Kill strFileProduct
+      Endif
+
+      If Exist(strFilePdf) Then
+        Kill strFilePdf
+      Endif
+      Wait 0.1
+
+      File.Save(strFileProduct, strTextProduct)
+
+      Wait 0.1
+
+      'Shell "dia " & strFileProduct & " -e " & strFileSvg Wait
+      Shell "dia " & strFileProduct & " -e " & strFilePdf Wait
+      'Shell "convert " & strFileSvg & " " & strFilePdf Wait
+
+    Endif
+
+  Endif
+
+  If Exist(strFileProduct) = True Then
+    stxFilesOutput.Add(strFileProduct)
+  Else
+    stxFilesOutput.Add("")
+  Endif
+
+  If Exist(strFileSvg) = True Then
+    stxFilesOutput.Add(strFileSvg)
+  Else
+    stxFilesOutput.Add("")
+  Endif
+
+  If Exist(strFilePdf) = True Then
+    stxFilesOutput.Add(strFilePdf)
+  Else
+    stxFilesOutput.Add("")
+  Endif
+
+  Return stxFilesOutput
+
+End
+
+' ######################## Lectura y escritura de archivos
+
+Public Function FileLoad(strPath As String, Optional bolBL As Boolean) As String[] ''Devuelve una matriz de texto donde cada ítem es un renglón del archivo de texto. Si el renglón esta vacio en el archivo de texto, es decir se trata de unallinea vacia, esta no se pasa a la martiz, por lo tanto el resultado es un retorno sin lineaas en blanco.
+
+  Dim strList As String
+  Dim stxListTmp As New String[]
+  Dim stxList As New String[]
+  Dim intList As Integer
+
+  stxList.Clear
+
+  If Exist(strPath) Then
+
+    strList = File.Load(strPath)
+
+    If InStr(strList, "\n") > -1 Then
+      stxListTmp = Split(strList, "\n")
+    Else
+      If String.Len(strList) > 0 Then
+        stxListTmp.Add(strList)
+      Endif
+    Endif
+
+    For intList = 0 To stxListTmp.Max
+      Select bolBL
+        Case False
+          If stxListTmp[intList] <> "" Then
+            stxList.Add(stxListTmp[intList])
+          Endif
+        Case Else
+          stxList.Add(stxListTmp[intList])
+      End Select
+    Next
+  Endif
+
+  Return stxList
+
+End
+
+Public Function FileLoadRaw(strPath As String) As String[] ''Devuelve una matriz de texto donde cada ítem es un renglón del archivo de texto.
+
+  Dim strList As String
+  Dim stxList As New String[]
+
+  stxList.Clear
+
+  If Exist(strPath) Then
+
+    strList = File.Load(strPath)
+
+    If InStr(strList, "\n") > -1 Then
+      stxList = Split(strList, "\n")
+    Else
+      If String.Len(strList) > 0 Then
+        stxList.Add(strList)
+      Endif
+    Endif
+  Endif
+
+  Return stxList
+
+End
+
+Public Function FileLog(strPath As String, strMsg As String) As String ''Agrega un la fecha actual y un texto que se pasa como parametro a un archivo log que tambien se pasa como parametro.
+
+  Dim strText As String
+
+  If strMsg <> "" Then
+    If Exist(strPath) Then
+      strText = File.Load(strPath)
+    Else
+      strText = ""
+    End If
+    strText = uty.Timestamp(Now()) & " " & strMsg & "\n" & strText
+    File.Save(strPath, strText)
+    Return strPath
+  Else
+    Return ""
+  Endif
+
+End
+
+Public Function FileNospace(stxParam As String[], Optional strDelim As String, Optional strExt As String) As String ''Devuelve un texto, nombre de arcivo concatenando todos los fragmentos que se le pase y pone todo en minusculas quita los caracteres fuera del rango 97-122 de ascci.
+
+  Dim intPar As Integer
+  Dim strTemp As String
+  Dim intLeter As Integer
+  Dim strLeter As String
+  Dim strOutTmp As String
+  Dim stxOutput As New String[]
+  Dim strOutput As String
+
+  If strDelim = "" Then
+    strDelim = "#"
+  Endif
+
+  If strExt <> "" Then
+    strExt = String.LCase(strExt)
+    If InStr(strExt, ".") Then
+      strExt = Replace(strExt, ".", "")
+    Else
+      strExt = "." & strExt
+    Endif
+  Endif
+
+  If stxParam.Count > 0 Then
+    For intPar = 0 To stxParam.Max
+
+      strTemp = stxParam[intPar]
+      strTemp = String.LCase(strTemp)
+      strTemp = String.RemoveDiacritics(strTemp)
+      strTemp = Replace(strTemp, "  ", Chr(45))
+      strTemp = Replace(strTemp, "_", Chr(45))
+      strTemp = Replace(strTemp, "--", Chr(45))
+      strOutTmp = ""
+      For intLeter = 1 To String.Len(strTemp)
+        strLeter = String.Mid(strTemp, intLeter, 1)
+        Select Asc(strLeter)
+          Case Chr(32), Chr(45) ' Espacio o Gión
+            strOutTmp &= "-"
+          Case Else
+            If Asc(strLeter) > 96 And Asc(strLeter) < 123 Then
+              strOutTmp &= strLeter
+            Endif
+        End Select
+      Next
+      stxOutput.Add(strOutTmp)
+    Next
+  Endif
+
+  strOutput = stxOutput.Join(strDelim) & strExt
+
+  Return strOutput
+
+End
+
+' ######################## Manejo de metadatos de archivo
+
+Public Function FileInfo(strFilePath As String) As String[] ''Devuelve una matriz con datos del archivo que se le pasa como ruta.
+
+  Dim stxFileMeta As New String[]
+  Dim strFileDir As String
+  Dim strFileName As String
+  Dim strFileExt As String
+  Dim strFileBase As String
+  Dim strFileSize As String
+  Dim strFileTime As String
+  Dim strFileVersion As String
+  Dim strSep As String
+
+  strFilePath = ArrangePath(strFilePath)
+  strSep = "\t"
+
+  If Stat(strFilePath).Type = gb.File Then
+    ' Informacion básica para todo tipo de archivo
+
+    stxFileMeta.Add("FilePath" & strSep & strFilePath)
+
+    strFileDir = File.Dir(strFilePath)
+    stxFileMeta.Add("FileDirectory" & strSep & strFileDir)
+
+    strFileName = File.Name(strFilePath)
+    stxFileMeta.Add("FileName" & strSep & strFileName)
+
+    strFileExt = File.Ext(strFilePath)
+    stxFileMeta.Add("FileExt" & strSep & strFileExt)
+
+    strFileBase = File.BaseName(strFilePath)
+    stxFileMeta.Add("FileBase" & strSep & strFileBase)
+
+    strFileSize = Stat(strFilePath).Size
+    stxFileMeta.Add("FileSize" & strSep & strFileSize)
+
+    strFileTime = uty.Timestamp(Stat(strFilePath).Time)
+    strFileTime = Replace(strFileTime, ":", ".")
+    stxFileMeta.Add("FileTime" & strSep & strFileTime)
+
+    strFileVersion = uty.FileVersion(strFilePath)
+    strFileVersion = Replace(strFileVersion, ":", ".")
+    stxFileMeta.Add("FileVersion" & strSep & strFileVersion)
+
+  Endif
+
+  Return stxFileMeta
+
+End
+
+Public Function FileExifRaw(strPath As String) As Collection ''Devuelve una matriz con los metadatos extraídos por el programa de la terminal ExifTool.
+
+  Dim strExifBruto As String
+  Dim stxExifBruto As New String[]
+  Dim intLin As Integer
+  Dim intCur As Integer
+  Dim intLen As Integer
+  Dim strTag As String ' Nombre de la etiqueta exif
+  Dim vrtVal As String ' Valor de la etiquieta
+  Dim ctnExif As New Collection
+
+  If InStr(strPath, "'") > 0 Then
+    strPath = "\"" & strPath & "\""
+  Else
+    strPath = "'" & strPath & "'"
+  Endif
+
+  Shell "exiftool -f -s -s " & strPath & " 2>&1" To strExifBruto ' Toma todos los tags del archivo
+
+  stxExifBruto = Split(strExifBruto, "\n")
+  For intLin = 0 To stxExifBruto.Max
+    If stxExifBruto[intLin] <> "" Then
+      intCur = InStr(stxExifBruto[intLin], ": ")
+      intLen = String.Len(stxExifBruto[intLin])
+
+      strTag = String.Mid(stxExifBruto[intLin], 1, intCur - 1)
+      Select strTag
+        Case "TrackNumber"
+          strTag = "Track"
+        Case "Band"
+          strTag = "AlbumArtist"
+        Case "Date"
+          strTag = "Year"
+        Case "Description"
+          strTag = "Comment"
+
+        Case "Nominal Bitrate"
+          strTag = "AudioBitrate"
+
+        Case "Channel Mode"
+          strTag = "AudioChannels"
+      End Select
+
+      vrtVal = String.Mid(stxExifBruto[intLin], intCur + 2, intLen - intCur - 1)
+
+      ctnExif.Add(vrtVal, strTag)
+    Endif
+  Next
+  Return ctnExif
+
+End
+
+Public Function PicData(strPath As String) As Collection ''Devuelve una matriz con los metadatos extraídos por el programa de la terminal jhead.
+
+  Dim strExifBruto As String
+  Dim stxExifBruto As New String[]
+  Dim intLin As Integer
+  Dim intCur As Integer
+  Dim intLen As Integer
+  Dim strTag As String ' Nombre de la etiqueta exif
+  Dim vrtVal As String ' Valor de la etiquieta
+  Dim ctnExif As New Collection
+
+  Shell "jhead -nofinfo '" & strPath & "' 2>&1" To strExifBruto ' Toma todos los tags del archivo
+  stxExifBruto = Split(strExifBruto, "\n")
+  For intLin = 0 To stxExifBruto.Max
+    If stxExifBruto[intLin] <> "" Then
+      intCur = InStr(stxExifBruto[intLin], ": ")
+      intLen = String.Len(stxExifBruto[intLin])
+      strTag = String.Mid(stxExifBruto[intLin], 1, intCur - 1)
+      vrtVal = String.Mid(stxExifBruto[intLin], intCur + 2, intLen - intCur - 1)
+      ctnExif.Add(vrtVal, strTag)
+    Endif
+  Next
+  Return ctnExif
+
+End
+
+Public Function FileExifPages(strPath As String) As Integer ''Devuelve la cantidad de páginas del archivo si no tiene el tag entonces se devuelve 1. Para la extraccion de esta informacion se usa ExifTool.
+
+  Dim strExifBruto As String
+  Dim stxExifBruto As New String[]
+  Dim intLin As Integer
+  Dim intCur As Integer
+  Dim intLen As Integer
+
+  Dim intPages As Integer
+
+  strPath = ArrangePath(strPath)
+
+  Shell "exiftool -f -s -s '" & strPath & "' 2>&1" To strExifBruto ' Toma todos los tags del archivo
+
+  stxExifBruto = Split(strExifBruto, "\n")
+
+  For intLin = 0 To stxExifBruto.Max
+
+    If stxExifBruto[intLin] <> "" Then
+      intCur = InStr(stxExifBruto[intLin], ": ")
+      intLen = String.Len(stxExifBruto[intLin])
+
+      If String.Mid(stxExifBruto[intLin], 1, intCur - 1) = "PageCount" Then
+        intPages = CInt(String.Mid(stxExifBruto[intLin], intCur + 2, intLen - intCur - 1))
+        Break
+      Else
+        intPages = 1
+      Endif
+
+    Endif
+  Next
+  Return intPages
+
+End
+
+Public Function Id3Frm() As String[]
+
+  Dim stx As String[]
+
+  stx = ["AENC", "APIC", "COMM", "COMR", "ENCR", "EQUA", "ETCO", "GEOB", "GRID", "IPLS", "LINK", "MCDI", "MLLT", "OWNE", "PRIV", "PCNT", "POPM", "POSS", "RBUF", "RVAD", "RVRB", "SYLT", "SYTC", "TALB", "TBPM", "TCOM", "TCON", "TCOP", "TDAT", "TDLY", "TENC", "TEXT", "TFLT", "TIME", "TIT1", "TIT2", "TIT3", "TKEY", "TLAN", "TLEN", "TMED", "TOAL", "TOFN", "TOLY", "TOPE", "TORY", "TOWN", "TPE1", "TPE2", "TPE3", "TPE4", "TPOS", "TPUB", "TRCK", "TRDA", "TRSN", "TRSO", "TSIZ", "TSRC", "TSSE", "TYER", "TXXX", "UFID", "USER", "USLT", "WCOM", "WCOP", "WOAF", "WOAR", "WOAS", "WORS", "WPAY", "WPUB", "WXXX"]
+
+  Return stx
+
+End
+
+Public Function Id3Include() As String[]
+
+  Dim stx As String[]
+
+  stx = ["TALB", "TBPM", "TCOM", "TCON", "TCOP", "TDAT", "TDLY", "TENC", "TEXT", "TFLT", "TIME", "TIT1", "TIT2", "TIT3", "TKEY", "TLAN", "TLEN", "TMED", "TOAL", "TOFN", "TOLY", "TOPE", "TORY", "TOWN", "TPE1", "TPE2", "TPE3", "TPE4", "TPOS", "TPUB", "TRCK", "TRDA", "TRSN", "TRSO", "TSIZ", "TSRC", "TSSE", "TYER", "TXXX"]
+
+  Return stx
+
+End
+
+' ######################## Manejo de Directorios
+
+Public Function ArrangePath(strPathRaw As String) As String ''Devuelve una ruta sin los saltos del línea ni caracteres problemáticos
+
+  Dim strPath As String
+
+  strPath = Replace(strPathRaw, "file://", "")
+  strPath = Replace(strPath, "\n", "")
+  strPath = Replace(strPath, "\r", "")
+  strPath = Replace(strPath, "\x00", "")
+
+  Return strPath
+
+End
+
+Public Function DirBase(strPath As String) As String  ''Devuelve el directorio sin la ruta hasta el mismo, es decir devuelve el nombre del directorio. si se pasa "/home/usuario/musica" devolvera "musica"
+
+  Dim strBase As String
+  Dim stx As New String[]
+
+  If InStr(strPath, "/") > 0 Then
+    stx = Split(strPath, "/")
+    strBase = stx[stx.Max]
+  Endif
+
+  Return strBase
+
+End
+
+Public Function DirParent(strPath As String) As String  ''Devuelve el directorio padre de otro que se pasa como parámetro.
+
+  Dim strParent As String
+  Dim intLast As Integer
+
+  If strPath <> "" Then
+    intLast = String.RInStr(strPath, "/")
+    strParent = String.Mid(strPath, 1, intLast)
+    If String.Len(strParent) > 1 Then
+      If String.Right(strParent) = "/" Then
+        strParent = String.Mid(strParent, 1, String.Len(strParent) - 1)
+
+      Endif
+    Endif
+  Endif
+
+  If Exist(strParent) = False Then
+    strParent = "-1"
+  Else
+    If Stat(strParent).Type <> gb.Directory Then
+      strParent = "-1"
+    Endif
+  Endif
+
+  Return strParent
+
+End

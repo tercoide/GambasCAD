@@ -1,0 +1,168 @@
+' Gambas class file
+
+' GauchoCAD
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+
+' Tool maintained by Terco
+Inherits ToolsBase
+Create Static
+Public Const Gender As String = "Stretch"
+
+Public dX As Float
+Public dY As Float
+
+' En esta tool no podemos usar OpenGL para acelerar, pero si podemos generar una lista ocn las entidades que solo se moveran, y dejar solo las que estan parcialmente seleccionadas para
+' estirarlas y dibujarlas individualemnte. Dificilmente haya muchas entidades a estirar.
+
+Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer = 0) As Boolean
+  ' Llamada por FCAD al inicio de la aplicacion de esta herramienta
+
+  ' Aprovechamos para establecer los helpers (comentarios de ayuda en pantalla)
+  Me.PointsDone = 0
+  Me.PointsTotal = 2
+
+  clsDrawingAids.HelperTrabajo = ("Stretch ")
+
+  ' chequeamos si hubo seleccion previa
+  Me.SelectionCount = clsEntities.GetSelectionCount()
+
+  If Me.SelectionCount = 0 Then                                     ' we have no elements in the selection
+
+    clsDrawingAids.Helper.texto = clsDrawingAids.HelperTrabajo & ": " & ("Select entities")
+
+    gcd.clsJobPrevious = Me
+    gcd.clsJob = clsDefaultJob
+    gcd.clsJob.Start(1) ' Stretch mode
+
+  Else                                                                    ' need the first point
+
+    clsDrawingAids.Helper.texto = clsDrawingAids.HelperTrabajo & ": " & ("Base point")
+    clsDrawingAids.HelperTrabajo = clsDrawingAids.HelperTrabajo & Str(Me.SelectionCount) & " " & ("elements")
+
+  Endif
+  Me.Active = True
+  gcd.ToolActive = True
+
+End
+
+Public Function MouseUp(mouseX As Integer, mouseY As Integer) ' called by FCAD-> DrawingArea_MouseUp
+
+  Inc Me.PointsDone
+
+  If Me.PointsDone = 1 Then ' acabo de marcar el punto base
+
+    ' ya tengo cosas seleccionadas
+    clsDrawingAids.Helper.texto = ("Final point")
+
+    ' punto real base
+    Me.SelStartXr = puntos.Near(AppMain.Xreal(mousex))
+    Me.SelStartYr = puntos.Near(AppMain.Yreal(mouseY))
+    dX = Me.SelStartXr
+    dY = Me.SelStartYr
+    ' prevenir acciones tontas como hacer click en otro elemento antes de terminar con el actual
+    ' TODO: reparar -> gcd.CurrentDrawing.DesHabilitarBotones
+  Else If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
+    ' permitir otros trabajos
+    ' TODO: reparar -> gcd.CurrentDrawing.HabilitarBotones
+
+    ' we have the point set from MouseMove
+
+    Me.Finish()
+
+  Endif
+
+End
+
+Public Function MouseMove(mouseX As Integer, mouseY As Integer) ' called by FCAD-> DrawingArea_MouseMove
+
+  If Me.PointsDone = 1 Then
+    ' we compare Real values from the starting point to the location
+    ' represente by the mouse now, taking account that the drawing
+    ' could have being moved by the mouse wheel
+
+    ' new Real position is
+    Me.SelEndXr = puntos.Near(AppMain.Xreal(mouseX))
+    Me.SelEndyr = puntos.Near(AppMain.Yreal(mouseY))
+
+    If gcd.Orthogonal Then
+
+      If Abs(Me.SelEndXr - Me.SelStartXr) > Abs(Me.SelEndyr - Me.SelStartYr) Then ' X prevails
+
+        Me.SelEndyr = Me.SelStartYr
+
+      Else
+
+        Me.SelEndXr = Me.SelStartXr
+
+      Endif
+
+    End If
+
+    clsEntities.Move(Me.SelEndXr - dX, Me.SelEndyr - dY, True, True)
+    dX = Me.SelEndXr
+    dY = Me.SelEndYr
+
+  End If
+  appmain.redraw
+
+End
+
+Public Sub Draw()               ' called by gcd.CurrentDrawing.drwArea_Draw
+
+  Dim i As Integer
+
+  For i = 0 To gcd.CurrentDrawing.arrSelecIndex.Max
+
+    gcd.CurrentDrawing.arrEntities[gcd.CurrentDrawing.arrSelecIndex[i]].ClassHandler.Draw(gcd.CurrentDrawing.arrEntities[gcd.CurrentDrawing.arrSelecIndex[i]])
+
+  Next
+
+  gl.PushMatrix
+  gl.Translatef(Me.glTranslate[0], Me.glTranslate[1], Me.glTranslate[2])
+  gl.Rotatef(Me.glAngle, Me.glRotate[0], Me.glRotate[1], Me.glRotate[2])
+  gl.Scalef(Me.glScale[0], Me.glScale[1], Me.glScale[2])
+  gl.CallList(gcd.CurrentDrawing.GlListSelectedEntities)                      ' si GL no tiene contexto, la lista no se genera. Es necesario que la instancia de FCAD este cargada.
+  gl.PopMatrix
+
+End
+
+Public Sub Finish()
+
+  If Me.PointsDone = Me.PointsTotal Then
+
+    ' job finished correctly
+
+    ' and now we move
+    'clsEntities.Move(Me.SelEndXr - Me.SelStartXr, Me.SelEndyr - Me.SelStartYr, True, True)
+
+    clsEntities.Finish
+
+  Endif
+
+  gcd.clsJobPrevious = Me
+  gcd.clsJob = clsDefaultJob
+  clsDrawingAids.CleanTexts
+  clsEntities.DeSelection()
+  gcd.DrawOriginals = False
+  appmain.regen
+  Me.Active = False
+  gcd.ToolActive = False
+
+End

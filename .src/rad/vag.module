@@ -1,0 +1,1317 @@
+' Gambas module file
+
+'
+' RADG
+' Rapid Application Development for Gambas
+'
+' Copyright (C) Martín Belmonte
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 2 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+'
+
+Export
+
+'' Return a float value, trim spaces, replace coma to point if is necesary.
+
+Public Function CFloat(var As Variant) As Float
+
+  Dim str As String
+  Dim flo As Float
+
+  Select TypeOf(var)
+    Case gb.String
+      str = Trim(var)
+      If InStr(var, ",") > 0 Then
+        str = Replace(str, ",", ".")
+        If InStr(var, " ") > 0 Then
+          str = Replace(str, " ", "")
+        Endif
+      Endif
+      flo = CFloat(str)
+
+    Case gb.Float
+      flo = var
+
+    Case gb.Integer, gb.Byte, gb.Long, gb.Short
+      flo = CFloat(var)
+
+  End Select
+
+  Return flo
+
+End
+
+'' Return a float value, trim spaces, replace coma to point if is necesary.
+
+Public Function CInt(var As Variant) As Integer
+
+  Dim str As String
+  Dim int As Integer
+
+  Select TypeOf(var)
+    Case gb.String
+      str = Trim(var)
+      If InStr(var, ",") > 0 Then
+        str = Replace(str, ",", ".")
+        If InStr(var, " ") > 0 Then
+          str = Replace(str, " ", "")
+        Endif
+      Endif
+      If InStr(str, ".") Then
+        str = Split(str, ".")[0]
+      Endif
+      int = CInt(str)
+
+    Case gb.Float
+      int = Int(var)
+
+    Case gb.Integer, gb.Byte, gb.Long, gb.Short
+      int = CInt(var)
+
+  End Select
+
+  Return int
+
+End
+
+Public Function Formula(str As String) As String
+
+  Dim r As String
+  Dim f As String
+  Dim a As String
+
+  Dim y As String
+  Dim m As Integer
+  Dim mx As New String[]
+  Dim t As Date
+
+  If InStr(str, "[") > 0 Then
+    f = Split(str, "[")[0]
+    a = Replace(Split(str, "[")[1], "]", "")
+    Select String.UCase(f)
+      Case "YMD" ' Handle code
+        Select String.LCase(a)
+          Case "now", ""
+            t = Now()
+            y = Format(t, "yy")
+            m = CInt(Format(t, "m"))
+            mx = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "X", "Y", "Z"]
+            r = y & mx[m] & sog.UUIDHandle(2)
+        End Select
+      Case "YMDHNS" ' Handle code
+        Select String.LCase(a)
+          Case "now", ""
+            t = Now()
+            r = Format(t, "yyyymmddhhnnss")
+        End Select
+
+      Case "H" ' Handle code
+        r = sog.UUIDHandle(CInt(a))
+      Case "U"
+        r = String.UCase(a)
+      Case "L"
+        r = String.LCase(a)
+
+      Case "C"
+        r = String.UCaseFirst(String.LCase(a))
+
+      Case "LNS"
+        r = Replace(a, "\"", "in")
+        r = Replace(r, "/", " ")
+        r = Replace(NoSymbols(String.LCase(r)), " ", "-")
+        r = Replace(r, "--", "-")
+
+      Case Else
+        r = a
+
+    End Select
+
+  Else
+    r = str
+  Endif
+
+  Return r
+
+End
+
+Public Function Footprint(str As String) As String ''Devuelve un código que consiste en contar los caracteres de todas las palabras de una frase que se pasa como parametro. por ejemplo para la frase "papa noel" devuelve "_1a2e1l1n1o1p2". Esto es interesante para averiguar si un nombre existe en una base de datos sin importar el orden, es decir nombre apellido o viceversa.
+
+  Dim stx As New String[]
+  Dim inx As New Integer[]
+  Dim strL As String ' Letra
+  Dim int As Integer
+  Dim intK As Integer
+  Dim strOut As String
+
+  stx.Add(Chr(32)) ' Espacio
+  inx.Add(0)
+
+  For int = 97 To 122 ' a to z
+
+    stx.Add(Chr(int))
+    inx.Add(0)
+  Next
+
+  str = String.LCase(str)
+  For int = 1 To String.Len(str)
+    strL = String.Mid(str, int, 1)
+    intK = stx.Find(strL)
+    If intK > -1 Then
+      inx[intk] = inx[intk] + 1
+    Endif
+  Next
+
+  For int = 0 To stx.Max
+    If inx[int] > 0 Then
+      strOut &= stx[int] & CStr(inx[int])
+    Endif
+  Next
+
+  Return strOut
+
+End
+
+Public Function ArrangeParagraph(strInText As String) As String
+
+  Dim stxUgly As New String[]
+  Dim stxGood As New String[]
+  Dim int As Integer
+
+  stxUgly.Clear
+  stxGood.Clear
+
+  stxUgly.Add("-\n\n")
+  stxGood.Add("\n")
+
+  For int = 0 To stxUgly.Max
+    If InStr(strInText, stxUgly[int]) > 0 Then
+      strInText = Replace(strInText, stxUgly[int], stxGood[int])
+    Endif
+  Next
+
+  Return strInText
+
+End
+
+Public Function SQLtr(s As String) As String[] ''Convierte la palabra en una exprexsion que permite filtrar con acentos en una sentencia con like.
+
+  Dim stx As New String[]
+
+  Select s
+    Case "es"
+      stx.Add("'áàâãéèêíïóôõöúçñ'")
+      stx.Add("'aaaaeeeiiooooucn'")
+
+    Case "cz"
+      stx.Add("'áčďéěíňóřšťúůýž'")
+      stx.Add("'acdeeinorstuuyz'")
+  End Select
+
+  Return stx
+
+End
+
+Public Function SQLike(strInput As String) As String ''Convierte la palabra en una exprexsion que permite filtrar con acentos en una sentencia con like.
+
+  Dim int As Integer
+  Dim strSymbol As String
+  Dim stxLeters As New String[]
+  Dim intKey As Integer
+  Dim stxOut As New String[]
+  Dim strOut As String
+
+  stxOut.Clear
+  stxLeters = Split("a:e:i:o:u:á:à:â:ã:é:è:ê:í:ï:ó:ô:õ:ö:ú:ç:ñ", ":")
+
+  For int = 1 To String.Len(strInput)
+    strSymbol = String.Mid(strInput, int, 1)
+    intKey = stxLeters.Find(String.LCase(strSymbol))
+    If intKey = -1 Then
+      stxOut.Add(strSymbol)
+    Else
+      Select String.LCase(strSymbol)
+        Case "a", "á", "à", "â", "ã"
+          stxOut.Add("[aáàâã]")
+        Case "e", "é", "è", "ê"
+          stxOut.Add("[eéèê]")
+        Case "i", "í", "ï"
+          stxOut.Add("[iíï]")
+        Case "o", "ó", "ò" "ô", "õ", "ö"
+          stxOut.Add("[oóòôõö]")
+        Case "u", "ú"
+          stxOut.Add("[uú]")
+        Case "c", "ç"
+          stxOut.Add("[cç]")
+        Case "n", "ñ"
+          stxOut.Add("[nñ]")
+
+      End Select
+
+    End If
+  Next
+  strOut = stxOut.Join("")
+  Return strOut
+
+End
+
+Public Function OnlyLeters(strInput As String) As String ''Validación de palabras.
+
+  Dim int As Integer
+  Dim strSymbol As String
+  Dim stxLeters As New String[]
+  Dim intKey As Integer
+  Dim stxOut As New String[]
+  Dim strOut As String
+  Dim btxLeters As New Byte[]
+
+  btxLeters = Byte[].FromString(strInput)
+  stxOut.Clear
+  stxLeters.Clear
+  stxLeters.Insert(Split("a:b:c:d:e:f:g:h:i:j:k:l:m:n:o:p:q:r:s:t:u:v:w:x:y:z", ":"))
+  stxLeters.Insert(Split("A:B:C:D:E:F:G:H:I:J:K:L:M:N:O:P:Q:R:S:T:U:V:W:X:Y:Z", ":"))
+  stxLeters.Insert(Split("á:à:â:ã:é:è:ê:í:ï:ó:ô:õ:ö:ú:ç:ñ:Á:À:Â:Ã:É:È:Í:Ï:Ó:Ô:Õ:Ö:Ú:Ç:Ñ", ":"))
+  For int = 1 To String.Len(strInput)
+    strSymbol = String.Mid(strInput, int, 1)
+    intKey = stxLeters.Find(strSymbol)
+    If intKey > -1 Then
+      stxOut.Add(strSymbol)
+    End If
+  Next
+  strOut = stxOut.Join("")
+  Return strOut
+
+End
+
+Public Function CaptionCheck(strInput As String) As String ''Validación del texto de un control en KDE el texto de los botones por ejemplo tiene un símbolo & delante del texto.
+
+  Dim strOut As String
+
+  If String.Left(strInput) = "&" Then
+    strOut = String.Right(strInput, -1)
+  Endif
+  Return strOut
+
+End
+
+'' Función que dice si un texto que se le pasa como parámetro tiene caracteres
+'' diacriticos, es decir, acentiados por ejemplo.
+
+Public Function Diacritics(s As String) As Boolean
+
+  If s = String.RemoveDiacritics(s) Then
+    Return False
+  Else
+    Return True
+  Endif
+
+End
+
+Public Function NoSymbols(strInput As String) As String ''Solo letras y números, y las letras sin acentos.
+
+  Dim int As Integer
+  Dim strSymbol As String
+
+  Dim stxLeters As New String[]
+  Dim intKey As Integer
+  Dim stxOut As New String[]
+  Dim strOut As String
+
+  Dim stxRepin As New String[]
+  Dim stxRepout As New String[]
+  Dim intRep As Integer
+
+  stxOut.Clear
+  stxLeters.Clear
+
+  stxLeters = Split(":a:b:c:d:e:f:g:h:i:j:k:l:m:n:o:p:q:r:s:t:u:v:w:x:y:z: :A:B:C:D:E:F:G:H:I:J:K:L:M:N:O:P:Q:R:S:T:U:V:W:X:Y:Z:á:à:â:ã:é:è:ê:í:ï:ó:ô:õ:ö:ú:ç:ñ:Á:À:Â:Ã:É:È:Ê:Í:Ï:Ó:Ô:Õ:Ö:Ú:Ç:Ñ:0:1:2:3:4:5:6:7:8:9", ":")
+  stxRepin = Split("Á:À:Â:Ã:É:È:Ê:Í:Ï:Ó:Ô:Õ:Ö:Ú:Ñ:á:à:â:ã:é:è:ê:í:ï:ó:ô:õ:ö:ú:ñ", ":")
+  stxRepout = Split("A:A:A:A:E:E:E:I:I:O:O:O:O:U:N:a:a:a:a:e:e:e:i:i:o:o:o:o:u:n", ":")
+
+  For int = 1 To String.Len(strInput)
+    strSymbol = String.Mid(strInput, int, 1)
+    intKey = stxLeters.Find(strSymbol)
+    If intKey > -1 Then
+
+      intRep = stxRepin.Find(strSymbol)
+      If intRep > -1 Then
+        strSymbol = stxRepout[intRep]
+      Endif
+
+      stxOut.Add(strSymbol)
+    End If
+  Next
+
+  strOut = stxOut.Join("")
+
+  Return strOut
+
+End
+
+Public Function OnlyNumbers(strInput As String) As String ''Devuelve un texto solo con numeros.
+
+  Dim int As Integer
+  Dim strSymbol As String
+
+  Dim stxLeters As New String[]
+  Dim intKey As Integer
+  Dim stxOut As New String[]
+  Dim strOut As String
+
+  Dim btxLeters As New Byte[]
+
+  btxLeters = Byte[].FromString(strInput)
+
+  stxOut.Clear
+  stxLeters.Clear
+
+  stxLeters = Split("0:1:2:3:4:5:6:7:8:9", ":")
+
+  For int = 1 To String.Len(strInput)
+    strSymbol = String.Mid(strInput, int, 1)
+    intKey = stxLeters.Find(strSymbol)
+    If intKey > -1 Then
+      stxOut.Add(strSymbol)
+    End If
+  Next
+
+  strOut = stxOut.Join("")
+
+  Return strOut
+
+End
+
+Public Function OnlyCyrilic(strInput As String) As String ''Validación de palabras.
+
+  Dim int As Integer
+  Dim strSymbol As String
+
+  Dim stxLeters As New String[]
+  Dim intKey As Integer
+  Dim stxOut As New String[]
+  Dim strOut As String
+
+  Dim btxLeters As New Byte[]
+
+  btxLeters = Byte[].FromString(strInput)
+
+  stxOut.Clear
+  stxLeters.Clear
+
+  stxLeters = Split("а:б:в:г:д:е:ё:ж:з:и:й:к:л:м:н:о:п:р:с:т:у:ф:х:ц:ч:ш:щ:ъ:ы:ь:э:ю:я:А:Б:В:Г:Д:Е:Ё:Ж:З:И:Й:К:Л:М:Н:О:П:Р:С:Т:У:Ф:Х:Ц:Ч:Ш:Щ:Ъ:Ы:Ь:Э:Ю:Я", ":")
+
+  For int = 1 To String.Len(strInput)
+    strSymbol = String.Mid(strInput, int, 1)
+    intKey = stxLeters.Find(strSymbol)
+    If intKey > -1 Then
+      stxOut.Add(strSymbol)
+    End If
+  Next
+
+  strOut = stxOut.Join("")
+
+  Return strOut
+
+End
+
+Public Function OnlyText(strInput As String) As String ''Validación de solo texto, Numeros NO, Doble espacio NO, Espacio Al principio y/o al final NO.
+
+  Dim int As Integer
+  Dim strSymbol As String
+  Dim strChecked As String
+  Dim strError As String
+  Dim stxSpaces As New String[]
+  Dim stxRepated As New String[]
+  Dim stxExcluded As New String[]
+  Dim stxEx As New String[]
+  Dim inxExN As New String[]
+
+  Dim stxLeters As New String[]
+  Dim stxLower As New String[]
+  Dim stxUpper As New String[]
+  Dim intM As Integer ' Contados de letras mayúsculas
+  Dim intKey As Integer
+  Dim intKx As Integer
+
+  strError = ""
+  stxSpaces.Clear
+  stxRepated.Clear
+  stxExcluded.Clear
+  stxEx.Clear
+  inxExN.Clear
+
+  stxLeters.Clear
+  stxLower.Clear
+  stxUpper.Clear
+
+  stxUpper = Split("A:B:C:D:E:F:G:H:I:J:K:L:M:N:O:P:Q:R:S:T:U:V:W:X:Y:Z:Á:À:Â:Ã:É:È:Í:Ï:Ó:Ô:Õ:Ö:Ú:Ç:Ñ", ":")
+  stxLower = Split("a:b:c:d:e:f:g:h:i:j:k:l:m:n:o:p:q:r:s:t:u:v:w:x:y:z:à:â:ã:é:è:ê:í:ï:ó:ô:õ:ö:ú:ç:ñ", ":")
+
+  stxLeters.Insert(stxLower)
+  stxLeters.Insert(stxUpper)
+
+  intM = 0
+
+  For int = 1 To String.Len(strInput)
+
+    strSymbol = String.Mid(strInput, int, 1)
+
+    intKey = stxLeters.Find(strSymbol)
+
+    Select intKey
+      Case -1
+        Select strSymbol
+          Case " ", ",", ".", "¿", "?", "!", "¡"
+            If String.Right(strChecked) <> strSymbol Then
+              strChecked &= strSymbol
+            Else
+              stxRepated.Add("'" & strSymbol & "'")
+            Endif
+          Case Else
+            Select Asc(strSymbol)
+              Case 9
+                stxExcluded.Add("'TB'")
+              Case 10
+                stxExcluded.Add("'LF'")
+              Case 13
+                stxExcluded.Add("'CR'")
+              Case Else
+                stxExcluded.Add("'" & strSymbol & "'")
+            End Select
+
+        End Select
+      Case Else
+
+        'Verificacion de mas de una mayúscula
+        If stxUpper.Find(strSymbol) > -1 Then
+          Inc intM
+        Endif
+
+        strChecked &= strSymbol
+    End Select
+  Next
+
+  If String.Right(strChecked) = " " Then
+    strChecked = String.Mid(strChecked, 1, String.Len(strChecked) - 1)
+    stxSpaces.Add("end")
+  Endif
+
+  If String.Left(strChecked) = " " Then
+    strChecked = String.Mid(strChecked, 2)
+    stxSpaces.Add("ini")
+  Endif
+
+  If stxSpaces.Find("ini") > -1 Then
+    If stxSpaces.Find("end") > -1 Then
+      strError &= "[" & ("Spaces at the beginning and at the end") & "]"
+    Else
+      strError &= "[" & ("Space at the start") & "]"
+    Endif
+  Else
+    If stxSpaces.Find("end") > -1 Then
+      strError &= "[" & ("Space at the end") & "]"
+    Endif
+  Endif
+
+  If stxRepated.Count > 0 Then
+    strError &= "[" & ("Repeated") & ": " & stxRepated.Join(",") & "]"
+  Endif
+
+  If stxExcluded.Count > 0 Then
+    For int = 0 To stxExcluded.Max
+      intKx = stxEx.Find(stxExcluded[int])
+
+      If intKx = -1 Then
+        stxEx.Add(stxExcluded[int])
+        inxExN.Add(1)
+      Else
+        inxExN[intKx] = inxExN[intKx] + 1
+      Endif
+    Next
+  Endif
+
+  stxExcluded.Clear
+
+  If stxEx.Count > 0 Then
+    For int = 0 To stxEx.Max
+      Select inxExN[int]
+        Case 1
+          stxExcluded.Add(stxEx[int])
+        Case Else
+          stxExcluded.Add(stxEx[int] & "#" & CStr(inxExN[int]))
+      End Select
+    Next
+    strError &= "[" & ("Excluded") & ": " & stxExcluded.Join(",") & "]"
+  Endif
+
+  If intM > 1 Then
+    strError &= "[" & ("More than one capital letter") & "]"
+  Endif
+
+  If strError = "" Then
+    Return strChecked
+  Else
+    Return strInput & "\t" & strError
+  Endif
+
+End
+
+Public Function OnlyTextCyrilic(strInput As String) As String ''Validación de solo texto, Numeros NO, Doble espacio NO, Espacio Al principio y/o al final NO.
+
+  Dim int As Integer
+  Dim strSymbol As String
+  Dim strChecked As String
+  Dim strError As String
+  Dim stxSpaces As New String[]
+  Dim stxRepated As New String[]
+  Dim stxExcluded As New String[]
+  Dim stxEx As New String[]
+  Dim inxExN As New String[]
+
+  Dim stxLeters As New String[]
+  Dim stxLower As New String[]
+  Dim stxUpper As New String[]
+  Dim intM As Integer ' Contados de letras mayúsculas
+  Dim intKey As Integer
+  Dim intKx As Integer
+
+  strError = ""
+  stxSpaces.Clear
+  stxRepated.Clear
+  stxExcluded.Clear
+  stxEx.Clear
+  inxExN.Clear
+
+  stxLeters.Clear
+  stxLower.Clear
+  stxUpper.Clear
+
+  stxUpper = Split("А:Б:В:Г:Д:Е:Ё:Ж:З:И:Й:К:Л:М:Н:О:П:Р:С:Т:У:Ф:Х:Ц:Ч:Ш:Щ:Ъ:Ы:Ь:Э:Ю:Я", ":")
+  stxLower = Split("а:б:в:г:д:е:ё:ж:з:и:й:к:л:м:н:о:п:р:с:т:у:ф:х:ц:ч:ш:щ:ъ:ы:ь:э:ю:я", ":")
+
+  stxLeters.Insert(stxLower)
+  stxLeters.Insert(stxUpper)
+
+  intM = 0
+
+  For int = 1 To String.Len(strInput)
+
+    strSymbol = String.Mid(strInput, int, 1)
+
+    intKey = stxLeters.Find(strSymbol)
+
+    Select intKey
+      Case -1
+        Select strSymbol
+          Case " ", ",", ".", "¿", "?", "!", "¡"
+            If String.Right(strChecked) <> strSymbol Then
+              strChecked &= strSymbol
+            Else
+              stxRepated.Add("'" & strSymbol & "'")
+            Endif
+          Case Else
+            Select Asc(strSymbol)
+              Case 9
+                stxExcluded.Add("'TB'")
+              Case 10
+                stxExcluded.Add("'LF'")
+              Case 13
+                stxExcluded.Add("'CR'")
+              Case Else
+                stxExcluded.Add("'" & strSymbol & "'")
+            End Select
+
+        End Select
+      Case Else
+
+        'Verificacion de mas de una mayúscula
+        If stxUpper.Find(strSymbol) > -1 Then
+          Inc intM
+        Endif
+
+        strChecked &= strSymbol
+    End Select
+  Next
+
+  If String.Right(strChecked) = " " Then
+    strChecked = String.Mid(strChecked, 1, String.Len(strChecked) - 1)
+    stxSpaces.Add("end")
+  Endif
+
+  If String.Left(strChecked) = " " Then
+    strChecked = String.Mid(strChecked, 2)
+    stxSpaces.Add("ini")
+  Endif
+
+  If stxSpaces.Find("ini") > -1 Then
+    If stxSpaces.Find("end") > -1 Then
+      strError &= "[" & ("Spaces at the beginning and at the end") & "]"
+    Else
+      strError &= "[" & ("Space at the start") & "]"
+    Endif
+  Else
+    If stxSpaces.Find("end") > -1 Then
+      strError &= "[" & ("Space at the end") & "]"
+    Endif
+  Endif
+
+  If stxRepated.Count > 0 Then
+    strError &= "[" & ("Repeated") & ": " & stxRepated.Join(",") & "]"
+  Endif
+
+  If stxExcluded.Count > 0 Then
+    For int = 0 To stxExcluded.Max
+      intKx = stxEx.Find(stxExcluded[int])
+
+      If intKx = -1 Then
+        stxEx.Add(stxExcluded[int])
+        inxExN.Add(1)
+      Else
+        inxExN[intKx] = inxExN[intKx] + 1
+      Endif
+    Next
+  Endif
+
+  stxExcluded.Clear
+
+  If stxEx.Count > 0 Then
+    For int = 0 To stxEx.Max
+      Select inxExN[int]
+        Case 1
+          stxExcluded.Add(stxEx[int])
+        Case Else
+          stxExcluded.Add(stxEx[int] & "#" & CStr(inxExN[int]))
+      End Select
+    Next
+    strError &= "[" & ("Excluded") & ": " & stxExcluded.Join(",") & "]"
+  Endif
+
+  If intM > 1 Then
+    strError &= "[" & ("More than one capital letter") & "]"
+  Endif
+
+  If strError = "" Then
+    Return strChecked
+  Else
+    Return strInput & "\t" & strError
+  Endif
+
+End
+
+Public Function ConvertPath(strInput As String) As String ''Descodifica los caracteres hexadecimales en las URI's recorriendo la cadena dada Params: strInput la URintPos a descodificar Return: la URintPos descodificada
+  '----------------------------------------------------------------------
+  'http://www.gambas-es.org/viewtopic.php?f=1&t=2054&postdays=0&postorder=asc&start=10
+  '----------------------------------------------------------------------
+  '
+
+  Dim intLen As Integer
+  Dim intPos As Integer
+  Dim strChar As String
+  Dim strDigits As String
+  Dim strOutput As String
+
+  strOutput = ""
+  intLen = Len(strInput)
+  intPos = 1
+  Do While intPos <= intLen
+    ' Examinar el siguiente caracter
+    strChar = Mid$(strInput, intPos, 1)
+    If strChar = "+" Then
+      strOutput = strOutput & strChar
+    Else If strChar <> "%" Then
+      ' Normal, no cambiar
+      strOutput = strOutput & strChar
+    Else If intPos > intLen - 2 Then
+      strOutput = strOutput & strChar
+    Else
+      ' Obtener los siguientes caracteres hex.
+      strDigits = Mid$(strInput, intPos + 1, 2)
+      ' aquí convertimos el valor hexadecimal a entero y
+      ' se lo pasamos a Chr que devuelve el carácter correcto.
+      strOutput = strOutput & Chr$(CInt(Val("&" & strDigits)))
+      intPos = intPos + 2
+    Endif
+    intPos = intPos + 1
+  Loop
+
+  Return strOutput
+
+End
+
+Public Function ChkExt(strExt As String) As String
+
+  Dim str As String
+
+  Select String.LCase(strExt)
+    Case "tif"
+      str = "tiff"
+    Case "jpg"
+      str = "jpeg"
+    Case Else
+      str = String.LCase(strExt)
+  End Select
+
+  Return str
+
+End
+
+Public Function ChkSeparator(strPath As String) As Collection ''Dado un archivo de texto separado por comas, tabuladores etc. esta funcion analiza cual es el caracter separador. Para ello comprueba todos los caracteres ascii y para cada linea y si estan en todas la lineas luego los lista. una vez que se tiene el conjunto de caracteres que estan en todos los renglones se pasa a contar la ocurrencias de cada uno en cada linea y en cuanto algun caracter aparece diferente cantidad de veces en dos lineas distintas este se descarta.
+
+  Dim stx As New String[]
+  Dim c As Byte
+  Dim n As Integer
+  Dim i As Integer
+  Dim col As New Collection
+
+  stx = fil.FileLoad(strPath)
+  If stx.Count >= 10 Then
+    n = 9
+  Else
+    n = stx.Max
+  Endif
+  For c = 0 To 64
+    Select c
+      Case 48, 49, 50, 51, 52, 53, 54, 55, 56, 57
+        'skip
+      Case Else
+        col.Add(0, Chr(c))
+        For i = 0 To n
+          If InStr(stx[i], Chr(c)) = 0 Then
+            col[Chr(c)] = Null
+            Break
+          Else
+            col[Chr(c)] = col[Chr(c)] + 1
+          Endif
+        Next
+    End Select
+  Next
+  ' Aca faltaria una verificación mas. en caso que sea un separador este caracter debera ocurrir la misma cantidad de veces en todos los renglones
+  Return col
+
+End
+
+Public Function StrColor(strHex As String) As Integer '' Convierte el color pasado en formato texto hexagesimal, como por ejemplo #000000 en un numero para poder ser usado en el código de gambas.
+
+  Dim int As Integer
+
+  If strHex <> "" Then
+    If InStr(strHex, "#") Then
+      strHex = Replace(strHex, "#", "&")
+      int = Val(strHex)
+      Return int
+    Else
+      If InStr(strHex, "&") Then
+        int = Val(strHex)
+        Return int
+      Endif
+    Endif
+
+  Endif
+
+End
+
+Public Function SplitText(strText As String, Optional strCut As String) As String[] ''Particiona un texto dado como parametro, si el segundo argumento, que es la palabra o letra de corte es nula, cada item de la matriz sera un caracter de la cadena de texto, si , por el contrario, se pasa un parametro de corte y este existe en la cadena, esta sera dividida por este parametro. Pero en el caso que se pase una frase de corte y esta no exista se devolvera la misma fras eoriginal sin alterar como item cero de la matriz.
+
+  Dim int As Integer
+  Dim stx As New String[]
+
+  stx.Clear
+
+  Select strCut
+    Case ""
+      For int = 1 To String.Len(strText)
+
+        stx.Add(String.Mid(strText, int, 1))
+      Next
+
+    Case Else
+      If InStr(strText, strCut) > 0 Then
+        stx = Split(strText, strCut)
+      Else
+        stx.Add(strText)
+      Endif
+  End Select
+
+  Return stx
+
+End
+'
+
+Public Function ID(stx As String[]) As String ''Función que devuelve el numero de identificación.
+
+  Dim scx As New String[]
+  Dim out As String
+  Dim str As String
+  Dim chr As String
+  Dim int As Integer
+
+  Dim strDigit As String
+  Dim intConstant As Integer
+  Dim intLen As Integer
+  Dim intPlus As Integer
+  Dim strRutTmp As Variant
+  Dim intDigit As Integer
+
+  If stx.Count > 0 Then
+    Select String.LCase(stx[0])
+
+      Case "dni-es", "nie-es"
+        If stx.Count > 1 Then
+          scx = ["T", "R", "W", "A", "G", "M", "Y", "F", "P", "D", "X", "B", "N", "J", "Z", "S", "Q", "V", "H", "L", "C", "K", "E"]
+          If String.LCase(stx[0]) = "nie-es" Then
+            chr = String.LCase(String.Mid(stx[1], 1, 1))
+            str = String.Mid(stx[1], 2, String.Len(stx[1]))
+            Select chr
+              Case "x"
+                str = "0" & str
+              Case "y"
+                str = "1" & str
+              Case "z"
+                str = "2" & str
+            End Select
+          Endif
+        Endif
+        int = CInt(str)
+        Print int Mod 23
+
+      Case "vru-cl"
+
+        strDigit = ""
+        intConstant = 1
+        intLen = Len(Trim(stx[1]))
+        strRutTmp = Val(Trim(stx[1]))
+        Do Until intLen = 0
+          intConstant = intConstant + 1
+          intPlus = intPlus + Mid(strRutTmp, intLen, 1) * intConstant
+          If intConstant = 7 Then
+            intConstant = 1
+          End If
+          intLen = intLen - 1
+        Loop
+        intDigit = intPlus Mod 11
+        strDigit = Str(11 - intDigit)
+        If Val(strDigit) = 11 Then
+          strDigit = "0"
+        End If
+        If Val(strDigit) = 10 Then
+          strDigit = "K"
+        End If
+        out = strRutTmp & strDigit
+    End Select
+  Endif
+
+End
+
+Public Function CapitalWords(strIn As String) As String ''Devuelve un texto donde cada palabra tiene la primera letra en mayúsculas y todas las siguientes en minúsculas.
+
+  Dim stx As New String[]
+  Dim str As String
+  Dim int As Integer
+
+  If strIn <> "" Then
+
+    If InStr(strIn, " ") > 0 Then
+      stx = Split(strIn, " ")
+    Else
+      stx.Add(strIn)
+    Endif
+
+    For int = 0 To stx.Max
+      str = stx[int]
+
+      If str <> "" Then
+
+        Select String.Len(str)
+          Case 1
+            stx[int] = String.UCase(str)
+          Case Else
+            stx[int] = String.UCase(String.Mid(str, 1, 1)) & String.LCase(String.Mid(str, 2, String.len(str) - 1))
+        End Select
+
+      Endif
+    Next
+
+    Return stx.Join(" ")
+  Else
+    Return ""
+  Endif
+
+End
+
+Public Function Capital(strInput As String) As String ''Devuelve un texto con la primera letra en mayusculas y todas las siguientes en minúsculas.
+
+  Dim strOutput As String
+
+  If strInput <> "" Then
+
+    strOutput = String.UCase(String.Mid(strInput, 1, 1))
+    strOutput &= String.LCase(String.Mid(strInput, 2, String.len(strInput) - 1))
+
+  Else
+    strOutput = ""
+  Endif
+
+  Return strOutput
+
+End
+
+Public Function Chek4SQLscript(strInput As String) As String ''Devuelve un texto apto para consulatas SQL, quita los saltos del línea y los caracteres no compatibles con sentencias SQL.
+
+  Dim strOutput As String
+
+  strOutput = Replace(strInput, "\n", "")
+  strOutput = Replace(strOutput, "\r", "")
+  strOutput = Replace(strOutput, "\t", " ")
+  strOutput = Replace(strOutput, "\x00", "")
+  strOutput = Replace(strOutput, Chr(96), Chr(39)) ' ' > .
+
+  Return strOutput
+
+End
+
+Public Function Chek4SQL(strInput As String) As String ''Devuelve un texto apto para consulatas SQL, quita los saltos del línea y los caracteres no compatibles con sentencias SQL.
+
+  Dim strOutput As String
+
+  strOutput = Replace(strInput, "\n", "")
+  strOutput = Replace(strOutput, "\r", "")
+  strOutput = Replace(strOutput, "\x00", "")
+  strOutput = Replace(strOutput, Chr(39), Chr(46)) ' ' > .
+  strOutput = Replace(strOutput, Chr(44), Chr(46)) ' , > .
+
+  Return strOutput
+
+End
+
+Public Function Paragraph(strInput As String, Optional strMod As String) As String ''Validación de parrafo, doble espacio NO, Espacio al principio y/o al final NO, saltos de linea al principio y/o al final NO etc.
+
+  Dim strOut As String
+  Dim strTmp As String
+  Dim int As Integer
+  Dim stxLines As New String[] ' lista de renglones tal como vienen en el txt
+  Dim str As String
+  Dim strCap As String
+  Dim strParagraph As String
+  Dim stxParagraph As New String[]
+  '
+  strTmp = Replace(strInput, "\n ", "\n")
+  strTmp = Replace(strInput, "\n\n", "\n")
+  strTmp = Replace(strInput, "\t\n", "\n")
+  strTmp = Replace(strInput, "\n\t", "\n")
+
+  stxLines = uty.ArrayNoVaccum(Split(strTmp, "\n"))
+
+  ' Trabajo por parrafo
+  strParagraph = ""
+
+  For int = 0 To stxLines.Max
+    str = vag.RSpaces(stxLines[int])
+    strCap = String.Left(str)
+    Select int
+      Case 0
+        stxParagraph.Add(str)
+      Case Else
+        If String.UCase(strCap) = strCap Then
+          stxParagraph.Add(str)
+        Else
+          stxParagraph[stxParagraph.Max] = stxParagraph[stxParagraph.Max] & " " & str
+        Endif
+    End Select
+
+  Next
+
+  Select String.LCase(strMod)
+    Case "html", "html5"
+      For int = 0 To stxParagraph.Max
+        ' Se hace una validacion de los caracteres, en este caso para XHTML 1.0
+        strParagraph = XmlValidate(stxParagraph[int], "utf8")
+
+        strParagraph = vag.ReTager(strParagraph)
+        If InStr(strParagraph, "<h") > 0 Then
+          stxParagraph[int] = "\n" & strParagraph & "\n"
+        Else
+          stxParagraph[int] = "<p>" & strParagraph & "</p>"
+        Endif
+
+      Next
+  End Select
+
+  strOut = stxParagraph.Join("\n")
+
+  Return strOut
+
+End
+
+Public Function RSpaces(str As String) As String ''Remueve los espacios al inicio y al final de una cadena y si entre el inicio y e l final hay espacios repetidos los convierte en uno solo.
+
+  Dim strRemoved As String
+
+  strRemoved = Trim(RTrim(str))
+  While InStr(strRemoved, "  ")
+    strRemoved = Replace(strRemoved, "  ", " ")
+  Wend
+
+  Return strRemoved
+
+End
+
+Public Function UnTager(inp As String) As String
+
+  Dim out As String
+
+  out = Replace(inp, "<h1>", "[:::H1:::]")
+  out = Replace(out, "</h1>", "[:::/H1:::]")
+
+  out = Replace(out, "<h2>", "[:::H2:::]")
+  out = Replace(out, "</h2>", "[:::/H2:::]")
+
+  out = Replace(out, "<h3>", "[:::H3:::]")
+  out = Replace(out, "</h3>", "[:::/H3:::]")
+
+  out = Replace(out, "<h4>", "[:::H4:::]")
+  out = Replace(out, "</h4>", "[:::/H4:::]")
+
+  out = Replace(out, "<h5>", "[:::H5:::]")
+  out = Replace(out, "</h5>", "[:::/H5:::]")
+
+  out = Replace(out, "<h6>", "[:::H6:::]")
+  out = Replace(out, "</h6>", "[:::/H6:::]")
+
+  out = Replace(out, "<p>", "[:::P:::]")
+  out = Replace(out, "</p>", "[:::P:::]")
+
+  Return out
+
+End
+
+Public Function ReTager(inp As String) As String
+
+  Dim out As String
+
+  out = Replace(inp, "[:::H1:::]", "<h1>")
+  out = Replace(out, "[:::/H1:::]", "</h1>")
+
+  out = Replace(out, "[:::H2:::]", "<h2>")
+  out = Replace(out, "[:::/H2:::]", "</h2>")
+
+  out = Replace(out, "[:::H3:::]", "<h3>")
+  out = Replace(out, "[:::/H3:::]", "</h3>")
+
+  out = Replace(out, "[:::H4:::]", "<h4>")
+  out = Replace(out, "[:::/H4:::]", "</h4>")
+
+  out = Replace(out, "[:::H5:::]", "<h5>")
+  out = Replace(out, "[:::/H5:::]", "</h5>")
+
+  out = Replace(out, "[:::H6:::]", "<h6>")
+  out = Replace(out, "[:::/H6:::]", "</h6>")
+
+  out = Replace(out, "[:::P:::]", "<p>")
+  out = Replace(out, "[:::P:::]", "</p>")
+
+  Return out
+
+End
+
+Public Function XmlValidate(strInput As String, Optional strMod As String) As String
+
+  Dim stx As New String[]
+  Dim int As Integer
+  Dim IntKey As Integer
+  Dim intCh As Integer
+  Dim inxAsc As New Integer[]
+  Dim stxHtm As New String[]
+  Dim strOut As String
+
+  strInput = Replace(strInput, "&&", "#amp;#amp;")
+  strInput = Replace(strInput, "&", "#amp;")
+  strInput = Replace(strInput, "<", "#lt;")
+
+  Select String.LCase(strMod)
+    Case "utf8", "utf-8"
+      stx.Add("34\t&quot;")
+      stx.Add("38\t&amp;")
+      stx.Add("39\t&apos;")
+      stx.Add("60\t&lt;")
+      stx.Add("62\t&gt;")
+
+    Case Else
+
+      stx.Add("34\t&quot;")
+      stx.Add("38\t&amp;")
+      stx.Add("60\t&lt;")
+      stx.Add("62\t&gt;")
+      stx.Add("160\t&nbsp;")
+      stx.Add("161\t&iexcl;")
+      stx.Add("162\t&cent;")
+      stx.Add("163\t&pound;")
+      stx.Add("164\t&curren;")
+      stx.Add("165\t&yen;")
+      stx.Add("166\t&brvbar;")
+      stx.Add("167\t&sect;")
+      stx.Add("168\t&uml;")
+      stx.Add("169\t&copy;")
+      stx.Add("170\t&ordf;")
+      stx.Add("171\t&laquo;")
+      stx.Add("172\t&not;")
+      stx.Add("173\t&shy;")
+      stx.Add("174\t&reg;")
+      stx.Add("175\t&macr;")
+      stx.Add("176\t&deg;")
+      stx.Add("177\t&plusmn;")
+      stx.Add("178\t&sup2;")
+      stx.Add("179\t&sup3;")
+      stx.Add("180\t&acute;")
+      stx.Add("181\t&micro;")
+      stx.Add("182\t&para;")
+      stx.Add("183\t&middot;")
+      stx.Add("184\t&cedil;")
+      stx.Add("185\t&sup1;")
+      stx.Add("186\t&ordm;")
+      stx.Add("187\t&raquo;")
+      stx.Add("188\t&frac14;")
+      stx.Add("189\t&frac12;")
+      stx.Add("190\t&frac34;")
+      stx.Add("191\t&iquest;")
+      stx.Add("192\t&Agrave;")
+      stx.Add("193\t&Aacute;")
+      stx.Add("194\t&Acirc;")
+      stx.Add("195\t&Atilde;")
+      stx.Add("196\t&Auml;")
+      stx.Add("197\t&Aring;")
+      stx.Add("198\t&AElig;")
+      stx.Add("199\t&Ccedil;")
+      stx.Add("200\t&Egrave;")
+      stx.Add("201\t&Eacute;")
+      stx.Add("202\t&Ecirc;")
+      stx.Add("203\t&Euml;")
+      stx.Add("204\t&Igrave;")
+      stx.Add("205\t&Iacute;")
+      stx.Add("206\t&Icirc;")
+      stx.Add("207\t&Iuml;")
+      stx.Add("208\t&ETH;")
+      stx.Add("209\t&Ntilde;")
+      stx.Add("210\t&Ograve;")
+      stx.Add("211\t&Oacute;")
+      stx.Add("212\t&Ocirc;")
+      stx.Add("213\t&Otilde;")
+      stx.Add("214\t&Ouml;")
+      stx.Add("215\t&times;")
+      stx.Add("216\t&Oslash;")
+      stx.Add("217\t&Ugrave;")
+      stx.Add("218\t&Uacute;")
+      stx.Add("219\t&Ucirc;")
+      stx.Add("220\t&Uuml;")
+      stx.Add("221\t&Yacute;")
+      stx.Add("222\t&THORN;")
+      stx.Add("223\t&szlig;")
+      stx.Add("224\t&agrave;")
+      stx.Add("225\t&aacute;")
+      stx.Add("226\t&acirc;")
+      stx.Add("227\t&atilde;")
+      stx.Add("228\t&auml;")
+      stx.Add("229\t&aring;")
+      stx.Add("230\t&aelig;")
+      stx.Add("231\t&ccedil;")
+      stx.Add("232\t&egrave;")
+      stx.Add("233\t&eacute;")
+      stx.Add("234\t&ecirc;")
+      stx.Add("235\t&euml;")
+      stx.Add("236\t&igrave;")
+      stx.Add("237\t&iacute;")
+      stx.Add("238\t&icirc;")
+      stx.Add("239\t&iuml;")
+      stx.Add("240\t&eth;")
+      stx.Add("241\t&ntilde;")
+      stx.Add("242\t&ograve;")
+      stx.Add("243\t&oacute;")
+      stx.Add("244\t&ocirc;")
+      stx.Add("245\t&otilde;")
+      stx.Add("246\t&ouml;")
+      stx.Add("247\t&divide;")
+      stx.Add("248\t&oslash;")
+      stx.Add("249\t&ugrave;")
+      stx.Add("250\t&uacute;")
+      stx.Add("251\t&ucirc;")
+      stx.Add("252\t&uuml;")
+      stx.Add("253\t&yacute;")
+      stx.Add("254\t&thorn;")
+      stx.Add("255\t&yuml;")
+      stx.Add("338\t&OElig;")
+      stx.Add("339\t&oelig;")
+      stx.Add("352\t&Scaron;")
+      stx.Add("353\t&scaron;")
+      stx.Add("376\t&Yuml;")
+      stx.Add("710\t&circ;")
+      stx.Add("732\t&tilde;")
+      stx.Add("8194\t&ensp;")
+      stx.Add("8195\t&emsp;")
+      stx.Add("8201\t&thinsp;")
+      stx.Add("8204\t&zwnj;")
+      stx.Add("8205\t&zwj;")
+      stx.Add("8206\t&lrm;")
+      stx.Add("8207\t&rlm;")
+      stx.Add("8211\t&ndash;")
+      stx.Add("8212\t&mdash;")
+      stx.Add("8216\t&lsquo;")
+      stx.Add("8217\t&rsquo;")
+      stx.Add("8218\t&sbquo;")
+      stx.Add("8220\t&ldquo;")
+      stx.Add("8221\t&rdquo;")
+      stx.Add("8222\t&bdquo;")
+      stx.Add("8224\t&dagger;")
+      stx.Add("8225\t&Dagger;")
+      stx.Add("8240\t&permil;")
+      stx.Add("8249\t&lsaquo;")
+      stx.Add("8250\t&rsaquo;")
+      stx.Add("8364\t&euro;")
+
+  End Select
+
+  For int = 0 To stx.Max
+    inxAsc.Add(CInt(Split(stx[int], "\t")[0]))
+    stxHtm.Add(Split(stx[int], "\t")[1])
+  Next
+
+  For int = 1 To String.Len(strInput)
+    intCh = Asc(strInput, int)
+    IntKey = inxAsc.Find(intCh)
+    If IntKey > -1 Then
+      strOut &= stxHtm[IntKey]
+    Else
+      strOut &= String.Mid(strInput, int, 1)
+    Endif
+
+  Next
+
+  strOut = Replace(strOut, "#amp;", "&amp;")
+  strOut = Replace(strout, "#lt;", "&lt;")
+  Return strOut
+
+End
+
+Public Function MinimalMatrix(int As Integer) As Integer
+
+  Dim intMx As Integer
+
+  If Sqr(CFloat(int)) > CFloat(Abs(Sqr(CFloat(int)))) Then
+    intMx = Abs(Sqr(CFloat(int))) + 1
+  Else
+    intMx = Abs(Sqr(CFloat(int))) + 1
+  Endif
+
+  Return intMx
+
+End

@@ -1,0 +1,623 @@
+' Gambas class file
+
+'
+' RADG
+' Rapid Application Development for Gambas
+'
+' Copyright (C) Martín Belmonte
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 2 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+'
+
+' This class is for editing a configuration XML file.
+
+Export
+
+Public Observer As Observer        '' Observer used to notify if there are changes not applied
+'------------------------------------------------------------------------------
+' Variables que se pasaron desde el módulo de inicio
+Private apc As String               '' Program configuration file
+Private lgg As Logger               '' Application event log.
+'------------------------------------------------------------------------------
+Private ctn As New Collection       '' Collection of program variables that reflect configuration changes.
+Private cfg As New Collection       '' Project property collection
+
+Public Sub _new(cin As Collection)
+
+  Run(cin)
+
+End
+
+Public Sub Run(cin As Collection) As Boolean
+  '------------------------------------------------------------------------------
+
+  Dim obj As Object
+  Dim ictn As New Collection
+  Dim iSet As String
+
+  '' Establishing the connection to the database
+  'con = cin["Connex"]       ' Conexión a la base de datos
+  'adi = cin["AppDir"]           ' Directorio del programa
+  apc = cin["AppCfg"]           ' Archivo de configuracion del programa
+  'dbc = cin["DbsCfg"]           ' Archivo de configuracion de la base de datos
+  'etx = cin["AppEdi"]           ' Editor de texto plano por defecto
+  lgg = cin["AppLog"]           ' Registro de eventos de la aplicación.
+
+  iSet = xmg.GetVar("Theme.Icons", apc)
+  ictn = dsk.GNumix(iSet & "/")
+
+  For Each obj In Me.Controls
+    Select Object.Type(obj)
+      Case "ToolButton", "ButtonBox", "Dirbox"
+        If obj.Picture Then
+
+          If ictn.Exist(obj.Tag) Then
+            If Exist(ictn[obj.Tag]) Then
+              If Stat(ictn[obj.Tag]).Type = gb.File Or Stat(ictn[obj.Tag]).Type = gb.Link Then
+                obj.Picture = Image.Load(ictn[obj.Tag]).Stretch(20, 20).Picture
+                Print "> Control con icono: " & obj.Tag
+              Endif
+            Endif
+          Endif
+
+        Endif
+    End Select
+  Next
+  '------------------------------------------------------------------------------
+  'Estableciendo la confuguración general del programa
+  If Exist(apc) Then
+    ctn.Clear
+    ctn = xmg.XmlConfRead(apc, "Variable")
+    ConfLoad()
+    cfg = sog.ProjInfo(".project")
+
+    Observer = New Observer(Me) As "Observer"
+
+    Me.Menus.Hide
+    Me.Showmodal()
+
+  Else
+    Message.Error(("Configuration file does not exist"))
+  Endif
+
+End
+
+'' Using an observer to save changes before closing the form if any.
+
+Public Sub Observer_Close()
+
+  Me.Close
+
+End
+
+'' Create the controls and load the data into them from the configuration collection, which in turn is filled with the data from the conf.xml file
+
+Private Sub ConfLoad()
+
+  Dim var As Variant                ''Valor de la varialbe
+  Dim sType As String               ''Tipo de control a crear
+  Dim stxList As New String[]       ''Lista de valores para el combobox
+  Dim sGrp As String                ''Grupo de la variable
+  Dim sAlt As String                ''Grupo de la variable (Alias)
+  Dim gtn As New Collection         ''Lista de grupos de variables
+  Dim i As Integer
+  Dim scv As ScrollView
+  Dim pnl As Panel
+  Dim pnl1 As Panel
+  Dim pnl2 As Panel
+  Dim pnl3 As Panel
+  Dim cko As CheckBox               '' CheckBox
+  Dim txo As TextBox                '' TextBox normal
+  Dim vao As ValueBox               '' ValueBox
+  Dim cmo As ComboBox               '' ComboBox
+  Dim mko As MaskBox                '' MaskBox
+  Dim dio As DirBox                 '' DirBox
+  Dim fio As ButtonBox              '' ButtonBox para seleccionar archivos
+  Dim bto As ButtonBox
+  Dim lbl As Label
+
+  Dim sTitle As String
+  Dim s As String
+  Dim sMod As String
+  Dim sDesc As String
+
+  For Each var In ctn
+    sGrp = Split(ctn.Key, ".")[0]
+    If var.Exist("Group") Then
+      sAlt = var["Group"]
+    Else
+      sAlt = sGrp
+    Endif
+
+    If gtn.Exist(sGrp) = False Then
+      gtn.add(sAlt, sGrp)
+    Endif
+  Next
+
+  Select gtn.Count
+    Case 0
+      IconPanel1.Count = 1
+    Case Else
+      IconPanel1.Count = gtn.Count
+  End Select
+  IconPanel1.Count = gtn.Count
+
+  For Each sAlt In gtn
+    IconPanel1[i].Text = sAlt
+    IconPanel1[i].Tag = gtn.Key
+
+    scv = New ScrollView(IconPanel1[i]) As "scv"
+    With scv
+      .Name = "scv" & CStr(i)
+      .Arrangement = Arrange.Row
+      .Border = False
+      .Expand = True
+      .Spacing = True
+      .Padding = 4
+    End With
+    Inc i
+  Next
+
+  For Each var In ctn
+
+    sType = var["Ctrl"]
+    sDesc = var["Desc"]
+    stxList.Clear
+    sMod = ""
+
+    If InStr(sType, "~") > 0 Then
+      sMod = Split(sType, "~")[1]
+      sType = Split(sType, "~")[0]
+      Select sType
+
+        Case "cmo"
+          stxList = Split(sMod, ":")
+      End Select
+
+    Endif
+
+    sGrp = Split(ctn.Key, ".")[0]
+
+    For i = 0 To IconPanel1.Count - 1
+      Select IconPanel1[i].Tag
+        Case sGrp
+
+          pnl = New Panel(IconPanel1[i].Children[0]) As "pnl"
+          With pnl
+            .Tag = ctn.Key
+            .H = 72
+            .Arrangement = Arrange.Vertical
+            .Expand = True
+            .Padding = 4
+          End With
+
+          pnl1 = New Panel(pnl) As "pnl1"
+          With pnl1
+            .Name = "pnl1" & ctn.Key
+            .Tag = ctn.Key
+            .H = 28
+            .Arrangement = Arrange.Horizontal
+            .Expand = True
+            .Border = Border.None
+          End With
+
+          pnl2 = New Panel(pnl) As "pnl2"
+          With pnl2
+            .Name = "pnl2" & ctn.Key
+            .Tag = ctn.Key
+            .H = 28
+            .Arrangement = Arrange.Horizontal
+            .Expand = True
+            .Border = Border.None
+          End With
+
+          pnl3 = New Panel(pnl2) As "pnl3"
+          With pnl3
+            .Name = "pnl3" & ctn.Key
+            .Tag = ctn.Key
+            .H = 28
+            .W = 14
+            .Border = Border.None
+          End With
+
+          lbl = New Label(pnl1) As "xlabel"
+          With lbl
+            sTitle = ""
+            sTitle = sDesc
+            Select sTitle
+              Case "", " "
+                .Text = " " & Split(ctn.Key, ".")[1]
+              Case Else
+                .Text = " " & sTitle
+            End Select
+            .Tag = ctn.Key
+            .Expand = True
+            .Border = Border.None
+          End With
+
+          Select sType
+            Case "txo"
+              txo = New TextBox(pnl2) As "xdata"
+              With txo
+                .Text = var["Value"]
+                .Tag = ctn.Key
+                .Expand = True
+                .Tooltip = sDesc
+              End With
+            Case "vao"
+              vao = New ValueBox(pnl2) As "xdata"
+              With vao
+                .Value = var["Value"]
+                .Tag = ctn.Key
+                .Expand = True
+                .Tooltip = sDesc
+                Select sMod
+
+                  Case "Number"
+                    .Type = 0
+                  Case "Date"
+                    .Type = 1
+                  Case "Time"
+                    .Type = 2
+                  Case "Currency"
+                    .Type = 3
+                  Case "DateTime"
+                    .Type = 4
+                  Case "IPAddress"
+                    .Type = 5
+
+                End Select
+              End With
+
+            Case "cko"
+              cko = New CheckBox(pnl2) As "xdata"
+              With cko
+                Select var["Value"]
+                  Case "False"
+                    .Value = False
+                  Case Else
+                    .Value = True
+                End Select
+                .Tag = ctn.Key
+                .Expand = True
+                .Tooltip = sDesc
+              End With
+
+            Case "dio"
+              dio = New DirBox(pnl2) As "xdata"
+              With dio
+                .Value = var["Value"]
+                .Tag = ctn.Key
+                .Expand = True
+                .Tooltip = sDesc
+              End With
+
+            Case "fio"
+              fio = New ButtonBox(pnl2) As "xdata"
+              With fio
+                .Name = "fio" & ctn.Key
+                .Text = var["Value"]
+                .Tag = ctn.Key
+                .Picture = Picture["icon:/16/file"]
+                .ClearButton = True
+                .Expand = True
+                .Tooltip = sDesc
+              End With
+
+            Case "bto"
+              bto = New ButtonBox(pnl2) As "xdata"
+              With bto
+                .Text = var["Value"]
+                .Tag = ctn.Key
+                .Picture = Picture["icon:/16/directory"]
+                .ClearButton = True
+                .Expand = True
+                .Tooltip = sDesc
+              End With
+
+            Case "cmo"
+              cmo = New ComboBox(pnl2) As "xdata"
+              With cmo
+                For Each s In stxList
+                  If cmo.Find(s) = -1 Then
+                    cmo.Add(s)
+                  Endif
+                Next
+
+                cmo.Add("")
+
+                Select var["Value"]
+                  Case " "
+                    s = ""
+                  Case Else
+                    s = var["Value"]
+                End Select
+
+                If cmo.Find(s) = -1 Then
+                  cmo.Add(s)
+                Endif
+
+                .Text = s 'var["Value"]
+                .Tag = ctn.Key
+                .Expand = True
+                .Tooltip = sDesc
+              End With
+            Case "txs"
+              txo = New TextBox(pnl2) As "xdata"
+              With txo
+                .Text = var["Value"]
+                .Tag = ctn.Key
+                .Expand = True
+                .Password = True
+                .Tooltip = sDesc
+              End With
+
+            Case "mko"
+              mko = New MaskBox(pnl2) As "xdata"
+              With mko
+                .Text = var["Value"]
+                .Tag = ctn.Key
+                .Expand = True
+                .Mask = sMod
+                .Tooltip = sDesc
+              End With
+            Case "txr"
+              txo = New TextBox(pnl2) As "xdata"
+              With txo
+                .Text = var["Value"]
+                .Tag = ctn.Key
+                .Expand = True
+                .ReadOnly = True
+                .Tooltip = sDesc
+              End With
+
+            Case Else
+              txo = New TextBox(pnl2) As "xdata"
+              With txo
+                .Text = var["Value"] & " " & ctn.Key & " " & sType
+                .Tag = ctn.Key
+                .Alignment = Align.Center
+                .Expand = True
+                .Tooltip = sDesc
+              End With
+          End Select
+      End Select
+    Next
+
+    Print ctn.Key & ": " & var["Value"]
+
+  Next
+
+End
+
+Public Sub xdata_click()
+
+  Dim obj As Object
+  Dim sfx As String[]
+  Dim s As String
+  Dim tdr As String
+
+  obj = Last
+
+  If ctn.Exist(obj.Tag) Then
+    Select Object.Type(obj)
+      Case "CheckBox"
+        ctn[obj.Tag]["Value"] = obj.Value
+      Case Else
+        If InStr(obj.Name, "fio") > 0 Then
+          tdr = File.Dir(obj.Text)
+          If Exist(tdr) Then
+            sfx = dsk.FileChooser(tdr, ["theme"])
+          Else
+            sfx = dsk.FileChooser(, ["theme"])
+          Endif
+
+          If sfx.count > 0 Then
+            s = sfx[0]
+            If Exist(s) Then
+              If Stat(s).Type = gb.File Then
+                obj.Text = s
+                'ctn[obj.Tag]["Value"] = s
+              Endif
+            Endif
+          Endif
+        Endif
+    End Select
+  Endif
+
+End
+
+Public Sub xdata_Change()
+
+  Dim obj As Object
+  '  Dim s As String
+  '  Dim tdr As String
+
+  obj = Last
+
+  If ctn.Exist(obj.Tag) Then
+    Select Object.Type(obj)
+      Case "TextBox", "ComboBox", "MaskBox", "ButtonBox"
+        ctn[obj.Tag]["Value"] = obj.Text
+      Case "ValueBox", "CheckBox", "DirBox"
+        ctn[obj.Tag]["Value"] = obj.Value
+      Case Else
+        ctn[obj.Tag]["Value"] = obj.Value
+    End Select
+  Endif
+
+End
+
+Public Sub config_Click()
+
+  Dim obj As Object
+  Dim rgz As String
+  Dim gz As String
+  '  Dim XControl As Object
+  Dim sTime As String
+  Dim ctw As New Collection
+
+  obj = Last
+  sTime = Format(Now(), "yyyy-mm-dd-hh-nn-ss")
+
+  Select TypeOf(obj.Tag)
+    Case gb.String
+      Select obj.Tag
+
+        Case "save"
+
+          'For Each XControl In Me.Controls
+          '  If XControl.Name = "xdata" Then
+          '    EditData(XControl)
+          '  Endif
+          'Next
+
+          xmg.XmlConfSave(apc, ctn)
+
+          ctw.Clear
+          ctw.Add(("Preferences"), "Title")
+          ctw.Add(("The changes was saved"), "Body")
+          ctw.Add(LogLevel.Info, "Level")
+          Tweet(ctw)
+
+        Case "new"
+          gz = apc & ".gz"
+          rgz = File.Dir(apc) &/ sTime & "-" & File.BaseName(apc) & ".gz"
+          If Exist(gz) Then
+            Shell "rm " & gz Wait
+          Endif
+
+          Shell "gzip -1 -k " & apc Wait
+          Shell "mv " & gz & " " & rgz Wait
+
+          If Exist(apc) Then
+            Shell "rm " & apc Wait
+            Me.Close
+          Endif
+          ctw.Clear
+          ctw.Add(("Preferences"), "Title")
+          ctw.Add(("A new copy was created"), "Body")
+          ctw.Add(LogLevel.Info, "Level")
+          Tweet(ctw)
+
+        Case "archive"
+          gz = apc & ".gz"
+          rgz = File.Dir(apc) &/ sTime & "-" & File.BaseName(apc) & ".gz"
+
+          Shell "gzip -1 -k " & apc Wait
+          Shell "mv " & gz & " " & rgz Wait
+          If Exist(rgz) Then
+            ctw.Clear
+            ctw.Add(("Preferences"), "Title")
+            ctw.Add(("A copy was successfully archived"), "Body")
+            ctw.Add(LogLevel.Info, "Level")
+            Tweet(ctw)
+
+          Endif
+        Case "open"
+          gz = apc & ".gz"
+          rgz = File.Dir(apc) &/ sTime & File.BaseName(apc) & ".gz"
+          If Exist(rgz) Then
+            Message.Info(("Restored configuration"))
+          Endif
+
+        Case "directory"
+          Desktop.Open(File.Dir(apc))
+      End Select
+
+    Case "close"
+      Me.Close
+  End Select
+
+End
+
+Private Sub Tweet(cin As Collection)
+
+  Dim cmd As String
+
+  cmd = "notify-send \"" & cin["Title"] & "\" \"" & cin["Body"]
+  cmd &= gb.NewLine & cin["Time"]
+  cmd &= "\" -i /usr/share/icons/Numix/32/actions/exifinfo.svg -t 5000"
+  Shell cmd
+  lgg.Log(cin["Title"] & " - " & cin["Body"], cin["Level"])
+
+End
+
+' Private Sub EditData(obj As Object) ''Aquí se modifican los valores de variables.
+'
+'   Select Object.Type(obj)
+'
+'     Case "TextBox", "ComboBox", "ButtonBox"
+'
+'       If ctn.Exist(obj.Tag) Then
+'         If obj.Text = "" Then
+'           ctn[obj.Tag]["Value"] = " "
+'         Else
+'           ctn[obj.Tag]["Value"] = obj.Text
+'         Endif
+'
+'         Print obj.Tag & " " & Object.Type(obj) & " = " & obj.Text
+'       Else
+'         Print obj.Tag & " " & Object.Type(obj) & " # Variable no contemplada # "
+'       Endif
+'
+'     Case "ValueBox"
+'       If ctn.Exist(obj.Tag) Then
+'
+'         If obj.Value = "" Then
+'           ctn[obj.Tag]["Value"] = " "
+'         Else
+'           ctn[obj.Tag]["Value"] = obj.Value
+'         Endif
+'
+'         Print obj.Tag & " " & Object.Type(obj) & " = " & obj.Value
+'       Else
+'         Print obj.Tag & " " & Object.Type(obj) & " # Variable no contemplada # "
+'       Endif
+'     Case "DirBox"
+'       If ctn.Exist(obj.Tag) Then
+'         If obj.Value = "" Then
+'           ctn[obj.Tag]["Value"] = " "
+'         Else
+'           ctn[obj.Tag]["Value"] = obj.Value
+'         Endif
+'
+'         Print obj.Tag & " " & Object.Type(obj) & " = " & obj.Value
+'       Else
+'         Print obj.Tag & " " & Object.Type(obj) & " # Variable no contemplada # "
+'       Endif
+'
+'     Case "CheckBox"
+'       If ctn.Exist(obj.Tag) Then
+'         Select obj.Value
+'           Case -1
+'             ctn[obj.Tag]["Value"] = True
+'             Print obj.Tag & " " & Object.Type(obj) & " = " & "True"
+'           Case Else
+'             ctn[obj.Tag]["Value"] = False
+'             Print obj.Tag & " " & Object.Type(obj) & " = " & "False"
+'         End Select
+'
+'       Else
+'         Print obj.Tag & " " & Object.Type(obj) & "CheckBox # Variable no contemplada # "
+'       Endif
+'
+'     Case Else
+'       Print obj.Tag & " " & Object.Type(obj) & " Control no programado"
+'
+'   End Select
+'
+' End

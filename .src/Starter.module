@@ -1,0 +1,340 @@
+' Gambas module file
+
+'
+' GauchoCAD
+' Rapid Application Development for Gambas
+'
+' Copyright (C) Martín Belmonte
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 2 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+'
+' Variables a transferir
+Private adi As String               '' Directorio del programa
+Private apc As String               '' Archivo de configuracion del programa
+Private CADConfig As String         '' CAD config file
+Private etx As String               '' Editor de texto plano por defecto
+Private lgf As String               '' Archivo de registro de incidencias
+'Private dbn As String               '' Nombre de la base de datos
+'Private sql As String               '' Sentencia SQL de creacion de la base de datos varia segun el tipo de base de datos.
+Public lgg As Logger               '' Registro de eventos de la aplicación.
+
+' Global vars
+Public sFonts As String             '' Fonts directory
+Public sTextures As String          '' Textures directory
+Public gColor As New Integer[]      '' Colors list
+'Tincho
+'Vars direct or derivated from config xml
+Public flgWindowBackColor As Integer '= Color.Blac  '' Window backgrount color
+Public flgWindowTextColor As Integer   '' Window helper text color
+Public flgWindowCursorColor As Integer '' Window cursor color
+Public flgWhiteAndBlack As Integer     '' El color blanco/negro siempre sera distinto al
+Public flgOnScreenHelpColor As Integer = Color.LightGray    '' Tincho, esta es nueva
+
+''Vars for environment
+Public flgWindowMode As Integer
+Public flgWindowInfoColor As Integer           ' habria que agrupar todas las vars de ambiente, hay dos opciones simples
+
+'----------------------
+Public cCommandsList As New Collection   '' Commands list
+Public cColors As New Collection     '' Colors list
+Public ColorsRGB As New String[]     '' Colors lists each item as r,g,b string
+Public cStyles As New Collection     '' Linetypes list
+Public cWidths As New Collection     '' Widths list
+Public sDecimal As String            '' Character used in system for separation decimal
+Public cEntities As New Collection   '' DWG Entities list
+
+' Variables de un solo uso
+'Private ldd As Boolean              '' Testigo de finalización de carga.
+
+Public Sub Main()
+
+  Run
+
+  gcd.Main
+
+End
+
+Public Sub Run()
+
+  Dim cex As New Collection         '' Colección con variables para pasar al siguiente módulo o formulario
+  Dim CADConfigData As New Collection
+
+  SetDirsAndFiles()
+  SetAppEventsLog()
+  SetEnvironmentVars()
+  SetExternalApps()
+  SetCommandsList()
+
+  '' Bandera de indicacion de formulario cargado
+  'ldd = True
+  cEntities = cad.DWGEntityList()
+
+  '' Abrir el formulario principal del programa
+  cex = ["AppDir": adi, "AppCfg": apc, "CADCfg": CADConfig, "AppEdi": etx, "AppLog": lgg]
+  APPMain.Run(cex)
+
+End
+
+'' Setting the external applications
+
+Private Sub SetExternalApps()
+
+  '' Setting the default plain text editor in the system
+  If sog.MimeDefaultApp("text/plain").Count > 0 Then
+    etx = sog.MimeDefaultApp("text/plain")[0]
+  Else
+    etx = ""
+  Endif
+
+End
+
+'' Activation of the event log system
+
+Private Sub SetAppEventsLog()
+
+  If Exist(lgf) = False Then
+    Shell "touch " & lgf Wait
+  Endif
+  lgg = New Logger(Logger.Info, Logger.DefaultFormat, lgf)
+  lgg.Begin
+
+End
+
+Private Sub SetDirsAndFiles()
+
+  Dim i As Integer
+  Dim thx As New String[]           '' Lista de temas del editor interno
+
+  sDecimal = sog.GetLcNumeric()[0]
+
+  '' Verificar que existe el direcotrio del porgrama en Home
+  adi = User.Home &/ "." & String.LCase(vag.NoSymbols(Application.Title))
+  sFonts = adi &/ "fonts/lfe"
+  sTextures = adi &/ "textures"
+
+  apc = adi &/ "cfg.xml"
+  lgf = adi &/ Format(Now(), "yyyy") & ".log"
+
+  If Exist(adi) = False Then
+    Shell "mkdir -p " & adi Wait
+  Endif
+
+  If Exist(sFonts) = False Then
+    Shell "mkdir -p " & sFonts Wait
+  Endif
+
+  thx.Clear
+  thx = fil.RListFiles("./fonts/lfe", ["lff"])
+
+  If thx.Count > 0 Then
+    For i = 0 To thx.Max
+      If Exist(thx[i]) Then
+        If Exist(sFonts &/ File.Name(thx[i])) = False Then
+          Copy thx[i] To sFonts &/ File.Name(thx[i])
+        Endif
+      Endif
+    Next
+  Endif
+
+  If Exist(sTextures) = False Then
+    Shell "mkdir -p " & sTextures Wait
+  Endif
+
+  thx.Clear
+  thx = fil.RListFiles("./textures", ["jpg", "jpeg", "png"])
+
+  If thx.Count > 0 Then
+    For i = 0 To thx.Max
+      If Exist(thx[i]) Then
+        If Exist(sTextures &/ File.Name(thx[i])) = False Then
+          Copy thx[i] To sTextures &/ File.Name(thx[i])
+        Endif
+      Endif
+    Next
+  Endif
+
+End
+
+Private Sub SetEnvironmentVars()
+
+  ''Vars for OpenGL window
+  Dim i As Integer
+
+  Select xmg.GetVar("CAD.Background-Dark", apc)
+
+    Case True
+      flgWindowBackColor = Color.White
+      flgWindowInfoColor = &HFFFF00
+      flgWindowTextColor = Color.Blue
+      flgWindowCursorColor = Color.Black
+      flgWhiteAndBlack = Color.Black
+
+    Case Else
+      flgWindowBackColor = Color.Black
+      flgWindowInfoColor = &HA0A000
+      flgWindowTextColor = Color.Yellow
+      flgWindowCursorColor = Color.White
+      flgWhiteAndBlack = Color.White
+
+  End Select
+
+  '' Setting the special environment variables from XML file
+  ''TODO: Change to a json text file
+  CADConfig = adi &/ "cad.xml"
+
+  '' Load the colors list
+  ColorsRGB = cad.DWGColors()
+  For i = 0 To ColorsRGB.Max
+    cColors.Add([ColorsRGB[i], True], CStr(i))
+  Next
+
+  '' Load the linetypes list
+  cStyles = dwg.NewStyles()
+
+  '' Load the linetypes list
+  cWidths = dwg.NewWidths()
+
+  gcolor = cad.GauchoDecodeColor()
+
+  ' corrijo los colores que no se ven contra el fondo
+  gcolor[0] = flgWhiteAndBlack
+  gcolor[7] = flgWhiteAndBlack
+  gcolor[255] = flgWhiteAndBlack
+  gcolor[250] = flgWhiteAndBlack
+
+End
+
+Private Sub SetCommandsList()
+
+  cCommandsList.Add(["chamfer", "cd"], "chamfer")
+  cCommandsList.Add(["copy", "c"], "copy")
+  cCommandsList.Add(["divide", "dx"], "divide")
+  cCommandsList.Add(["erase", "de"], "erase")
+  cCommandsList.Add(["extend", "e"], "extend")
+  cCommandsList.Add(["fillet", "f"], "fillet")
+  cCommandsList.Add(["mirror", "mn"], "mirror")
+  cCommandsList.Add(["move", "m"], "move")
+  cCommandsList.Add(["offset", "fg"], "offset")
+  cCommandsList.Add(["pan", "zc"], "pan")
+  cCommandsList.Add(["rotate", "rt"], "rotate")
+  cCommandsList.Add(["scale", "sc"], "scale")
+  cCommandsList.Add(["stretch", "s"], "stretch")
+  cCommandsList.Add(["trim", "tr"], "trim")
+  cCommandsList.Add(["zoome", "zx"], "zoome")
+  cCommandsList.Add(["zoomw", "z"], "zoomw")
+
+  cCommandsList.Add(["arc", "a"], "arc")
+  cCommandsList.Add(["circle", "cv"], "circle")
+  cCommandsList.Add(["dim", "dw"], "dim")
+  cCommandsList.Add(["dim", "dw"], "dim")
+
+  cCommandsList.Add(["ellipse", "ew"], "ellipse")
+  cCommandsList.Add(["hatch", "ht"], "hatch")
+  cCommandsList.Add(["insert", "b"], "insert")
+  cCommandsList.Add(["leader", "li"], "leader")
+  cCommandsList.Add(["line", "l"], "line")
+  cCommandsList.Add(["mtext", "tt"], "mtext")
+  cCommandsList.Add(["lwpolyline", "po"], "lwpolyline")
+  cCommandsList.Add(["rectangle", "re"], "rectangle")
+  cCommandsList.Add(["solid", "sa"], "solid")
+  cCommandsList.Add(["spline", "sq"], "spline")
+  cCommandsList.Add(["text", "t"], "text")
+
+  cCommandsList.Add(["beam", "w1"], "beam")
+  cCommandsList.Add(["column", "w2"], "column")
+  cCommandsList.Add(["slab3p", "w3"], "slab3p")
+  cCommandsList.Add(["slab4p", "w4"], "slab4p")
+  cCommandsList.Add(["wallcolumn", "w5"], "wallcolumn")
+
+  cCommandsList.Add(["layers", "lk"], "layers")
+
+End
+
+' Private Function LoadColors() As Collection
+'
+'   Dim cColor As New Collection
+'
+'   cColor.Add(["ByBlock", 0], "0")
+'   cColor.Add(["ByLayer", 256], "256")
+'   cColor.Add([("Red"), 1], "1")
+'   cColor.Add([("Yellow"), 2], "2")
+'   cColor.Add([("Green"), 3], "3")
+'   cColor.Add([("Cyan"), 4], "4")
+'   cColor.Add([("Blue"), 5], "5")
+'   cColor.Add([("Magenta"), 6], "6")
+'   cColor.Add([("White"), 7], "7")
+'
+'   Return cColor
+'
+' End
+'
+' Public Function LoadLtypes() As Collection
+'
+'   Dim lty As New Collection
+'
+'   lty.Add([[3], "Continous"], "0") '1
+'   lty.Add([[14, 4, 4, 4], "Center"], "1") '1
+'   lty.Add([[10, 6, 3, 6], "Dashdot"], "2") '2
+'   lty.Add([[10, 6], "Dashed"], "3") '3
+'   lty.Add([[6, 4, 3, 4, 3, 4], "Divide"], "4") '4
+'   lty.Add([[3, 4], "Dot"], "5") '6
+'   lty.Add([[6, 4], "Hidden"], "6") '7
+'   lty.Add([[4, 3], "Hidden2"], "7") '8
+'   lty.Add([[12, 4, 4, 4, 4, 4], "Phantom"], "8") '9
+'   lty.Add([[3], "ByBLock"], "9") '1
+'   lty.Add([[3], "ByLayer"], "10") '1
+'
+'   Return lty
+'
+' End
+
+' Private Function LoadColors() As Collection
+'
+'   Dim cColor As New Collection
+'
+'   cColor.Add(["ByBlock", 0], "0")
+'   cColor.Add(["ByLayer", 256], "256")
+'   cColor.Add([("Red"), 1], "1")
+'   cColor.Add([("Yellow"), 2], "2")
+'   cColor.Add([("Green"), 3], "3")
+'   cColor.Add([("Cyan"), 4], "4")
+'   cColor.Add([("Blue"), 5], "5")
+'   cColor.Add([("Magenta"), 6], "6")
+'   cColor.Add([("White"), 7], "7")
+'
+'   Return cColor
+'
+' End
+'
+' Public Function LoadLtypes() As Collection
+'
+'   Dim lty As New Collection
+'
+'   lty.Add([[3], "Continous"], "0") '1
+'   lty.Add([[14, 4, 4, 4], "Center"], "1") '1
+'   lty.Add([[10, 6, 3, 6], "Dashdot"], "2") '2
+'   lty.Add([[10, 6], "Dashed"], "3") '3
+'   lty.Add([[6, 4, 3, 4, 3, 4], "Divide"], "4") '4
+'   lty.Add([[3, 4], "Dot"], "5") '6
+'   lty.Add([[6, 4], "Hidden"], "6") '7
+'   lty.Add([[4, 3], "Hidden2"], "7") '8
+'   lty.Add([[12, 4, 4, 4, 4, 4], "Phantom"], "8") '9
+'   lty.Add([[3], "ByBLock"], "9") '1
+'   lty.Add([[3], "ByLayer"], "10") '1
+'
+'   Return lty
+'
+' End

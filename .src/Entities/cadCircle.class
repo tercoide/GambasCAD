@@ -1,0 +1,331 @@
+' Gambas class file
+
+' GauchoCAD
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+Create Static
+'Fast
+
+Public Const Gender As String = "Circle"
+Public Const PointsToDraw As Integer = 1             ' minimal point requered for drawing something usefull
+Public Const HelperTrabajo As String = ("Draw a circle")
+Public Const ParamType As String = "PL"                             ' that is Point, Point, Float; could be Color Text, etc
+Public Const ParamHelper As String = "Start point;Radious"      ' a little text that is shown at the prompt waiting for user input during build
+Public Const ParamDefault As String = " ; 1 "
+Public Const GAMBASCADENTITY As String = "EntityBase"
+Public Const USEWITH As String = "EntityBuilder"
+Public Const DrawingOrder As Integer = 0        ' 1 = draws first
+Public Const OrthogonalIgnored As Boolean = False
+Public Const OrthogonalForced As Boolean = False
+Public Const StretchAble As Boolean = True           ' Si lo puedo deformar
+Public Selected As Boolean
+
+Public DrawAble As Boolean = False          ' True si durante la construccion ya tiene suficientes elementos para poder hacer una representacion digna
+Public Visible As Boolean = True            ' si esta entidad puede ser mostrada independientmente
+Public Finished As Boolean = False          ' colocar en true cuando se llegue a completar
+Public StepsDone As Integer                 ' esto lo cambia cls ElementBuilder durante la construccion
+
+' JSON and DXF Read/Export
+Public Const JSON_Reading As Boolean = True
+Public Const JSON_Export As Boolean = False
+
+Public Const DXF_Reading As Boolean = True
+Public Const DXF_Export As Boolean = True
+
+' The entity handler receives a user action, and returns the number of expected parameter
+' If definitive = true, means the parameter is set
+Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
+
+  Dim f As Float
+  Dim ip As Integer
+
+  If Me.StepsDone = 0 Then
+
+    If vParam[0] <> "point" Then Return False
+    Try eBuild.P[0] = vParam[1]
+    Try eBuild.P[1] = vParam[2]
+
+
+    If definitive Then
+      eBuild.fParam.Add(0)
+      Return True
+    End If
+  Else If Me.StepsDone = 1 Then
+
+    If vParam[0] <> "float" Then Return False
+
+    eBuild.DrawAble = True
+    eBuild.fParam[0] = vParam[1]
+
+
+    If definitive Then Return True
+
+
+  End If
+
+  Return False
+
+
+
+
+End
+
+
+Public Sub Translate(e As Entity, dX As Float, dY As Float, Optional OnlySelected As Boolean = False)
+
+  Dim i As Integer
+
+  If OnlySelected Then
+
+    For i = 0 To e.Psel.Max
+      If e.Psel[i] Then
+
+        e.P[i * 2] += dx
+        e.P[i * 2 + 1] += dy
+
+      Endif
+    Next
+
+  Else
+
+    puntos.Translate(e.p, dx, dy)
+  Endif
+
+End
+
+Public Sub Rotate(e As Entity, radians As Float)
+
+  puntos.Rotate(e.p, radians)
+
+End
+
+Public Sub Scale(e As Entity, sX As Float, sY As Float)
+
+  Dim i As Integer
+
+  E.fParam[0] *= sX
+
+  For i = 0 To e.p.max Step 2
+
+    e.P[i] = e.P[i] * sX
+
+    e.P[i + 1] = e.P[i + 1] * sY
+
+  Next
+
+End
+
+Public Sub Draw(oE As Entity)
+
+  Dim x, y, theta, angle_increment As Float
+
+  If Not oE.Visible Then Return
+
+  oE.polyline.Clear
+  'GL.Begin(gl.LINE_STRIP)
+  angle_increment = Pi * 2 / 360
+  For theta = 0 To 2 * Pi Step angle_increment
+    ' el punto considerando 0,0 al centro
+    x = oE.p[0] + oE.fParam[0] * Cos(theta)
+    y = oE.p[1] + oE.fParam[0] * Sin(theta)
+    oE.polyline.Add(x)
+    oE.polyline.Add(y)
+
+  Next
+  'gl.End
+
+  oE.ColorToPaint = gcd.GetGBColor(oE.colour, oE.Layerid)
+
+  glPlus.Circle(oE.p, oe.fParam[0], oe.ColorToPaint, False, oe.LineWidth, oe.LineType)
+
+End
+
+'' A fat version of the entity
+Public Sub DrawSelected(oE As Entity)
+
+  GLplus.PolyLines(oE.PolyLine, Starter.flgWindowBackColor, oE.LineWidth, gcd.stiDashed)
+  GLplus.PolyLines(oE.PolyLine, gcd.ColorForSelected, oE.LineWidth, oE.LineType)
+
+End
+
+'' A fat version of the entity
+Public Sub DrawRemark(oE As Entity)
+
+  If oe.Selected Then
+    GLplus.PolyLines(oE.PolyLine, Starter.flgWindowBackColor, oE.LineWidth + 2, gcd.stiDashed)
+    GLplus.PolyLines(oE.PolyLine, gcd.ColorForSelected, oE.LineWidth + 2, oE.LineType)
+  Else
+    GLplus.PolyLines(oE.PolyLine, Starter.flgWindowBackColor, oE.LineWidth, gcd.stiDashed)
+    GLplus.PolyLines(oE.PolyLine, oE.ColorToPaint, oE.LineWidth + 2, oE.LineType)
+  Endif
+
+End
+
+Public Function Draw2(oE As Entity)
+
+  If Not oE.Visible Then Return
+
+  paint.LineWidth = oE.LineWidth ' / gcd.CurrentDrawing.ScaleZoom / gcd.ScaleLines
+
+  paint.brush = Paint.Color(oE.ColorToPaint)
+
+  paint.Arc(oE.p[0], oE.p[1], oE.fParam[0])
+
+  paint.Stroke
+
+End
+'' Creo los puntos de interes
+'' Build point of interest
+
+'Public Function BuildPOI(oE As Entity, Optional arrIndex As Integer = -1) As Integer
+Public Function BuildPOI(oE As Entity) As Integer
+
+  oe.PoiPoints.Clear
+  oe.PoiType.Clear
+
+  ' CENTER
+  oe.poiPoints.insert([oE.p[0], oE.p[1]])
+  oe.poiType.Add(gcd.poiCenter)
+
+  ' quadrant
+  oe.poiPoints.insert([oE.p[0] + oe.fParam[0], oE.p[1]])
+  oe.poiType.Add(gcd.poiQuadrant)
+
+  ' quadrant
+  oe.poiPoints.insert([oE.p[0] - oe.fParam[0], oE.p[1]])
+  oe.poiType.Add(gcd.poiQuadrant)
+
+  ' quadrant
+  oe.poiPoints.insert([oE.p[0], oE.p[1] + oe.fParam[0]])
+  oe.poiType.Add(gcd.poiQuadrant)
+
+  ' quadrant
+  oe.poiPoints.insert([oE.p[0], oE.p[1] - oe.fParam[0]])
+  oe.poiType.Add(gcd.poiQuadrant)
+
+End
+' This function will return False if the element couldn't be created for some reason: bad or incomple user input
+' True means all is good, False will instruct the clsEntityBuilder to delete it
+
+
+Public Sub Finish(oE As Entity) As Boolean
+
+  'Print "Finish en EntityBase"
+  'CreatePolygon(oe)
+  BuildPOI(oe)
+
+  ' busco el tipo de linea, si hace falta
+  If oE.LineTypeName = "Dashed" Then oE.LineType = 1
+  ' tareas finales de armado del objeto
+
+  oE.psel.resize(oE.p.count / 2)
+
+  oE.DrawAble = True
+  oE.Selected = False
+  oE.Finished = True
+
+End
+
+' Importo los datos que puedo procesar de una coleccion y genero un Entity para ser agregado a un array
+Public Function ImportJsonCol(c As Collection, e As Entity) As Boolean
+
+  e.P.Add(c["center"][0])
+  e.P.Add(c["center"][1])
+  e.fParam.Add(c["radius"])
+
+  Return True
+
+Catch
+
+  Return False
+
+End
+
+Public Sub ExportDXFCol(e As Entity, ByRef cExport As Collection) As Boolean
+
+  cExport.Add("CIRCLE", dxf.codEntity)
+  clsEntities.DXFExportCommonCol(e, cExport)
+  cExport.Add("AcDbCircle", "100")
+  cExport.Add(CStr(e.p[0]), dxf.codCenterX)
+  cExport.Add(CStr(e.p[1]), dxf.codCenterY)
+  cExport.Add(CStr(e.fParam[0]), dxf.codRadius)
+
+End
+
+Public Sub ExportDXF(e As Entity, hFile As File)
+
+  Print #hFIle, "  0"
+  Print #hFIle, "CIRCLE"
+  clsEntities.DXFExportCommon(e, hFile)
+  Print #hFIle, "100"
+  Print #hFIle, "AcDbCircle"
+  Print #hFIle, " 10"                      ' X0
+  Print #hFIle, CStr(e.p[0])
+  Print #hFIle, " 20"                      ' Y0
+  Print #hFIle, CStr(e.P[1])
+  Print #hFIle, " 40"                      ' radious
+  Print #hFIle, CStr(e.fParam[0])
+
+End
+
+Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
+
+  Dim i As Integer
+
+  For i = 0 To sClaves.Max
+    If sClaves[i] = "10" Then e.P.Add(CFloat(sValues[i]))
+    If sClaves[i] = "20" Then e.P.Add(CFloat(sValues[i]))
+    If sClaves[i] = "40" Then e.fParam.Add(CFloat(sValues[i]))
+  Next
+
+  If e.fParam.Count = 0 Then Stop ' e.fParam.Add(0)  ' TODO: averiguar q pasa aca q algunas entidades CIRCLE
+  ' vienen sin el radio
+
+  Return True
+
+
+Catch
+
+  Return False
+
+End
+
+'    "entity": "CIRCLE",
+'    "index": 401,
+'    "type": 18,
+'    "handle": [0, 254702],
+'    "size": 44,
+'    "bitsize": 302,
+'    "ownerhandle": [12, 1, 9, 254693],
+'    "_subclass": "AcDbEntity",
+'    "layer": [5, 2, 16846, 16846],
+'    "preview_exists": 0,
+'    "entmode": 0,
+'    "nolinks": 1,
+'    "color": 256,
+'    "ltype_scale": 1.0,
+'    "ltype_flags": 0,
+'    "plotstyle_flags": 0,
+'    "invisible": 0,
+'    "linewt": 29,
+'    "_subclass": "AcDbCircle",
+'    "center": [2914.5184349050578, 1640.57887076129214, 0.0],
+'    "radius": 0.06602049323089,
+'    "thickness": 0.000000,
+'    "extrusion": [0.0, 0.0, 1.0]

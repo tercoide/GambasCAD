@@ -1,0 +1,462 @@
+' Gambas class file
+
+' GauchoCAD
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+Create Static
+' Fast
+'Inherits ToolsBase
+Public Const Gender As String = "Hatch"
+Public Const PointsToDraw As Integer = 0             ' minimal point requered for drawing something usefull
+Public Const HelperTrabajo As String = ("Hatch")
+Public Const ParamType As String = "PTF"                             ' that is Point, Point, Float; could be Color Text, etc
+Public Const ParamHelper As String = "Point;Texture;Scale"      ' a little text that is shown at the prompt waiting for user input during build
+Public Const ParamDefault As String = " ;Concrete;1"
+Public Const USEWITH As String = "cadHatchBuilder"
+Public Const DrawingOrder As Integer = 0        ' 1 = draws first
+Public Const OrthogonalIgnored As Boolean = False
+Public Const OrthogonalForced As Boolean = False
+Public Const StretchAble As Boolean = True           ' Si lo puedo deformar
+Public Selected As Boolean
+
+Public DrawAble As Boolean = False          ' True si durante la construccion ya tiene suficientes elementos para poder hacer una representacion digna
+Public Visible As Boolean = True            ' si esta entidad puede ser mostrada independientmente
+Public Finished As Boolean = False          ' colocar en true cuando se llegue a completar
+Public StepsDone As Integer                 ' esto lo cambia cls ElementBuilder durante la construccion
+
+' JSON and DXF Read/Export
+Public Const JSON_Reading As Boolean = True
+Public Const JSON_Export As Boolean = False
+
+Public Const DXF_Reading As Boolean = True
+Public Const DXF_Export As Boolean = False
+
+' fParam helpers
+Public Const TotalParams As Integer = 10
+Public Const ipaSolid As Integer = 0
+Public Const ipaAsociativity As Integer = 1
+Public Const ipaTotalLoops As Integer = 2
+Public Const ipaRotation As Integer = 3
+Public Const ipaScale As Integer = 4
+Public Const ipaParity As Integer = 5
+Public Const ipaPatternType As Integer = 6
+Public Const ipaBoundaryType As Integer = 7 ' 0=lwpolyine, 1=lines, 2=circular arc, 3=ellipse arc, 4=spline
+
+' stringdata helpers
+Public Const sdaTotalParams As Integer = 2
+Public Const sdaPattern As Integer = 0
+Public Const sdaPaternFile As Integer = 1
+
+' Parametros de la entidad:
+
+' P[]:        son los puntos de la polilinea que define el contorno del sombreado
+' fParam[0]:  escala del sombreado
+' fParam[1]:  angulo
+' StringData[0]: nombre del patron del sombreado
+
+Public Sub Draw(oE As Entity)
+
+  If Not oE.Visible Then Return
+
+  oE.ColorToPaint = gcd.GetGBColor(oE.colour, oE.Layerid)
+
+  If oe.StringData[1] <> "Solid" Then
+
+    GLplus.Lines(oE.PolyLine, oE.ColorToPaint, oE.LineWidth, oe.linetype)
+  Else
+
+    glPlus.PolygonFilled(oe.P, oe.ColorToPaint, oe.ColorToPaint)
+
+  End If
+
+End
+
+'' A fat version of the line
+Public Sub DrawSelected(oE As Entity)
+
+  Dim i As Integer
+
+  GLplus.Lines(oE.PolyLine, Starter.flgWindowBackColor, oE.LineWidth, gcd.stiDashed)
+  GLplus.Lines(oE.PolyLine, gcd.ColorForSelected, oE.LineWidth, oE.LineType)
+
+End
+
+'' A fat version of the line
+Public Sub DrawRemark(oE As Entity)
+
+  If Not oE.Visible Then Return
+
+  GLplus.Lines(oE.PolyLine, Starter.flgWindowBackColor, oE.LineWidth, gcd.stiDashed)
+  GLplus.Lines(oE.PolyLine, oE.ColorToPaint, oE.LineWidth + 2, oE.LineType)
+
+End
+
+Public Function Draw2(oE As Entity)
+
+End
+
+'' Creo los puntos de interes
+'' Build point of interest
+
+Public Function BuildPOI(oE As Entity, Optional arrIndex As Integer = -1) As Integer
+
+  If arrIndex < 0 Then arrIndex = gcd.CurrentDrawing.arrEntities.Max       ' si este valor no es provisto , estos POI son de la ultima entidad
+  Dim i As Integer
+
+  oe.PoiPoints.Clear
+  oe.poiPoints.insert([oE.P[0], oE.P[1]])
+  oe.poiType.Add(gcd.poiEndPoint)
+  'oe.poiEntities.Add(arrIndex)
+
+  For i = 0 To oE.P.count - 4 Step 2
+
+    oe.poiPoints.insert([(oE.P[i + 0] + oE.P[i + 2]) / 2, (oE.P[i + 1] + oE.P[i + 3]) / 2])   ' mid
+    oe.poiType.Add(gcd.poiMidPoint)
+    'oe.poiEntities.Add(arrIndex)
+
+    oe.poiPoints.insert([oE.P[i + 2], oE.P[i + 3]])
+    oe.poiType.Add(gcd.poiEndPoint)
+    'oe.poiEntities.Add(arrIndex)
+
+    ' line
+    'gcd.CurrentDrawing.poiLines.insert([oE.p[i], oE.p[i + 1], oE.p[i + 2], oE.p[i + 3]])
+    'gcd.CurrentDrawing.poiLinesEntities.Add(arrIndex)
+    ' gcd.CurrentDrawing.poiLinesRelPoint.Insert([i / 2, i / 2 + 1])
+
+  Next
+
+End
+
+' This function will return False if the element couldn't be created for some reason: bad or incomple user input
+' True means all is good, False will instruct the clsEntityBuilder to delete it
+Public Sub Finish(oE As Entity) As Boolean
+
+  'Print "Finish en EntityBase"
+
+  'CreatePolygon(oe)
+
+  BuildPOI(oe)
+
+  ' busco el tipo de linea, si hace falta
+  If oE.LineTypeName = "Dashed" Then oE.LineType = 1
+  ' tareas finales de armado del objeto
+  If LCase(oe.StringData[Me.sdaPattern]) <> "solid" Then cadHatchBuilder.FillEntityWithHatch(oe)
+
+  oE.psel.resize(oE.p.count / 2)
+
+  oE.DrawAble = True
+  oE.Selected = False
+  oE.Finished = True
+
+End
+
+Public Sub Cancel()
+
+  gcd.clsJobPrevious = Me
+  gcd.clsJob = clsDefaultJob
+  clsDrawingAids.CleanTexts
+  '''appmain.redraw
+
+End
+
+Public Sub Translate(e As Entity, dX As Float, dY As Float, Optional OnlySelected As Boolean = False)
+
+  cadLWPolyline.Translate(e, dX, dY, OnlySelected)
+  puntos.Translate(e.PolyLine, dx, dy)
+
+End
+
+Public Sub Rotate(e As Entity, radians As Float)
+
+  cadLWPolyline.Rotate(e, radians)
+  puntos.Rotate(e.PolyLine, radians)
+
+End
+
+Public Sub Scale(e As Entity, sX As Float, sY As Float)
+
+  cadLWPolyline.Scale(e, sx, sy)
+  puntos.Scale(e.PolyLine, sx, sy)
+
+End
+
+' Importo los datos que puedo procesar de una coleccion y genero un Entity para ser agregado a un array
+Public Function ImportJsonCol(c As Collection, e As Entity) As Boolean
+
+  e.ClassHandler = cadDummy
+
+
+Catch
+
+  Return False
+
+End
+
+' "entity": "HATCH",
+'  "index": 14883,
+'  "type": 78,
+'  "handle": [0, 1412084],
+'  "size": 368,
+'  "bitsize": 2876,
+'  "eed": [
+'    {
+'      "size": 57,
+'      "handle": [5, 18],
+'      "code": 10,
+'      "value": [0.0, 0.0, 0.0]
+'    },
+'    {
+'      "code": 0,
+'      "value": "RTTcAl"
+'    },
+'    {
+'      "code": 70,
+'      "value": 46089
+'    },
+'    {
+'      "code": 71,
+'      "value": 3267872970
+'    },
+'    {
+'      "code": 0,
+'      "value": "$$NoName$$"
+'    }
+'  ],
+'  "ownerhandle": [12, 3, 112175, 1299909],
+'  "_subclass": "AcDbEntity",
+'  "layer": [5, 2, 16842, 16842],
+'  "preview_exists": 0,
+'  "entmode": 0,
+'  "nolinks": 1,
+'  "color": 9,
+'  "ltype_scale": 0.03,
+'  "ltype_flags": 0,
+'  "plotstyle_flags": 0,
+'  "invisible": 0,
+'  "linewt": 29,
+'  "_subclass": "AcDbHatch",
+'  "elevation": 0.00000000000068,
+'  "extrusion": [0.0, 0.0, 1.0],
+'  "name": "SOLID",
+'  "is_solid_fill": 1,
+'  "is_associative": 0,
+'  "paths": [
+'    {
+'      "flag": 7,
+'      "bulges_present": 0,
+'      "closed": 1,
+'      "polyline_paths": [
+'        {
+'          "point": [3016.87711371452269, 1642.62769237936186]
+'        },
+'        {
+'          "point": [3017.43214062074594, 1642.62769237936186]
+'        },
+'        {
+'          "point": [3017.43214062074594, 1642.56192012253109]
+'        },
+'        {
+'          "point": [3016.87711371452269, 1642.56192012253109]
+'        }
+'      ],
+'      "numboundary_handles": 0
+'    },
+'    {
+'      "flag": 7,
+'      "bulges_present": 0,
+'      "closed": 1,
+'      "polyline_paths": [
+'        {
+'          "point": [3016.59455333377991, 1642.62769237936186]
+'        },
+'        {
+'          "point": [3016.76972790771288, 1642.62769237936186]
+'        },
+'        {
+'          "point": [3016.76972790771288, 1642.56192012253109]
+'        },
+'        {
+'          "point": [3016.59455333377991, 1642.56192012253109]
+'        }
+'      ],
+'      "numboundary_handles": 0
+'    },
+'    {
+'      "flag": 7,
+'      "bulges_present": 0,
+'      "closed": 1,
+'      "polyline_paths": [
+'        {
+'          "point": [3015.93214062074594, 1642.62769237936186]
+'        },
+'        {
+'          "point": [3016.4871675269701, 1642.62769237936186]
+'        },
+'        {
+'          "point": [3016.4871675269701, 1642.56192012253109]
+'        },
+'        {
+'          "point": [3015.93214062074594, 1642.56192012253109]
+'        }
+'      ],
+'      "numboundary_handles": 0
+'    }
+'  ],
+'  "style": 0,
+'  "pattern_type": 1,
+'  "pixel_size": 0.00617716544728,
+'  "seeds": [
+'    [3017.2327968033037, 1642.60287183317678],
+'    [3016.67649579289673, 1642.5905174577631],
+'    [3016.18200584129409, 1642.5905174577631]
+'  ],
+'  "boundary_handles": [
+'
+'  ]
+
+Public Sub ExportDXF(e As Entity, hFile As File)
+
+  Dim i As Integer
+
+  Print #hFIle, "  0"                       ' Entity type
+  Print #hFIle, "HATCH"
+  clsEntities.DXFExportCommon(e, hFile)
+  Print #hFIle, "100"                     ' Subclass marker
+  Print #hFIle, "AcDbHatch"
+
+  Print #hFIle, " 10"                      ' X0
+  Print #hFIle, "0"
+  Print #hFIle, " 20"                      ' Y0   Elevation point
+  Print #hFIle, "0"
+  Print #hFIle, " 30"                      ' Z0
+  Print #hFIle, "0"                        '
+
+  Print #hFIle, " 210"                     ' X0
+  Print #hFIle, "0"
+  Print #hFIle, " 220"                     ' Y0   Exrusion direction
+  Print #hFIle, "0"
+  Print #hFIle, "230"                      ' Z0
+  Print #hFIle, "1"
+
+  Print #hFIle, "  2"
+  Print #hFIle, e.StringData[Me.sdaPattern]
+
+  Print #hFIle, " 70"                      ' 0 = pattern; 1 = solid
+  If LCase(e.StringData[Me.sdaPattern]) = "solid" Then Print #hFIle, "1" Else Print #hFIle, "0"
+
+  Print #hFIle, " 71" ' Associativity flag(0 = non - associative; 1 = associative); For MPolygon, solid - fill flag(0 = lacks solid fill; 1 = has solid fill)
+  Print #hFIle, "0"
+
+  Print #hFIle, " 91" ' Number Of boundary paths(loops) La cantidad de contornos que se definnen a partir de este punto
+  Print #hFIle, "1"
+
+  Print #hFIle, " 92" ' boundary paths 0=default; 1=external, 2=poly, 4=derivado, 8=textbox, 16=outermost
+  Print #hFIle, "0"
+
+  Print #hFIle, " 93" ' Numero de elementos q forman este borde (si es poly no se pone nada)
+  Print #hFIle, "0"
+
+  ' Gaucho por ahora define el contorno con polilineas unicamente, asi que las dos lineas siguientes se comentan
+  'Print #hFIle, " 72" ' 1 = lines, 2=arc, 3=ellipse, 4=SPline
+  'Print #hFIle, "0"
+
+  For i = 0 To e.p.Max Step 2
+    Print #hFIle, " 10"                      ' Xi
+    Print #hFIle, CStr(e.p[i])
+    Print #hFIle, " 20"                      ' Yi
+    Print #hFIle, CStr(CStr(e.p[i + 1]))
+  Next
+
+  Print #hFIle, " 97" ' puntos secudarios
+  Print #hFIle, "0"
+
+  Print #hFIle, " 75" ' Hatch style: 0 = Hatch “odd parity” area (Normal style), 1 = Hatch outermost area only(Outer style) , 2 = Hatch through entire area(Ignore style)                       ' 0 = pattern; 1 = solid
+  Print #hFIle, "0"
+
+  Print #hFIle, " 76" ' Hatch pattern type: 0 = User - defined , 1 = Predefined, 2 = Custom
+  Print #hFIle, "1"
+
+  Print #hFIle, " 52" ' rotation en RAD
+  Print #hFIle, CStr(e.fParam[Me.ipaRotation])
+
+  Print #hFIle, " 41" ' scale
+  Print #hFIle, CStr(e.fParam[Me.ipaScale])
+
+  Print #hFIle, " 77" ' Hatch pattern double flag (pattern fill only):0 = Not double,1 = double
+  Print #hFIle, "0"
+
+  Print #hFIle, " 78" ' Number of pattern definition lines  (si 76 es user defined)
+  Print #hFIle, "0"
+
+  Print #hFIle, " 98" ' Numero de elementos q forman este borde (si es poly no se pone nada)
+  Print #hFIle, "0"
+
+End
+
+Public Sub setEntity(e As Entity)
+
+  e.fParam.Resize(Me.TotalParams)
+  e.StringData.Resize(Me.sdaTotalParams) ' text, style
+
+End
+
+Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
+
+  Dim i As Integer
+
+  Me.setEntity(e)
+
+  For i = 0 To sClaves.Max
+
+    If sClaves[i] = "2" Then e.StringData[Me.sdaPattern] = sValues[i] ' hach file
+
+    If sClaves[i] = "70" Then e.fParam[Me.ipaSolid] = CFloat(sValues[i])
+    If sClaves[i] = "71" Then e.fParam[Me.ipaAsociativity] = CFloat(sValues[i])
+    If sClaves[i] = "72" Then e.fParam[Me.ipaBoundaryType] = CFloat(sValues[i])
+    If sClaves[i] = "91" Then e.fParam[Me.ipaTotalLoops] = CFloat(sValues[i])
+    If sClaves[i] = "52" Then e.fParam[Me.ipaRotation] = CFloat(sValues[i])
+    If sClaves[i] = "41" Then
+      e.fParam[Me.ipaScale] = CFloat(sValues[i])
+
+    End If
+    If sClaves[i] = "75" Then e.fParam[Me.ipaParity] = CFloat(sValues[i])
+    If sClaves[i] = "76" Then e.fParam[Me.ipaPatternType] = CFloat(sValues[i])
+
+    ' boundary
+    If e.fParam[Me.ipaTotalLoops] Then
+      If sClaves[i] = "10" Then e.p.Add(CFloat(sValues[i]))
+      If sClaves[i] = "20" Then e.p.Add(CFloat(sValues[i]))
+    End If
+
+  Next
+
+  If e.fParam[Me.ipaSolid] Then
+    e.StringData[Me.sdaPaternFile] = "Solid"
+  Else
+    e.StringData[Me.sdaPaternFile] = Application.Path &/ "patterns" &/ LCase(e.StringData[Me.sdaPattern]) & ".dxf"
+  End If
+
+  Return True
+
+
+Catch
+
+  Return False
+
+End

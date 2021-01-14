@@ -1,0 +1,256 @@
+' Gambas class file
+
+'
+' RADG
+' Rapid Application Development for Gambas
+'
+' Copyright (C) Martín Belmonte
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 2 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+'
+
+Export
+
+Private Observer As Observer        '' Observer used to notify if there are changes not applied
+Private cfg As New Collection       '' Project property collection
+
+Public Sub _new(cin As Collection)
+
+  Run(cin)
+
+End
+
+Public Function Run(cin As Collection) As Boolean
+
+  Dim ico As Picture
+  Dim k As Variant
+  Dim v As Variant
+  Dim val As String
+  Dim s As String
+
+  cfg = cin
+
+  For Each k In cfg
+    Select TypeOf(k)
+      Case 16
+        For Each v In k
+          Select TypeOf(v)
+            Case 9
+              val &= v & ":"
+            Case Else
+              val &= v & ":"
+          End Select
+        Next
+      Case Else
+        val = k
+    End Select
+    s &= cfg.Key & ": " & val & "\n"
+  Next
+  File.save("/tmp/err.txt", s)
+
+  Observer = New Observer(Me) As "Observer"
+  If Exist(Application.Path &/ cfg["Icon"]) Then
+    ico = Image.Load(Application.Path &/ cfg["Icon"]).Stretch(32, 32).Picture
+  Endif
+
+  Me.Icon = ico
+  Me.Menus.Hide
+
+  CControls()
+
+  Me.Show()
+
+End
+
+Public Sub CControls()
+
+  Dim txa As TextLabel
+  Dim tob As ToolButton
+  Dim stxComp As String[]
+  Dim strArtisData As String
+  Dim strLine As String
+  Dim int As Integer
+  Dim stxTag As New String[]
+  Dim stxVal As New String[]
+  Dim strDate As String
+
+  Observer = New Observer(Me) As "Observer"
+
+  stxComp = cfg["Components"]
+
+  txa = New TextLabel(pnlTitle) As "Exit"
+  txa.Name = "txa-" & "Title"
+  txa.Text = vag.Capital(cfg["Title"]) & " " & cfg["Version"]
+
+  txa.Foreground = &H212121
+  txa.Font.Grade = 6
+  txa.Font.Bold = True
+  txa.Background = Color.Gradient(Color.Default, Color.Background, 0.3)
+  txa.Alignment = Align.Center
+
+  txa = New TextLabel(pnlAboutx) As "Exit"
+  txa.Name = "txa-" & "Description"
+  txa.Text = vag.Capital(cfg["Description"])
+  txa.Foreground = &H212121
+  txa.Background = Color.Gradient(Color.Default, Color.Background, 0.3)
+  txa.Font.Bold = True
+  txa.Font.Grade = 1
+  txa.Alignment = Align.Center
+  txa.Height = 28
+
+  Select (2018 - Year(Now))
+    Case 0
+      strDate = "Copyright (c) " & CStr(Year(Now))
+    Case Else
+      strDate = "Copyright (c)" & " 2018>" & CStr(Year(Now))
+  End Select
+
+  tob = New ToolButton(pnlLinks) As "Url"
+  tob.Name = "tob-" & "Web"
+  tob.Picture = Image.Load("./git.svg").Stretch(32, 32).Picture
+  tob.Tag = "https://github.com/" & String.LCase(cfg["Vendor"]) &/ String.LCase(Application.Name)
+  tob.Width = 35
+  tob.Height = 35
+  tob.Border = False
+  tob.Tooltip = ("Source code")
+
+  tob = New ToolButton(pnlLinks) As "Url"
+  tob.Name = "tob-" & "Email"
+  tob.Picture = Picture["icon:/22/mail"]
+  tob.Tag = cfg["Address"]
+  tob.Width = 35
+  tob.Height = 35
+  tob.Border = False
+  tob.Tooltip = ("Contact")
+
+  If Exist("./artist.txt") Then
+    strArtisData = File.Load("./artist.txt")
+    For Each strLine In Split(strArtisData, "\n")
+      If InStr(strLine, "#") > 0 Then
+        stxTag.Add(Split(strLine, "#")[0])
+        stxVal.Add(Split(strLine, "#")[1])
+      Endif
+    Next
+
+    tob = New ToolButton(pnlLinks) As "Url"
+    tob.Name = "tob-" & "GPL"
+    tob.Picture = Image.Load("./copyleft.svg").Stretch(32, 32).Picture
+    tob.Tag = "http://www.gnu.org/licenses/gpl.html"
+    tob.Width = 35
+    tob.Height = 35
+    tob.Border = False
+    tob.Tooltip = ("Program license")
+
+    tob = New ToolButton(pnlLinks) As "Url"
+    tob.Name = "tob-" & "Artist"
+    tob.Width = 35
+    tob.Height = 35
+    tob.Border = False
+    If Exist(Application.Path &/ cfg["Icon"]) Then
+      tob.Picture = Image.Load(Application.Path &/ cfg["Icon"]).Stretch(32, 32).Picture
+    Else
+      Message.Warning(("The icon does not exist") & gb.NewLine & Application.Path &/ cfg["Icon"])
+    Endif
+
+    For int = 0 To stxTag.Max
+      Select stxTag[int]
+        Case "author"
+          If Exist(Application.Path &/ cfg["Icon"]) Then
+            tob.Picture = Image.Load(Application.Path &/ cfg["Icon"]).Stretch(32, 32).Picture
+          Else
+            Message.Warning(("The icon does not exist") & gb.NewLine & Application.Path &/ cfg["Icon"])
+          Endif
+        Case "website"
+          tob.Tooltip = stxVal[int]
+          tob.Tag = stxVal[int]
+        Case "licence"
+          tob.Tooltip &= "\n" & stxVal[int]
+      End Select
+
+    Next
+
+  Endif
+
+  Me.Caption = ("About") & " " & String.UCaseFirst(Application.Name)
+
+End
+
+Public Sub Url_Click()
+
+  Dim tob As ToolButton
+  Dim strUrl As String
+  Dim strType As String
+  Dim strSubject As String
+  Dim stxAddress As New String[]
+
+  tob = Last
+
+  strUrl = tob.Tag
+
+  If InStr(strUrl, "@") > 0 Then
+    strType = "email"
+    stxAddress.Add(strUrl)
+
+    strSubject = ("Hello developers of") & " " & Application.Name & " [" & uty.Timestamp(Now()) & "]"
+
+  Else
+    If InStr(strUrl, "http") > 0 Then
+      strType = "web"
+    Else
+      strType = "Unknown"
+    Endif
+  Endif
+
+  Select strType
+    Case "email"
+      Desktop.SendMail(stxAddress,,, strSubject)
+    Case "web"
+      Desktop.Open(strUrl)
+  End Select
+
+End
+
+Public Sub Form_MouseDown()
+
+  Me.Close
+
+End
+
+Public Sub ToolButton1_Click()
+
+  Me.Close
+
+End
+
+Public Sub Exit_MouseDown()
+
+  Me.Close
+
+End
+
+Public Sub Form_Arrange()
+
+  ImageBack()
+
+End
+
+Private Sub ImageBack()
+
+  If Exist(Application.Path &/ "back.png") Then
+    Me.Picture = Image.Load(Application.Path &/ "back.png").Stretch(Me.W, Me.H).Picture
+  Endif
+
+End

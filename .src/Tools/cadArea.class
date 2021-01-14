@@ -1,0 +1,123 @@
+' Gambas class file
+
+' GauchoCAD
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+
+' Tool maintained by Terco
+Inherits ToolsBase
+Create Static
+Public Const Gender As String = "Area"
+Private clpPolygon As New Polygon
+Private Poli As New Float[]
+
+Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer = 0) As Boolean
+  ' Llamada por FCAD al inicio de la aplicacion de esta herramienta
+
+  Dim i As Integer
+  ' Aprovechamos para establecer los helpers (comentarios de ayuda en pantalla)
+  Me.PointsDone = 0
+  Me.PointsTotal = 1e10
+
+  clsDrawingAids.HelperTrabajo = ("Area") & " : " & ("mark points")
+  Poli.Add(0)
+  Poli.Add(0)
+  clpPolygon.Add(0, 0)
+
+  Me.Active = True
+  gcd.ToolActive = True
+
+End
+
+Public Function MouseUp(mouseX As Integer, mouseY As Integer)
+
+  Dim i As Integer
+
+  Inc Me.PointsDone
+
+  Me.SelEndXr = puntos.Near(AppMain.Xreal(mousex))
+  Me.SelEndyr = puntos.Near(AppMain.Yreal(mouseY))
+
+  clpPolygon[clpPolygon.Max].X = Me.SelEndXr
+  clpPolygon[clpPolygon.Max].Y = Me.SelEndYr
+  Poli[Poli.max - 1] = Me.SelEndXr
+  Poli[Poli.max] = Me.SelEndYr
+
+  clpPolygon.Add(Me.SelEndXr, Me.SelEndYr)
+  Poli.Add(Me.SelEndXr)
+  Poli.Add(Me.SelEndYr)
+
+End
+
+Public Function MouseMove(mouseX As Integer, mouseY As Integer) ' called by FCAD-> DrawingArea_MouseMove
+
+  If Poli.Count = 0 Then Return
+  Me.SelEndXr = puntos.Near(AppMain.Xreal(mouseX))
+  Me.SelEndyr = puntos.Near(AppMain.Yreal(mouseY))
+  Poli[Poli.max - 1] = Me.SelEndXr
+  Poli[Poli.max] = Me.SelEndYr
+  clpPolygon[clpPolygon.Max].X = Me.SelEndXr
+  clpPolygon[clpPolygon.Max].Y = Me.SelEndYr
+
+  appmain.redraw
+  ' appmain.regen
+
+End
+
+Public Sub Draw()               ' called by gcd.CurrentDrawing.drwArea_Draw
+
+  glPlus.PolygonFilled(Poli, Color.DarkBlue, Color.RGB(0, 255, 100, 200))
+
+End
+
+Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD en el evento FCAD_KeyPress cuando recibe una texto + <Enter>
+
+  If EnteredText = "" Then        'enter
+
+    Me.Finish
+
+  End If
+
+Catch
+
+  clsDrawingAids.ErrorMessage = ("Bad input")
+
+End
+
+Public Sub Finish()
+
+  Dim i As Integer, ip As Integer, Prot As New Float[]
+
+  If Me.PointsDone > 2 Then
+
+    clsDrawingAids.HelperTrabajo = ("Area") & " = " & Str(puntos.PoligonArea(poli)) & " - " & ("Perimeter") & " = " & Str(puntos.PoligonLength(poli, True))
+    clpPolygon.Simplify(Clipper.FillEvenOdd)
+
+    Debug "Segun Clipper ", clpPolygon.Area
+
+  Endif
+
+  gcd.clsJobPrevious = Me
+  gcd.clsJob = clsDefaultJob
+  clsEntities.DeSelection()
+  appmain.regen
+  Me.Active = False
+  gcd.ToolActive = False
+
+End

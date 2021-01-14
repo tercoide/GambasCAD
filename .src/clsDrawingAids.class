@@ -1,0 +1,242 @@
+' Gambas class file
+
+' GauchoCAD
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+
+Create Static
+
+' Lineas de puntos para Paint
+Public dashes As Integer
+
+' ayudas al usuario en pantalla
+Public Struct HelperSt
+  texto As String
+  dX As Integer '= 5 'defasaje con respecto al mouse
+  dY As Integer '= 5
+  fColor As Integer '= Color.black
+  ShowRect As Boolean '= True
+  fRectangulo As Integer ' = Color.ButtonBackground
+  fFont As String '= "Arial" (ignorado)
+  fHeight As Integer '= 20
+End Struct
+
+Public ScreenDensity As Float = 1080 / 29.5  ' pixele by cm wich gives a 1:100 scale in my monitor
+
+Public Helper As New HelperSt       ' Esto se escribe al lado del mouse
+Public HelperTrabajo As String      '   parte inferior izquierda
+Public HelperTrabajoNext As String      '   parte inferior izquierda
+Public HelperTrabajo2 As String     '   sin usar
+Public HelperTrabajo3 As String     '   sin usar
+Public HelperTrabajo4 As String     '   sin usar
+Public ErrorMessage As String
+Public ErrorTimer As Integer = 0
+Public HelperDibujo As String       ' Se escribe abajo "Grid  Ortho" , etc
+Public trabajoYteclado As String
+Public PromtSlash As String = "|"
+
+Public Function CleanTexts()
+
+  Helper.texto = ""
+  HelperTrabajo = ""
+  HelperTrabajoNext = ""
+  HelperTrabajo2 = ""
+  HelperTrabajo3 = ""
+  HelperTrabajo4 = ""
+  HelperDibujo = ""
+
+End
+
+Public Sub _new()
+
+  helper.texto = ""
+  helper.dX = 15 'defasaje con respecto al mouse
+  helper.dY = 15
+  helper.fColor = Color.black
+  helper.ShowRect = True
+  helper.fRectangulo = Color.ButtonBackground
+  helper.fFont = "Arial"
+  helper.fHeight = 10
+
+End
+
+'' All text options in one line
+'' 0,0 is center
+Public Sub Texting(MyText As String, Optional posX As Integer, posY As Integer, txtColor As Integer = 0, txtHeight As Integer = 12, FontName As String)
+
+  gl.PushMatrix
+
+  gl.LoadIdentity
+
+  glPlus.DrawText(MyText, posX, posY, 0, 10, txtColor)
+
+  gl.PopMatrix
+
+End
+
+Public Sub DibujaHelper()
+
+  Dim hExt As PaintExtents, sNext As String
+
+  ' If ErrorMessage <> "" Then
+  '
+  '     texting(ErrorMessage, 10 - appmain.glarea1.w / 2, 30 - appmain.glarea1.h / 2, Color.Red)
+  '
+  '     If ErrorTimer = 15 Then ErrorMessage = ""
+  ' Else
+  '     ErrorTimer = 0
+  '
+  ' End If
+
+  If HelperTrabajoNext <> "" Then snext = HelperTrabajoNext & " : "
+
+  trabajoYteclado = HelperTrabajo & " > " & sNext & appmain.KeysAccumulator & PromtSlash
+
+  appmain.lblCommand.Text = trabajoYteclado
+
+  ' Texting(trabajoYteclado, 10 - appmain.glarea1.w / 2, 10 - appmain.glarea1.h / 2, Starter.flgWindowInfoColor) ' Tincho - toma color de la configuración
+
+  HelperDibujo = ""
+  If gcd.Orthogonal Then HelperDibujo = "F8-Ortho"
+  If puntos.Gridactive Then HelperDibujo = HelperDibujo & "  F7-Grid = " & Format$(puntos.GridSpacing, "0.00 m")
+  ' and so on...
+
+  texting(HelperDibujo, 40, 10 - appmain.glarea1.h / 2, Starter.flgWindowInfoColor) ' Tincho - toma color de la configuración
+
+  ' helper del mouse
+  If Len(Helper.Texto) = 0 Then Return
+
+  Texting(Helper.Texto, appmain.CursorX - appmain.glarea1.w / 2, -appmain.CursorY + appmain.glarea1.h / 2, Color.DarkGreen, 10)
+
+End Sub
+
+Public Sub DrawCoordenadas()
+
+  ' helpers
+  Dim l As String, l2 As String, lEsc As String
+
+  l = Format$(puntos.Near(appmain.Xreal(appmain.cursorX)), "0.00") & "mts : " & Format$(puntos.Near(appmain.Yreal(appmain.cursorY)), "0.00") & "mts"
+
+  '    l2 = "Mouse: " & Str$(puntos.cursorX) & ": " & Str$(puntos.cursorY)
+
+  l2 = "ScaleZoom " & Str$(gcd.CurrentDrawing.ScaleZoom) & " - Pan: " & Str$(gcd.CurrentDrawing.PanX) & ", " & Str$(gcd.CurrentDrawing.PanY)
+
+  'FCAD.nDraws = 0
+
+  ' intento determinar la escala
+  ' en mi monitor, 29cm  = 1080 pixeles
+
+  Dim e As Float, z As Float
+  e = 1080 / 0.29 ' pixeles por metro segun el tamaño real de la pantalla
+  z = appmain.Metros(1) ' metros por pixel segun la ampliacion del usuario (rueda del mouse)
+  lEsc = "Esc 1:" & Format$(1 / gcd.CurrentDrawing.ScaleZoom * 100 * ScreenDensity, "0")
+
+  Texting(l, 10 - appmain.glarea1.w / 2, appmain.glarea1.h / 2 - 15, Starter.flgWindowInfoColor)
+  Texting(l2, 10 - appmain.glarea1.w / 2, appmain.glarea1.h / 2 - 35, Starter.flgWindowInfoColor)
+  Texting(lEsc, appmain.glarea1.w / 2 - 100, 10 - appmain.glarea1.h / 2, Starter.flgWindowInfoColor)
+
+End
+
+Public Sub DrawEjes()
+
+  ' helper de los ejes coordenados
+  ' TODO:  no se porque el fondo de las dashes me sale gris y no blanco
+  ' paint.brush = Paint.Color(Color.RGB(0, 0, 0, 0))
+  ' paint.LineWidth = 1 / gcd.CurrentDrawing.ScaleZoom
+  ' paint.Dash = DashDot
+  ' paint.MoveTo(0 - (DashDot[0] + DashDot[1] + DashDot[2] / 2), 0) ' me voy al origen de coordenadas
+  ' paint.relLineTo(1000, 0)
+  ' paint.MoveTo(0, 0 - (DashDot[0] + DashDot[1] + DashDot[2] / 2)) ' me voy al origen de coordenadas
+  ' paint.relLineTo(0, 1000)
+  ' paint.Dash = []
+  ' paint.Stroke
+
+End
+
+' Public Sub DrawCaudricula()
+'
+'   ' crossing lines each gridspace and darker each 10m
+'
+'   Dim i, xgg, ygg, xg, yg As Single, espaciado As Single, starting As Single
+'
+'   espaciado = appmain.pixels(puntos.GridSpacing) ' tamaño de la grid en pixeles
+'
+'   xg = AppMain.Xreal(0) ' Puntos reales aproximados al 0,0 de la pantalla
+'   yg = AppMain.Yreal(0)
+'
+'   xg = puntos.Near(xg) ' punto en mundo real ajustado a grid
+'   yg = puntos.Near(yg)
+'
+'   xg = puntos.Xpix(xg) - espaciado * 2 ' punto inicial en la drawing area
+'   yg = puntos.Ypix(yg) - espaciado * 2
+'
+'   xgg = xg
+'   ygg = yg
+'
+'   starting = yg ' guardo el Y inicial
+'
+'   paint.brush = Paint.Color(Color.Gray)
+'   paint.LineWidth = 1
+'
+'   ' lineas finas
+'   Do ' lineas horizontales
+'     If espaciado < 5 Then Break
+'     paint.MoveTo(xg, yg)
+'     paint.RelLineTo(FCAD.drwArea.W + espaciado, 0)
+'     yg += espaciado - 0.5
+'
+'   Loop Until yg > (FCAD.drwArea.Height + espaciado * 2)
+'
+'   xg = xgg
+'   yg = ygg
+'   Do ' verticales
+'     If espaciado < 5 Then Break
+'     paint.MoveTo(xg, yg)
+'     paint.RelLineTo(0, gcd.CurrentDrawing.DdrwArea.Height + espaciado)
+'     xg += espaciado - 0.5
+'   Loop Until xg > (FCAD.drwArea.Width + espaciado * 2)
+'
+'   ' lineas gruesas
+'
+'   paint.Stroke
+'
+' End
+
+Public Sub DrawPolygons() ' and other debugging stuff
+
+  Dim e As Entity, i As Integer, p0, p1 As Float
+
+  HelperTrabajo2 = "gcd.clsJob: " & Str(gcd.clsJob) & "->" & Str(EntityBuilder.elem)
+  '
+  Texting(HelperTrabajo2, 300, appmain.glarea1.h - 20, Color.Blue)
+  '
+  HelperTrabajo2 = "gcd.clsJobPrevious: " & Str(gcd.clsJobPrevious)
+  '
+
+  Texting(HelperTrabajo2, 300, appmain.glarea1.h - 40, Color.Blue)
+
+  If gcd.clsJob.gender = "Builder" Then Return
+
+  For Each e In gcd.CurrentDrawing.arrEntities
+
+    If e.Polygon.count > 0 Then glPlus.Polygon(e.Polygon, Color.Blue, 1)
+
+  Next
+
+End

@@ -1,0 +1,112 @@
+' Gambas class file
+
+' GauchoCAD
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+Create Static
+'Fast
+
+Public Const Gender As String = "Rectangle"
+Public Const DrawingOrder As Integer = 1        ' 1 = draws first
+Public Const HelperTrabajo As String = ("a line")
+Public Const ParamType As String = "PP"                             ' that is Point, Point; could be Color Text, etc
+Public Const ParamHelper As String = "Start point;End point"
+Public Const GAMBASCADENTITY As String = "EntityBase"
+Public Const USEWITH As String = "EntityBuilder"
+Public Const PointsToDraw As Integer = 1             ' minimal point requered for drawing something usefull
+Public Const OrthogonalIgnored As Boolean = True
+Public Const OrthogonalForced As Boolean = False
+Public Const ParamDefault As String = " "
+Public Const StretchAble As Boolean = True           ' Si lo puedo deformar
+Public Selected As Boolean
+
+Public DrawAble As Boolean = False          ' True si durante la construccion ya tiene suficientes elementos para poder hacer una representacion digna
+Public Visible As Boolean = True            ' si esta entidad puede ser mostrada independientmente
+Public Finished As Boolean = False          ' colocar en true cuando se llegue a completar
+Public StepsDone As Integer                 ' esto lo cambia cls ElementBuilder durante la construccion
+
+' The entity handler receives a user action, and returns the number of expected parameter
+' If definitive = true, means the parameter is set
+Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
+
+  ' la linea solo recibe puntos
+
+  If vParam[0] <> "point" Then Return False
+
+  If Me.StepsDone = 0 Then
+    Try eBuild.P[0] = vParam[1]
+    Try eBuild.P[1] = vParam[2]
+    eBuild.P[2] = eBuild.P[0]
+    eBuild.P[3] = eBuild.P[1]
+    If definitive Then Return True
+  Else If Me.StepsDone = 1 Then
+    eBuild.DrawAble = True
+    Try eBuild.P[2] = vParam[1]
+    Try eBuild.P[3] = vParam[2]
+    If definitive Then Return True
+
+  Endif
+
+
+End
+
+
+Public Sub Draw(oE As Entity)
+
+  If Not oE.Visible Then Return
+
+  GLplus.Rectangle2D(oE.p[0], oE.p[1], oE.p[2] - oE.p[0], oE.p[3] - oE.p[1],,,,, oE.ColorToPaint, oe.LineWidth, oe.LineType, 2)
+
+  ' test
+
+End
+
+' This function will return False if the element couldn't be created for some reason: bad or incomple user input
+' True means all is good, False will instruct the clsEntityBuilder to delete it
+Public Sub Finish(oE As Entity) As Boolean
+
+  ' aca vamos a trasnformar la entidad en una polilinea
+
+  oe.ClassHandler = cadLWPolyline
+  oe.gender = oe.ClassHandler.Gender
+  Dim w, h As Float
+  w = oE.p[2] - oE.p[0]
+  h = oE.p[3] - oE.p[1]
+  oE.p[2] = oE.p[0] + w
+  oe.P[3] = oE.p[1]
+  oE.P.add(oE.p[0] + w)
+  oe.P.add(oE.p[1] + h)
+  oE.P.add(oE.p[0])
+  oe.P.add(oE.p[1] + h)
+  oE.P.add(oE.p[0])
+  oe.P.add(oE.p[1])
+
+  cadLWPolyline.BuildPOI(oe)
+
+  ' busco el tipo de linea, si hace falta
+  If oE.LineTypeName = "Dashed" Then oE.LineType = 1
+  ' tareas finales de armado del objeto
+
+  oE.psel.resize(oE.p.count / 2)
+
+  oE.DrawAble = True
+  oE.Selected = False
+  oE.Finished = True
+
+End

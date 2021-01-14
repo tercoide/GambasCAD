@@ -1,0 +1,81 @@
+' Gambas class file
+
+' GauchoCAD
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+
+' Tool maintained by Terco
+Inherits ToolsBase
+Create Static
+Public Const Gender As String = "ZoomE"
+Public limits As New Float[]
+
+'  PanX y PanY estanen coordenadas de pantalla, o sea pixeles
+'  por lo tanto algo que este en la posicion Px se dibujara en el pixel xPix = Px + PanX
+'  si Px esta en coordenadas mundo, hay que reducirlo a pixels primero
+'  PixPx = Pixels(Px) , entonces queda asi xPix = Pixels(Px) + PanX
+'  Si quiero que eso quede en el centro de la pantalla xPix sera ViewportX/2, entonces
+
+'  ViewportX/2 = Pixels(Px) + PanX , despejando PanX = ViewportX/2 - Pixels(Px)
+
+Public Function Start(Optional ElemToBuild As Variant, _Mode As Integer = 0) As Boolean
+
+  If _mode <> 1 Then
+
+    limits = clsEntities.ComputeLimits()
+
+    gcd.CurrentDrawing.xmenor = limits[0]
+    gcd.CurrentDrawing.Ymenor = limits[1]
+    gcd.CurrentDrawing.xmayor = limits[2]
+    gcd.CurrentDrawing.ymayor = limits[3]
+  End If
+  If gcd.CurrentDrawing.arrEntities.Count = 0 Then Return
+
+  Dim SZx As Float
+  ' ahora calculo donde estaria el centro de este dibujo
+
+  Dim cx, cy As Float
+  Dim px, py As Integer           ' coordenadas del punto medio
+
+  cx = (gcd.CurrentDrawing.xmayor - gcd.CurrentDrawing.xmenor) ' tamaño del mundo
+  cy = (gcd.CurrentDrawing.Ymayor - gcd.CurrentDrawing.Ymenor)
+
+  If cx = 0 Then cx = 0.00001
+  If cy = 0 Then cy = 0.00001
+  gcd.CurrentDrawing.ScaleZoom = appmain.glarea1.h / cy * 0.9
+
+  szx = appmain.glarea1.w / cx * 0.9
+
+  If szx < gcd.CurrentDrawing.ScaleZoom Then gcd.CurrentDrawing.ScaleZoom = szx
+
+  px = (gcd.CurrentDrawing.xmayor + gcd.CurrentDrawing.xmenor) / 2
+  py = (gcd.CurrentDrawing.Ymayor + gcd.CurrentDrawing.Ymenor) / 2
+
+  gcd.CurrentDrawing.PanX = -appmain.pixels(px)
+  gcd.CurrentDrawing.PanY = -appmain.pixels(py)   ' el eje Y trabaja distinto, asi que debemos cambiar esto
+
+  If gcd.CurrentDrawing.ScaleZoom > 1e6 Or gcd.CurrentDrawing.ScaleZoom < 1e-6 Then
+    gcd.CurrentDrawing.scalezoom = 1
+    gcd.CurrentDrawing.PanX = 0
+    gcd.CurrentDrawing.PanY = 0
+  End If
+
+  'Me.Finish
+
+End

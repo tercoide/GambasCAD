@@ -1,0 +1,299 @@
+' Gambas class file
+
+' GauchoCAD
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+Create Static
+' Fast
+
+Public Const Gender As String = "Attrib"
+Public Const DrawingOrder As Integer = 100 ' 1 a 32.724 esto debe Drawse primero y ser sobreescrito por el resto
+Public Const PointsToDraw As Integer = 1             ' minimal point requered for drawing something usefull
+Public Const HelperTrabajo As String = ("Inserts an attirb")
+Public Const ParamType As String = "PAFT"
+Public Const ParamHelper As String = "Start point;Angle;Heigth;"      ' a little text that is shown at the prompt waiting for user input during build
+Public Const ParamDefault As String = " ; 0 ; 10 ; "
+Public Const StretchAble As Boolean = False
+Public Const GAMBASCADENTITY As String = "EntityBase"
+Public Const USEWITH As String = "EntityBuilder"
+Public Const OrthogonalIgnored As Boolean = False
+Public Const OrthogonalForced As Boolean = False
+Public Selected As Boolean
+
+Public DrawAble As Boolean = False          ' True si durante la construccion ya tiene suficientes elementos para poder hacer una representacion digna
+Public Visible As Boolean = True            ' si esta entidad puede ser mostrada independientmente
+Public Finished As Boolean = False          ' colocar en true cuando se llegue a completar
+Public StepsDone As Integer                 ' esto lo cambia cls ElementBuilder durante la construccion
+
+' JSON and DXF Read/Export
+Public Const JSON_Reading As Boolean = True
+Public Const JSON_Export As Boolean = False
+
+Public Const DXF_Reading As Boolean = False
+Public Const DXF_Export As Boolean = False
+
+' fParam helpers
+Public Const TotalParams As Integer = 2
+Public Const iTextHeight As Integer = 1
+Public Const iTextAngle As Integer = 0
+
+Public Sub Translate(e As Entity, dX As Float, dY As Float, Optional OnlySelected As Boolean = False)
+
+  cadText.Translate(e, dx, dy, OnlySelected)
+
+End
+
+Public Sub Rotate(e As Entity, radians As Float)
+
+  cadText.Rotate(e, radians)
+
+End
+
+Public Sub Scale(e As Entity, sX As Float, sY As Float)
+
+  cadText.Scale(e, sx, sy)
+
+End
+
+Public Sub Draw(oE As Entity)
+
+  If Not oE.Visible Then Return
+
+  oE.ColorToPaint = gcd.GetGBColor(oE.colour, oE.Layerid)
+
+  ' Debug oE.stringdata[0]
+
+  glPlus.DrawText(oE.stringdata[0], oE.p[0], oE.p[1], oE.fParam[0], oE.fParam[1], oE.ColorToPaint)
+
+End
+
+'' A fat version of the line
+Public Sub DrawSelected(oE As Entity)
+
+  GLplus.Polygon(oE.Polygon, gcd.ColorForSelected, oE.LineWidth, gcd.stiDashed)
+
+End
+
+'' A fat version of the line
+Public Sub DrawRemark(oE As Entity)
+
+  If Not oE.Visible Then Return
+
+  GLplus.Polygon(oE.Polygon, oE.ColorToPaint, oE.LineWidth, gcd.stiDashed)
+
+End
+
+Public Function Draw2(oE As Entity)
+
+  If Not oE.Visible Then Return
+
+  Dim angulo As Float, hText As New PaintExtents, lText As String
+  Dim FontScalePrev As Float
+
+  paint.Save
+
+  'FontScalePrev = paint.FontScale
+  paint.LineWidth = 1
+  ' La cota puede estar inclinada, entonces debo rotarla
+
+  If oE.fParam.Count > 0 Then
+
+    angulo = oE.fParam[0] / 180 * Pi    ' ojo OPENGL--> GRADOS, GAMBAS-->RADIANESDXF
+
+  Else
+
+    angulo = 0
+
+  End If
+
+  If oE.stringdata[0] = "" Then
+
+    ltext = "ABCdef123"
+
+  Else
+
+    ltext = oE.stringdata[0]
+
+  End If
+
+  If oE.fParam.Count > 1 Then
+
+    If oE.fParam[1] <= 0 Then
+      paint.Font.Size = 10
+    Else
+      paint.Font.Size = oE.fParam[1]
+    End If
+
+  Else
+    ' cuando ScaleZoom es 0.15 el texto coincide con DXF
+    ' entonces voy a trabajar con esa relacion
+
+    paint.Font.Size = 10
+
+  End If
+
+  htext = paint.TextExtents(ltext)
+
+  paint.brush = Paint.Color(oE.ColorToPaint)
+
+  paint.Translate(oE.p[0], oE.p[1])
+  paint.Rotate(-angulo)
+  paint.Scale(1, -1)
+
+  paint.DrawText(ltext)
+
+  paint.Stroke
+
+  paint.Restore
+
+End
+
+'' Creo los puntos de interes
+'' Build point of interest
+
+Public Function BuildPOI(oE As Entity, Optional arrIndex As Integer = -1) As Integer
+
+  If arrIndex < 0 Then arrIndex = gcd.CurrentDrawing.arrEntities.Max       ' si este valor no es provisto , estos POI son de la ultima entidad
+
+  oe.PoiPoints.Clear
+  oe.PoiType.Clear
+
+  ' points
+  oe.poiPoints.insert([oE.p[0], oE.p[1]])
+  oe.poiType.Add(gcd.poiBasePoint)
+  'oe.poiEntities.Add(arrIndex)
+
+  ' line
+
+  ' Polygon
+
+  Dim tRect As New Float[], poli As New Float[]
+
+  tRect = glPlus.TextExtends(oE.stringdata[0], oE.fParam[1])
+  poli.Insert([0, 0, tRect[0], 0, tRect[0], tRect[1], 0, tRect[1]]) ' armo el poligono , que ya tiene la escala
+  puntos.Rotate(Poli, oE.fParam[0] * Pi / 180)
+  puntos.Translate(Poli, oE.P[0], oE.P[1])
+
+  oe.Polygon.Clear
+  oe.Polygon.Insert(poli)
+
+End
+' This function will return False if the element couldn't be created for some reason: bad or incomple user input
+' True means all is good, False will instruct the clsEntityBuilder to delete it
+
+Public Sub Finish(oE As Entity) As Boolean
+
+  'Print "Finish en EntityBase"
+  'CreatePolygon(oe)
+  BuildPOI(oe)
+
+  ' busco el tipo de linea, si hace falta
+  If oE.LineTypeName = "Dashed" Then oE.LineType = 1
+  ' tareas finales de armado del objeto
+  oE.ColorToPaint = gcd.GetGBColor(oE.colour, oE.Layerid)
+
+  oE.psel.resize(oE.p.count / 2)
+
+  oE.DrawAble = True
+  oE.Selected = False
+  oE.Finished = True
+
+End
+
+' Importo los datos que puedo procesar de una coleccion y genero un Entity para ser agregado a un array
+Public Function ImportJsonCol(c As Collection, e As Entity) As Boolean
+
+  e.ClassHandler = Me
+  e.P.Add(c["ins_pt"][0])
+  e.P.Add(c["ins_pt"][1])
+  e.StringData.Add(c["text_value"])
+
+  ' FIXME: reparar esto
+  e.fParam.Add(0) ' Angulo en grados
+
+  e.fParam.Add(c["height"])
+
+  Return True
+
+Catch
+
+  Return False
+
+End
+
+'    "entity": "ATTRIB",
+'    "index": 186,
+'    "type": 2,
+'    "handle": [0, 1601],
+'    "size": 81,
+'    "bitsize": 578,
+'    "ownerhandle": [8, 0, 0, 1600],
+'    "_subclass": "AcDbEntity",
+'    "prev_entity": [4, 0, 0, 0],
+'    "next_entity": [6, 0, 0, 1602],
+'    "layer": [5, 1, 6, 6],
+'    "preview_exists": 0,
+'    "entmode": 0,
+'    "nolinks": 0,
+'    "color": 4,
+'    "ltype_scale": 1.0,
+'    "ltype_flags": 1,
+'    "plotstyle_flags": 0,
+'    "invisible": 0,
+'    "linewt": 30,
+'    "_subclass": "AcDbText",
+'    "dataflags": 109,
+'    "ins_pt": [368.00000000000199, 23.9999999999996],
+'    "alignment_pt": [368.00000000000199, 25.4999999999996],
+'    "extrusion": [0.0, 0.0, 1.0],
+'    "thickness": 0.000000,
+'    "height": 3.0,
+'    "width_factor": 0.8,
+'    "text_value": "12345",
+'    "vert_alignment": 2,
+'    "_subclass": "AcDbAttribute",
+'    "tag": "TAG001",
+'    "field_length": 0,
+'    "flags": 0,
+'    "style": [5, 1, 25, 25]
+Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
+
+  Dim i As Integer
+
+  e.fParam.Resize(Me.TotalParams)
+  e.StringData.Add("")
+
+  For i = 0 To sClaves.Max
+
+    If sClaves[i] = "10" Then e.p.Add(CFloat(sValues[i]))         ' X1
+    If sClaves[i] = "20" Then e.P.Add(CFloat(sValues[i]))         ' Y1
+    If sClaves[i] = "40" Then e.fParam[Me.iTextHeight] = CFloat(sValues[i])         ' Altura
+    If sClaves[i] = "1" Or sClaves[i] = "3" Then e.StringData[0] &= sValues[i]                ' Texto
+    If sClaves[i] = "50" Then e.fParam[Me.iTextAngle] = CFloat(sValues[i])      ' rotacion
+
+  Next
+
+  Return True
+
+
+Catch
+
+  Return False
+
+End

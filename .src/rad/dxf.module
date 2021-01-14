@@ -1,0 +1,898 @@
+' Gambas module file
+
+Private fp As File
+Private hFile As File
+
+Public LastHandle As Integer
+
+Private lpCode As String
+Private lpValue As String
+
+Private eExports As Boolean
+
+Public cEntitiesUnread As Collection
+Public nEntitiesUnread As Integer
+Public nEntitiesRead As Integer
+Private iLastHandle As Integer
+
+' Codigos del DXF
+Public Const codEntity As String = "0"
+Public Const codHandle As String = "5"
+Public Const codColor As String = "62"
+Public Const codLType As String = "6"
+Public Const codLayer As String = "8"
+Public Const codLWht As String = "370"
+Public Const codName As String = "2"
+Public Const codX0 As String = "10"
+Public Const codY0 As String = "20"
+Public Const codZ0 As String = "30"
+Public Const codX1 As String = "11"
+Public Const codY1 As String = "21"
+Public Const codZ1 As String = "31"
+Public Const codX2 As String = "12"
+Public Const codY2 As String = "22"
+Public Const codZ2 As String = "32"
+Public Const codX3 As String = "13"
+Public Const codY3 As String = "23"
+Public Const codZ3 As String = "33"
+Public Const codCenterX As String = "10"
+Public Const codCenterY As String = "20"
+Public Const codCenterZ As String = "30"
+Public Const codRadius As String = "40"
+Public Const codAngleStart As String = "50"
+Public Const codAngleEnd As String = "51"
+
+
+
+Public Function DWGtoDXF(sDwgFile As String) As String
+
+  Dim str, tmpfile As String
+  ' elimino el archivo temporal que hubiese creado
+  tmpfile = sDwgFile & ".tmp"
+  If Exist(tmpfile) Then Kill tmpfile
+  ' convierte DWG a DXF version 2010
+  Shell "/usr/local/bin/dwgread '" & sDwgFile & "' -O DXF -a r2010 -o '" & tmpfile & "'" Wait To str
+  Print "Resultados de la conversion DWG a DXF ", Str
+  Return tmpfile
+
+End
+
+
+'' Carga el DXF y lo mete en cModel del dibujo actual
+Public Function LoadFile(sFile As String, cToFill As Collection, Optional IgnoreLayers As Boolean = False, IgnoreBlocks As Boolean = False, IgnoreData As Boolean = False)
+
+  Dim t As Float = Timer
+  Dim cLlaveActual, cSectionActual, cTable As Collection
+
+  fp = Open sFile For Read
+
+  If Not fp Then Error.Raise("Error !")
+  cEntitiesUnread = New Collection
+  nEntitiesUnread = 0
+  nEntitiesRead = 0
+
+
+  While Not Eof(fp)
+    'Wait 0.0001
+    ReadData
+    If lpCode = "0" And lpValue = "SECTION" Then
+
+      ' vemos que seccion es
+      ReadData
+      If lpCode = "2" And lpValue = "HEADER" And Not IgnoreData Then
+        ' creo la llave, pero solo si es necesario
+        If Not cToFill.Exist("HEADER") Then
+          cLlaveActual = New Collection
+          cToFill.Add(cLlaveActual, "HEADER")
+        Else
+          cLlaveActual = cToFill["HEADER"]
+        End If
+
+        Load1Headers(cLlaveActual)
+
+      End If
+
+      If lpCode = "2" And lpValue = "CLASSES" Then
+        If Not cToFill.Exist("CLASSES") Then
+          cLlaveActual = New Collection
+          cToFill.Add(cLlaveActual, "CLASSES")
+        Else
+          cLlaveActual = cToFill["CLASSES"]
+        End If
+        Load2Classes(cLlaveActual)
+
+      End If
+
+      If lpCode = "2" And lpValue = "TABLES" And Not IgnoreLayers Then
+        If Not cToFill.Exist("TABLES") Then
+          cLlaveActual = New Collection
+          cToFill.Add(cLlaveActual, "TABLES")
+        Else
+          cLlaveActual = cToFill["TABLES"]
+        End If
+        Load3Tables(cLlaveActual)
+      End If
+      '
+      If lpCode = "2" And lpValue = "BLOCKS" And Not IgnoreBlocks Then
+        ' creo la llave
+        cLlaveActual = New Collection
+        cToFill.Add(cLlaveActual, "BLOCKS")
+        Load4Blocks(cLlaveActual)
+
+      End If
+
+
+      If lpCode = "2" And lpValue = "ENTITIES" Then
+        ' creo la llave
+        cLlaveActual = New Collection
+        cToFill.Add(cLlaveActual, "ENTITIES")
+
+        Load5Entities(cLlaveActual)
+
+      End If
+      '
+      If lpCode = "2" And lpValue = "OBJECTS" Then
+
+        If Not cToFill.Exist("OBJECTS") Then
+          cLlaveActual = New Collection
+          cToFill.Add(cLlaveActual, "OBJECTS")
+        Else
+          cLlaveActual = cToFill["OBJECTS"]
+        End If
+
+        Load6Objects(cLlaveActual)
+
+      End If
+
+      If lpCode = "2" And lpValue = "THUMBNAILIMAGE" Then
+
+        If Not cToFill.Exist("THUMBNAILIMAGE") Then
+          cLlaveActual = New Collection
+          cToFill.Add(cLlaveActual, "THUMBNAILIMAGE")
+        Else
+          cLlaveActual = cToFill["THUMBNAILIMAGE"]
+        End If
+
+        Load7Thumbnail(cLlaveActual)
+
+      End If
+
+    Endif
+  Wend
+
+  ' Print "DXF: Leidas", nEntitiesread, " entidades"
+  ' If cEntitiesUnread.Count > 0 Then
+  '   Print "DXF: Un total de", nEntitiesUnread, " entidades no pudieron ser leidas:"
+  '   For Each unread As String In cEntitiesUnread
+  '     Print unread
+  '   Next
+  ' Endif
+  ' Print
+  Print "DXF: fin lectura en ", Timer - t
+
+End
+
+Private Sub ReadData()
+
+  Line Input #fp, lpcode
+  Line Input #fp, lpValue
+
+  If Right(lpcode, 1) = gb.Cr Then lpcode = Left(lpcode, -1)
+  If Right(lpvalue, 1) = gb.cr Then lpvalue = Left(lpvalue, -1)
+
+  lpcode = Trim$(lpcode)
+  lpvalue = Trim$(lpvalue)
+
+End
+
+Private Sub Load1Headers(cVars As Collection)
+
+  ' Los header se guardan asi
+  '   9                     Indica que es una variable
+  ' $EXTMAX                 Nombre de la variable
+  '  10                     Tipo de dato1
+  ' 198.0411690635561       Dato1
+  '  20                     Tipo de dato2
+  ' 178.7767572407179       Dato2
+  '  30                     etc
+  '   0
+
+  ' Yo usare dos colecciones
+
+  Dim sVarName As String
+  Dim cVariable As Collection
+
+  ReadData
+  Do
+
+    If lpCode = "0" And lpValue = "ENDSEC" Then Break
+
+    If lpcode = "9" Then ' nueva variable
+      cVariable = New Collection
+      cVars.Add(cVariable, lpValue)
+      Do                          ' este bucle es por si la variable es un array
+        ReadData
+        If lpcode = "0" Or lpCode = "9" Then Break
+        cVariable.Add(lpvalue, lpcode)
+
+      Loop
+
+    Endif
+
+
+  Loop
+
+  'Print "DXF: Leidas", gcd.CurrentDrawing.cModel["HEADER"].Count, "variables de ambiente"
+
+End
+
+Private Sub Load2Classes(cClasses As Collection)
+
+
+  Dim cClass As Collection
+  Dim iClass As Integer
+  Dim iCode As Integer, NewKey As String
+
+  Do
+
+
+    If lpValue = "CLASSES" Then ReadData
+    If lpValue = "ENDSEC" Then Return
+
+    Inc iClass
+    cClass = New Collection
+    cClasses.Add(cClass, CStr(iClass))
+    cClass.Add(lpValue, "0")
+    iCode = 0
+
+
+    ReadData
+
+
+    While (lpcode <> "0") And Not Eof(fp)
+
+      NewKey = lpcode
+      If cClass.Exist(NewKey) Then
+        Do
+          iCode += 1
+          NewKey = lpcode & "_" & CStr(iCode)
+
+          If Not cClass.Exist(NewKey) Then Break
+        Loop
+      Endif
+      cClass.Add(lpvalue, NewKey)
+      ReadData
+
+    Wend
+
+
+  Loop
+
+End
+
+
+Private Sub Load3Tables(cTables As Collection)
+
+  Dim sTableName As String
+  Dim sTableHandle As String  ' in hex
+  Dim sTableOwner As String   ' in hex , 0 = nobody
+  Dim iTableEntries As Integer
+  Dim cTable As Collection
+
+  ' creamos una table inicial con los handles de las tables
+  cTable = New Collection
+  cTables.Add(cTable, "__AuxData__")
+
+  ReadData
+  Do
+    If Eof(fp) Then Break
+
+    If lpCode = "0" And lpValue = "ENDSEC" Then Break
+
+    If lpCode = "0" And lpValue = "TABLE" Then
+
+      ' OBTENGO DATOS DE LA TABLA
+      ' -1 APP: entity name(changes Each Time a drawing Is Opened)
+      ' 0 Object type(TABLE)
+      ' 2 Table name
+      ' 5 Handle
+      ' 330 Soft - pointer ID / handle To owner object
+      ' 100 Subclass marker(AcDbSymbolTable)
+      ' 70 Maximum number Of entries In table
+      ReadData
+      While lpcode <> "0"
+
+        If lpcode = "5" Then sTableHandle = lpvalue
+        If lpcode = "2" Then sTableName = lpvalue
+        If lpcode = "330" Then sTableOwner = lpvalue
+
+        'If sTableName = "VIEW" Then Stop
+
+        ' WARNING: este dato no es valido para todas las versiones de DXF
+        ' en algunos archivos hay mas tablas que lo que indica este numero
+        If lpcode = "70" Then iTableEntries = CInt(lpvalue)
+
+        ReadData
+      Wend
+
+      ' agrego datos a la tabla auxiliar del dibujo
+      cTables["__AuxData__"].Add(sTableHandle, sTableName)
+
+      cTable = New Collection
+
+      cTables.Add(cTable, sTableName)
+
+      ' verifico que la tabla no tenga entradas, lo que me altera la carga
+      If lpvalue <> "ENDTAB" Then Load31Table(cTable, iTableEntries)
+
+    End If
+    ReadData
+  Loop
+
+  'gcd.UpdateLayers
+
+  Try Print "DXF: Leidas", gcd.CurrentDrawing.cModel["LAYERS"].count, " tablas"
+
+End
+'' Lee todas las tables de esta table
+
+Private Sub Load31Table(cVars As Collection, iEntries As Integer)
+
+  ' Yo usare dos colecciones
+
+  Dim sTableName As String
+  Dim cTable As Collection
+  Dim i As Integer
+
+  Dim iCode As Integer, NewKey As String
+
+
+  ' Tengo q leer iEntries
+  'For i = 1 To iEntries
+  Do
+    Inc i
+    cTable = New Collection
+    sTableName = ""
+    iCode = 0
+
+
+    ReadData
+
+    ' esto lee todas las tables en la table
+
+
+    'If lpCode = "0" Then Break
+
+
+    While lpcode <> "0"
+      NewKey = lpcode
+      If cTable.Exist(NewKey) Then
+        Do
+          iCode += 1
+          NewKey = lpcode & "_" & CStr(iCode)
+
+          If Not cTable.Exist(NewKey) Then Break
+        Loop
+      Endif
+      cTable.Add(lpvalue, NewKey)
+
+      If lpcode = Me.codName Then sTableName = lpvalue
+      ReadData
+
+    Wend
+    'If cTable.Count = 1 Then Stop
+    If cTable.Count > 0 Then
+      If sTableName = "" Then sTableName = CStr(i)
+      cVars.Add(cTable, sTableName)
+    Endif
+
+    If lpcode = "0" And lpValue = "ENDTAB" Then Break
+
+  Loop
+
+  'gcd.UpdateLayers
+
+  Try Print "DXF: Leidas", gcd.CurrentDrawing.cModel["LAYERS"].count, " tablas"
+
+End
+
+
+
+Private Sub Load4Blocks(cBlocks As Collection)
+
+  Dim mBlock As Block
+  Dim unread As Variant
+  Dim i As Integer
+
+  Dim sTableName As String
+
+  Dim cTable, cEntities As Collection
+
+  Dim iCode As Integer, NewKey As String
+
+
+  ReadData
+  Do
+
+    mBlock = New Block
+
+    If lpCode = "0" And lpValue = "ENDSEC" Then Break
+
+    If (lpcode = "0") And (lpvalue = "BLOCK") Then
+      Inc i
+      cTable = New Collection
+
+      ReadData
+
+      While lpcode <> "0"
+        NewKey = lpcode
+        If cTable.Exist(NewKey) Then
+          Do
+            iCode += 1
+            NewKey = lpcode & "_" & CStr(iCode)
+
+            If Not cTable.Exist(NewKey) Then Break
+          Loop
+        Endif
+
+        If lpcode = Me.codName Then sTableName = lpvalue
+        cTable.Add(lpvalue, NewKey)
+        ReadData
+
+      Wend    ' fin del encabezado del Block, siguen sus entidades
+
+      ' si estoy leyendo bloques, significa que estoy abriendo un plano
+      cEntities = New Collection
+      cTable.Add(cEntities, "entities")
+
+      Load5Entities(cEntities)
+
+      If sTableName = "" Then sTableName = CStr(i)
+
+      cBlocks.Add(cTable, sTableName)
+
+
+    Endif
+  Loop
+
+  Print "DXF: Leidos", gcd.CurrentDrawing.arrBlocks.Count, " bloques"
+
+End
+
+Private Sub Load5Entities(cEntities As Collection)
+
+  Dim sClave As String[]
+  Dim sValue As String[]
+  Dim sEntidad As String
+  Dim clsHandler As Object
+  Dim eNueva As Entity
+  Dim Reads As Boolean
+
+  Dim cEntity As Collection
+  Dim iEntity As Integer
+
+  Dim iCode As Integer, NewKey As String
+
+
+
+  Do
+    'Debug lpcode, lpvalue
+    sClave = New String[]
+
+    sValue = New String[]
+
+    If lpValue = "ENTITIES" Then ReadData
+    If lpValue = "ENDSEC" Then Return
+
+    sEntidad = lpValue
+    Inc iEntity
+    cEntity = New Collection
+    cEntities.Add(cEntity, CStr(iEntity))
+    cEntity.Add(sEntidad, "0")
+    iCode = 0
+
+
+
+    ' Leo descentralizadamente las entidades
+    ReadData
+
+    'If sEntidad = "HATCH" Then Stop
+    While (lpcode <> "0") And Not Eof(fp)
+
+      NewKey = lpcode
+      If cEntity.Exist(NewKey) Then
+        Do
+          iCode += 1
+          NewKey = lpcode & "_" & CStr(iCode)
+
+          If Not cEntity.Exist(NewKey) Then Break
+        Loop
+      Endif
+
+
+      If sEntidad <> "ENDSEC" Then cEntity.Add(lpvalue, NewKey)
+      ReadData
+
+    Wend
+
+    If sEntidad = "ENDBLK" Or sEntidad = "ENDSEC" Then Return
+
+  Loop
+
+End
+
+Private Sub Load6Objects(cObjects As Collection)
+
+  Dim sClave As String[]
+  Dim sValue As String[]
+  Dim sEntidad As String
+  Dim clsHandler As Object
+  Dim eNueva As Entity
+  Dim Reads As Boolean
+
+  Dim cObject As Collection
+  Dim iObject As Integer
+
+  Dim iCode As Integer, NewKey As String
+
+
+
+  Do
+    'Debug lpcode, lpvalue
+    sClave = New String[]
+
+    sValue = New String[]
+
+    If lpValue = "OBJECTS" Then ReadData
+    If lpValue = "ENDSEC" Then Return
+
+    sEntidad = lpValue
+    Inc iObject
+    cObject = New Collection
+    cObjects.Add(cObject, CStr(iObject))
+    cObject.Add(sEntidad, "0")
+    iCode = 0
+
+    ' Leo descentralizadamente las entidades
+    ReadData
+
+    'If sEntidad = "HATCH" Then Stop
+    While (lpcode <> "0") And Not Eof(fp)
+
+      NewKey = lpcode
+      If cObject.Exist(NewKey) Then
+        Do
+          iCode += 1
+          NewKey = lpcode & "_" & CStr(iCode)
+
+          If Not cObject.Exist(NewKey) Then Break
+        Loop
+      Endif
+      cObject.Add(lpvalue, NewKey)
+      ReadData
+
+    Wend
+
+    If sEntidad = "ENDBLK" Or sEntidad = "" Then Return
+
+  Loop
+
+End
+
+
+Private Sub Load7Thumbnail(cThumbnail As Collection)
+
+
+  Dim iCode As Integer, NewKey As String
+
+
+
+  Do
+
+
+    If lpValue = "ENDSEC" Then Return
+
+    ' Leo descentralizadamente las entidades
+    ReadData
+
+
+    While (lpcode <> "0") And Not Eof(fp)
+
+      NewKey = lpcode
+      If cThumbnail.Exist(NewKey) Then
+        Do
+          iCode += 1
+          NewKey = lpcode & "_" & CStr(iCode)
+
+          If Not cThumbnail.Exist(NewKey) Then Break
+        Loop
+      Endif
+      cThumbnail.Add(lpvalue, NewKey)
+      ReadData
+
+    Wend
+
+  Loop
+
+End
+
+'   0
+' SECTION
+'   2
+' THUMBNAILIMAGE
+
+Public Function SaveFile(sName As String, cData As Collection) As Integer
+
+  hFile = Open sName For Write Create
+
+  LastHandle = 0          ' creamos las handles desde cero
+
+  If Save1HeadersAndVars(cData["HEADER"]) Then Return False
+  If Save2Classes(cData["CLASSES"]) Then Return False
+  If Save3Tables(cData["TABLES"]) Then Return False
+  If Save4Blocks(cData["BLOCKS"]) Then Return False
+  If Save5Entities(cData["ENTITIES"]) Then Return False
+  If Save6Objects(cData["OBJECTS"]) Then Return False
+  If Save7ThumbNail(cData["THUMBNAILIMAGE"]) Then Return False
+  hFile.Close
+
+End
+
+
+Private Function Save1HeadersAndVars(cVars As Collection) As Integer
+
+  Dim cVar, cValues As Collection
+  Dim sValues As String
+
+  Print #hFIle, "999"
+  Print #hFIle, "GauchoCAD"
+  Print #hFIle, "  0"
+  Print #hFIle, "SECTION"
+  Print #hFIle, "2"
+  Print #hFIle, "HEADER"
+  For Each cVar In cVars
+    Print #hFile, "9"
+    Print #hFile, cVars.Key
+    For Each sValues In cVar
+      Print #hFile, cVar.Key
+      Print #hFile, sValues
+    Next
+  Next
+  Print #hFIle, "  0"
+  Print #hFIle, "ENDSEC"
+
+End
+
+Private Function Save2Classes(cClasses As Collection) As Integer
+
+  Dim cClass As Collection
+  Dim sValues, lpclave As String
+  Dim i As Integer
+
+  Print #hFIle, "  0"
+  Print #hFIle, "SECTION"
+  Print #hFIle, "  2"
+  Print #hFIle, "CLASSES"
+
+  ' here go all entities
+  For Each cClass In cClasses
+    For Each sValues In cClass
+      lpclave = cClass.Key
+      I = InStr(lpclave, "_")
+      If i > 0 Then lpclave = Left(lpclave, i - 1)
+      Print #hFile, lpclave
+      Print #hFIle, sValues
+    Next
+  Next
+  ' end section code
+  Print #hFIle, "  0"
+  Print #hFIle, "ENDSEC"
+
+End
+
+Private Function Save3Tables(cTables As Collection) As Integer
+
+  Dim cTable, cTableEntry, cVar, cVars As Collection
+  Dim sValues, lpclave As String
+  Dim sTableName As String
+  Dim i As Integer
+
+  Print #hFIle, "  0"
+  Print #hFIle, "SECTION"
+  Print #hFIle, "2"
+  Print #hFIle, "TABLES"
+  For Each cTable In cTables
+    sTableName = cTables.Key
+    If sTableName = "__AuxData__" Then Continue
+    Print #hFIle, "  0"
+    Print #hFIle, "TABLE"
+    Print #hFIle, "  2"
+    Print #hFIle, sTableName
+    Print #hFIle, "  5"         ' handle
+    ' Else
+    '   Print #hFIle, "105"         ' handle
+    ' End If
+    Print #hFIle, cTables["__AuxData__"][sTableName]           ' valor de la handle
+    Print #hFIle, "  330"
+    Print #hFIle, "0"
+    Print #hFIle, "  100"
+    Print #hFIle, "AcDbSymbolTable"
+    Print #hFIle, "  70"
+    Print #hFIle, CStr(cTable.Count)
+    ' otra particularidad
+    If cTables.key = "DIMSTYLE" Then
+      Print #hFIle, "  100"
+      Print #hFIle, "AcDbDimStyleTable"
+      Print #hFIle, "  71"
+      Print #hFIle, CStr(cTable.Count)
+    End If
+
+
+    If cTable.Count > 0 Then
+      For Each cTableEntry In cTable
+        Print #hFIle, "  0"
+        Print #hFIle, sTableName
+        ' Print #hFIle, "  2"
+        ' Print #hFIle, cTable.Key
+        For Each sValues In cTableEntry
+          lpclave = cTableEntry.Key
+          I = InStr(lpclave, "_")
+          If i > 0 Then lpclave = Left(lpclave, i - 1)
+          Print #hFile, lpclave
+          Print #hFIle, sValues
+        Next
+      Next
+    Endif
+    Print #hFIle, "  0"
+    Print #hFIle, "ENDTAB"
+  Next
+  Print #hFIle, "  0"
+  Print #hFIle, "ENDSEC"
+
+End
+
+
+
+Private Function Save4Blocks(cBlocks As Collection) As Integer
+
+  Dim i As Integer
+  Dim iii As Integer
+  Dim cBlock, cBlockEntry, cVar, cVars As Collection
+  Dim sValues, lpclave As String
+
+  Print #hFIle, "  0"
+  Print #hFIle, "SECTION"
+  Print #hFIle, "2"
+  Print #hFIle, "BLOCKS"
+  For Each cBlock In cBlocks
+    Print #hFIle, "  0"
+    Print #hFIle, "BLOCK"
+    Print #hFIle, "  5"         ' handle
+    Print #hFIle, cBlock["5"]           ' valor de la handle
+    Print #hFIle, "  330"
+    Print #hFIle, "0"
+    Print #hFIle, "  100"
+    Print #hFIle, "AcDbEntity"
+    Print #hFIle, " 8"          ' layer name
+    Print #hFIle, cBlock["8"]
+    Print #hFIle, "100"
+    Print #hFIle, "AcDbBlockBegin"
+    Print #hFIle, "  2"
+    Print #hFIle, cBlock["2"]
+    Print #hFIle, "  70"
+    Print #hFIle, "0"       ' block flags
+    If cBlock["entities"].Count > 0 Then
+      For Each cBlockEntry In cBlock["entities"]
+        ' Print #hFIle, "  0"
+        ' Print #hFIle, cTables.Key
+        ' Print #hFIle, "  2"
+        ' Print #hFIle, cTable.Key
+        For Each sValues In cBlockEntry
+          lpclave = cBlockEntry.Key
+          I = InStr(lpclave, "_")
+          If i > 0 Then lpclave = Left(lpclave, i - 1)
+          Print #hFile, lpclave
+          Print #hFIle, sValues
+        Next
+      Next
+      ' Print #hFIle, "  0"
+      ' Print #hFIle, "ENDBLK"
+    Endif
+  Next
+  Print #hFIle, "  0"
+  Print #hFIle, "ENDSEC"
+
+
+End
+
+Private Function Save5Entities(cEntys As Collection) As Integer
+
+  Dim cEnty As Collection
+  Dim sValues, lpclave As String
+  Dim i As Integer
+
+  Print #hFIle, "  0"
+  Print #hFIle, "SECTION"
+  Print #hFIle, "  2"
+  Print #hFIle, "ENTITIES"
+
+  ' here go all entities
+  For Each cEnty In cEntys
+    For Each sValues In cEnty
+      lpclave = cEnty.Key
+      I = InStr(lpclave, "_")
+      If i > 0 Then lpclave = Left(lpclave, i - 1)
+      Print #hFile, lpclave
+      Print #hFIle, sValues
+    Next
+  Next
+  ' end section code
+  Print #hFIle, "  0"
+  Print #hFIle, "ENDSEC"
+
+End
+
+Private Function Save6Objects(cObjects As Collection) As Integer
+
+  Dim sValues, lpclave As String
+  Dim i As Integer
+
+  Dim cObject As Collection
+
+  Print #hFIle, "  0"
+  Print #hFIle, "SECTION"
+  Print #hFIle, "2"
+  Print #hFIle, "OBJECTS"
+  For Each cObject In cObjects
+    For Each sValues In cObject
+      lpclave = cObject.Key
+      I = InStr(lpclave, "_")
+      If i > 0 Then lpclave = Left(lpclave, i - 1)
+      Print #hFile, lpclave
+      Print #hFIle, sValues
+    Next
+  Next
+  ' end section code
+  Print #hFIle, "  0"
+  Print #hFIle, "ENDSEC"
+
+
+End
+
+Private Function Save7ThumbNail(cThumbs As Collection) As Integer
+
+  Dim sValues, lpclave As String
+  Dim i As Integer
+
+
+  Print #hFIle, "  0"
+  Print #hFIle, "SECTION"
+  Print #hFIle, "2"
+  Print #hFIle, "THUMBNAILIMAGE"
+  If Not IsNull(cThumbs) Then
+    For Each sValues In cThumbs
+      lpclave = cThumbs.Key
+      I = InStr(lpclave, "_")
+      If i > 0 Then lpclave = Left(lpclave, i - 1)
+      Print #hFile, lpclave
+      Print #hFIle, sValues
+    Next
+  End If
+  ' end section code
+  Print #hFIle, "  0"
+  Print #hFIle, "ENDSEC"
+
+  ' end file code
+  Print #hFIle, "  0"
+  Print #hFIle, "EOF"
+
+
+End
+
+
+Private Function NextHandle() As String
+
+  Inc LastHandle
+  Return CStr(LastHandle)
+
+End

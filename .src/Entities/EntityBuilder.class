@@ -1,0 +1,502 @@
+' Gambas class file
+
+' GauchoCAD
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+
+Create Static
+
+
+' Pixeles
+Public Const Gender As String = "Builder"
+Public LastMouseDownX As Integer    ' change in MouseDown
+Public LastMouseDownY As Integer
+Public SelStartX As Integer         ' change in MouseDown
+Public SelStartY As Integer
+Public SelEndX As Integer           ' change in MouseMove/MouseUp
+Public SelEndY As Integer
+
+' Metros
+Public SelStartXr As Float          ' Seleccion libre rectangular
+Public SelStartZr As Float          ' en metros
+Public SelEndXr As Float            ' aca Y es Z
+Public SelEndZr As Float
+
+Public LastX As Float               ' change in MouseMove/MouseUp
+Public LastY As Float
+
+
+' indicadores
+'Public elem.ClassHandler.StepsDone As Integer = 0          ' La cantidad de puntos que marco para el trabajo actual--->Gurdado en la entidad
+Public StepsTotal As Integer = 0          ' Tomado de la lista de tipo de paramtros
+Public PointsTotal As Integer = 0          ' Tomado de la lista de tipo de paramtros
+Public NextParamType As String          ' What kind of input the element expects P=point, F=float, C=color, S=string, M=mixed either Point, or Float that is taken from Max(Px-Px', Pz-Pz')
+Public ParamHelperList As String[]
+Public ParamDefault As String[]
+
+' indices de valores ingresados
+Public iPoints As Integer
+Public iFloat As Integer
+Public iString As Integer
+
+' conserva los ultimos valores del mouse
+Public CursorX As Integer
+Public CursorY As Integer
+
+Public elem As Entity
+Public PoiChecking As Boolean = True
+Public EntityChecking As Boolean = False
+Public LastEntity As Entity
+
+Public XYreal As Float[]
+
+Public Function Start(Optional ElemToBuild As Variant, Optional Mode As Integer = 0)
+
+  ' Parameters that we can process
+
+  ' P point x,y
+  ' + add a point every time, used like this "P+"
+  ' F float, text entered (mouse is ignored)
+  ' T text
+  ' A angle, can be given by mouse or text
+  ' L distance, idem
+  ' R Float or distance to a perpendicular to a line from las 2 points
+  ' M Mixed data
+
+  ' TODO: implement
+  ' C color, can be given by typing the color
+
+  ' B boolean yes/no si/no
+  ' D date
+
+  ' limpiamos la seleccion
+  clsEntities.DeSelection()
+
+  clsEntities.GLGenDrawListSel(0)
+
+  ' Verify if its a valid class to build
+  If TypeOf(ElemToBuild) <> gb.Object Then                                            ' not Entity class given
+
+    If LastEntity Then                                            ' we know the last element, try to create a new one
+      elem = New Entity
+      elem.ClassHandler = LastEntity.ClassHandler
+      elem.Gender = elem.ClassHandler.Gender
+
+    Else                                                                            ' the is no way to know what element was done last
+
+      clsDrawingAids.ErrorMessage = ("Can't create entity")
+      gcd.clsJob = clsDefaultJob                                               ' back to select mode
+      gcd.clsJobPrevious = clsDefaultJob
+      Return
+
+    End If
+
+  Else                                                                                ' Valid entity
+    ' start building the element
+    elem = New Entity
+    elem.ClassHandler = elemtobuild
+    elem.Gender = elem.ClassHandler.Gender
+  End If
+
+  clsEntities.FillEntity(elem)
+  Try clsEntities.setEntity(elem)
+  ' reset from previous element
+  elem.ClassHandler.StepsDone = 0
+
+  'elem.gbcolor = appmain.CurrentColor
+
+  iPoints = 0
+  iFloat = 0
+  iString = 0
+
+  Pointstotal = elem.p.count / 2                                          ' at this point P is either set or 0 if non determined
+  StepsTotal = Len(elem.ClassHandler.ParamType)
+
+  ' get the helper list, and parameter types from the element
+  Try Paramhelperlist = Split(elem.ClassHandler.ParamHelper, ";")                      ' optional
+  Try Paramdefault = Split(elem.ClassHandler.ParamDefault, ";")                        ' optional
+
+  NextParamType = UCase(Mid(elem.ClassHandler.ParamType, elem.ClassHandler.StepsDone + 1, 1))
+  clsDrawingAids.HelperTrabajoNext = ParamHelperList[0]
+
+  ' instructions to FCAD
+  gcd.OrthogonalIgnored = elem.ClassHandler.OrthogonalIgnored
+  gcd.OrthogonalForced = elem.ClassHandler.OrthogonalForced
+
+
+  elem.layerid = appmain.CurrentLayer ' gcd.GetLayerID(appmain.CurrentLayer)
+
+  elem.colour = appmain.CurrentColor
+  elem.ColorToPaint = Starter.gColor[elem.colour]
+
+  elem.LineType = appmain.CurrentLtype
+
+  elem.LineWidth = appmain.CurrentWidth
+
+  clsDrawingAids.HelperTrabajo = elem.ClassHandler.HelperTrabajo
+
+End
+
+Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD en el evento FCAD_KeyPress cuando recibe una texto + <Enter>
+
+
+  ' Lets see what are we expecting
+  Dim Xt, yt As Float, sText, ErrTxt As String, Relative As Boolean
+  Dim bResult As Boolean
+
+  Select Case NextParamType
+
+    Case "P", "+"
+      errtxt = ", expected a valid point like 12.4,9.5  or @12.34,10.5"
+      ' lets filter
+      EnteredText = Trim$(UCase$(EnteredText))
+      ' So we expect a position x,y , but in some cases it can be
+      ' C = close
+      ' U = undo, delete last segment
+      ' and others
+
+      If Left(EnteredText, 1) = "C" Then          ' close the element
+        ' got othe first point and exit
+        If elem.ClassHandler.NewParameter(elem, ["close"]) Then Me.Finish
+
+      Else If Left(EnteredText, 1) = "U" Then     ' undo last command and go
+
+        If elem.ClassHandler.NewParameter(elem, ["undo"]) Then Me.Finish
+
+      Else                                        ' an X,Y or @X,Y
+
+        If InStr(EnteredText, "@") > 0 Then    ' may be a point
+          Relative = True
+          EnteredText = Replace(EnteredText, "@", "")
+        Endif
+        Xt = CFloat(Split(EnteredText, ",")[0])
+        yt = CFloat(Split(EnteredText, ",")[1])
+
+
+
+        If Relative And (elem.P.count > 2) Then
+          xt += Me.LastX
+          yt += Me.LastY
+
+        Endif
+        Me.LastX = xt
+        Me.LastY = yt
+
+        If elem.ClassHandler.NewParameter(elem, ["point", xt, yt], True) Then
+          ' last point
+          gcd.CurrentDrawing.LastPoint.Clear
+          gcd.CurrentDrawing.LastPoint.Insert([xt, yt])
+          AdvanceStep
+        End If
+
+      End If
+
+    Case "T"
+      errtxt = ", expected text, not a point"
+      ' its a valid input?
+      If EnteredText = "" Then
+
+        sText = ParamDefault[elem.ClassHandler.StepsDone]
+
+      Else
+
+        sText = EnteredText
+
+      End If
+
+      If elem.ClassHandler.NewParameter(elem, ["text", sText], True) Then AdvanceStep
+
+    Case "F", "M", "A", "L", "R"                ' Float, Mixed, Angle, Longitud
+      errtxt = "enter a valid text size"
+
+      If EnteredText = "" Then
+        Try bResult = elem.ClassHandler.NewParameter(elem, ["float", ParamDefault[elem.ClassHandler.StepsDone]], True)
+
+      Else
+
+        bResult = elem.ClassHandler.NewParameter(elem, ["float", CFloat(EnteredText)], True)
+
+
+
+      Endif
+
+      If bResult Then AdvanceStep
+
+
+
+
+    Case "C"                                ' color
+      If Dialog.SelectColor() Then
+        elem.fParam[iFloat] = CFloat(Dialog.Color)
+        Inc iFloat
+        AdvanceStep
+
+      Endif
+      Key.Cod
+
+  End Select
+
+  ' Finally
+  '
+  '   Return
+  '
+  ' Catch
+  '
+  '   ' unexpected input
+  '   clsDrawingAids.ErrorMessage = ("Bad input" & ErrTxt)
+
+End
+
+Public Sub AdvanceStep()
+
+  Inc elem.ClassHandler.StepsDone
+  If elem.ClassHandler.StepsDone = StepsTotal Then
+
+    Me.Finish
+  Else
+
+    ' prepare next stuff
+    '
+    NextParamType = UCase(Mid(elem.ClassHandler.ParamType, elem.ClassHandler.StepsDone + 1, 1))
+    If NextParamType = "" Then NextParamType = "+"
+    If NextParamType = "+" Then ' add another point
+      Inc StepsTotal
+      NextParamType = "P"
+    Endif
+
+    Try clsDrawingAids.HelperTrabajoNext = ParamHelperList[elem.ClassHandler.StepsDone]          ' try in case of lack of desciption or keep last
+    If ParamDefault.Count > elem.ClassHandler.StepsDone Then                            ' not null
+      ParamDefault[elem.ClassHandler.StepsDone] = Trim$(ParamDefault[elem.ClassHandler.StepsDone])
+      If ParamDefault[elem.ClassHandler.StepsDone] <> "" Then clsDrawingAids.HelperTrabajoNext &= "[" & ParamDefault[elem.ClassHandler.StepsDone] & "]"           ' try in case of lack of desciption or keep last
+    End If
+
+
+
+
+  Endif
+
+End
+
+Public Function MouseMove(mouseX As Integer, mouseY As Integer) ' esta rutina es llamada por FCAD en el evento DrawingArea_MouseMove
+
+  Dim X, Y, f As Float
+
+  X = puntos.Near(appmain.Xreal(mouseX))
+  Y = puntos.Near(appmain.Yreal(mouseY))
+
+
+  If InStr("LAPR", NextParamType) = 0 Then Return ' we are expecting a parameter
+
+  ' a very special case
+  If elem.Gender = "SPLine" And (Me.iPoints <> elem.P.Count / 2 - 1) Then Inc iPoints
+
+  ' if we expect a parameter, it will be passed
+  If NextParamType = "A" Then
+
+    ' return the angle from horizontal to us
+    f = Ang(appmain.Xreal(mouseX) - Me.LastX, appmain.Yreal(mouseY) - Me.lastY)
+    f *= 180 / Pi
+    elem.ClassHandler.NewParameter(elem, ["float", f])
+
+    Return              ' nothing more to do here
+  End If
+
+  If NextParamType = "R" Then
+
+    elem.ClassHandler.NewParameter(elem, ["point", x, y])
+
+
+    'appmain.redraw
+    Return              ' nothing more to do here
+  End If
+
+  If NextParamType = "L" Then
+
+    ' return the angle from horizontal to us
+    f = puntos.distancia(appmain.Xreal(mouseX), appmain.Yreal(mouseY), Me.LastX, Me.lastY)
+
+    elem.ClassHandler.NewParameter(elem, ["float", f])
+
+    Return              ' nothing more to do here
+
+  End If
+
+  ' y si tengo enganche?
+
+  If (gcd.CurrentDrawing.iEntity[2] >= 0) And (gcd.OrthogonalForced = False) Then
+
+    ' esto re enganchado
+
+    X = gcd.CurrentDrawing.iEntity[0]
+    Y = gcd.CurrentDrawing.iEntity[1]
+
+    ' aca tengo que verificar el ortogonal
+
+  Else                                                                        ' puedo hacer ortogonal
+    If gcd.OrthogonalForced Or (Not gcd.OrthogonalIgnored And gcd.Orthogonal) Then          ' hablame de operadores logicos
+
+      If Abs(X - LastX) > Abs(Y - LastY) Then ' prevalece X
+        Y = LastY
+      Else
+        X = LastX
+      Endif
+
+    End If
+
+  End If
+
+  elem.ClassHandler.NewParameter(elem, ["point", x, y])
+
+End
+
+Public Function MouseDown(mouseX As Integer, mouseY As Integer) ' esta rutina es llamada por FCAD en el evento DrawingArea_MouseDown
+
+  Dim X, Y, f As Float
+
+
+  clsDrawingAids.ErrorMessage = ""
+  If InStr("LAPR", NextParamType) = 0 Then Return ' we are expecting a parameter
+
+  ' if we expect a parameter, it will be passed
+  If NextParamType = "A" Then
+
+    ' return the angle from horizontal to us
+    f = Ang(appmain.Xreal(mouseX) - Me.LastX, appmain.Yreal(mouseY) - Me.lastY)
+    f *= 180 / Pi
+    If elem.ClassHandler.NewParameter(elem, ["float", f], True) Then AdvanceStep
+    Return              ' nothing more to do here
+  End If
+
+  If NextParamType = "R" Then
+
+    If elem.ClassHandler.NewParameter(elem, ["point", appmain.Xreal(mouseX), appmain.Yreal(mouseY)], True) Then
+
+      ' last point
+      gcd.CurrentDrawing.LastPoint.Clear
+      gcd.CurrentDrawing.LastPoint.Insert([appmain.Xreal(mouseX), appmain.Yreal(mouseY)])
+      AdvanceStep
+    End If
+    Return
+  End If
+
+
+  If NextParamType = "L" Then
+
+    ' return the angle from horizontal to us
+    f = puntos.distancia(appmain.Xreal(mouseX), appmain.Yreal(mouseY), Me.LastX, Me.lastY)
+
+    If elem.ClassHandler.NewParameter(elem, ["float", f], True) Then AdvanceStep
+
+    Return              ' nothing more to do here
+
+  End If
+
+
+  ' we are waiting for a point
+
+  X = puntos.Near(appmain.Xreal(mouseX))
+  Y = puntos.Near(appmain.Yreal(mouseY))
+
+  ' y si tengo enganche?
+
+  If (gcd.CurrentDrawing.iEntity[2] >= 0) And (gcd.OrthogonalForced = False) Then
+
+    ' esto re enganchado
+
+    X = gcd.CurrentDrawing.iEntity[0]
+    Y = gcd.CurrentDrawing.iEntity[1]
+
+    ' aca tengo que verificar el ortogonal
+
+  Else                                                                        ' puedo hacer ortogonal
+    If gcd.OrthogonalForced Or (Not gcd.OrthogonalIgnored And gcd.Orthogonal) Then          ' hablame de operadores logicos
+
+      If Abs(X - LastX) > Abs(Y - LastY) Then ' prevalece X
+        Y = LastY
+      Else
+        X = LastX
+      Endif
+
+    End If
+
+  End If
+
+  LastX = X
+  LastY = Y
+
+  If elem.ClassHandler.NewParameter(elem, ["point", x, y], True) Then
+
+    ' last point
+    gcd.CurrentDrawing.LastPoint.Clear
+    gcd.CurrentDrawing.LastPoint.Insert([x, y])
+    AdvanceStep
+  End If
+
+
+
+End
+
+Public Function MouseUp(mouseX As Integer, mouseY As Integer) ' esta rutina es llamada por FCAD en el evento DrawingArea_MouseUp
+
+  'Debug elem.P.Count
+
+End
+
+
+
+Public Sub Draw()               ' called bygcd.CurrentDrawing.drwArea_Draw
+
+
+  elem.ClassHandler.draw(elem)
+
+End
+
+Public Sub Finish()
+
+
+  gcd.CurrentDrawing.arrEntities.Add(elem)
+
+  elem.ClassHandler.Finish(elem)
+
+  LastEntity = elem                                       ' save it to repeat on rigth click
+
+  gcd.UpdateModel
+
+  gcd.clsJobPrevious = Me
+  gcd.clsJob = clsDefaultJob
+  clsDefaultJob.PoiChecking = True
+  clsDrawingAids.CleanTexts
+
+
+  clsEntities.GLGenDrawList
+
+  appmain.redraw
+
+End
+
+Public Sub Cancel()
+
+  elem = Null
+  gcd.clsJobPrevious = Me
+  gcd.clsJob = clsDefaultJob
+  clsDrawingAids.CleanTexts
+  appmain.redraw
+
+End
+

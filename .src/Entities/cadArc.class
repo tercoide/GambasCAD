@@ -1,0 +1,421 @@
+' Gambas class file
+
+' GauchoCAD
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+Create Static
+
+Public Const Gender As String = "Arc"
+Public Const PointsToDraw As Integer = 2             ' minimal point requered for drawing something usefull
+Public Const HelperTrabajo As String = ("Draws an arc")
+Public Const ParamType As String = "PLAA"                             ' that is Point, Point, Float; could be Color Text, etc
+Public Const ParamHelper As String = "Center;Radious;Start;End"      ' a little text that is shown at the prompt waiting for user input during build
+Public Const ParamDefault As String = "0,0;1;0;90"
+Public Const USEWITH As String = "EntityBuilder"
+Public Const DrawingOrder As Integer = 0        ' 1 = draws first
+Public Const OrthogonalIgnored As Boolean = False
+Public Const OrthogonalForced As Boolean = False
+Public Const StretchAble As Boolean = True           ' Si lo puedo deformar
+Public Selected As Boolean
+
+Public DrawAble As Boolean = False          ' True si durante la construccion ya tiene suficientes elementos para poder hacer una representacion digna
+Public Visible As Boolean = True            ' si esta entidad puede ser mostrada independientmente
+Public Finished As Boolean = False          ' colocar en true cuando se llegue a completar
+Public StepsDone As Integer                 ' esto lo cambia cls ElementBuilder durante la construccion
+' vars creadas en finish
+Public start As Float
+Public recorrido As Float
+
+' JSON and DXF Read/Export
+Public Const JSON_Reading As Boolean = True
+Public Const JSON_Export As Boolean = False
+
+Public Const DXF_Reading As Boolean = True
+Public Const DXF_Export As Boolean = True
+
+' The entity handler receives a user action, and returns the number of expected parameter
+' If definitive = true, means the parameter is set
+Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
+
+  Dim f As Float
+  Dim ip As Integer
+
+  If Me.StepsDone = 0 Then
+
+    If vParam[0] <> "point" Then Return False
+
+    Try eBuild.P[0] = vParam[1]
+    Try eBuild.P[1] = vParam[2]
+
+    If definitive Then
+      eBuild.fParam.Add(0)
+      Return True
+    End If
+  Else If Me.StepsDone = 1 Then   ' radio
+
+    If vParam[0] <> "float" Then Return False
+
+    eBuild.DrawAble = True
+    eBuild.fParam[0] = vParam[1]
+    eBuild.fParam[1] = 0
+    eBuild.fParam[2] = 360
+    eBuild.fParam[3] = 1
+
+    If definitive Then Return True
+
+  Else If Me.StepsDone = 2 Then ' recibimos el angulo inicial
+
+    If vParam[0] <> "float" Then Return False
+    eBuild.DrawAble = True
+
+    eBuild.fParam[1] = vParam[1]
+
+    If definitive Then Return True
+
+  Else If Me.StepsDone = 3 Then   ' angulo final
+
+    If vParam[0] <> "float" Then Return False
+
+    eBuild.fParam[2] = vParam[1]
+
+    If definitive Then Return True
+
+  Else
+    Return False
+  End If
+
+End
+
+Public Sub Stretch(e As Entity, dX As Float, dY As Float)
+
+End
+
+Public Sub Translate(e As Entity, dX As Float, dY As Float, Optional OnlySelected As Boolean = False)
+
+  Dim i As Integer
+
+  If OnlySelected Then
+
+    For i = 0 To e.Psel.Max
+      If e.Psel[i] Then
+
+        e.P[i * 2] += dx
+        e.P[i * 2 + 1] += dy
+
+      Endif
+    Next
+
+  Else
+
+    puntos.Translate(e.p, dx, dy)
+  Endif
+
+End
+
+Public Sub Rotate(e As Entity, radians As Float)
+
+  puntos.Rotate(e.p, radians)
+
+  ' el parametro lo tengo que pasar a grados porque la rutina que dibuja el texto usa eso
+  E.fParam[1] += radians * 180 / Pi
+  E.fParam[2] += radians * 180 / Pi
+
+  ' If E.fParam[1] < 0 Then E.fParam[1] = 360 + E.fParam[1]
+  ' If E.fParam[2] < 0 Then E.fParam[2] = 360 + E.fParam[2]              ' grados
+
+End
+
+Public Sub Scale(e As Entity, sX As Float, sY As Float)
+
+  Dim i As Integer
+
+  E.fParam[0] *= Abs(sX)
+
+  For i = 0 To e.p.max Step 2
+
+    e.P[i] = e.P[i] * sX
+
+    e.P[i + 1] = e.P[i + 1] * sY
+
+  Next
+
+  ' start/end
+  If sx < 0 Then
+    E.fParam[1] = 180 - E.fParam[1]
+    E.fParam[2] = 180 - E.fParam[2]
+    e.fParam[3] *= -1
+  Endif
+
+  If sy < 0 Then
+    E.fParam[1] = 360 - E.fParam[1]
+    E.fParam[2] = 360 - E.fParam[2]
+    e.fParam[3] *= -1
+  Endif
+
+  'If e.fParam[1] > e.fParam[2] Then Swap e.fParam[1], e.fParam[2]
+
+End
+
+Public Sub Draw(oE As Entity)
+
+  Dim x, y, theta, angle_increment As Float
+  Dim i As Integer
+
+  Dim major, minor, angle, la As Float
+
+  Dim LargoPixels, LargoReal, EscalaTramos As Float
+
+  If Not oE.Visible Then Return
+  If Not oE.DrawAble Then Return
+
+  If oE.fParam[2] = oE.fParam[1] Then Return
+
+  oE.ColorToPaint = gcd.GetGBColor(oE.colour, oE.Layerid)
+  If oE.fParam[1] < 0 Then oE.fParam[1] = 360 + oE.fParam[1]
+  If oe.fParam[2] < 0 Then oe.fParam[2] += 360
+
+  If Me.StepsDone = 2 Then
+
+
+
+    GLplus.Lines([oE.p[0], oE.p[1], oE.p[0] + oE.fParam[0] * Cos(oE.fParam[1] / 180 * Pi), oE.p[1] + oE.fParam[0] * Sin(oE.fParam[1] / 180 * Pi)], oE.ColorToPaint)
+    clsDrawingAids.Helper.texto = Format$(oE.fParam[1], "0.0 deg")
+
+  Else If Me.StepsDone = 3 Then
+
+
+    clsDrawingAids.Helper.texto = Format$(oE.fParam[1], "0.0 deg") & (" to ") & Format$(oE.fParam[2], "0.0 deg")
+  End If
+
+  If oe.fParam[3] > 0 Then
+
+    If oE.fParam[2] < oE.fParam[1] Then oE.fParam[2] = 360 + oE.fParam[2]              ' grados
+
+  Else
+
+    If oE.fParam[2] > oE.fParam[1] Then oE.fParam[2] = oE.fParam[2] - 360              ' grados
+
+  Endif
+
+  'If oe.fParam[1] > oe.fParam[2] Then oe.fParam[3] = -1 Else oe.fParam[3] = 1
+
+  ' veo el cuantos pixels tendria cada tramo
+  LargoReal = 2 * oE.fParam[0] * Pi * Abs(oE.fParam[1] - oE.fParam[2]) / 360
+  LargoPixels = APPMain.Pixels(LargoReal)
+  If LargoPixels = 0 Then LargoPixels = 1
+  ' si quiero tramos de 10 pixels...
+  angle_increment = 5 / LargoPixels * 2 * Pi * oe.fParam[3]
+  If Abs(angle_increment * 10) > Abs(oE.fParam[2] / 180 * Pi - oE.fParam[1] / 180 * Pi) Then
+
+    angle_increment = (oE.fParam[2] / 180 * Pi - oE.fParam[1] / 180 * Pi) / 10
+
+  End If
+
+  If oE.fParam[2] = oE.fParam[1] Then Return
+
+  Debug "Tramos", (oE.fParam[2] / 180 * Pi - oE.fParam[1] / 180 * Pi) / angle_increment
+  If (oE.fParam[2] / 180 * Pi - oE.fParam[1] / 180 * Pi) / angle_increment < 10 Then Stop
+  If LargoPixels < 10 Then
+    EscalaTramos = 1
+  Endif
+
+  oE.polyline.Clear
+  'angle_increment = Pi * 2 / 360 * oe.fParam[3]
+
+  For theta = oE.fParam[1] / 180 * Pi To oE.fParam[2] / 180 * Pi Step angle_increment
+    ' el punto considerando 0,0 al centro
+    x = oE.p[0] + oE.fParam[0] * Cos(theta)
+    y = oE.p[1] + oE.fParam[0] * Sin(theta)
+    oE.polyline.Add(x)
+    oE.polyline.Add(y)
+
+  Next
+  If x <> oE.p[0] + oE.fParam[0] * Cos(oE.fParam[2] / 180 * Pi) Then
+    x = oE.p[0] + oE.fParam[0] * Cos(oE.fParam[2] / 180 * Pi)
+    y = oE.p[1] + oE.fParam[0] * Sin(oE.fParam[2] / 180 * Pi)
+    oE.polyline.Add(x)
+    oE.polyline.Add(y)
+
+  Endif
+
+  glPlus.PolyLines(oe.PolyLine, oe.ColorToPaint, oe.LineWidth, oe.LineType)
+
+
+
+End
+
+Public Sub DrawSelected(oE As Entity)
+
+  GLplus.PolyLines(oE.PolyLine, Starter.flgWindowBackColor, oE.LineWidth, gcd.stiDashed)
+  GLplus.PolyLines(oE.PolyLine, gcd.ColorForSelected, oE.LineWidth, oE.LineType)
+
+End
+
+'' A fat version of the entity
+Public Sub DrawRemark(oE As Entity)
+
+  '  GLplus.PolyLines(oE.PolyLine, Starter.flgWindowBackColor, oE.LineWidth, gcd.stiDashed)
+  '  GLplus.PolyLines(oE.PolyLine, oE.ColorToPaint, oE.LineWidth + 2, oE.LineType)
+  If oe.Selected Then
+    GLplus.PolyLines(oE.PolyLine, Starter.flgWindowBackColor, oE.LineWidth + 2, gcd.stiDashed)
+    GLplus.PolyLines(oE.PolyLine, gcd.ColorForSelected, oE.LineWidth + 2, oE.LineType)
+  Else
+    GLplus.PolyLines(oE.PolyLine, Starter.flgWindowBackColor, oE.LineWidth, gcd.stiDashed)
+    GLplus.PolyLines(oE.PolyLine, oE.ColorToPaint, oE.LineWidth + 2, oE.LineType)
+  Endif
+
+End
+
+Public Function Draw2(oE As Entity)
+
+  If Not oE.Visible Then Return
+
+  paint.LineWidth = oE.LineWidth ' / gcd.CurrentDrawing.ScaleZoom / gcd.ScaleLines
+
+  paint.brush = Paint.Color(oE.ColorToPaint)
+
+  paint.Arc(oE.p[0], oE.p[1], oE.fParam[0], start, recorrido)
+
+  paint.Stroke
+
+End
+
+' This function will return False if the element couldn't be created for some reason: bad or incomple user input
+' True means all is good, False will instruct the clsEntityBuilder to delete it
+Public Sub Finish(oE As Entity) As Boolean
+
+  ' calculo el recorrido del arco como
+
+  ' tareas finales de armado del objeto
+
+  oE.psel.resize(oE.p.count / 2)
+
+  oE.DrawAble = True
+  oE.Selected = False
+  oE.Finished = True
+  oe.fParam.Add(1) ' sentido de giro
+
+End
+
+' Importo los datos que puedo procesar de una coleccion y genero un Entity para ser agregado a un array
+Public Function ImportJsonCol(c As Collection, e As Entity) As Boolean
+
+  e.P.Add(c["center"][0])
+  e.P.Add(c["center"][1])
+  e.fParam.Add(c["radius"])
+  e.fParam.Add(c["start_angle"] * 180 / Pi)
+  e.fParam.Add(c["end_angle"] * 180 / Pi)
+
+  Return True
+
+Catch
+
+  Return False
+
+End
+
+Public Sub ExportDXFCol(e As Entity, ByRef cExport As Collection) As Boolean
+
+  cExport.Add("ARC", dxf.codEntity)
+  clsEntities.DXFExportCommonCol(e, cExport)
+  cExport.Add("AcDbCircle", "100")
+  cExport.Add(CStr(e.p[0]), dxf.codCenterX)
+  cExport.Add(CStr(e.p[1]), dxf.codCenterY)
+  cExport.Add(CStr(e.fParam[0]), dxf.codRadius)
+  cExport.Add("AcDbArc", "100")
+  cExport.Add(CStr(e.fParam[1]), dxf.codAngleStart)
+  cExport.Add(CStr(e.fParam[2]), dxf.codAngleEnd)
+
+
+End
+
+Public Sub ExportDXF(e As Entity, hFile As File)
+
+  Print #hFIle, "  0"
+  Print #hFIle, "ARC"
+  clsEntities.DXFExportCommon(e, hFile)
+  Print #hFIle, "100"
+  Print #hFIle, "AcDbCircle"
+  Print #hFIle, " 10"                      ' X0
+  Print #hFIle, CStr(e.p[0])
+  Print #hFIle, " 20"                      ' Y0
+  Print #hFIle, CStr(e.p[1])
+  Print #hFIle, " 30"                      ' Z0
+  Print #hFIle, "0"
+  Print #hFIle, " 40"                      ' radious
+  Print #hFIle, CStr(e.fParam[0])
+  Print #hFIle, "100"
+  Print #hFIle, "AcDbArc"
+  Print #hFIle, " 50"                      ' start angle DEG
+  Print #hFIle, CStr(e.fParam[1])
+  Print #hFIle, " 51"                      ' end angle DEG
+  Print #hFIle, CStr(e.fParam[2])
+
+End
+
+Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
+
+  Dim i As Integer
+
+  For i = 0 To sClaves.Max
+    If sClaves[i] = "10" Then e.P.Add(CFloat(sValues[i]))
+    If sClaves[i] = "20" Then e.P.Add(CFloat(sValues[i]))
+    If sClaves[i] = "40" Then e.fParam.Add(CFloat(sValues[i]))
+    If sClaves[i] = "50" Then e.fParam.Add(CFloat(sValues[i]))
+    If sClaves[i] = "51" Then e.fParam.Add(CFloat(sValues[i]))
+  Next
+
+  If e.fParam.Count = 0 Then Stop ' e.fParam.Add(0)  ' TODO: averiguar q pasa aca q algunas entidades CIRCLE
+  ' vienen sin el radio
+
+  Return True
+
+
+Catch
+
+  Return False
+
+End
+
+' "entity": "ARC",
+' "index": 402,
+' "type": 17,
+' "handle": [0, 254703],
+' "size": 53,
+' "bitsize": 370,
+' "ownerhandle": [12, 1, 10, 254693],
+' "_subclass": "AcDbEntity",
+' "layer": [5, 2, 16846, 16846],
+' "preview_exists": 0,
+' "entmode": 0,
+' "nolinks": 1,
+' "color": 256,
+' "ltype_scale": 1.0,
+' "ltype_flags": 0,
+' "plotstyle_flags": 0,
+' "invisible": 0,
+' "linewt": 29,
+' "_subclass": "AcDbCircle",
+' "center": [2914.8639315152991, 1641.01253626152402, 0.0],
+' "radius": 0.01636363636364,
+' "thickness": 0.000000,
+' "extrusion": [0.0, 0.0, 1.0],
+' "_subclass": "AcDbArc",
+' "start_angle": 0.0,
+' "end_angle": 1.5707963267949

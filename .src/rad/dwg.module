@@ -1,0 +1,364 @@
+' Gambas module file
+
+''' This module provides methods to read and write json text format. This information has origin and destination in the DWG files that are read and written using the LibreDWG library. So in summary this module reads and writes dwg through said library.
+' GauchoCAD
+' GauchoCAD is a free CAD program written in the Gambas language
+'
+' Copyright (C) Terco, Tincho
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 2 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+'
+
+Export
+
+Private Function jq(s As String) As String
+
+  Dim t As String
+
+  t = Replace(s, "{\"", "{\n\"")
+  t = Replace(t, "\":", "\": ")
+  t = Replace(t, ",\"", ",\n\"")
+  t = Replace(t, ": null", ": \"\"")
+
+  Return t
+
+End
+
+Public Function Write(json As String, dwg As String) As Boolean
+
+  Shell "dwgwrite -y -I JSON -o " & dwg & " " & json Wait
+
+  If Exist(dwg) Then
+    Return True
+  Else
+    Return False
+  Endif
+
+End
+
+Private Function libredwgread(f As String) As String
+
+  Dim str As String
+
+  Shell "/usr/local/bin/dwgread --format JSON '" & f & "'" To str
+  str = Replace(str, "\t", " ")
+  File.Save(File.Dir(f) &/ File.BaseName(f) & ".json", str)
+
+  Return str
+
+End
+
+
+'' Convert a dwg to dxf
+Public Function Todxf(sFile As String) As String
+
+  Dim dwg As String
+  Dim FileOutput As String
+
+  dwg = "/tmp/tmp.dwg"
+
+  If Exist(sFile) Then
+    If Exist(dwg) Then
+      Shell "rm " & dwg Wait
+    Endif
+
+    If Lower(File.Ext(sFile)) = "dxf" Then
+      Shell "/usr/local/bin/dxf2dwg -y -o '" & dwg & "' '" & sFile & "'" Wait
+      If Exist(dwg) Then
+        FileOutput = dwg
+      Else
+        FileOutput = ""
+      Endif
+    Endif
+  Endif
+
+  Return FileOutput
+
+End
+
+
+'' Convert the Entities collection to an csv structure, later it could be save as file
+
+Private Function ObjetsCSV(ctn As Collection) As String
+
+  Dim out As String
+  Dim tmp As New Variant[]
+  Dim p As Variant
+  Dim e As Variant
+  Dim r As Variant
+  Dim sHnd As String
+  Dim sEnt As String
+  Dim sLay As String
+  Dim sLwt As String
+  Dim sLty As String
+  Dim sCor As String
+
+  If ctn.Exist("Entities") Then
+    For Each p In ctn["Entities"]
+      If TypeOf(p) = gb.Object Then
+        For Each e In p
+          If TypeOf(e) = gb.Object Then
+            sLay = CStr(e["layer"][2])
+            If ctn.Exist("Layers") Then
+              If ctn["Layers"].Exist(sLay) Then
+                sLay = ctn["Layers"][sLay]["name"]
+              Endif
+            Endif
+
+            sHnd = e["handle"][1]
+            sEnt = e["entity"]
+            If e.Exist("ltype") Then
+              sLty = e["ltype"][2]
+              If ctn.Exist("Ltypes") Then
+                If ctn["Ltypes"].Exist(sLty) Then
+                  sLty = ctn["Ltypes"][sLty]["name"]
+                Endif
+              Endif
+            Else
+              sLty = "<>"
+            Endif
+            sLwt = e["linewt"]
+            Select TypeOf(e["color"])
+              Case gb.Object
+                If e["color"].Exist("index") Then
+                  sCor = e["color"]["index"]
+                Else
+                  sCor = "7"
+                Endif
+
+              Case Else
+                sCor = e["color"]
+            End Select
+
+            tmp.add([sHnd, sEnt, sLay, sLty, sLwt, sCor])
+          Endif
+        Next
+      Endif
+    Next
+  Endif
+
+  out = "Handle\tEntity\tLayer\tStyle\tWidth\tColor\n"
+  For Each r In tmp
+    out &= r.Join("\t") & "\n"
+  Next
+
+  Return out
+
+End
+
+'' Objects or entities bad for import
+
+Public Function Ugly(Optional sType As String) As String[]
+
+  Dim stx As New String[]
+
+  stx.Add("MENTALRAYRENDERSETTINGS")
+  stx.Add("FIELD")
+  stx.Add("BLOCKROTATIONPARAMETER")
+
+  Return stx
+
+End
+
+
+'' This give the layer 0 and its information
+
+Public Function NewLayer() As Collection
+
+  Dim c As New Collection
+  Dim cLy As New Collection
+
+  c.Clear
+  c["id"] = "0"
+  c["object"] = "LAYER"
+  c["name"] = "0"
+  c["show"] = True
+  c["frozen"] = False
+  c["locked"] = False
+  c["color"] = 0
+  c["style"] = 0
+  c["linewt"] = 0
+  c["print"] = True
+  cLy.Add(c.Copy(), "0")
+  c.Clear
+
+  Return cLy
+
+End
+
+Public Function NewVars() As Collection
+
+  Dim c As New Collection
+
+  c.Add(1, "LTSCALE")
+  c.Add(0, "ATTMODE")
+  c.Add(200, "TEXTSIZE")
+  c.Add("Standard", "TEXTSTYLE")
+  c.Add("0", "CLAYER")
+  c.Add("ByLayer", "CELTYPE")
+  c.Add(0, "CECOLOR")
+  c.Add(1, "CELTSCALE")
+  c.Add(1, "CELWEIGHT")
+  c.Add("Standard", "DIMSTYLE")
+  c.Add(4, "AUNITS")
+  c.Add(10, "CHAMFERA")
+  c.Add(10, "CHAMFERB")
+  c.Add(0.0, "ANGBASE")
+  c.Add("Standard", "CMLSTYLE")
+  c.Add(4, "INSUNITS")
+
+  Return c
+
+End
+
+Public Function NewStyles() As Collection
+
+  Dim c As New Collection
+
+  c.Add([[3], &X00000000000000001111111111111111, "Continous"], "0")
+  c.Add([[14, 4, 4, 4], &X00000000000000001111111111111111, "Center"], "1") ' the second parameter here is fake
+  c.Add([[10, 6, 3, 6], &X00000000000000000001100011111111, "Dashdot"], "2")
+  c.Add([[10, 6], &X00000000000000000000111100001111, "Dashed"], "3")
+  c.Add([[6, 4, 3, 4, 3, 4], &X00000000000000000011001100111111, "Divide"], "4")
+  c.Add([[3, 4], &X00000000000000000001000100010001, "Dot"], "5")
+  c.Add([[6, 4], &X00000000000000001111111111111111, "Hidden"], "6") ' the second parameter here is fake
+  c.Add([[4, 3], &X00000000000000001111111111111111, "Hidden2"], "7") ' the second parameter here is fake
+  c.Add([[12, 4, 4, 4, 4, 4], &X00000000000000001111111111111111, "Phantom"], "8") ' the second parameter here is fake
+  c.Add([[3], &X00000000000000001111111111111111, "ByBLock"], "9")
+  c.Add([[3], &X00000000000000001111111111111111, "ByLayer"], "10")
+
+  Return c
+
+End
+
+Public Function NewWidths() As Collection
+
+  Dim c As New Collection
+
+  'c.Add(["0.25", 1], "1") '1
+  'c.Add(["0.50", 2], "2") '2
+  'c.Add(["0.75", 3], "3") '3
+  'c.Add(["1.00", 4], "4") '4
+  'c.Add(["1.25", 5], "5") '5
+  'c.Add(["1.50", 6], "6") '6
+  'c.Add(["1.75", 7], "7") '7
+  'c.Add(["2.00", 8], "8") '8
+
+  c.Add(["0.05", "1"], "1")
+  c.Add(["0.10", "2"], "2")
+  c.Add(["0.12", "3"], "3")
+  c.Add(["0.14", "4"], "4")
+  c.Add(["0.16", "5"], "5")
+  c.Add(["0,18", "6"], "6")
+  c.Add(["0.20", "7"], "7")
+  c.Add(["0.25", "8"], "8")
+  c.Add(["0.30", "9"], "9")
+  c.Add(["0.35", "10"], "10")
+  c.Add(["0.40", "11"], "11")
+  c.Add(["0.45", "12"], "12")
+  c.Add(["0.50", "13"], "13")
+  c.Add(["0.55", "14"], "14")
+  c.Add(["0.60", "15"], "15")
+  c.Add(["0.65", "16"], "16")
+  c.Add(["0.70", "17"], "17")
+  c.Add(["0.80", "18"], "18")
+  c.Add(["0.90", "19"], "19")
+  c.Add(["1.00", "20"], "20")
+  c.Add(["1.25", "21"], "21")
+  c.Add(["1.45", "22"], "22")
+  c.Add(["1.65", "23"], "23")
+  c.Add(["1.85", "24"], "24")
+  c.Add(["2.00", "25"], "25")
+  c.Add(["2.15", "26"], "26")
+
+  c.Add(["ByLayer", "29"], "29")
+  c.Add(["ByBlock", "30"], "30")
+  c.Add(["Default", "31"], "31")
+
+  Return c
+
+End
+
+Public Function DWGFlag(iFlag As Integer, iPos As Integer) As Byte
+
+  Dim t As String
+  Dim b As Byte
+
+  t = Bin(iFlag, 8)
+  b = CByte(Mid(t, 9 - iPos, 1))
+
+  Return b
+
+End
+
+Public Function DWGCommonTags(Optional sEntity As String) As Collection
+
+  Dim comm As New Collection
+
+  Select Upper(sEntity)
+    Case "", "COMMON"
+      comm.Add("entity", "entity")
+      comm.Add("index", "index")
+      comm.Add("type", "type")
+      comm.Add("handle", "handle")
+      comm.Add("layer", "layer")
+      comm.Add("color", "color")
+      comm.Add("entmode", "entmode")
+      comm.Add("ownerhandle", "ownerhandle")
+      comm.Add("invisible", "invisible")
+      comm.Add("linewt", "linewt") '#
+      comm.Add("material", "material")
+      comm.Add("ltype", "ltype")
+      comm.Add("ltscale", "ltype_scale")
+      comm.Add("plotstyle", "plotstyle")
+
+    Case "LINE"
+      comm.Add("start", "start")
+      comm.Add("end", "end")
+
+  End Select
+
+  Return comm
+
+End
+
+'' Decode the text fields.
+
+Public Function DWGDecodeText(s As String) As String
+
+  Dim out As String
+
+  s = Conv$(s, "ISO-8859-1", "UTF-8")
+  If InStr(s, "\\U+") > 0 Then
+    s = String2.Flat(s)
+  Endif
+
+  If InStr(s, " [") > 0 Then
+    out = Split(Replace(s, " [", "\t"), "\t")[0]
+    If String.Left(out) = Chr(34) Then
+      out = String.Mid(out, 2)
+    Endif
+    If String.Right(out) = Chr(34) Then
+      out = String.Mid(out, 1, String.Len(out) - 1)
+
+    Endif
+  Else
+    out = s
+  Endif
+
+  Return out
+
+End

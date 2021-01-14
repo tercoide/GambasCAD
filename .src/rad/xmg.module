@@ -1,0 +1,724 @@
+' Gambas module file
+
+'
+' RADG
+' Rapid Application Development for Gambas
+'
+' Copyright (C) Martín Belmonte
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 2 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+'
+
+Export
+
+Public Function XmlConfRead(strXFile As String, strChild As String) As Collection ''Devuelve una colección. Como parametro de entrada requere la ruta al archivo xml.
+
+  Dim document As New XmlDocument
+  Dim ctn As New Collection
+  Dim tmp As New Collection
+  Dim node As XmlNode
+  Dim child As XmlNode
+  Dim var As Variant
+
+  document.Open(strXFile)
+
+  For Each node In document.All
+    If node.Children.Count > 0 Then
+      For Each child In node.Children
+        Select child.Name
+          Case strChild
+
+            tmp.Clear
+
+            Select child.Attributes["Data"]
+              Case "String"
+                var = child.Attributes["Value"]
+              Case "Integer"
+                If IsNumber(child.Attributes["Value"]) Then
+                  var = CInt(child.Attributes["Value"])
+                Else
+                  var = 0
+                Endif
+              Case "Float"
+                If IsNumber(child.Attributes["Value"]) Then
+                  var = CFloat(child.Attributes["Value"])
+                Else
+                  var = 0.0
+                Endif
+              Case "Boolean"
+                Select child.Attributes["Value"]
+                  Case "True", "TRUE", "T", "t"
+                    var = True
+                  Case Else
+                    var = False
+                End Select
+              Case Else
+                var = child.Attributes["Value"] 'att.Value
+            End Select
+
+            tmp.Add(child.Attributes["Name"], "Name")
+            tmp.Add(child.Attributes["Group"], "Group")
+            tmp.Add(var, "Value")
+            tmp.Add(child.Attributes["Data"], "Data")
+            tmp.Add(child.Attributes["Ctrl"], "Ctrl")
+            tmp.Add(child.Attributes["Desc"], "Desc")
+            ctn.Add(tmp.Copy(), child.Attributes["Name"])
+        End Select
+      Next
+    Endif
+  Next
+  Return ctn
+
+End
+
+Public Function XmlKeyValue(strXFile As String, strTag As String) As String[] ''Devuelve una matriz de texto con todos los valores que encuentre con el tag que se para como parámetro. Como parametro de entrada requiere el texto xml y la clave de la que se desea obtener el valor.
+
+  Dim document As New XmlDocument
+  Dim node As XmlNode
+  Dim stx As New String[]
+
+  document.FromString(strXFile)
+  stx.Clear
+  For Each node In document.All
+    Select node.Name
+      Case strTag
+        stx.Add(node.Value)
+    End Select
+  Next
+
+  Return stx
+
+End
+
+''Guarda en el archivo XML de configuración los datos que estan en la coleccion de varables.
+
+Public Sub XmlConfSave(sFile As String, ctn As Collection)
+
+  Dim document As New XmlDocument
+  Dim element As XmlElement
+  Dim var As Variant
+  Dim bolExist As Boolean
+
+  document.Open(sFile)
+  For Each var In ctn
+    bolExist = False
+    For Each element In document.Root.ChildElements
+      If element.Name = "Variable" Then
+        If element.Attributes["Name"] = ctn.Key Then
+          If element.Attributes["Value"] <> var["Value"] Then
+            'Select TypeOf(var["Value"])
+            Select var["Data"]
+              Case "Boolean"
+                'Case gb.Boolean
+                Select var["Value"]
+                  Case True, -1, "True", "TRUE", "true"
+                    element.Attributes["Value"] = "True"
+                  Case Else
+                    element.Attributes["Value"] = "False"
+                End Select
+                'Case gb.String
+              Case "String"
+                element.Attributes["Value"] = var["Value"]
+              Case Else
+                element.Attributes["Value"] = var["Value"]
+            End Select
+          Endif
+        Endif
+      Endif
+    Next
+  Next
+  document.Save(sFile, False)
+
+End
+
+'' Creación de archivo de datos.
+
+Public Function XmlDwg(xf As String, Optional ctn As Collection, Optional strComment As String) As Integer
+
+  Dim writer As New XmlWriter
+  Dim var As Collection
+  Dim att As Variant
+  Dim lay As Variant  ' Tincho
+  'Dim v As Variant
+
+  'Apertura del documento
+  writer.Open(xf, True) 'True es para que le ponga los saltos de linea
+
+  If strComment Then
+    writer.Comment(strComment)
+  Endif
+  'writer.StartElement("drawing")
+  writer.StartElement("svg")             ' Compatibility with SVG
+  writer.StartElement("metadata")             ' Compatibility with SVG
+  writer.Attribute("id", "metadata5")
+  writer.StartElement("dc:format")
+  writer.Text("image/svg+xml")
+  writer.EndElement ' dc:format
+  writer.EndElement ' metadata
+
+  ' For Each v In gcd.cLayers
+  '     If gcd.cLayers["label"] = "tesla" Then
+  '         myColor = gcd.cLayers["color"]
+  '     Endif
+  ' Next
+
+  For Each var In ctn 'gcd.cLayers
+    Select ctn.Key
+      Case "layers", "colors", "styles", "weights"
+        For Each att In var
+          writer.StartElement("header")
+          'writer.Attribute("type", ctn.Key)
+          For Each lay In att
+            writer.Attribute(att.Key, lay)
+          Next
+          writer.EndElement
+        Next
+      Case Else
+        For Each att In var
+          writer.StartElement("entity")
+          For Each lay In att
+            writer.Attribute(att.Key, lay)
+          Next
+          writer.EndElement
+        Next
+    End Select
+  Next
+  writer.EndElement ' svg
+  writer.EndDocument
+  Return 1
+
+End
+
+'' Creación de archivo de datos asociado a un archivo PDF para guardar datos
+'' sobre la estructura de portada, índice, contenido, etc.
+
+Public Function XmlBook(xf As String, Optional ctn As Collection, Optional strComment As String) As Integer
+
+  Dim writer As New XmlWriter
+  Dim var As Collection
+  Dim att As Variant
+
+  'Apertura del documento
+  writer.Open(xf, True) 'True es para que le ponga los saltos de linea
+
+  writer.StartElement("book")
+  If strComment Then
+    writer.Comment(strComment)
+  Endif
+  For Each var In ctn
+    writer.StartElement(ctn.Key)
+    For Each att In var
+      writer.Attribute(var.Key, att)
+    Next
+    writer.EndElement
+  Next
+
+  writer.EndElement
+
+  writer.EndDocument
+  Return 1
+
+End
+
+Public Function XmlConfMaker(sFile As String, Optional ctn As Collection, Optional strComment As String) As Integer ''Creacion de archivo de configuracion inicial xml.
+
+  Dim writer As New XmlWriter
+  Dim variable As Collection
+  Dim atrib As Variant
+
+  'Apertura del documento
+  writer.Open(sFile, True) 'True es para que le ponga los saltos de linea
+  writer.StartElement(Application.Name)
+  If strComment Then
+    writer.Comment(strComment)
+  Endif
+
+  For Each Variable In ctn
+
+    writer.StartElement("Variable")
+
+    For Each atrib In Variable
+      writer.Attribute(Variable.Key, atrib)
+    Next
+
+    writer.EndElement
+
+  Next
+  writer.EndElement
+  writer.EndDocument
+  Return 1
+
+End
+
+Public Function QueryXML(strFile As String, ctn As Collection) As Collection '' Consulta un atributo de en un archivo xml. Trabaja con la estructura padre/hijo[atributos] y devuelve una colecion de la forma atributo:valor.
+
+  Dim document As New XmlDocument
+  Dim dad As XmlNode
+  Dim son As XmlNode
+  Dim atrib As XmlNode
+  Dim ctnOut As New Collection
+
+  If Exist(strFile) = True Then
+    If Stat(strFile).Type = gb.File Then
+
+      document.Open(strFile)
+      For Each dad In document.All
+        If dad.Name = ctn["dad.node"] Then
+          If dad.Attributes[ctn["dad.att"]] = ctn["dad.val"] Then
+            For Each son In dad.ChildNodes
+              If son.Name = ctn["son.node"] Then
+                If son.Attributes[ctn["son.att"]] = ctn["son.val"] Then
+                  For Each atrib In son.Attributes
+                    ctnOut.Add(atrib.Value, atrib.Name)
+                  Next
+                Endif
+              Endif
+            Next
+          Endif
+        Endif
+      Next
+    Endif
+  Endif
+
+  Return ctnOut
+
+End
+
+'' <p> Returns the value of a variable (a node of the xml) to "consult" this
+'' information should be done in the general form: </p>
+'' <code> myvar = xmg.GetVar ("NodeName / AttName / AttReturn") </code>
+'' <p> The particular case for variables that in the xml are nodes called "Variable" is: </p>
+'' <code> myvar = xmg.GetVar ("AttributeName") </code>
+'' <p> Note: The general case could also be used like this: </p>
+'' <code> myvar = xmg.GetVar ("Variable / Name / Value") </code>
+'' <p> Example of obtaining data from a table </p>
+'' <code> myvar = xmg.GetVar ("Table / products / title") </code>
+'' <p> The alias title of a table called "products" will be returned </p>
+'' <p> Example of obtaining data from a field </p>
+'' <code> myvar = xmg.GetVar ("Field / Productname / Type") </code>
+'' <p> The field type will be returned for one named "productname" </p>
+
+Public Function GetVar(sVar As String, f As String) As Variant
+
+  Dim ctn As New Collection
+  Dim cto As New Collection
+  Dim xNode As String
+  Dim xAtt As String                '' Verification attribute, for example the name of a table, field or variable
+  Dim rAtt As String                '' Attribute from which the value will be returned.
+  Dim xks As New String[]
+
+  Select InStr(sVar, "/")
+    Case 0 ' Se obtiene el valor del atributo llamado Value
+      xNode = "Variable"
+      xAtt = sVar '"Name"
+      rAtt = "Value"
+    Case Else
+      xks = Split(sVar, "/")
+      Select xks.Count
+        Case 2
+          xNode = xks[0]
+          xAtt = xks[1]
+          rAtt = xks[1]
+        Case 3
+          xNode = xks[0]
+          xAtt = xks[1]
+          rAtt = xks[2]
+      End Select
+  End Select
+
+  ctn.Clear
+  ctn.Add(xNode, "dad.node")
+  ctn.Add("Name", "att.name")
+  ctn.Add(xAtt, "att.value")
+
+  cto.Clear
+  If Exist(f) Then
+    cto = XMLTagAtt(f, ctn)
+  Endif
+
+  Return cto[rAtt]
+
+End
+
+Public Sub SetVar(sVar As String, sVal As String, f As String)
+
+  Dim ctn As New Collection
+
+  ctn.Clear
+  ctn.Add("Variable", "nod.nam")
+  ctn.Add("Name", "nod.att")
+  ctn.Add(sVar, "nod.val")
+  ctn.Add("Title", "nod.cha")
+  ctn.Add(sVal, "nod.new")
+  Edit2XML(f, ctn)
+
+End
+
+'' Query an attribute of in an xml file and extract an attribute from it
+
+Public Function XMLTagAtt(strFile As String, ctn As Collection) As Collection
+
+  Dim document As New XmlDocument
+  Dim dad As XmlNode
+  Dim atrib As XmlNode
+  Dim ctnOut As New Collection
+
+  If Exist(strFile) = True Then
+    If Stat(strFile).Type = gb.File Then
+      document.Open(strFile)
+      For Each dad In document.All
+        If dad.Name = ctn["dad.node"] Then
+          If dad.Attributes[ctn["att.name"]] = ctn["att.value"] Then
+            For Each atrib In dad.Attributes
+              ctnOut.Add(atrib.Value, atrib.Name)
+            Next
+          Endif
+        Endif
+      Next
+    Endif
+  Endif
+
+  Return ctnOut
+
+End
+
+'' Guarda atributos de tablas y campos en un archivo xml trabaja con el nombre del elemento (el tipo) y luego con los atributos de este y, dependiendo del tipo de elemento, de su padre.
+
+Public Sub Edit2XML(sFile As String, ctn As Collection)
+
+  Dim document As New XmlDocument
+  Dim nod As XmlNode
+
+  If Exist(sFile) = True Then
+    If Stat(sFile).Type = gb.File Then
+
+      document.Open(sFile)
+
+      For Each nod In document.All
+        If nod.Name = ctn["nod.nam"] Then
+          If nod.Attributes[ctn["nod.att"]] = ctn["nod.val"] Then
+            nod.Attributes[ctn["nod.cha"]] = ctn["nod.new"]
+          Endif
+        Endif
+      Next
+    Endif
+  Endif
+
+  document.Save(sFile, False)
+
+End
+
+Public Sub Save2XML(strFile As String, ctn As Collection) '' Guarda atributos de tablas y campos en un archivo xml trabaja con el nombre del elemento (el tipo) y luego con los atributos de este y, dependiendo del tipo de elemento, de su padre.
+
+  Dim document As New XmlDocument
+  Dim dad As XmlNode
+  Dim son As XmlNode
+
+  If Exist(strFile) = True Then
+    If Stat(strFile).Type = gb.File Then
+
+      document.Open(strFile)
+
+      For Each dad In document.All
+        If dad.Name = ctn["dad.node"] Then
+          If dad.Attributes[ctn["dad.att"]] = ctn["dad.val"] Then
+            For Each son In dad.ChildNodes
+              If son.Name = ctn["son.node"] Then
+                If son.Attributes[ctn["son.att"]] = ctn["son.val"] Then
+                  son.Attributes[ctn["son.cha"]] = ctn["son.new"]
+                Endif
+              Endif
+            Next
+          Endif
+        Endif
+      Next
+    Endif
+  Endif
+
+  document.Save(strFile, False)
+
+End
+
+'' Edicion de un archivo xml, como por ejemplo SVG para editar el valor, color
+'' etc.de un texto por el metodo del tag del elemento. Esta forma de trabajar
+'' permite editar multiples veces el archivo, ya que, coomo el tag permanece
+'' inalterable, se puede acceder reiteradas veces.
+
+Public Function EditXml(xml As String, ndx As String, atk As Collection, atx As Collection) As Integer
+
+  Dim doc As New XmlDocument
+  Dim ele As New XmlElement
+  Dim att As XmlNode
+  Dim Akey As Variant
+  Dim iMatch As Integer
+  Dim iChanged As Integer
+  Dim Amod As Variant
+
+  doc.Open(xml)
+
+  For Each ele In doc.GetElementsByTagName(ndx, gb.IgnoreCase)
+    iMatch = 0
+    For Each Akey In atk
+      For Each att In ele.Attributes
+        If atk.Key = att.Name Then
+          If Akey = att.Value Then
+            Inc iMatch
+          Endif
+        Endif
+      Next
+    Next
+    If iMatch = atk.Count Then
+      For Each Amod In atx
+        ele.Attributes[atx.Key] = Amod
+        Inc iChanged
+      Next
+    Endif
+  Next
+  File.Save(xml, doc.Content)
+  Return iChanged
+
+End
+
+Public Function EditXml2(xml As String, ndx As String, atk As Collection, atx As Collection) As Integer ''Edicion de un archivo xml, como por ejemplo SVG para editar el valor, color etc. de un texto por el metodo del tag del elemento. Esta forma de trabajar permite editar multiples veces el archivo, ya que, coomo el tag permanece inalterable, se puede acceder reiteradas veces.
+
+  Dim doc As New XmlDocument
+  Dim ele As New XmlElement
+  Dim att As XmlNode
+  Dim Akey As Variant
+  Dim iMatch As Integer
+  Dim iChanged As Integer
+  Dim Amod As Variant
+
+  doc.Open(xml)
+
+  For Each ele In doc.GetElementsByTagName(ndx, gb.IgnoreCase)
+    iMatch = 0
+    For Each Akey In atk
+      For Each att In ele.Attributes
+        If atk.Key = att.Name Then
+          If Akey = att.Value Then
+            Inc iMatch
+          Endif
+        Endif
+      Next
+    Next
+    If iMatch = atk.Count Then
+      For Each Amod In atx
+        ele.Attributes[atx.Key] = Amod
+        Inc iChanged
+      Next
+
+    Endif
+
+  Next
+  File.Save(xml, doc.Content)
+  Return iChanged
+
+End
+
+'' Edicion de un archivo xml, como por ejemplo SVG para editar el valor, color
+'' etc. de un texto por el metodo del tag del elemento. Esta forma de trabajar
+'' permite editar multiples veces el archivo, ya que, coomo el tag permanece
+'' inalterable, se puede acceder reiteradas veces. Tambien se pueden alterar
+'' rutas de imágenes.
+
+Public Function EditXml3(xml As String, dtx As Collection, ow As Boolean) 'As Integer
+
+  Dim doc As New XmlDocument
+  Dim ele As New XmlElement
+  Dim nod As XmlNode
+  Dim value As Variant
+  Dim strRelPath As String
+
+  doc.Open(xml)
+
+  For Each ele In doc.GetElementsByTagName("text", gb.IgnoreCase)
+    For Each nod In ele.Attributes
+      Select nod.Name
+        Case "id"
+          If dtx.Exist(nod.Value) Then
+            value = dtx[nod.Value]
+            If ele.Value <> value Then
+              ele.Value = value
+            Endif
+          Else
+            If ow = True Then
+              If InStr(nod.Value, "fix.") = 0 Then
+                ele.Value = " "
+              Endif
+            Endif
+          Endif
+      End Select
+    Next
+  Next
+  ' Imagenes
+  For Each ele In doc.GetElementsByTagName("image", gb.IgnoreCase)
+    For Each nod In ele.Attributes
+      Select nod.Name
+        Case "id"
+          For Each value In dtx
+            If dtx.Key = nod.Value Then
+              ele.Attributes["sodipodi:absref"] = value
+              strRelPath = Replace(value, File.Dir(xml) & "/", "")
+              ele.Attributes["xlink:href"] = strRelPath
+            Endif
+          Next
+      End Select
+    Next
+  Next
+
+  File.Save(xml, doc.Content)
+
+End
+
+''Devuelve una matrix de texto donde cada ítem es un par Tag[tab]Value. Como parametro de entrada requere el texto xml.
+
+Public Function XmlTagValue(str As String) As String[]
+
+  Dim document As New XmlDocument
+  Dim stx As New String[]
+  Dim node As XmlNode
+  Dim strTag As String
+  Dim strVal As String
+  Dim atrib As XmlNode
+
+  document.FromString(str)
+
+  For Each node In document.All
+    Select node.name
+
+      Case "package", "navPoint", "dc:creator", "dc:identifier"
+        stx.Add(node.Name & "\t" & node.Value)
+        For Each atrib In node.Attributes
+          strTag = node.Name & ":" & atrib.Name
+          strVal = atrib.Value
+          stx.Add(strTag & "\t" & strVal)
+        Next
+      Case "dc:title", "dc:subject", "dc:description", "dc:publisher", "dc:contributor", "dc:date", "dc:type", "dc:format", "dc:source", "dc:language", "dc:relation", "dc:coverage", "dc:rights"
+        strTag = node.name
+        strVal = node.Value
+        stx.Add(strTag & "\t" & strVal)
+    End Select
+  Next
+
+  Return stx
+
+End
+
+'' <p>Busca el titulo de un campo o una tabla en el texto XML que estan en el item xml de la Collection
+'' que se pasa como parametro.</p>
+'' <p>Los itemes que deben estar en ela coleccion son</p>
+'' <ul>
+'' <li>Table</li>
+'' <li>Field (Solo si se pregunta por el titulo de un campo)</li>
+'' <li>Xml (El texto xml extraido del archivo de configuración)</li>
+'' <li>Atrib (El atriubuto consultado)</li>
+'' </ul>
+
+Public Function XTitle(ctn As Collection) As String
+
+  Dim doc As New XmlDocument
+  Dim node, chi As XmlNode
+  Dim sOut As String
+
+  If ctn.Exist("Xml") Then
+    doc.FromString(ctn["Xml"])
+    For Each node In doc.All
+      Select node.Name
+        Case "Table"
+          Select ctn.Exist("Field")
+            Case False
+              If node.Attributes["Name"] = ctn["Table"] Then
+                sOut = node.Attributes[ctn["Atrib"]]
+              Endif
+            Case True
+              For Each chi In node.Children
+                Select chi.Name
+                  Case "Field"
+                    If chi.Attributes["Table"] = ctn["Table"] Then
+                      If chi.Attributes["Name"] = ctn["Field"] Then
+                        sOut = chi.Attributes[ctn["Atrib"]]
+                      Endif
+                    Endif
+                End Select
+              Next
+          End Select
+      End Select
+    Next
+  Endif
+  Return sOut
+
+End
+
+Public Function XmlIni() As Collection ''Crea una coleccion con las variables y sus parametros iniciales
+
+  Dim ctnOut As New Collection
+  Dim ctnTmp As New Collection
+  Dim str As String
+  Dim sBase As String
+
+  sBase = User.Home &/ "." & String.LCase(vag.NoSymbols(Application.Name))
+
+  'Program
+  ctnTmp.Clear
+  ctnTmp.Add("Application.Directory", "Name")
+  ctnTmp.Add(("Program"), "Group")
+  ctnTmp.Add(sBase, "Value")
+  ctnTmp.Add("String", "Data")
+  ctnTmp.Add("dio", "Ctrl")
+  ctnTmp.Add(("Application directory"), "Desc")
+  str = ctnTmp["Name"]
+  ctnOut.Add(ctnTmp.Copy(), str)
+
+  ctnTmp.Clear
+  ctnTmp.Add("Application.window-background-color", "Name")
+  ctnTmp.Add(("Program"), "Group")
+  ctnTmp.Add("Dark", "Value")
+  ctnTmp.Add("String", "Data")
+  ctnTmp.Add("cmo~Dark:Light", "Ctrl")
+  ctnTmp.Add(("Window background color"), "Desc")
+  str = ctnTmp["Name"]
+  ctnOut.Add(ctnTmp.Copy(), str)
+
+  'Desktop
+  ctnTmp.Clear
+  ctnTmp.Add("Desktop.Text-Editor", "Name")
+  If sog.MimeDefaultApp("text/plain").Count > 0 Then
+    str = sog.MimeDefaultApp("text/plain")[0]
+  Else
+    str = ""
+  Endif
+  ctnTmp.Add(("Desktop"), "Group")
+  ctnTmp.Add(str, "Value")
+  ctnTmp.Add("String", "Data")
+  ctnTmp.Add("txo", "Ctrl")
+  ctnTmp.Add(("Simple text editor by default"), "Desc")
+  str = ctnTmp["Name"]
+  ctnOut.Add(ctnTmp.Copy(), str)
+
+  ctnTmp.Clear
+  ctnTmp.Add("Desktop.Icons", "Name")
+  ctnTmp.Add(("Desktop"), "Group")
+  ctnTmp.Add("/usr/share/icons/Numix/32", "Value")
+  ctnTmp.Add("String", "Data")
+  ctnTmp.Add("dio", "Ctrl")
+  ctnTmp.Add(("Program icons"), "Desc")
+  str = ctnTmp["Name"]
+  ctnOut.Add(ctnTmp.Copy(), str)
+
+  Return ctnOut
+
+End

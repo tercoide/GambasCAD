@@ -1,0 +1,3075 @@
+' Gambas class file
+
+' Gambas module file
+
+' RADG
+' Rapid Application Development for Gambas
+'
+' Copyright (C) Martín Belmonte
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 2 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+'
+' Variables que se pasaron desde el módulo de inicio
+Public Observer As Observer         '' Observer used to notify if there are changes not applied.
+Private cex As New Collection       '' Basic variables to pass to the other forms.
+Private adi As String               '' Program Directory.
+Private dbc As String               '' Database configuration file.
+Private apc As String               '' Program configuration file.
+Private etx As String               '' Default plain text editor.
+Private lgg As Logger               '' Application event log.
+'------------------------------------------------------------------------------
+
+'Variables del formulario
+'Public CurrentDrawing As FCAD                '' CAD Editor
+
+Public CurrentForm As Form
+Public CurrentFile As String
+
+Public CursorX As Integer
+Public CursorY As Integer
+
+Public KeysAccumulator As String
+Public TmrTicks As Integer
+
+Public SelectingColor As Boolean    '' Selecting Color
+Public CurrentColor As Integer
+Public imgColor As Image
+
+Public SelectingLayer As Boolean    '' Selecting Layer
+Public CurrentLayer As String = "0"
+
+Public SelectingLtype As Boolean    '' Selecting Linetype
+Public CurrentLtype As Integer
+
+Public SelectingWidth As Boolean    '' Selecting width
+Public CurrentWidth As Integer
+
+Public EditingText As Boolean       '' Editing Text value
+Public CurrentText As String
+
+'Public SelectedWidth As Boolean
+
+'Private PropertiesFlag As Boolean = False
+Private PropertiesFlag As Boolean = True
+Private RawFlag As Boolean = False
+
+'variables de ambiente
+Public flgShowInspector As Boolean = True
+Public flgSearchingEntity As Boolean = False  ' impide cuellos de botellla
+Public flgSearchingPOI As Boolean
+
+Public HistoCom As New String[]     '' Commands history
+
+Public cMod As New Collection       '' All drawings common collection
+Public cProp As New Collection      '' Properties list
+Public cRaw As New Collection       '' Raw properties list
+Private iTheme As Integer           '' Theme luminance (determine if Dark or Light)
+'Private LSelect As String           '' Last Section selected
+
+'Public iSteps As Integer            '' Total steps for Progressbar
+'Public iSDone As Integer            '' Done steps for Progressbar
+
+Public Sub Run(cin As Collection)
+
+  Dim obj As Object
+  Dim ictn As New Collection
+  Dim mnu As Menu
+  Dim tob As ToolButton
+  Dim i As Integer
+  Dim iSet As String
+  Dim z As Integer
+  'Dim ctr As Object
+  Dim r As Integer
+  Dim g As Integer
+  Dim b As Integer
+  Dim img As Image
+  Dim sPic As String
+  Dim svg As String
+  '------------------------------------------------------------------------------
+  '' Setting connection variables and more
+  cex = cin
+
+  adi = cin["AppDir"]           '' Program Directory.
+  apc = cin["AppCfg"]           '' Program configuration file.
+  dbc = cin["DbsCfg"]           '' Database configuration file.
+  etx = cin["AppEdi"]           '' Default plain text editor.
+  lgg = cin["AppLog"]           '' Application event log.
+  '------------------------------------------------------------------------------
+  iSet = xmg.GetVar("Desktop.Icons", apc)
+  ictn = dsk.GNumix(iSet & "/")
+  '------------------------------------------------------------------------------
+  For Each mnu In Me.Menus
+    For Each obj In mnu.Children
+      ''Adding menu item in the alternative menu
+      If obj.Visible = True Then
+        Select mnu.Name
+          Case "grpEntities"
+            tob = New ToolButton(pnlEntities) As "entity"
+            'tob = New ToolButton(ToolBar1) As "entity"
+            z = 40 '48
+          Case "grpTools"
+            tob = New ToolButton(pnlEntities) As "tool"
+            z = 40 '48
+          Case "grpSmart"
+            tob = New ToolButton(pnlSmart) As "tool"
+            z = 40 '48
+
+          Case "grpFile", "grpHelp"
+            tob = New ToolButton(pnlFile) As "menuapp"
+            z = 40 '32
+
+          Case "grpOptions"
+            tob = New ToolButton(pnlFile) As "menuapp"
+            z = 40 '32
+
+          Case "grpView"
+            'tob = New ToolButton(pnlToolsH) As "tool"
+            tob = New ToolButton(pnlFile) As "tool"
+            z = 40 '32
+
+        End Select
+
+        With tob
+          .Name = "tob" & obj.Tag & CStr(i)
+          .Tag = obj.Tag
+          .Tooltip = obj.Text
+          .Enabled = obj.Enabled
+          .AutoResize = False
+
+          .W = z
+          .H = z
+
+          Select mnu.Name
+            Case "grpFile", "grpOptions", "grpHelp" ', "grpView" ', "grpSmart", "grpEntities"
+              If Exist(ictn[obj.Tag]) Then
+                If Stat(ictn[obj.Tag]).Type = gb.File Or Stat(ictn[obj.Tag]).Type = gb.Link Then
+                  tob.Picture = Image.Load(ictn[obj.Tag]).Stretch(z - 8, z - 8).Picture
+                  .Border = True
+                Else
+                  tob.Picture = obj.Picture
+                  .Border = True
+                Endif
+              Else
+                tob.Picture = obj.Picture
+                .Border = True
+              Endif
+
+            Case "grpEntities"
+              sPic = "./svg/entities/" & obj.Tag & ".svg"
+              If Exist(sPic) Then
+                If Application.DarkTheme Then
+                  svg = Replace(File.Load(sPic), "#0066b3;", "#eeeeee;")
+                Else
+                  svg = Replace(File.Load(sPic), "#0066b3;", "#000000;")
+                Endif
+                tob.Picture = Image.FromString(svg).Stretch(z - 8, z - 8).Picture
+                'Else
+                '  pic = Image.Load("./svg/colors/4.svg").Stretch(9, 9).Picture
+              Endif
+              'tob.Picture = obj.Picture.Image.Stretch(z - 8, z - 8).Picture
+              .Border = True
+
+            Case "grpSmart"
+              sPic = "./svg/smart/" & obj.Tag & ".svg"
+              If Exist(sPic) Then
+                If Application.DarkTheme Then
+                  svg = Replace(File.Load(sPic), "#0066b3;", "#eeeeee;")
+                Else
+                  svg = Replace(File.Load(sPic), "#0066b3;", "#000000;")
+                Endif
+                tob.Picture = Image.FromString(svg).Stretch(z - 8, z - 8).Picture
+              Endif
+              .Border = True
+
+            Case "grpTools", "grpView"
+              sPic = "./svg/tools/" & obj.Tag & ".svg"
+              'If obj.Tag = "selection" Then
+              'Print obj.Tag
+              'Endif
+              If Exist(sPic) Then
+                If Application.DarkTheme Then
+                  svg = Replace(File.Load(sPic), "#0066b3;", "#eeeeee;")
+                Else
+                  svg = Replace(File.Load(sPic), "#0066b3;", "#000000;")
+                Endif
+                svg = Highligh(sPic)
+                tob.Picture = Image.FromString(svg).Stretch(z - 8, z - 8).Picture
+              Endif
+              .Border = True
+
+          End Select
+
+        End With
+
+        Try obj.Picture = obj.Picture.Image.Stretch(22, 22).Picture
+        Print obj.Tag
+
+      Endif
+      Inc i
+
+    Next
+  Next
+
+  btnColors.Reparent(pnlFile)
+  btnLtypes.Reparent(pnlFile)
+  btnLayers.Reparent(pnlFile)
+  btnWidths.Reparent(pnlFile)
+  cboDrawing.Reparent(pnlFile)
+  '  Panel6.Reparent(pnlFile)
+  'cboLayers.Reparent(pnlFile)
+  'tobLayers.Reparent(pnlFile)
+  'cboWidths.Reparent(pnlFile)
+  'cboDimSts.Reparent(pnlFile)
+
+  AddLtypesPics()
+  AddColorsPics()
+  AddWidthsPics()
+
+  btnLtypes.Picture = Starter.cStyles["0"][3].Picture
+  btnLtypes.Tooltip = Starter.cStyles["0"][1]
+
+  btnWidths.Picture = Starter.cWidths["1"][2].Picture
+  btnWidths.Tooltip = Starter.cWidths["1"][0]
+
+  If CurrentColor = 0 Then
+    CurrentColor = 3
+  Endif
+
+  r = CInt(Split(Starter.ColorsRGB[CurrentColor], ",")[0])
+  g = CInt(Split(Starter.ColorsRGB[CurrentColor], ",")[1])
+  b = CInt(Split(Starter.ColorsRGB[CurrentColor], ",")[2])
+
+  imgColor = New Image(btnColors.H - 2, btnColors.H - 2, Color.RGB(r, g, b), 0)
+  img = dsk.ImageFrame(imgColor.Stretch(btnColors.W - 4, btnColors.H - 4))
+
+  btnColors.Picture = img.Picture
+
+  btnColors.Tooltip = ("Color") & ": " & CStr(CurrentColor)
+
+  btnBounds.Picture = Image.FromString(Highligh("./svg/locks/bounds.svg")).Stretch(35, 35).Picture
+  btnGrid.Picture = Image.FromString(Highligh("./svg/locks/grid.svg")).Stretch(35, 35).Picture
+  btnOrtho.Picture = Image.FromString(Highligh("./svg/locks/ortho.svg")).Stretch(35, 35).Picture
+
+  btnEditionMode.Picture = Image.FromString(Highligh("./svg/locks/table.svg")).Stretch(35, 35).Picture
+
+  btnSelectionMode.Value = True
+  btnSelectionMode.Picture = Image.FromString(Highligh("./svg/locks/tools.svg")).Stretch(35, 35).Picture
+
+  btnMenuShow.Value = False
+
+  TableView1.Rows.Height = 35
+
+  SelectionMode()
+  'pnlProperties.Visible = False
+  'pnlIcons.Visible = True
+
+  Me.Menus.Hide
+  Me.Border = False
+  Me.Show()
+
+End
+
+'' Change the color of the graphic objects within the svg file that is passed as a parameter. For this, it takes into account the desktop theme and if it is a dark theme or not.
+
+Public Function Highligh(sPic As String) As String
+
+  Dim svg As String
+
+  If Exist(sPic) Then
+    If Application.DarkTheme Then
+      svg = Replace(File.Load(sPic), "#0066b3;", "#eeeeee;")
+    Else
+      svg = Replace(File.Load(sPic), "#0066b3;", "#000000;")
+    Endif
+  Endif
+
+  Return svg
+
+End
+
+Public Sub Progress(iSteps As Integer, iSDone As Integer)
+
+  If iSteps > iSDone Then
+    'iSDone = iSteps - 1
+    ProgressBar1.Value = CFloat(iSDone) / CFloat(iSteps)
+    ProgressBar1.Refresh
+    Wait 0.0001
+  Else
+    ProgressBar1.Visible = False
+  Endif
+
+End
+
+' Public Sub LoadColorsOriginalDeTincho()
+'
+'   Dim hMenu As Menu
+'   Dim mui As Menu
+'   Dim cCol As Collection
+'   Dim ix As Variant[]
+'   Dim isvg As String
+'
+'   cCol = Starter.cColors
+'
+'   mubColors.Menu = "Clx"
+'
+'   '' Filling the MenuButton menu
+'   hMenu = New Menu(Me) As "Clx" '' Create the initial menu
+'
+'   For Each ix In cCol
+'     mui = New Menu(hMenu) As "Clx"
+'     mui.Text = ix[0]
+'     mui.Tag = ix[1]
+'     Select ix[1]
+'       Case 255, 256, 0
+'         isvg = "./svg/colors/" & "7" & ".svg"
+'       Case 1, 2, 3, 4, 5, 6, 7
+'         isvg = "./svg/colors/" & cCol.Key & ".svg"
+'     End Select
+'
+'     If Exist(isvg) Then
+'       mui.Picture = Image.Load(isvg).Stretch(16, 16).Picture
+'     Endif
+'
+'     If cCol.Key = "7" Then
+'       mubColors.Picture = Image.Load(isvg).Stretch(16, 16).Picture
+'       mubColors.Tooltip = ix[0]
+'       mubColors.Text = ix[0]
+'     Endif
+'
+'   Next
+'
+' End
+
+' Public Sub LoadColors()
+'
+'   Dim hMenu As Menu
+'   Dim mui As Menu
+'   Dim cCol As Collection
+'   Dim ix As Variant[]
+'   'Dim isvg As String
+'   Dim imgColorCircle As Image
+'
+'   cCol = Starter.cColors
+'
+'   mubColors.Menu = "Clx"
+'
+'   ' Fill the MenuButton menu
+'   hMenu = New Menu(Me) As "Clx" '' Crea el menu inicial
+'
+'   For Each ix In cCol
+'     mui = New Menu(hMenu) As "Clx"
+'     mui.Text = ix[0]
+'     mui.Tag = ix[1]
+'
+'     imgColorCircle = New Image(16, 16, mubColors.Background)    '' I dynamically create the image 16x16 size, but it can be any
+'
+'     Paint.Begin(imgColorCircle)                                 '' I am going to draw over the image I just created
+'     Paint.Arc(8, 8, 7, 0, 2 * Pi)                               '' I add a circle, but it could be any shape
+'     Paint.Brush = Paint.Color(Starter.gColor[Val(cCol.Key)])    '' the color was taken directly from the CAD color chart
+'     Paint.Fill(True)                                            '' filling
+'     Paint.Brush = Paint.Color(Color.Black)                      '' optionally I draw the outline that makes the best contrast with the menubutton
+'     Paint.Stroke()                                              '' outline
+'     Paint.End                                                   '' end of the Paint cycle on this image
+'
+'     mui.Picture = imgColorCircle.Picture                        '' I insert it in the Button
+'
+'     If cCol.Key = "7" Then                                      '' if it's 7, I choose it as default
+'       mubColors.Picture = imgColorCircle.Picture
+'       mubColors.Tooltip = ix[0]
+'       mubColors.Text = ix[0]
+'     Endif
+'
+'   Next
+'
+' End
+'
+' Public Sub Clx_Click()
+'
+'   Dim obj As Object
+'
+'   obj = Last
+'
+'   CurrentColor = obj.Tag
+'   mubColors.Picture = obj.Picture
+'   mubColors.Text = obj.Text
+'   mubColors.Tooltip = obj.Text
+'
+'   txaDebug.Pos = 0
+'   txaDebug.Insert(obj.Text & " is the current color\n")
+'
+' End
+
+Public Sub AddLtypesPics()
+
+  Dim lt As Variant
+  Dim dash As Float[]
+  Dim img As Image
+  Dim hColor As ColorInfo
+  'Dim pxl As Integer
+
+  hColor = Color[Color.ButtonBackground]
+
+  If iTheme <> hColor.Luminance Then
+    iTheme = hColor.Luminance
+
+    For Each lt In Starter.cStyles
+
+      dash = lt[0]
+
+      img = New Image(btnLtypes.Width, 8, btnLtypes.Background)
+
+      Paint.Begin(img)
+      Paint.NewPath
+      Select dash.Count
+        Case 0, 1
+
+        Case Else
+          Paint.Dash = dash
+
+      End Select
+
+      hColor = Color[Color.ButtonBackground]
+
+      If hColor.Luminance > 160 Then
+        Paint.Brush = Paint.Color(Color.Black)
+      Else
+        Paint.Brush = Paint.Color(Color.White)
+      Endif
+
+      Paint.LineWidth = 1
+      Paint.MoveTo(4, 4)
+      Paint.LineTo(btnLtypes.Width - 4, 4)
+      Paint.Stroke
+      Paint.End
+
+      If Starter.cStyles[Starter.cStyles.Key].Count = 4 Then
+        Starter.cStyles[Starter.cStyles.Key][3] = img
+      Else
+        Starter.cStyles[Starter.cStyles.Key].Add(img)
+      Endif
+
+    Next
+
+  Endif
+
+End
+
+Public Sub AddWidthsPics()
+
+  Dim wt As Variant
+  Dim img As Image
+  Dim hColor As ColorInfo
+  Dim mm As String
+  Dim px As Float
+
+  hColor = Color[Color.ButtonBackground]
+
+  iTheme = hColor.Luminance
+
+  For Each wt In Starter.cWidths
+    mm = wt[0]
+    If CInt(Starter.cWidths.Key) > 0 And CInt(Starter.cWidths.Key) < 27 Then
+      img = New Image(btnLtypes.Width, 8, btnLtypes.Background)
+      px = Starter.cWidths.Key
+    Else
+      img = New Image(btnLtypes.Width / 2, 8, btnLtypes.Background)
+      px = 1
+    Endif
+
+    Paint.Begin(img)
+    If hColor.Luminance > 160 Then
+      Paint.Brush = Paint.Color(Color.Black)
+    Else
+      Paint.Brush = Paint.Color(Color.White)
+    Endif
+
+    Paint.NewPath
+    Paint.LineWidth = px ' CFloat(wt) * 3
+    Paint.MoveTo(4, 4)
+
+    'If CInt(Starter.cWidths.Key) > 0 And CInt(Starter.cWidths.Key) < 27 Then
+    Paint.LineTo(btnLtypes.Width - 4, 4)
+    'Else
+    '  Paint.LineTo(CInt(btnLtypes.Width / 2), 4)
+    'Endif
+
+    Paint.Stroke
+    Paint.End
+    Starter.cWidths[Starter.cWidths.Key] = [mm, px, img]
+
+  Next
+
+End
+
+Public Sub AddColorsPics()
+
+  Dim lt As Variant[]
+  Dim img As Image
+
+  For Each lt In Starter.cColors
+
+    img = New Image(16, 16, btnLtypes.Background)
+
+    Paint.Begin(img)
+
+    Paint.NewPath
+
+    Select Starter.flgWhiteAndBlack
+      Case 0
+        Paint.Brush = Paint.Color(Color.Black)
+      Case Else
+        Paint.Brush = Paint.Color(Color.White)
+    End Select
+
+    Paint.Begin(img)
+    Paint.LineWidth = 2
+    Paint.Arc(8, 8, 7, 0, 2 * Pi)
+    Paint.Brush = Paint.Color(Val(Starter.cColors.Key))
+    Paint.Fill(True)
+    Paint.Brush = Paint.Color(Color.Black)
+    Paint.Stroke()
+    Paint.End
+
+    'lt.Insert([img.Copy()])
+    Starter.cColors[Starter.cColors.Key][1] = img.Copy()
+
+  Next
+
+End
+
+Public Sub LoadLocks()
+
+  Dim obj As Object
+
+  For Each obj In pnlLocks.Children
+    Select Object.Type(obj)
+      Case "ToolButton"
+        Select obj.Tag
+          Case "grid"
+            obj.Picture = Image.FromString(Highligh("./svg/locks/grid.svg")).Stretch(22, 22).Picture
+
+          Case "debug"
+            obj.Picture = Image.FromString(Highligh("./svg/locks/debug.svg")).Stretch(22, 22).Picture
+
+        End Select
+
+    End Select
+
+  Next
+
+End
+
+Public Sub locks_Click()
+
+  Select Last.Tag
+
+    Case "data"
+      If Last.Value Then
+        Panel7.Visible = False
+        Panel3.Visible = False
+        pnlData.Visible = True
+        LoadDrawingMap3()
+        Me.Menus.Hide
+        Panel14.Visible = False
+        Panel15.Visible = False
+        pnlLocks.Visible = False
+        lblCommand.Visible = False
+        Panel11.Visible = True
+        Last.Picture = Image.FromString(Highligh("./svg/locks/drawing.svg")).Stretch(35, 35).Picture
+      Else
+        Panel7.Visible = True
+        Panel3.Visible = True
+        pnlData.Visible = False
+        Me.Menus.Show
+        Panel14.Visible = True
+        Panel15.Visible = True
+        pnlLocks.Visible = True
+        lblCommand.Visible = True
+        Panel11.Visible = False
+        Last.Picture = Image.FromString(Highligh("./svg/locks/table.svg")).Stretch(35, 35).Picture
+      Endif
+
+    Case "selection"
+      If Last.Value Then
+        pnlIcons.Visible = False
+        pnlProperties.Visible = True
+        Last.Picture = Image.FromString(Highligh("./svg/locks/selection.svg")).Stretch(35, 35).Picture
+      Else
+        pnlIcons.Visible = True
+        pnlProperties.Visible = False
+        Last.Picture = Image.FromString(Highligh("./svg/locks/tools.svg")).Stretch(35, 35).Picture
+      Endif
+
+    Case "bounds"
+      If Last.Value Then
+        gcd.DrawBounds = True
+      Else
+        gcd.DrawBounds = False
+      Endif
+
+    Case "grid"
+      If Last.Value Then
+        puntos.Gridactive = True
+      Else
+        puntos.Gridactive = False
+      Endif
+
+    Case "ortho"
+      If Last.Value Then
+        gcd.Orthogonal = True
+      Else
+        gcd.Orthogonal = False
+      Endif
+
+  End Select
+
+End
+
+Public Sub Form_Open()
+
+  Dim n As Integer
+  Dim b As Integer
+  Dim x As Integer
+
+  For n = 0 To Screens.Count - 1
+    If Screens[n].AvailableWidth > b Then
+      b = Screens[n].AvailableWidth
+      x = n
+    Endif
+  Next
+
+  Me.x = Screens[x].AvailableX
+  Me.y = Screens[x].AvailableY
+
+  gTask("new")
+
+  Me.Maximized = True
+
+End
+
+Public Sub Form_Activate()
+
+  GLplus.Init(glarea1)
+
+End
+
+Public Sub glarea1_Resize()
+
+  GLplus.Resize(glarea1)
+
+End
+
+Public Sub GLArea1_draw()
+
+  Dim iParent As Integer
+
+  'If Not gcd.DrawingReady Then Return
+
+  gcd.drwDrawingClass = gcd.drwOpenGLClass
+
+  gl.Clear(gl.DEPTH_BUFFER_BIT Or gl.COLOR_BUFFER_BIT)
+
+  gl.LoadIdentity
+
+  gl.Translatef(gcd.CurrentDrawing.PanX, gcd.CurrentDrawing.PanY, 0)
+
+  gl.Scalef(gcd.CurrentDrawing.ScaleZoom, gcd.CurrentDrawing.ScaleZoom, 1)
+
+  ' el orden del dibujo es importante en paint, porque una cosa tapa a la otra; en openGL aparentemente es al reves, lo primero se dibuja primero
+
+  ' Primero la grid
+  ' clsDrawingAids.DrawGrid
+
+  If gcd.DrawBounds Then clsDrawingAids.DrawPolygons
+
+  ' entidad resaltada
+  If gcd.CurrentDrawing.iEntity[3] >= 0 And gcd.CurrentDrawing.iEntity[3] < gcd.CurrentDrawing.arrEntities.Count Then
+
+    ' si no esta seleccionada, la resalto
+    'If Not arrEntities[iEntity[3]].Selected Then
+    'iParent = clsEntities.GetParentBlock(gcd.CurrentDrawing.iEntity[3]) ' esto verifica si tiene que resaltar el bloque completo
+    iParent = gcd.CurrentDrawing.iEntity[3]
+    gcd.CurrentDrawing.arrEntities[iParent].ClassHandler.DrawRemark(gcd.CurrentDrawing.arrEntities[iParent])
+    'End If
+
+  End If
+  clsDrawingAids.DrawCoordenadas
+
+  clsDrawingAids.DibujaHelper
+
+  gcd.clsJob.Draw()
+
+  gl.CallList(gcd.CurrentDrawing.GlListAllEntities)                      ' si GL no tiene contexto, la lista no se genera. Es necesario que la instancia de FCAD este cargada.
+
+  ' POI dinamicos
+  If gcd.CurrentDrawing.flgShowPOIinfo Then
+
+    Select gcd.CurrentDrawing.iEntity[2]
+      Case gcd.poiMidPoint
+        glPlus.PolygonFilled([gcd.CurrentDrawing.iEntity[0] - Metros(4), gcd.CurrentDrawing.iEntity[1], gcd.CurrentDrawing.iEntity[0], gcd.CurrentDrawing.iEntity[1] + Metros(4), gcd.CurrentDrawing.iEntity[0] + Metros(4), gcd.CurrentDrawing.iEntity[1], gcd.CurrentDrawing.iEntity[0], gcd.CurrentDrawing.iEntity[1] - Metros(4)], Color.Blue, Color.Green)
+      Case gcd.poiQuadrant
+        glPlus.PolygonFilled([gcd.CurrentDrawing.iEntity[0] - Metros(6), gcd.CurrentDrawing.iEntity[1], gcd.CurrentDrawing.iEntity[0], gcd.CurrentDrawing.iEntity[1] + Metros(6), gcd.CurrentDrawing.iEntity[0] + Metros(6), gcd.CurrentDrawing.iEntity[1], gcd.CurrentDrawing.iEntity[0], gcd.CurrentDrawing.iEntity[1] - Metros(6)], Color.Cyan, Color.Cyan)
+
+      Case -1
+        ' nada
+      Case gcd.poiCenter, gcd.poiBasePoint
+
+        glPlus.Circle([gcd.CurrentDrawing.iEntity[0], gcd.CurrentDrawing.iEntity[1]], Metros(4), Color.Cyan, True, False)
+        'glPlus.Rectangle2D(gcd.CurrentDrawing.iEntity[0] - Metros(4), gcd.CurrentDrawing.iEntity[1] - Metros(4), Metros(8), Metros(8), Color.Blue,,,, Color.Blue, 1, 1)
+
+      Case Else
+        glPlus.Rectangle2D(gcd.CurrentDrawing.iEntity[0] - Metros(4), gcd.CurrentDrawing.iEntity[1] - Metros(4), Metros(8), Metros(8), Color.Blue,,,, Color.Blue, 1, 1)
+
+    End Select
+
+  Endif
+
+  ' Debug "redraw"
+
+End
+
+' Protocolo del Mouse
+'--------------------
+
+' Rigth Clicks  ---> No son enviados a las clases herramienta/entidad; son procesados por FCAD como accion es que terminan o empiezan algo. Tanto MouseDown/Up
+'   MouseDown ---------> Lo ignoro
+'   MouseUp -----------> A-Trabajo activo? Mando señal de Finalizar/Cancelar ya mismo
+'                        B- Click en objeto: muestro las propiedades frmPropiedades (aun no implementado)
+'                           Click en el aire: Equivale a <enter> que repite el trabajo anterior, si lo hubo.
+
+' Wheel -----------> Es utilizado como zoom. No es enviado a las clases.
+
+' MouseMove--------> 1-Trabajo activo? --> Se envia el evento
+'                    2-Paneando? Se actualizan los valores de PanX/Y y se refresca la pantalla
+
+' Left Clicks
+'   MouseDown------> 1- Trabajo activo? -> Se envia a la clase que trabaja gcd.clsJobs si hay una activa. Sino se analziza donde fue el click.
+'                    2- no hay trabajos:
+'                           2.a- Click en el aire  --> o Paneo, segun el boton que este presionado.
+'                           2.b- Click en objeto   --> De/selecciono el objeto
+'
+'
+'
+'   MouseUp-------->1-Trabajo activo: ---> envio evento
+'
+'
+
+Public Sub GLArea1_MouseDown()
+
+  If Mouse.Right Then Return  'handled in MouseUp
+
+  If Mouse.Middle Then Return  'handled in MouseUp
+
+  Select gcd.clsJob.gender
+
+    Case "Default"                                                  ' 1. Seleccionando
+
+      gcd.clsJob.mouseDown(mouse.x, mouse.y)                               '    -> envio el evento a la clase default
+
+    Case "Builder"                                                  ' 2.Construyendo una entidad
+
+      gcd.clsJob.mouseDown(mouse.x, mouse.y)                                   '      y envio el evento a la clase
+
+    Case Else
+
+      gcd.clsJob.mouseDown(mouse.x, mouse.y)                                   ' dispatch event to the Job
+
+  End Select
+
+  redraw
+
+End
+
+Public Sub GLArea1_DblClick()
+
+  Dim k As Single
+  Dim e As Entity
+  Dim te As Entity
+  Dim ftx As FText
+
+  CursorX = mouse.x
+  CursorY = mouse.y
+
+  Select gcd.clsJob.gender
+
+    Case "Default"                                                  ' 1. Seleccionando
+
+      If Not Me.flgSearchingPOI Then
+        gcd.CurrentDrawing.iEntity = clsMouseTracking.CheckPOI(Xreal(mouse.x), Yreal(mouse.Y))
+      Else    ' estoy buscando, pero me movi, asi que me desengancho del POI anterior
+
+        gcd.CurrentDrawing.iEntity[0] = Xreal(mouse.x)
+        gcd.CurrentDrawing.iEntity[1] = Yreal(mouse.y)
+        gcd.CurrentDrawing.iEntity[2] = -1                 ' POI type
+        gcd.CurrentDrawing.iEntity[3] = -1                 ' Hooked entity
+
+      End If
+
+      If gcd.CurrentDrawing.iEntity[3] >= 0 Then
+
+        'Stop
+        ' I comment the abobe line because its stop my tool also. What is the idea whit stop?
+        ' TINCHO aca podes lanzar tu editor de texto u otras propiedades
+        k = gcd.CurrentDrawing.iEntity[3]
+        e = gcd.CurrentDrawing.arrEntities[k]
+
+        Select e.Gender
+          Case "Text"
+            If EditingText = False Then
+              ' Copying the entity for undo
+              te = clsEntities.ClonEntity(e)
+              te.Handle = e.Handle
+              ftx = New FText([pnlDrawing.ScreenX + 7, pnlDrawing.ScreenY + pnlDrawing.H - 7], e)
+              ftx.Run()
+              While EditingText = False
+                Wait 0.1
+              Wend
+              APPMain.Regen
+              EditingText = False
+            Endif
+        End Select
+      Endif
+      '======================= otra Tool
+    Case Else
+
+  End Select
+
+End
+
+Public Sub GLArea1_MouseMove()
+
+  CursorX = mouse.x
+  CursorY = mouse.y
+  Me.flgSearchingEntity = True ' FIXME: poner en false despues de reparar
+  Me.flgSearchingPOI = True
+
+  Select gcd.clsJob.gender
+
+    Case "Default"                                                  ' 1. Seleccionando
+
+      If gcd.clsJob.poichecking Then
+        If gcd.clsJob.iEntityForEdit < 0 Then
+          If Not Me.flgSearchingEntity Then
+            gcd.CurrentDrawing.iEntity[2] = -1
+            gcd.CurrentDrawing.iEntity[3] = clsMouseTracking.CheckAboveEntity(Xreal(mouse.x), Yreal(mouse.Y), Metros(8))
+            If gcd.CurrentDrawing.iEntity[3] <> gcd.CurrentDrawing.iLastEntity Then
+              gcd.CurrentDrawing.iLastEntity = gcd.CurrentDrawing.iEntity[3]
+
+            End If
+
+          Else
+            Debug "No puedo buscar entidades"
+          End If
+        Else
+          If Not Me.flgSearchingPOI Then
+            gcd.CurrentDrawing.iEntity = clsMouseTracking.CheckPOI(Xreal(mouse.x), Yreal(mouse.Y))
+          Else    ' estoy buscando, pero me movi, asi que me desengancho del POI anterior
+
+            gcd.CurrentDrawing.iEntity[0] = Xreal(mouse.x)
+            gcd.CurrentDrawing.iEntity[1] = Yreal(mouse.y)
+            gcd.CurrentDrawing.iEntity[2] = -1                 ' POI type
+            gcd.CurrentDrawing.iEntity[3] = -1                 ' Hooked entity
+
+          End If
+        End If
+      End If
+      gcd.clsJob.MouseMove(mouse.x, mouse.y) ' dispatch event to the Job
+
+      If gcd.ShowInspector Then
+
+        If gcd.CurrentDrawing.iEntity[3] >= 0 Then
+
+          FInspector.Run(gcd.CurrentDrawing.arrEntities[gcd.CurrentDrawing.iEntity[3]])
+        Else
+          FInspector.Close
+
+        Endif
+      End If
+
+      '======================= otra Tool
+    Case Else
+
+      If gcd.clsJob.poichecking Then
+        If Not Me.flgSearchingPOI Then
+          gcd.CurrentDrawing.iEntity = clsMouseTracking.CheckPOI(Xreal(mouse.x), Yreal(mouse.Y))
+        Else    ' estoy buscando, pero me movi, asi que me desengancho del POI anterior
+
+          gcd.CurrentDrawing.iEntity[0] = Xreal(mouse.x)
+          gcd.CurrentDrawing.iEntity[1] = Yreal(mouse.y)
+          gcd.CurrentDrawing.iEntity[2] = -1                 ' POI type
+          gcd.CurrentDrawing.iEntity[3] = -1                 ' Hooked entity
+
+        End If
+
+      End If
+
+      If gcd.clsJob.EntityChecking Then
+        If Not Me.flgSearchingEntity Then
+          gcd.CurrentDrawing.iEntity[3] = clsMouseTracking.CheckAboveEntity(Xreal(mouse.x), Yreal(mouse.Y), Metros(8))
+        End If
+      End If
+
+      gcd.CurrentDrawing.flgShowPOIinfo = True
+
+      clsDrawingAids.Helper.dX = 15
+      clsDrawingAids.Helper.dY = 15
+      clsDrawingAids.Helper.fColor = Color.DarkBlue
+      gcd.clsJob.MouseMove(mouse.x, mouse.y) ' dispatch event to the Job
+
+  End Select
+
+  Redraw
+
+End
+
+Public Sub GLArea1_MouseUp()
+  ' ex Public Sub drwArea_MouseUp()
+
+  ' "Los IF son mas rapidos" - Autor Anonimo
+
+  ' los rigth clicks se manejan en FCAD , ni las herramientas ni las entidades los necesitan
+  If Mouse.Right Then                ' rigth clicks means finish what you're doing rigth now and go back to the previous Job
+    ' the Finish() sub will do this in a good manner
+    If gcd.clsJob.gender = "Builder" Then
+
+      gcd.clsJob.KeyText("U")
+
+    Else If gcd.clsJob.gender = "Default" Then
+
+      gcd.clsJob = gcd.clsJobPrevious
+      gcd.clsJob.Start()
+
+    Else    ' es una tool
+
+      gcd.clsJob.finish
+      gcd.clsJobPrevious = gcd.clsJob
+      gcd.clsJob = clsDefaultJob
+
+    Endif
+
+  Else If Mouse.Left Then
+
+    gcd.clsJob.MouseUp(mouse.x, mouse.y)
+
+  Else If Mouse.Middle Then
+
+    If gcd.clsJob.gender <> "Pan" Then
+      gcd.clsJobPreZoom = gcd.clsJob
+      gcd.clsJob = cadPan
+      gcd.clsJob.Start()
+
+    Else
+
+      gcd.clsJob = gcd.clsJobPreZoom
+
+    End If
+
+  End If
+
+  redraw
+
+End
+
+Public Function Xreal(ScreenX As Float) As Float
+
+  Return Metros((screenx - glarea1.w / 2 - gcd.CurrentDrawing.PanX))
+
+End
+
+Public Function Yreal(ScreenY As Float) As Float
+
+  Return Metros((-ScreenY + glarea1.h / 2 - gcd.CurrentDrawing.PanY))
+
+End
+
+Public Function Pixels(distancia As Float) As Float  ' converts meters to pixels
+  ' transforma Metros en Pixeles sin tener en cuenta el Pan
+
+  Return distancia * gcd.CurrentDrawing.ScaleZoom
+
+End
+
+Public Function Metros(pixeles As Integer) As Float  ' converts pixels to meters
+
+  Return pixeles / gcd.CurrentDrawing.ScaleZoom
+
+End
+
+Public Sub GLArea1_MouseWheel()
+  ' ex  Public Sub drwArea_MouseWheel()
+
+  Dim px, py, factor As Float
+  ' chequeamos si vale la pena seguir dibujando la grid, o sea, menos de 3 pixels
+
+  If Pixels(puntos.GridSpacing) < 5 Then puntos.Gridactive = False Else puntos.Gridactive = True
+
+  px = Xreal(GLArea1.w / 2)
+  py = Yreal(GLArea1.h / 2)
+
+  ' TODO: , redondear para que la escala sea 1:100 1:75 1:50 etc
+
+  factor = (1 + 0.075 * Mouse.Delta)
+
+  gcd.CurrentDrawing.ScaleZoom = gcd.CurrentDrawing.ScaleZoom * factor
+
+  ' pero con ciertos limites
+  ' If ScaleZoom < 0.001 Then ScaleZoom = 0.001
+  ' If ScaleZoom > 50 Then ScaleZoom = 50
+
+  ' reacomodo el panning, pero solo si estoy en los limites del drwarea, sino es solo un zoom
+  ' pero tengo que reajustar la posicion de las cosas , porque tienden a alejarse
+  ' Supongamos que partimos de un Zoom = 1 y una posicion centrada, y hacemos zoom=2
+  ' la posicion de las cosas estara 2x mas alejado; yo quiero que lo que hay en el centro de la pantalla, siga ahi
+  ' entonces Pc = drwarea/2 anes del zoom, debera estar en el mismo lugar
+
+  gcd.CurrentDrawing.PanX = -Pixels(px)
+  If mouse.x < glarea1.w * 0.2 Then
+    gcd.CurrentDrawing.PanX -= gcd.CurrentDrawing.ScaleZoom * 5 * Mouse.Delta
+  Else If mouse.x > glarea1.w * 0.8 Then
+    gcd.CurrentDrawing.PanX += gcd.CurrentDrawing.ScaleZoom * 5 * Mouse.Delta
+  Endif
+
+  gcd.CurrentDrawing.PanY = -Pixels(py)
+  If mouse.y < glarea1.h * 0.2 Then
+    gcd.CurrentDrawing.PanY -= gcd.CurrentDrawing.ScaleZoom * 5 * Mouse.Delta
+  Else If mouse.y > glarea1.h * 0.8 Then
+    gcd.CurrentDrawing.PanY += gcd.CurrentDrawing.ScaleZoom * 5 * Mouse.Delta
+  Endif
+
+  redraw
+
+End
+
+Public Sub redraw()
+
+  glarea1.Refresh
+
+End
+
+'' Regenera las listas de OpenGL
+Public Sub Regen()
+
+  'gcd.UpdateLayers
+  clsEntities.glGenDrawList
+  clsEntities.glGenDrawListSel
+  redraw
+
+End
+
+Public Sub entity_Click()
+
+  ' vamos a mejorar esto
+  ' veo que estoy haciendo
+  If gcd.clsJob.Gender = "Default" Then ' estoy seleccionando
+
+    gcd.clsJob.KeyText(Last.Tag)
+
+  Else ' If gcd.clsJob = clsEntityBuilder Then ' esoy dibjando algo, debo cancelar
+
+    gcd.clsJob.Cancel()
+    gcd.clsJob = clsDefaultJob
+    gcd.clsJob.KeyText(Last.Tag)
+
+  End If
+
+End
+
+Public Sub tool_Click()
+
+  gcd.clsJob.KeyText(Last.Tag)
+
+End
+
+Public Sub menuapp_Click()
+
+  gTask(Last.Tag)
+
+End
+
+Public Sub view_Click()
+
+  gcd.clsJob.KeyText(Last.Tag)
+
+End
+
+Public Sub LoadComboboxes(cMdl As Collection)
+
+  Dim cVars As Collection
+
+  cMod = cMdl
+
+  If cMdl.Exist("Variables") Then
+
+    cVars = cMdl["Variables"]
+
+    If cVars.Exist("clayer") Then
+      CurrentLayer = cVars["clayer"]
+    Else
+      CurrentLayer = "0"
+    Endif
+
+    If cVars.Exist("cecolor") Then
+      If cVars["cecolor"] <> "" Then
+        CurrentColor = CInt(cVars["cecolor"])
+      Endif
+    Else
+      CurrentColor = 1
+    Endif
+
+    If cVars.Exist("celtype") Then
+      If Starter.cStyles.Exist(cVars["celtype"]) Then
+        CurrentLtype = Starter.cStyles[cVars["celtype"]]
+      Else
+        CurrentLtype = 1 'cVars["celtype"]
+      Endif
+    Else
+      CurrentLtype = 1
+    Endif
+
+    If cVars.Exist("celweight") Then
+      If Starter.cWidths.Exist(cVars["celweight"]) Then
+        CurrentWidth = cVars["celweight"]
+      Else
+        CurrentWidth = 1
+      Endif
+
+    Else
+      CurrentWidth = 1
+    Endif
+
+    btnLayers.Text = CurrentLayer
+    ColorButtonRefresh(CurrentColor)
+
+  Endif
+
+End
+
+Public Sub gTask(sTask As String)
+
+  Dim s As String
+  'Dim cModel As New Collection
+  Dim ctn As New Collection
+  Dim cfg As New Collection
+
+  Dim hFConfig As FConfig                 '' Edit program configuration
+  Dim hFAbout As FAbout                  '' Formulario que muestra informacin del programa
+  Dim wtag As String
+
+  'Dim stx As New String[]
+  'Dim FilePath As String            ''Nombre del archivo que se abrira
+  'Dim FileExt As String
+  'Dim FileDef As String
+  'Dim i As Integer
+  'Dim template As Boolean
+  Dim NewDrawing As ClsDrawing
+  'Dim FileTmp As String
+  ' Saving as json / dwg
+  'Dim Content As String             '' JSON content file
+  'Dim tag As String
+  'Dim vrt As Variant
+  'Dim sRewrite As String
+  'Dim FileTest As String
+  Dim f, fDxf, fBak As String
+  Dim fMinimal As String = "./minimal/minimal-2010.dxf"
+  'Dim mnu As Menu
+  'Dim grp As Menu
+  'Dim mdwg As Menu
+  Dim fx As String[]
+  Dim fbas As String
+  Dim t As String
+  'Dim cObjects As Variant
+  'Dim ob As Variant
+  'Dim et As Variant
+  'Dim iColor As Variant
+
+  '' if the drawing is drawingX.xml, drawingX.gcad where X is a integer number then the Ssave is changed to Save As
+
+  Select sTask
+
+    Case "new"
+
+      NewDrawing = New ClsDrawing
+      gcd.Drawings.Add(NewDrawing)
+      gcd.CurrentDrawing = gcd.Drawings.Last
+      gcd.CurrentDrawing.FileName = User.Home &/ "drawing1.dxf"
+      dxf.LoadFile(fMinimal, gcd.CurrentDrawing.cModel)
+      gcd.CurrentDrawing.cEntities = gcd.CurrentDrawing.cModel["ENTITIES"]
+      gcd.CurrentDrawing.cBlocks = gcd.CurrentDrawing.cModel["BLOCKS"]
+      gcd.CurrentDrawing.cHeader = gcd.CurrentDrawing.cModel["HEADER"]
+      gcd.CurrentDrawing.cLayers = gcd.CurrentDrawing.cModel["TABLES"]["LAYER"]
+      gcd.CurrentDrawing.cLtypes = gcd.CurrentDrawing.cModel["TABLES"]["LTYPE"]
+      gcd.CurrentDrawing.HandSeed = gcd.iHeader("$HANDSEED")
+
+
+      Me.Text = f
+      LoadMenu()
+
+    Case "open"
+      fx = dsk.FileChooser(Settings["LastDir", User.Home], ["dwg", "json", "dxf"])
+      If fx.Count > 0 Then
+        f = fx[0]
+        If Exist(f) Then
+          If Stat(f).Type = gb.File Then
+            Select Lower(File.Ext(f))
+              Case "dwg"
+
+                NewDrawing = New ClsDrawing
+                gcd.Drawings.Add(NewDrawing)
+                gcd.CurrentDrawing = gcd.Drawings.Last
+                gcd.CurrentDrawing.FileName = f
+                dxf.LoadFile(fMinimal, gcd.CurrentDrawing.cModel)
+
+                APPMain.Mouse = Mouse.Wait
+                Application.Busy = 1
+                fDxf = dxf.DWGtoDXF(f)
+
+                gcd.CurrentDrawing.RequiresFileRename = True
+
+                dxf.LoadFile(fDxf, gcd.CurrentDrawing.cModel, False, False, False)
+                gcd.CurrentDrawing.cEntities = gcd.CurrentDrawing.cModel["ENTITIES"]
+                gcd.CurrentDrawing.cBlocks = gcd.CurrentDrawing.cModel["BLOCKS"]
+                gcd.CurrentDrawing.cHeader = gcd.CurrentDrawing.cModel["HEADER"]
+                gcd.CurrentDrawing.cLayers = gcd.CurrentDrawing.cModel["TABLES"]["LAYER"]
+                gcd.CurrentDrawing.cLtypes = gcd.CurrentDrawing.cModel["TABLES"]["LTYPE"]
+                gcd.CurrentDrawing.HandSeed = gcd.iHeader("$HANDSEED")
+
+
+                gcd.UpdateGraphics
+                regen
+                ' modelo recien cargado
+                cadZoomE.Start()                                ' por ahora mostramos el dibujo centrado, hasta q leamos el estado anterior
+
+                Me.Text = f
+
+                LoadMenu()
+                Application.Busy = 0
+                APPMain.Mouse = Mouse.Arrow
+              Case "dxf"
+
+                NewDrawing = New ClsDrawing
+                gcd.Drawings.Add(NewDrawing)
+                gcd.CurrentDrawing = gcd.Drawings.Last
+                dxf.LoadFile(fMinimal, gcd.CurrentDrawing.cModel)
+
+                gcd.CurrentDrawing.FileName = f
+
+                gcd.CurrentDrawing.RequiresFileRename = False
+
+                dxf.LoadFile(f, gcd.CurrentDrawing.cModel, False, False, False)
+                gcd.CurrentDrawing.cEntities = gcd.CurrentDrawing.cModel["ENTITIES"]
+                gcd.CurrentDrawing.cBlocks = gcd.CurrentDrawing.cModel["BLOCKS"]
+                gcd.CurrentDrawing.cHeader = gcd.CurrentDrawing.cModel["HEADER"]
+                gcd.CurrentDrawing.cLayers = gcd.CurrentDrawing.cModel["TABLES"]["LAYER"]
+                gcd.CurrentDrawing.cLtypes = gcd.CurrentDrawing.cModel["TABLES"]["LTYPE"]
+                gcd.CurrentDrawing.HandSeed = gcd.iHeader("$HANDSEED")
+
+                gcd.UpdateGraphics
+                regen
+                ' modelo recien cargado
+                cadZoomE.Start()                                ' por ahora mostramos el dibujo centrado, hasta q leamos el estado anterior
+
+                Me.Text = f
+
+                LoadMenu()
+
+            End Select
+          Endif
+        Endif
+      Endif
+
+    Case "save"
+      ' en este momento solo podemos guardar DXF, en caso que el archivo abierto
+      ' sea un DWG llamamos a SaveAs
+
+
+      '   s = dwg.Encode(gcd.CurrentDrawing.vrxMod)
+      f = gcd.CurrentDrawing.FileName
+      '   t = "/tmp/tmp.json"
+      fbas = File.Dir(f) &/ File.BaseName(f)
+      fBak = "'" & fbas & ".bak'"
+      If File.Ext(f) = "dwg" Or gcd.CurrentDrawing.RequiresFileRename Then
+        Me.gTask("saveas")
+        Return
+      Else
+        If Exist(f) Then
+          If Exist(fBak) Then Shell "rm " & fBak Wait
+          Shell "mv '" & f & "' '" & fbas & ".bak'" Wait
+        End If
+
+        Dxf.SaveFile(f, gcd.CurrentDrawing.cModel)
+
+      Endif
+      '     If Exist(f) Then
+      '       Shell "mv " & f & " " & fbas & ".bak" Wait
+      '       If Exist(t) Then
+      '         Shell "rm " & t Wait
+      '       Endif
+      '     Endif
+      '   Endif
+      '   File.Save(t, s)
+      '   If dwg.Write(t, f) Then
+      '     Print "ok"
+      '   Endif
+
+    Case "saveas"
+      ' s = dwg.Encode(gcd.CurrentDrawing.cModel)
+      f = gcd.CurrentDrawing.FileName
+      fbas = File.Dir(f) &/ File.BaseName(f)
+      fBak = "'" & fbas & ".bak'"
+      'fx = dsk.FileChooser(Settings["LastDir", User.Home], ["dwg"])
+      Dialog.Filter = ["*.dxf", "DXF Drawing exchange 2010"]
+      Dialog.SaveFile()
+      If Dialog.Path Then
+        f = Dialog.Path
+        If Exist(f) Then
+          If Message.Question(("The file exist"), ("Replace"), ("Cancel")) = 2 Then
+            f = ""
+          Endif
+        Endif
+      Else
+        f = ""
+      Endif
+
+      If f = "" Then
+        Print "Cancel"
+      Else
+
+        If LCase(File.Ext(f)) <> "dxf" Then f &= ".dxf"
+
+        If Exist(f) Then
+          If Exist(fBak) Then Shell "rm " & fBak Wait
+          Shell "mv '" & f & "' '" & fbas & ".bak'" Wait
+        End If
+
+        Dxf.SaveFile(f, gcd.CurrentDrawing.cModel)
+        gcd.CurrentDrawing.FileName = f
+        Me.Text = f
+
+
+      Endif
+
+
+      ' t = "/tmp/tmp.json"
+      ' File.Save(t, s)
+      ' If f = "" Then
+      '   Print "Cancel"
+      ' Else
+      '   fbas = File.Dir(f) &/ File.BaseName(f)
+      '   If File.Ext(f) = "dwg" Then
+      '     If Exist(f) Then
+      '       Shell "mv " & f & " " & fbas & ".bak" Wait
+      '       If Exist(t) Then
+      '         Shell "rm " & t Wait
+      '       Endif
+      '     Endif
+      '   Endif
+      '
+      '   If dwg.Write(t, f) Then
+      '     Print "ok"
+      '   Endif
+      ' Endif
+
+    Case "import"
+
+
+    Case "export"
+
+
+
+    Case "info"
+      wtag = sTask
+      If gcd.Drawings.Count = 0 Or ExistWin(wtag) < 0 Then
+        File.Save("/tmp/apppath.txt", Application.Dir)
+        cfg = sog.ProjInfo(Application.Path & "/.project")
+        hFAbout = New FAbout(cfg)
+        hFAbout.Tag = wtag
+        hFAbout.Title = ("About") & " " & Application.Name
+      Else
+        gcd.CurrentDrawing = ExistWin(wtag)
+      Endif
+
+    Case "help"
+      Print "Help"
+
+    Case "options"
+      wtag = sTask
+      s = adi &/ "cfg.xml"
+      If Exist(File.Dir(s)) = False Then
+        Mkdir File.Dir(s)
+      Endif
+      If Exist(s) = False Then
+        ctn = cad.CADConfig()
+        xmg.XmlConfMaker(s, ctn, Application.Name)
+      Endif
+      hFConfig = New FConfig(cex)
+
+    Case "quit", "exit"
+      Me.Close
+
+  End Select
+
+End
+
+Public Sub LoadMenu()
+
+  Dim i As Integer
+
+  cboDrawing.Clear
+  For i = 0 To gcd.Drawings.Max
+    cboDrawing.Add(gcd.Drawings[i].FileName)
+  Next
+  cboDrawing.Text = gcd.CurrentDrawing.FileName
+  cboDrawing.Refresh
+
+End
+
+' '' This vierify if the drawing is already opened
+'
+' Public Function ExistWin(wtag As String, ws As Workspace) As Boolean
+'
+'   Dim wExist As Boolean
+'   Dim w As Window
+'
+'   wExist = False
+'
+'   For Each w In ws.Windows
+'     If w.Tag = wtag Then
+'       wExist = True
+'       Break
+'     Endif
+'   Next
+'
+'   Return wExist
+'
+' End
+
+'' This vierify if the drawing is already opened
+'' Returns index of drawing or -1 if not exist
+Public Function ExistWin(wtag As String) As Integer
+  ' Tincho, le hice una mejora a esta funcion, en vez de retornar si existe unicamente, ahora retorna el indice
+  ' del dibujo si existe o -1 si no existe, lo q ahorra codigo en gTask
+
+  Dim i As Integer
+
+  For i = 0 To gcd.Drawings.Max
+
+    If gcd.Drawings[i].FileName = wtag Then Return i
+
+  Next
+
+  Return -1
+
+End
+
+Public Sub ZoomWindow()
+
+  gcd.clsJobPrevious = gcd.clsJob
+  gcd.clsJob = cadZoomW
+  gcd.clsJob.Start
+
+End
+
+'' This is very important because switch the cModel collection between drawings
+
+' Public Sub Workspace1_Activate()
+'
+'   Dim aWin As Window
+'
+'   If Workspace1.ActiveWindow Then
+'     aWin = Workspace1.ActiveWindow
+'
+'     If aWin.Name = "FCAD" Then
+'
+'       CurrentDrawing = aWin
+'       LoadComboboxes(gcd.CurrentDrawing.cModel)
+'
+'       Print aWin.Tag
+'       CurrentFile = aWin.Tag
+'
+'     Endif
+'   Endif
+'
+' End
+
+' Public Sub tobLayers_Click()
+'
+'   Dim FLay As FLayers
+'
+'   FLay = New FLayers
+'   FLay.Run(gcd.CurrentDrawing.cModel)
+'
+' End
+
+' Public Sub dprop_Click()
+'
+'   Dim obj As Object
+'   Dim FLay As FLayers
+'
+'   obj = Last
+'
+'   Select obj.Tag
+'     Case "layer"
+'       CurrentLayer = obj.Text
+'       Print CurrentLayer
+'     Case "OpenFormLayer"
+'       FLay = New FLayers
+'       FLay.Run(gcd.CurrentDrawing.cModel)
+'   End Select
+'
+' End
+
+Public Sub KillJob() ' no funciona bien
+  ''TODO: Mejorar esta sub o hacer una nueva para CANCELAR el comando actual
+
+  gcd.clsJob.Finish()
+  gcd.clsJobPrevious = gcd.clsJob
+  gcd.clsJob = clsDefaultJob
+
+End
+
+Public Sub btnLtypes_MouseDown()
+
+  Dim lst As FLtypes
+  Dim vrx As Variant[]
+  Dim img2 As Image
+
+  If SelectingLtype = False Then
+    lst = New FLtypes(Starter.cStyles, [btnLtypes.ScreenX, btnLtypes.ScreenY + btnLtypes.H], Me)
+    lst.Run()
+    Do
+      If SelectingLtype = True Then
+        vrx = Starter.cStyles[CStr(CurrentLtype)]
+        If vrx.Count > 2 Then
+          If Object.Type(vrx[3]) = "Image" Then
+            img2 = vrx[3]
+            btnLtypes.Picture = img2.Picture
+            btnLtypes.Tooltip = vrx[2]
+          Endif
+        Endif
+        SelectingLtype = False
+        Break
+      Else
+        Wait 0.1
+      Endif
+    Loop
+  Endif
+
+End
+
+Public Sub btnWidths_MouseDown()
+
+  Dim frm As FWidths
+  Dim vrx As Variant[]
+  Dim img2 As Image
+  Dim wtx As Integer
+
+  If SelectingWidth = False Then
+    frm = New FWidths(Starter.cWidths, [btnWidths.ScreenX, btnWidths.ScreenY + btnWidths.H], Me)
+    frm.Run()
+    Do
+      If SelectingWidth = True Then
+        vrx = Starter.cWidths[CStr(CurrentWidth)]
+        If vrx Then
+          If vrx.Count > 1 Then
+            If Object.Type(vrx[2]) = "Image" Then
+              If CInt(CurrentWidth) > 0 And CInt(CurrentWidth) < 27 Then
+                img2 = vrx[2]
+                wtx = dsk.TextWidth(CStr(vrx[0]) & " mm", btnWidths.Font.Name, btnWidths.Font.Size)
+                btnWidths.Text = " " & CStr(vrx[0]) & " mm"
+                btnWidths.Picture = img2.Stretch(btnWidths.W - wtx - 24, img2.H).Picture
+                btnWidths.Tooltip = ("Width") & " " & CStr(vrx[0]) & " mm"
+              Else
+                btnWidths.Picture = Null
+                btnWidths.Text = vrx[0]
+                btnWidths.Tooltip = ("Width") & " " & vrx[0]
+              Endif
+
+            Endif
+          Endif
+        Endif
+        SelectingWidth = False
+        Break
+      Else
+        Wait 0.1
+      Endif
+    Loop
+  Endif
+
+End
+
+' Public Sub btnWidths_MouseDown()
+'
+'   Dim lst As FWidths
+'   Dim vrx As Variant[]
+'   Dim img2 As Image
+'
+'   If SelectingLtype = False Then
+'     lst = New FWidths(Starter.cWidths, [btnWidths.ScreenX, btnWidths.ScreenY + btnWidths.H], Me)
+'     lst.Run()
+'     Do
+'       If SelectingWidth = True Then
+'         vrx = Starter.cWidths[CStr(CurrentWidth)]
+'         If vrx.Count > 2 Then
+'           If Object.Type(vrx[2]) = "Image" Then
+'             img2 = vrx[2]
+'             btnWidths.Picture = img2.Picture
+'             btnWidths.Tooltip = vrx[1]
+'           Endif
+'         Endif
+'         SelectingWidth = False
+'         Break
+'       Else
+'         Wait 0.1
+'       Endif
+'     Loop
+'   Endif
+'
+' End
+
+Public Sub btnColors_MouseDown()
+
+  ' Dim r As Integer
+  ' Dim g As Integer
+  ' Dim b As Integer
+  ' Dim img As Image
+  Dim FClr As FColors16
+
+  If SelectingColor = False Then
+    FClr = New FColors16([btnColors.ScreenX, btnColors.ScreenY + btnColors.H], Me)
+    FClr.Border = False
+    FClr.Stacking = Window.Above
+    FClr.Show()
+    Do
+      If SelectingColor = True Then
+        ' r = CInt(Split(Starter.ColorsRGB[CurrentColor], ",")[0])
+        ' g = CInt(Split(Starter.ColorsRGB[CurrentColor], ",")[1])
+        ' b = CInt(Split(Starter.ColorsRGB[CurrentColor], ",")[2])
+        ' imgColor = New Image(btnColors.H - 2, btnColors.H - 2, Color.RGB(r, g, b), 0)
+        ' img = dsk.ImageFrame(imgColor)
+        ' btnColors.Picture = img.Picture
+        ' btnColors.Refresh
+        ' Select CurrentColor
+        '   Case 256
+        '     btnColors.Tooltip = ("Color") & ": " & "ByBlock"
+        '   Case 257
+        '     btnColors.Tooltip = ("Color") & ": " & "ByLayer"
+        '   Case Else
+        '     btnColors.Tooltip = ("Color") & ": " & CStr(CurrentColor)
+        ' End Select
+        ColorButtonRefresh(CurrentColor)
+        ChangeColorRefresh()
+        SelectingColor = False
+        Break
+      Else
+        Wait 0.01
+      Endif
+    Loop
+  Endif
+
+End
+
+Public Sub ColorButtonRefresh(currColor As Integer)
+
+  Dim r As Integer
+  Dim g As Integer
+  Dim b As Integer
+  Dim img As Image
+
+  r = CInt(Split(Starter.ColorsRGB[currColor], ",")[0])
+  g = CInt(Split(Starter.ColorsRGB[currColor], ",")[1])
+  b = CInt(Split(Starter.ColorsRGB[currColor], ",")[2])
+  imgColor = New Image(btnColors.H - 2, btnColors.H - 2, Color.RGB(r, g, b), 0)
+  img = dsk.ImageFrame(imgColor)
+  'img = Starter.cColors[CStr(currColor)][1]
+  btnColors.Picture = img.Picture
+  'btnColors.Picture = imgColor.Picture
+  btnColors.Refresh
+  Select CurrentColor
+    Case 256
+      btnColors.Tooltip = ("Color") & ": " & "ByBlock"
+    Case 257
+      btnColors.Tooltip = ("Color") & ": " & "ByLayer"
+    Case Else
+      btnColors.Tooltip = ("Color") & ": " & CStr(CurrentColor)
+  End Select
+
+End
+
+Public Sub ChangeColorRefresh()
+
+  Dim i As Integer
+  Dim e As Entity
+  Dim Changed As Boolean
+  Dim te As Entity
+
+  For i = 0 To gcd.CurrentDrawing.arrEntities.Max
+    Changed = False
+    e = gcd.CurrentDrawing.arrEntities[i]
+    gcd.CurrentDrawing.arrTmp.Clear
+
+    If e.Selected And e.iInsert = -1 Then
+      e = gcd.CurrentDrawing.arrEntities[i]
+      te = clsEntities.ClonEntity(e)
+      te.Handle = e.Handle
+      gcd.CurrentDrawing.arrTmp.Add(te)
+      cProp["Color"] = CurrentColor
+      If e.colour <> cProp["Color"] Then
+        Changed = True
+        e.colour = cProp["Color"]
+        e.ColorToPaint = cProp["Color"]
+      Endif
+    Endif
+
+    If Changed = True Then
+      gcd.CurrentDrawing.arrUndo.Add(te)
+      appmain.regen
+    Endif
+
+  Next
+
+End
+
+Public Sub btnLayers_MouseDown()
+
+  Dim FLay As FLayers1
+  'Dim vrx As Variant[]
+  Dim cVars As Collection
+  'Dim var As Collection
+  Dim currLayer As Variant
+
+  'FLay = New FLayers1(gcd.CurrentDrawing.cModel["Layers"], [Workspace1.ScreenX, Workspace1.ScreenY])
+  FLay = New FLayers1(gcd.CurrentDrawing.cModel, [Me.ScreenX, Me.ScreenY])
+
+  'cVars = gcd.CurrentDrawing.cModel["Variables"]
+  cVars = gcd.CurrentDrawing.cModel["HEADER"]
+
+  If SelectingLayer = False Then
+    FLay.Stacking = Window.Above
+    FLay.Border = False
+    FLay.Run()
+    Do
+      If SelectingLayer = True Then
+        If cVars.Exist("CLAYER") Then
+          If cVars["CLAYER"] <> "" Then
+            currLayer = cVars["CLAYER"]
+          Else
+            currLayer = "0"
+          Endif
+        Else
+          currLayer = "0"
+        Endif
+        'For Each var In cVars
+        'If var["name"] = "clayer" Then
+        'currLayer = v["name"]
+        btnLayers.Text = currLayer 'var["value"]
+        '   Break
+        ' Endif
+        'Next
+        SelectingLayer = False
+      Else
+        Wait 0.1
+      Endif
+    Loop
+  Endif
+
+End
+
+Public Sub btnRefresh_Click()
+  ''FIXED: Poner esta accion en otro evento, por ejemplo despues de seleccionar entidades.
+
+  SelectionRefresh()
+
+End
+
+Public Sub SelectionRefresh()
+
+  Dim e As Entity
+  Dim etype As New String[]
+  Dim i As Integer
+  Dim j As Integer
+  ' Text Edit
+  'Dim ftx As FText
+  'Dim te As New Entity                  '' Cloned entity to put in undo collection
+
+  ComboBox1.Clear
+  ComboBox1.Text = ""
+  cProp.Clear
+  TableView1.Clear
+
+  For i = 0 To gcd.CurrentDrawing.arrEntities.Max
+    e = gcd.CurrentDrawing.arrEntities[i]
+    If e.Selected Then
+      If etype.Exist(e.Gender) = False Then
+        etype.Add(e.Gender)
+      Endif
+    Endif
+  Next
+
+  If etype.Count > 0 Then
+    'pnlProperties.Visible = True
+    'SelectionMode("selection")
+    PropertiesFlag = True
+  Else
+    'SelectionMode()
+    pnlProperties.Visible = False
+    PropertiesFlag = False
+  Endif
+
+  Select etype.Count
+    Case 0
+      'Aca se puede poner en off el panel de seleccion ya que no hay entidades seleccionadas
+      'skip
+    Case 1
+      For i = 0 To gcd.CurrentDrawing.arrEntities.Max
+        e = gcd.CurrentDrawing.arrEntities[i]
+        If e.Selected Then
+          Break
+        Endif
+      Next
+
+      Select e.Gender
+        Case "Text"
+          '     If EditingText = False Then
+          '       ' Copying the entity for undo
+          '       te = clsEntities.ClonEntity(e)
+          '       te.Handle = e.Handle
+          '       ftx = New FText([pnlDrawing.ScreenX + 7, pnlDrawing.ScreenY + pnlDrawing.H - 7], e)
+          '       ftx.Run()
+          '       While EditingText = False
+          '         Wait 0.1
+          '       Wend
+          '       appmain.regen
+          '       EditingText = False
+          '     Endif
+        Case Else
+          ComboBox1.Add(etype[0])
+          ComboBox1.Text = etype[0]
+          LoadPropertiesList(etype[0])
+      End Select
+
+    Case Else
+      ComboBox1.Add(("All"))
+      For j = 0 To etype.Max
+        ComboBox1.Add(etype[j])
+      Next
+      ComboBox1.Text = ("All")
+      LoadPropertiesList("varies")
+  End Select
+
+End
+
+'Public Sub btnSave_Click()
+Public Sub PropSave()
+
+  Dim i As Integer
+  Dim r As Integer
+  Dim e As Entity
+  Dim lay As Collection
+  Dim ly As Collection
+  Dim Changed As Boolean
+  Dim te As Entity
+  'Dim obj As Entity
+  Dim lt As Variant[]
+  Dim lwt As Variant[]
+
+  lay = gcd.CurrentDrawing.cModel["Layers"]
+
+  For i = 0 To gcd.CurrentDrawing.arrEntities.Max
+    Changed = False
+    e = gcd.CurrentDrawing.arrEntities[i]
+    gcd.CurrentDrawing.arrTmp.Clear
+
+    If e.Selected Then
+      'Copio la entidad en una lista temportal
+      e = gcd.CurrentDrawing.arrEntities[i]
+
+      te = clsEntities.ClonEntity(e)
+      te.Handle = e.Handle
+
+      gcd.CurrentDrawing.arrTmp.Add(te)
+
+      For r = 0 To TableView1.Rows.Count - 1
+        Select TableView1[r, 0].Text
+          Case "Layer"
+            cProp["Layer"] = TableView1[r, 1].Text
+            If e.LayerId <> cProp["Layer"] Then
+              Changed = True
+              e.LayerId = cProp["Layer"]
+              For Each ly In lay
+                If ly["name"] = cProp["Layer"] Then
+                  e.LayerId = ly["id"]
+                  Break
+                Endif
+              Next
+            Endif
+
+          Case "Color"
+            If cProp.Exist("Color") Then
+              If TypeOf(cProp["Color"]) = gb.String Then
+                If InStr(cProp["Color"], "*") = 0 Then
+                  cProp["Color"] = TableView1[r, 1].Text
+                  If e.colour <> cProp["Color"] Then
+                    Changed = True
+                    e.colour = cProp["Color"]
+                    e.ColorToPaint = cProp["Color"]
+                  Endif
+                Endif
+              Else
+                If TypeOf(cProp["Color"]) = gb.Object Then
+                  If cProp["Color"].Count = 1 Then
+                    cProp["Color"][0] = TableView1[r, 1].Text
+                    If e.colour <> cProp["Color"][0] Then
+                      Changed = True
+                      e.colour = cProp["Color"][0]
+                      e.ColorToPaint = cProp["Color"][0]
+                    Endif
+                  Endif
+                Endif
+              Endif
+            Endif
+
+          Case "LType"
+            If InStr(cProp["LineType"], "*") = 0 Then
+              cProp["LineType"] = TableView1[r, 1].Text
+              If e.LineTypeName <> cProp["LineTypeName"] Then
+                Changed = True
+                e.LineType = cProp["LineType"]
+                For Each lt In Starter.cStyles 'lty
+                  If lt["name"] = cProp["LineTypeName"] Then
+                    e.LineType = lt["id"]
+                    Break
+                  Endif
+                Next
+              Endif
+            Endif
+
+          Case "Width"
+
+            For Each lwt In Starter.cWidths
+              If lwt[0] = TableView1[r, 1].Text
+                e.LineWidth = CInt(Starter.cWidths.Key)
+                Break
+              Endif
+            Next
+
+          Case "Text"
+            If e.StringData[0] <> CurrentText Then
+              e.StringData[0] = CurrentText
+              Changed = True
+            Endif
+
+        End Select
+      Next
+
+    Endif
+
+    If Changed = True Then
+      gcd.CurrentDrawing.arrUndo.Add(te)
+      appmain.regen
+    Endif
+
+  Next
+
+End
+
+Public Sub ComboBox1_Click()
+
+  LoadPropertiesList(ComboBox1.Text)
+
+End
+
+Public Sub LoadPropertiesList(eFilter As String)
+
+  Dim e As Entity
+  Dim i As Integer
+  Dim xC As Class
+  Dim sym As String
+  Dim fym As String
+  'Dim v As Variant
+
+  cProp.Clear
+  cRaw.Clear
+  TableView1.Clear
+  TableView3.Clear
+
+  For i = 0 To gcd.CurrentDrawing.arrEntities.Max
+    e = gcd.CurrentDrawing.arrEntities[i]
+    If e.Selected Then
+      If cRaw.Count = 0 Then
+        xC = Classes["Entity"]
+        For Each sym In xC.Symbols
+          fym &= sym & "\n"
+          cRaw.Add(e.Block, sym)
+        Next
+        File.Save(User.home &/ "entity-symbols.txt", fym)
+      Endif
+
+      ' Layers
+      If cProp.Exist("Layer") = False Then
+        cProp.Add([e.LayerId], "Layer")
+      Else
+        If cProp["Layer"].Exist(e.LayerId) = False Then
+          cProp["Layer"].Add(e.LayerId)
+        Endif
+      Endif
+
+      'Colors
+      If cProp.Exist("Color") = False Then
+        cProp.Add([e.colour], "Color")
+      Else
+        If cProp["Color"].Exist(e.colour) = False Then
+          cProp["Color"].Add(e.colour)
+        Endif
+      Endif
+
+      'LineType
+      If cProp.Exist("LType") = False Then
+        cProp.Add([e.LineType], "LType")
+      Else
+        If cProp["LType"].Exist(e.LineType) = False Then
+          cProp["LType"].Add(e.LineType)
+        Endif
+      Endif
+
+      'LineWidth
+      If cProp.Exist("Width") = False Then
+        cProp.Add([e.LineWidth], "Width")
+      Else
+        If cProp["Width"].Exist(e.LineWidth) = False Then
+          cProp["Width"].Add(e.LineWidth)
+        Endif
+      Endif
+
+      If e.Gender = "Text" Then
+        If cProp.Exist("Text") = False Then
+          cProp.Add([e.StringData[0]], "Text")
+        Else
+          cProp["Text"].Add(e.StringData[0])
+        Endif
+      Endif
+
+      If cProp.Exist("Handle") = False Then
+        cProp.Add([e.Handle], "Handle")
+      Else
+        If cProp["Handle"].Exist(e.Handle) = False Then
+          cProp["Handle"].Add(e.Handle)
+        Endif
+      Endif
+
+      If TypeOf(e.fParam) = gb.Object Then
+        If cProp.Exist("Wildcard") = False Then
+          If e.fParam.Count > 0 Then
+            cProp.Add([e.fParam], "Wildcard")
+          Else
+            cProp.Add([0], "Wildcard")
+          Endif
+        Endif
+      Endif
+    Endif
+  Next
+
+  TableView1.Columns.Count = 2
+  TableView1.Rows.Count = 0
+  TableView1.Rows.Count = cProp.Count
+
+End
+
+Public Sub TableView1_Data(Row As Integer, Column As Integer)
+
+  Dim prop As Variant
+  Dim i As Integer
+  Dim r As Integer
+  Dim g As Integer
+  Dim b As Integer
+  Dim img As Image
+  Dim z As Integer
+  Dim vrx As Variant
+  Dim iwt As Integer
+
+  For Each prop In cProp
+    If i = Row Then
+      Select Column
+        Case 0
+          TableView1[Row, Column].Text = cProp.Key
+        Case 1
+          Select Object.Type(prop)
+            Case "String[]", "Integer[]"
+              Select prop.count
+                Case 0
+                  'TableView1[Row, Column].Text = 0
+                Case 1
+                  TableView1[Row, Column].Text = prop[0]
+                  Select cProp.Key
+                    Case "Color"
+                      r = CInt(Split(Starter.ColorsRGB[prop[0]], ",")[0])
+                      g = CInt(Split(Starter.ColorsRGB[prop[0]], ",")[1])
+                      b = CInt(Split(Starter.ColorsRGB[prop[0]], ",")[2])
+                      z = TableView1.Rows.Height - 12
+
+                      TableView1[Row, Column].Text = prop[0] 'CurrentColor
+                      imgColor = New Image(z, z, Color.RGB(r, g, b), 0)
+                      img = dsk.ImageFrame(imgColor.Stretch(z, z))
+                      TableView1[Row, Column].Picture = img.Picture
+
+                    Case "LType"
+                      vrx = Starter.cStyles[prop[0]]
+                      If vrx.Count > 3 Then
+                        TableView1[Row, Column].Text = vrx[2]
+                      Endif
+
+                    Case "Width"
+                      If prop[0] = 0 Then
+                        iwt = 1
+                      Else
+                        iwt = prop[0]
+                      Endif
+                      vrx = Starter.cWidths[CStr(iwt)]
+                      If vrx.Count > 1 Then
+                        TableView1[Row, Column].Text = vrx[0]
+                      Endif
+
+                    Case "Handle"
+                      'If prop.Count = 1 Then
+                      TableView1[Row, Column].Text = prop[0]
+                      ' Else
+                      '   TableView1[Row, Column].Text = "*" & ("varies") & "*"
+                      ' Endif
+
+                    Case "Text"
+                      TableView1[Row, Column].Text = prop[0]
+
+                    Case "Wildcard"
+                      TableView1[Row, Column].Text = prop[0]
+
+                  End Select
+
+                Case Else
+                  TableView1[Row, Column].Text = "*" & ("varies") & "*"
+
+              End Select
+
+          End Select
+
+      End Select
+
+    Endif
+
+    Inc i
+  Next
+
+End
+
+Public Sub TableView1_Click()
+
+  Dim lrx As New String[]         ''Layers list
+  Dim lay As Variant
+  Dim FClr As FColors16
+  Dim r As Integer
+  Dim g As Integer
+  Dim b As Integer
+  Dim img As Image
+  Dim imgColor As Image
+  Dim z As Integer
+  'Linetype
+  Dim lst As FLtypes
+  Dim vrx As Variant[]
+  'Dim img2 As Image
+  Dim wtmp As Integer
+  Dim wmax As Integer
+
+  Dim frm As FWidths
+  Dim ftx As FText
+
+  For Each lay In gcd.CurrentDrawing.cLayers
+    If lay[0] Then
+      lrx.Add(lay[0])
+    Endif
+
+    'lrx.Add(lay["name"])
+  Next
+
+  lrx.Add("*" & ("varies") & "*")
+
+  Select TableView1[TableView1.Row, 0].Text
+    Case "Layer"
+      TableView1.Edit(lrx, True)
+
+      PropSave()
+
+    Case "Color"
+      If SelectingColor = False Then
+        'FClr = New FColors16([Me.screenx + Me.W - 320 - 5, TableView1.ScreenY - ComboBox1.H + 9], Me)
+        FClr = New FColors16([pnlDrawing.ScreenX + 5, pnlDrawing.ScreenY + 5], Me)
+        FClr.Border = False
+        FClr.Stacking = Window.Above
+        FClr.Show()
+        Do
+          If SelectingColor = True Then
+            r = CInt(Split(Starter.ColorsRGB[CurrentColor], ",")[0])
+            g = CInt(Split(Starter.ColorsRGB[CurrentColor], ",")[1])
+            b = CInt(Split(Starter.ColorsRGB[CurrentColor], ",")[2])
+
+            z = TableView1.Rows.Height - 12
+
+            TableView1[TableView1.Row, TableView1.Column].Text = CurrentColor
+            imgColor = New Image(z, z, Color.RGB(r, g, b), 0)
+            img = dsk.ImageFrame(imgColor.Stretch(z, z))
+            TableView1[TableView1.Row, TableView1.Column].Picture = img.Picture
+
+            Print CurrentColor
+            SelectingColor = False
+            Break
+          Else
+            Wait 0.01
+          Endif
+        Loop
+        PropSave()
+      Endif
+
+      'gcd.CurrentDrawing.cModel["OBJECTS"] = cObjects
+
+    Case "LType"
+      If SelectingLtype = False Then
+
+        For Each vrx In Starter.cStyles
+          wtmp = dsk.TextWidth(vrx[2], Me.Font.Name, Me.Font.Size) + 8 + vrx[3].Picture.Width
+          If wtmp > wmax Then
+            wmax = wtmp
+          Endif
+        Next
+
+        'lst = New FLtypes(Starter.cStyles, [Me.screenx + Me.W - wtmp - 16, TableView1.ScreenY - ComboBox1.H + 9], Me)
+        lst = New FLtypes(Starter.cStyles, [pnlDrawing.ScreenX + 5, pnlDrawing.Screeny + 5], Me)
+        lst.Run()
+        Do
+          If SelectingLtype = True Then
+            vrx = Starter.cStyles[CStr(CurrentLtype)]
+            If vrx.Count > 3 Then
+              'If Object.Type(vrx[2]) = "Image" Then
+              'img2 = vrx[2]
+              TableView1[TableView1.Row, 1].Text = vrx[2]
+              'Endif
+            Endif
+            SelectingLtype = False
+            Break
+          Else
+            Wait 0.1
+          Endif
+        Loop
+        PropSave()
+      Endif
+
+    Case "Width"
+      If SelectingWidth = False Then
+
+        For Each vrx In Starter.cWidths
+          wtmp = dsk.TextWidth(vrx[0], Me.Font.Name, Me.Font.Size) + 8 + vrx[2].Picture.Width
+          If wtmp > wmax Then
+            wmax = wtmp
+          Endif
+        Next
+        'frm = New FWidths(Starter.cWidths, [Me.screenx + Me.W - wtmp - 16, TableView1.ScreenY - ComboBox1.H + 9], Me)
+        frm = New FWidths(Starter.cWidths, [pnlDrawing.ScreenX + 5, pnlDrawing.Screeny + 5], Me)
+        frm.Run()
+        Do
+          If SelectingWidth = True Then
+            vrx = Starter.cWidths[CStr(CurrentWidth)]
+            If vrx.Count > 1 Then
+              TableView1[TableView1.Row, 1].Text = vrx[0]
+            Endif
+            SelectingWidth = False
+            Break
+          Else
+            Wait 0.1
+          Endif
+        Loop
+        PropSave()
+      Endif
+
+    Case "Text"
+      If EditingText = False Then
+        CurrentText = TableView1[TableView1.Row, 1].Text
+        ftx = New FText([pnlDrawing.ScreenX + 7, pnlDrawing.ScreenY + pnlDrawing.H - 7], Me)
+        ftx.Run()
+        Do
+          If EditingText = True Then
+            TableView1[TableView1.Row, 1].Text = CurrentText
+            EditingText = False
+            Break
+          Else
+            Wait 0.1
+          Endif
+        Loop
+        PropSave()
+      Endif
+
+  End Select
+
+End
+
+Public Sub TableView1_Save(Row As Integer, Column As Integer, Value As String)
+
+  TableView1[Row, Column].Text = Value
+
+  Select TableView1[Row, 0].Text
+    Case "Layer"
+      TableView1[Row, Column].Text = Value
+
+    Case "Color"
+
+    Case "Style"
+
+  End Select
+
+End
+
+Public Sub Form_KeyPress()
+
+  Dim com As Variant
+  Dim umx As Integer     '' Index in undo array
+  Dim uEnty As Entity    '' Undo entity
+  Dim aEnty As Entity    '' Actual entity
+  Dim imx As Integer     '' Index in Entities array
+  Dim SelectMode As Boolean
+
+  Print Key.Code
+  Dim t As Float = Timer
+
+  Select Key.Code
+
+    Case Key.Enter, Key.Return
+      Debug KeysAccumulator
+
+      For Each com In Starter.cCommandsList
+        If com.count = 2 Then
+          If com[1] = KeysAccumulator Then
+            KeysAccumulator = com[0]
+          Endif
+        Endif
+      Next
+      Form_Activate()
+
+      gcd.clsJob.KeyText(KeysAccumulator)
+      KeysAccumulator = ""
+
+    Case Key.f2
+      Stop
+
+    Case Key.f6
+
+      If btnBounds.Value = True Then
+        gcd.DrawBounds = False
+      Else
+        gcd.DrawBounds = True
+      Endif
+      btnBounds.Value = gcd.DrawBounds
+
+    Case Key.BackSpace
+
+      KeysAccumulator = Left(KeysAccumulator, -1)
+
+    Case Key.f8
+
+      Debug "Entidades transferidas en  ", Timer - t
+
+      If btnOrtho.Value = False Then
+        gcd.Orthogonal = True
+      Else
+        gcd.Orthogonal = False
+      Endif
+
+      btnOrtho.Value = gcd.Orthogonal
+
+    Case Key.f7
+      If btnGrid.Value = False Then
+        puntos.Gridactive = True
+      Else
+        puntos.Gridactive = False
+      Endif
+      btnGrid.Value = puntos.Gridactive
+
+    Case Key.F11
+      If btnMenuShow.Value = False Then
+        Me.Menus.Hide
+        Me.Border = False
+        btnMenuShow.Value = True
+      Else
+        Me.Menus.show
+        Me.Border = True
+        btnMenuShow.Value = False
+      Endif
+
+    Case Key.Esc
+
+      If gcd.clsJob.gender = "Builder" Then
+
+        gcd.clsJob.KeyText("U")
+
+      Else If gcd.clsJob.gender = "Default" Then
+
+        gcd.clsJob = gcd.clsJobPrevious
+        gcd.clsJob.Start()
+
+      Else    ' es una tool
+
+        gcd.clsJob.finish
+        gcd.clsJobPrevious = gcd.clsJob
+        gcd.clsJob = clsDefaultJob
+
+      Endif
+
+      SelectionRefresh()
+
+    Case Key.Space
+      Stop Event
+
+    Case Key.Del
+      gcd.clsJob.KeyText("Erase")
+
+    Case Key.ControlKey
+      KeysAccumulator = "Function"
+
+    Case Else
+      ' A GOOD KEY
+      If InStr(KeysAccumulator, "Function") > 0 Then
+
+        Select Key.Code
+          Case Asc("1") ' Properties
+
+            Select PropertiesFlag
+              Case 1 ' Tools
+                PropertiesFlag = 2
+                pnlProperties.Visible = True
+                pnlIcons.Visible = False
+                'btnSelectionMode.Value = False
+              Case 2 ' Props
+                PropertiesFlag = 0
+                pnlProperties.Visible = False
+                pnlIcons.Visible = False
+                'btnSelectionMode.Value = True
+
+              Case Else ' Invisible
+                PropertiesFlag = 1
+                pnlProperties.Visible = False
+                pnlIcons.Visible = True
+
+            End Select
+
+            If PropertiesFlag = False Then
+              pnlProperties.Visible = True
+              PropertiesFlag = True
+              pnlIcons.Visible = False
+              btnSelectionMode.Value = False
+            Else
+              pnlProperties.Visible = False
+              PropertiesFlag = False
+              pnlIcons.Visible = True
+              btnSelectionMode.Value = True
+            Endif
+
+          Case Asc("2") ' Layers
+
+            'Case Asc("3") ' Blocks
+
+            'Case Asc("4...") ' More...
+            'KeysAccumulator &= "-" & Key.Text
+            'Case Else
+            '    KeysAccumulator = ""
+            'pnlProperties.Visible = False
+            'pnlDebug.Visible = False
+
+          Case Asc("3") ' Raw properties for debuging
+            If RawFlag = False Then
+              pnlRaw.Visible = True
+              RawFlag = True
+            Else
+              pnlRaw.Visible = False
+              RawFlag = False
+            Endif
+
+          Case Asc("a"), Asc("A") ' Select/Unselect All
+            SelectMode = True
+            For Each aEnty In gcd.CurrentDrawing.arrEntities
+              If aEnty.Selected Then
+                SelectMode = False
+                Break
+              Endif
+            Next
+
+            If SelectMode Then
+              For Each aEnty In gcd.CurrentDrawing.arrEntities
+                If aEnty.Selected = False Then
+                  aEnty.Selected = True
+                Endif
+              Next
+            Else
+              For Each aEnty In gcd.CurrentDrawing.arrEntities
+                If aEnty.Selected Then
+                  aEnty.Selected = False
+                Endif
+              Next
+            Endif
+            appmain.regen
+
+          Case Asc("z"), Asc("Z") ' Undo
+
+            If gcd.CurrentDrawing.arrUndo.Count > 0 Then
+              umx = gcd.CurrentDrawing.arrUndo.Max
+
+              uEnty = gcd.CurrentDrawing.arrUndo[umx]
+              For Each aEnty In gcd.CurrentDrawing.arrEntities
+                If aEnty.Handle = uEnty.Handle Then
+                  gcd.CurrentDrawing.arrEntities.Remove(imx, 1)
+                  gcd.CurrentDrawing.arrEntities.Add(uEnty, imx)
+                  gcd.CurrentDrawing.arrUndo.Remove(umx, 1)
+                  appmain.regen
+                  'gcd.Redraw
+                  Break
+                Endif
+                Inc imx
+              Next
+
+            Endif
+          Case Else
+            KeysAccumulator = ""
+
+        End Select
+
+      Else
+        KeysAccumulator &= Key.Text
+        clsDrawingAids.ErrorMessage = ""
+      Endif
+
+  End Select
+
+  clsDrawingAids.DibujaHelper
+
+End
+
+Public Sub TransferToCollections()
+
+  gcd.ExportBlocks(gcd.CurrentDrawing.cModel)
+  gcd.ExportEntities(gcd.CurrentDrawing.cModel["Entities"], gcd.CurrentDrawing.arrEntities)
+
+End
+' Public Sub tmr500_Timer()
+'
+'   If clsDrawingAids.PromtSlash = "|" Then clsDrawingAids.PromtSlash = "" Else clsDrawingAids.PromtSlash = "|"
+'   clsDrawingAids.DibujaHelper
+'   If clsDrawingAids.ErrorMessage <> "" Then
+'
+'     lblCommand.Text = clsDrawingAids.ErrorMessage
+'     lblCommand.Foreground = Color.Red
+'     Inc TmrTicks
+'
+'     If TmrTicks = 10 Then
+'       clsDrawingAids.ErrorMessage = ""
+'       TmrTicks = 0
+'     End If
+'
+'   Else
+'     lblCommand.Foreground = Color.Black
+'     lblCommand.Text = clsDrawingAids.trabajoYteclado
+'
+'   Endif
+'
+' End
+
+' Public Sub TableView1_Change()
+'
+'   PropSave()
+'
+' End
+
+Public Sub btnSave_Click()
+
+  PropSave()
+
+End
+
+Public Sub SelectionMode(Optional sMode As String)
+
+  If sMode = "selection" Then
+    pnlProperties.Visible = True
+    btnSelectionMode.Value = True
+  Else
+    btnSelectionMode.Value = False
+    pnlProperties.Visible = False
+  Endif
+
+End
+
+Public Sub LoadVars()
+
+  Dim ctn As New Collection
+  Dim dra As Variant
+  Dim sKey As String
+  Dim sTag As String
+  Dim sQty As String
+  Dim sEle As String
+  Dim sEty As String
+
+  Dim it As Variant
+  Dim gru As Variant
+  Dim ety As Variant
+
+  TreeView1.Clear
+  TreeView1.Add("model", "Model")
+  TreeView1.Add("import", "Import")
+
+  ctn.Add(gcd.CurrentDrawing.cModel, "model")
+  ctn.Add(gcd.CurrentDrawing.cImport, "import")
+
+  For Each dra In ctn
+
+    For Each it In dra
+
+      sKey = ctn.Key & ":" & dra.Key
+
+      If TreeView1.Exist(sKey) = False Then
+
+        Select dra.Key
+
+          Case "File", "Version"
+            sTag = dra.Key & ": " & it
+            TreeView1.Add(sKey, sTag,, ctn.Key)
+
+          Case "Layers"
+            sTag = ctn.Key & ":" & dra.Key
+            sQty = "[" & CStr(it.Count) & "]"
+            TreeView1.Add(sTag, dra.Key & sQty,, ctn.Key)
+            For Each gru In it
+              sKey = dra.Key & ":" & gru["name"]
+              If TreeView1.Exist(sKey) = False Then
+                TreeView1.Add(sKey, gru["name"],, sTag)
+              Endif
+            Next
+
+          Case "Entities"
+            sTag = ctn.Key & ":" & dra.Key
+            TreeView1.Add(sTag, dra.Key,, ctn.Key)
+            For Each gru In it
+              sKey = ctn.Key & ":" & it.Key
+              sQty = "[" & CStr(gru.Count) & "]"
+              If TreeView1.Exist(sKey) = False Then
+                TreeView1.Add(sKey, it.Key & sQty,, sTag)
+              Endif
+              For Each ety In gru
+                If ety["handle"] <> "" Then
+                  sEty = ctn.Key & ":" & ety["handle"]
+                  Select it.Key
+                    Case "text"
+                      sEle = ety["text"]
+                    Case Else
+                      sEle = ety["handle"]
+                  End Select
+                  If TreeView1.Exist(sEty) = False Then
+                    TreeView1.Add(sEty, sEle,, sKey)
+                  Endif
+                Endif
+              Next
+            Next
+
+        End Select
+      Endif
+    Next
+  Next
+
+End
+
+Public Sub LoadDrawingMap3()
+
+  'Dim grp As Variant
+  Dim picDw As Picture
+  Dim picL1 As Picture
+  Dim picL2 As Picture
+  Dim picLy As Picture
+  Dim picEy As Picture
+  Dim picBy As Picture
+
+  'Dim vrt As Variant
+  Dim ent As Variant
+  'Dim v As Variant
+  Dim sKey As String
+  'Dim iQty As Integer
+  Dim LSelect As Variant
+
+  Dim stxEnty As New String[]
+  Dim sEnty As String
+  Dim sPic As String
+  Dim pic As Picture
+  Dim svg As String
+
+  Return
+  ' FIXME: adaptar el nuevo cModel
+
+  pnlData.Layout = [1, 5]
+  picDw = Image.FromString(Highligh("./svg/locks/drawing.svg")).Stretch(24, 24).Picture
+  picLy = Image.FromString(Highligh("./svg/layers/layers.svg")).Stretch(24, 24).Picture
+  picEy = Image.FromString(Highligh("./svg/entities/entities.svg")).Stretch(24, 24).Picture
+  picBy = Image.FromString(Highligh("./svg/entities/block.svg")).Stretch(24, 24).Picture
+  picL1 = Image.FromString(Highligh("./svg/colors/3.svg")).Stretch(16, 16).Picture
+  picL2 = Image.FromString(Highligh("./svg/colors/4.svg")).Stretch(9, 9).Picture
+
+  TreeView1.Clear
+  TreeView1.Add("DWG", ("Drawing"), picDw)
+  TreeView1.Add("LAYERS", Lower(sKey) & " [" & CStr(gcd.CurrentDrawing.cLayers.Count) & "]", picLy, "DWG")
+  TreeView1.Add("ENTITIES", Lower(sKey) & " [" & CStr(gcd.CurrentDrawing.cEntities.Count) & "]", picEy, "DWG")
+  TreeView1.Add("BLOCKS", Lower(sKey) & " [" & CStr(gcd.CurrentDrawing.cBlocks.Count) & "]", picBy, "DWG")
+
+  For Each ent In gcd.CurrentDrawing.cEntities
+    'If stxEnty.Exist(ent["entity"]) = False Then
+    If stxEnty.Exist(ent[dxf.codEntity]) = False Then
+
+      stxEnty.Add(ent[dxf.codEntity])
+    Endif
+  Next
+  For Each sEnty In stxEnty
+    sPic = "./svg/entities/" & Lower(sEnty) & ".svg"
+    If Exist(sPic) Then
+      If Application.DarkTheme Then
+        svg = Replace(File.Load(sPic), "#0066b3;", "#eeeeee;")
+      Else
+        svg = Replace(File.Load(sPic), "#0066b3;", "#000000;")
+      Endif
+      pic = Image.FromString(svg).Stretch(16, 16).Picture
+    Else
+      pic = Image.Load("./svg/colors/4.svg").Stretch(9, 9).Picture
+    Endif
+    TreeView1.Add(sEnty, " " & Lower(sEnty), pic, "ENTITIES")
+  Next
+
+  TreeView1["DWG"].Expanded = True
+
+  LSelect = Settings["Section/Selected", "DWG"]
+
+  If TreeView1.Exist(LSelect) Then
+    TreeView1[LSelect].Selected = True
+  Else
+    TreeView1["DWG"].Selected = True
+  Endif
+
+End
+
+Public Sub TreeView1_Select()
+
+  Dim v As Variant
+  'Dim vrt As Variant
+  Dim r As Integer
+  'Dim c As Integer
+  Dim lay As New Collection
+  Dim d As Float
+  Dim i As Integer
+  Dim sKey As String
+
+  Settings["Section/Selected"] = TreeView1.Key
+
+  Select TreeView1.Key
+    Case "DWG"
+      'Settings["Section/Selected"] = TreeView1.Key
+      pnlFileData.Visible = True
+      GridView1.Visible = False
+
+    Case "LAYERS" ', "ENTITIES", "BLOCKS"
+      'Settings["Section/Selected"] = TreeView1.Key
+      GridView1.Clear
+      lay.Clear
+      pnlFileData.Visible = False
+      GridView1.Visible = True
+      GridView1.Columns.Count = 4 'gcd.CurrentDrawing.cModel[TreeView1.Key].Count
+      'name, color, ltype
+      If gcd.CurrentDrawing.cModel.Exist(TreeView1.Key) Then
+        GridView1.Rows.Count = gcd.CurrentDrawing.cModel[TreeView1.Key].Count
+        GridView1.Columns[0].Text = ("Name")
+        GridView1.Columns[1].Text = ("Handle")
+        GridView1.Columns[2].Text = ("Color")
+        GridView1.Columns[3].Text = ("Line type")
+
+        For Each v In gcd.CurrentDrawing.cModel[TreeView1.Key]
+          If TypeOf(v) = gb.Object Then
+            'lay.Add(v["name"], CStr(v["handle"][v["handle"].Max]))
+            GridView1[r, 0].Text = v["name"]
+            If v.Exist("handle") Then
+              If TypeOf(v["handle"]) = gb.Object Then
+                GridView1[r, 1].Text = CStr(v["handle"][v["handle"].Max])
+              Else
+                GridView1[r, 1].Text = CStr(v["handle"])
+              Endif
+            Else
+              GridView1[r, 1].Text = "<>"
+            Endif
+            GridView1[r, 2].Text = v["color"]
+            GridView1[r, 3].Text = "" 'v["ltype"]
+
+          Endif
+          Inc r
+        Next
+      Endif
+
+    Case "ENTITIES"
+      'Settings["Section/Selected"] = TreeView1.Key
+      GridView1.Clear
+      pnlFileData.Visible = False
+      GridView1.Visible = True
+      GridView1.Columns.Count = 7
+
+      If gcd.CurrentDrawing.cModel.Exist(TreeView1.Key) Then
+        GridView1.Rows.Count = gcd.CurrentDrawing.cModel[TreeView1.Key].Count
+        GridView1.Columns[0].Text = ("Entity")
+        GridView1.Columns[1].Text = ("Handle")
+        GridView1.Columns[2].Text = ("Layer")
+        GridView1.Columns[3].Text = ("Style")
+        GridView1.Columns[4].Text = ("Weight")
+        GridView1.Columns[5].Text = ("Color")
+        GridView1.Columns[6].Text = ("Particular")
+
+        For Each v In gcd.CurrentDrawing.cModel[TreeView1.Key]
+          If TypeOf(v) = gb.Object Then
+            GridView1[r, 0].Text = v["entity"]
+
+            If v.Exist("handle") Then
+              If TypeOf(v["handle"]) = gb.Object Then
+                GridView1[r, 1].Text = CStr(v["handle"][v["handle"].Max])
+              Else
+                GridView1[r, 1].Text = CStr(v["handle"])
+              Endif
+            Else
+              GridView1[r, 1].Text = "<>"
+            Endif
+
+            If v.Exist("layer") Then
+              If TypeOf(v["layer"]) = gb.Object Then
+                GridView1[r, 2].Text = gcd.CurrentDrawing.cLayers[CStr(v["layer"][v["layer"].Max])]["name"]
+              Else
+                GridView1[r, 2].Text = gcd.CurrentDrawing.cLayers[CStr(v["layer"])]["name"]
+              Endif
+            Else
+              GridView1[r, 2].Text = "<>"
+            Endif
+
+            GridView1[r, 3].Text = ""
+            GridView1[r, 4].Text = ""
+
+            If TypeOf(v["color"]) = gb.Object Then
+              GridView1[r, 5].Text = v["color"][v["color"].Max]
+            Else
+              If TypeOf(v["color"]) = gb.Integer Then
+                GridView1[r, 5].Text = v["color"]
+              Else
+                GridView1[r, 5].Text = ""
+              Endif
+            Endif
+            Select v["entity"]
+              Case "TEXT", "ATTRIB"
+                GridView1[r, 6].Text = v["text_value"]
+              Case "INSERT"
+                sKey = v["block_header"][v["block_header"].Max]
+                GridView1[r, 6].Text = gcd.CurrentDrawing.cBlocks[sKey]["name"]
+              Case "CIRCLE", "ARC"
+                GridView1[r, 6].Text = v["radius"]
+              Case "LINE"
+                d = Sqr((v["end"][0] - v["start"][0]) ^ 2 + (v["end"][1] - v["start"][1]) ^ 2 + (v["end"][2] - v["start"][2]) ^ 2)
+                GridView1[r, 6].Text = CStr(d)
+
+              Case "LWPOLYLINE"
+                For i = 1 To v["points"].Count - 1
+                  d = d + Sqr((v["points"][i][0] - v["points"][i - 1][0]) ^ 2 + (v["points"][i][1] - v["points"][i - 1][1]) ^ 2)
+                Next
+                GridView1[r, 6].Text = CStr(d)
+
+              Case "MTEXT"
+                GridView1[r, 6].Text = v["text"]
+
+              Case "HATCH"
+                GridView1[r, 6].Text = v["name"]
+
+              Case Else
+                GridView1[r, 6].Text = ""
+            End Select
+          Endif
+          Inc r
+        Next
+      Endif
+
+    Case "BLOCKS" '(BLOCKS_HEADERS)
+      'Settings["Section/Selected"] = TreeView1.Key
+      GridView1.Clear
+      pnlFileData.Visible = False
+      GridView1.Visible = True
+      GridView1.Columns.Count = 2
+
+      If gcd.CurrentDrawing.cModel.Exist(TreeView1.Key) Then
+        GridView1.Rows.Count = gcd.CurrentDrawing.cModel[TreeView1.Key].Count
+        GridView1.Columns[0].Text = ("Name")
+        GridView1.Columns[1].Text = ("Handle")
+        'GridView1.Columns[2].Text = ("Style")
+        'GridView1.Columns[3].Text = ("Width")
+        'GridView1.Columns[4].Text = ("Color")
+
+        For Each v In gcd.CurrentDrawing.cModel[TreeView1.Key]
+          If TypeOf(v) = gb.Object Then
+            GridView1[r, 0].Text = v["name"]
+            'GridView1[r, 1].Text = gcd.CurrentDrawing.cLayers[CStr(v["layer"][v["layer"].Max])]
+            GridView1[r, 1].Text = CStr(v["handle"][v["handle"].Max])
+            'GridView1[r, 3].Text = ""
+            'GridView1[r, 4].Text = ""
+
+            'If TypeOf(v["color"]) = gb.Object Then
+            '  GridView1[r, 4].Text = v["color"][v["color"].Max]
+            'Else
+            '  If TypeOf(v["color"]) = gb.Integer Then
+            '    GridView1[r, 4].Text = v["color"]
+            '  Else
+            '    GridView1[r, 4].Text = ""
+            '  Endif
+            'Endif
+          Endif
+          Inc r
+        Next
+      Endif
+
+    Case Else
+      If Starter.cEntities.Exist(TreeView1.Key) Then
+        If Starter.cEntities[TreeView1.Key] = True Then
+          Print TreeView1.Key
+        Endif
+      Endif
+
+      'Case "LAYER", "ENTITY", "BLOCK"
+
+  End Select
+
+End
+
+Public Sub LoadDrawingMap2()
+
+  Dim ctn As New Collection
+  Dim dra As Variant
+  Dim sKey As String
+  Dim sTag As String
+  Dim sQty As String
+  Dim sEle As String
+  Dim sEty As String
+  Dim it As Variant
+  Dim gru As Variant
+  Dim ety As Variant
+
+  TreeView1.Clear
+  TreeView1.Add("model", "Model")
+  TreeView1.Add("import", "Import")
+
+  ctn.Add(gcd.CurrentDrawing.cModel, "model")
+  ctn.Add(gcd.CurrentDrawing.cImport, "import")
+  ctn.Add(gcd.CurrentDrawing.arrEntities, "entities")
+
+  For Each dra In ctn
+
+    For Each it In dra
+
+      sKey = ctn.Key & ":" & dra.Key
+
+      If TreeView1.Exist(sKey) = False Then
+
+        Select dra.Key
+
+          Case "File", "Version"
+            sTag = dra.Key & ": " & it
+            TreeView1.Add(sKey, sTag,, ctn.Key)
+
+          Case "Layers"
+            sTag = ctn.Key & ":" & dra.Key
+            sQty = "[" & CStr(it.Count) & "]"
+            TreeView1.Add(sTag, dra.Key & sQty,, ctn.Key)
+            For Each gru In it
+              sKey = dra.Key & ":" & gru["name"]
+              If TreeView1.Exist(sKey) = False Then
+                TreeView1.Add(sKey, gru["name"],, sTag)
+              Endif
+            Next
+
+          Case "Entities"
+            sTag = ctn.Key & ":" & dra.Key
+            TreeView1.Add(sTag, dra.Key,, ctn.Key)
+            For Each gru In it
+              sKey = ctn.Key & ":" & it.Key
+              sQty = "[" & CStr(gru.Count) & "]"
+              If TreeView1.Exist(sKey) = False Then
+                TreeView1.Add(sKey, it.Key & sQty,, sTag)
+              Endif
+              For Each ety In gru
+                If ety["handle"] <> "" Then
+                  sEty = ctn.Key & ":" & ety["handle"]
+                  Select it.Key
+                    Case "text"
+                      sEle = ety["text"]
+                    Case Else
+                      sEle = ety["handle"]
+                  End Select
+                  If TreeView1.Exist(sEty) = False Then
+                    TreeView1.Add(sEty, sEle,, sKey)
+                  Endif
+                Endif
+              Next
+            Next
+
+        End Select
+      Endif
+    Next
+  Next
+
+End
+
+Public Sub tmr500_Timer()
+
+  If clsDrawingAids.PromtSlash = "|" Then clsDrawingAids.PromtSlash = "" Else clsDrawingAids.PromtSlash = "|"
+  clsDrawingAids.DibujaHelper
+
+End
+
+Public Sub cboDrawing_Click()
+
+  Dim i As Integer
+
+  Me.Text = cboDrawing.Text
+  For i = 0 To gcd.Drawings.Max
+    If gcd.Drawings[i].FileName = cboDrawing.Text Then
+      gcd.CurrentDrawing = gcd.Drawings[i]
+      cboDrawing.Text = gcd.Drawings[i].FileName
+      LoadDrawingMap3()
+      'Print gcd.CurrentDrawing.cModel.Count
+      Break
+    Endif
+  Next
+
+End
+
+Public Sub btnMenuShow_Click()
+
+  If btnMenuShow.Value = False Then
+    Me.Menus.Hide
+    Me.Border = False
+  Else
+    Me.Menus.show
+    Me.Border = True
+  Endif
+
+End
+
+Public Sub btnLtypes_Click()
+
+
+
+End

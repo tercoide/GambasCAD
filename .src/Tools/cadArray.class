@@ -1,0 +1,227 @@
+' Gambas class file
+
+' GauchoCAD
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+
+' Copies entities n x m times or polar n times
+' Tool maintained by Terco
+Inherits ToolsBase
+Create Static
+Public Const Gender As String = "Array"
+
+Public Nx As Integer
+Public Ny As Integer
+Public Dx As Float
+Public Dy As Float
+
+Public Np As Integer
+Public Dp As Float
+
+' Add more if needed
+
+Public Function Start(Optional ElemToBuild As Variant, Optional _mode As Integer = 0) As Boolean
+  ' Llamada por FCAD al inicio de la aplicacion de esta herramienta
+
+  ' Aprovechamos para establecer los helpers (comentarios de ayuda en pantalla)
+  Me.PointsDone = 0
+  Me.PointsTotal = 2                 ' orto: Punto base + Nx + Dx + Ny + Dy   , polar = Punto base + N + angulo
+
+  Me.mode = _mode
+  clsDrawingAids.HelperTrabajo = ("Array") & " "
+
+  ' chequeamos si hubo seleccion previa
+  Me.SelectionCount = clsEntities.GetSelectionCount()
+
+  If Me.SelectionCount = 0 Then                                     ' we have no elements in the selection
+
+    clsDrawingAids.Helper.texto = clsDrawingAids.HelperTrabajo & ": " & ("Select entities")
+
+    gcd.clsJobPrevious = Me
+    gcd.clsJob = clsDefaultJob
+
+  Else                                                                    ' need the first point
+
+    clsDrawingAids.Helper.texto = clsDrawingAids.HelperTrabajo & ": " & ("Base point")
+    clsDrawingAids.HelperTrabajo = clsDrawingAids.HelperTrabajo & Str(Me.SelectionCount) & ("elements")
+
+  Endif
+
+  Me.Active = True
+  gcd.ToolActive = True
+
+End
+
+Public Function MouseUp(mouseX As Integer, mouseY As Integer) ' called by FCAD-> DrawingArea_MouseUp
+
+  ' solo nos interesa el punto base, luego los clicks no importan
+
+  If Me.PointsDone = 0 Then
+    ' punto real base
+    Me.SelStartXr = puntos.Near(AppMain.Xreal(mouseX))
+    Me.SelStartYr = puntos.Near(AppMain.Yreal(mouseY))
+    Inc Me.PointsDone
+
+    clsDrawingAids.Helper.texto = clsDrawingAids.HelperTrabajo & ": " & ("Orthogonal or polar") & " [o]"
+
+  End If
+
+End
+
+Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD en el evento FCAD_KeyPress cuando recibe una texto + <Enter>
+
+  If Me.PointsDone = 1 Then                     ' estamos esperando que nos responda si quere Ortogonal o Polar
+
+    If EnteredText = "" Then                        ' enter es Ortogonal
+
+      Me.mode = 1
+      Inc Me.PointsDone
+      clsDrawingAids.Helper.texto = clsDrawingAids.HelperTrabajo & ": " & ("Columns") & " [1]"
+    Else If Left$(UCase$(EnteredText), 1) = "P" Then
+      Me.mode = 2
+      Inc Me.PointsDone
+      clsDrawingAids.Helper.texto = clsDrawingAids.HelperTrabajo & ": " & ("Repetitions") & " [1]"
+    Else
+
+      clsDrawingAids.ErrorMessage = ("Bad input")
+    End If
+
+  Else If Me.PointsDone = 2 Then
+
+    If Me.mode = 1 Then                             ' ortog->Nx
+      Nx = CInt(EnteredText)
+      Inc Me.PointsDone
+      clsDrawingAids.Helper.texto = clsDrawingAids.HelperTrabajo & ": " & ("Distance") & " X=[0]"
+    Else                                         ' polar -> N
+      Np = CInt(EnteredText)
+      Inc Me.PointsDone
+      clsDrawingAids.Helper.texto = clsDrawingAids.HelperTrabajo & ": " & ("Angle") & " [45]"
+    End If
+
+  Else If Me.PointsDone = 3 Then
+
+    If Me.mode = 1 Then                             ' ortog->Dx
+      Dx = CFloat(EnteredText)
+      Inc Me.PointsDone
+      clsDrawingAids.Helper.texto = clsDrawingAids.HelperTrabajo & ": " & ("Rows") & " [1]"
+    Else                                         ' polar -> N
+      Dp = CFloat(EnteredText) * Pi / 180
+      Me.Finish
+
+    End If
+  Else If Me.PointsDone = 4 Then
+
+    ' ortog->Ny
+    Ny = CInt(EnteredText)
+    Inc Me.PointsDone
+    clsDrawingAids.Helper.texto = clsDrawingAids.HelperTrabajo & ": " & ("Distance") & " Y=[0]"
+
+  Else If Me.PointsDone = 5 Then
+
+    ' ortog->Dy
+    Dy = CFloat(EnteredText)
+    Inc Me.PointsDone
+    Me.Finish
+
+  End If
+
+Catch
+
+  clsDrawingAids.ErrorMessage = ("Bad input")
+
+End
+
+Public Sub Finish()
+
+  Dim Rx, Ry, i As Integer, o As Entity, newO As Entity
+
+  If Me.mode = 1 And Me.PointsDone = 6 Then               ' me.mode orto finished correctly
+
+    For Rx = 1 To Nx
+
+      For rY = 1 To Ny
+
+        If rx = 1 And ry = 1 Then Continue
+
+        For Each o In gcd.CurrentDrawing.arrEntities
+          If o.selected Then
+            newO = clsEntities.ClonEntity(o)               ' devuelve una entidad en exactamente la misma posicion
+
+            newO.ClassHandler.traslate(newO, dx, dy)
+            gcd.CurrentDrawing.arrEntities.Add(newO)
+            ' For i = 0 To newO.p.max Step 2
+            '     newO.p[i] += dx * (rx - 1)
+            ' Next
+            ' For i = 1 To newO.p.max Step 2
+            '     newO.p[i] += dy * (ry - 1)
+            ' Next
+
+            newO = Null
+          Endif
+
+        Next
+      Next
+
+    Next
+
+    clsEntities.Finish
+
+  End If
+
+  If Me.mode = 2 And Me.PointsDone = 3 Then               ' me.mode polar finished correctly
+
+    Dim Nuevos As Float[]
+    For rY = 2 To Np
+
+      For Each o In gcd.CurrentDrawing.arrEntities
+        If o.selected Then
+          newO = clsEntities.ClonEntity(o)               ' devuelve una entidad en exactamente la misma posicion
+          newO.classhandler.translate(newO, -Me.SelStartXr, -Me.SelStartYr)
+          newO.ClassHandler.rotate(newO, dp * (ry - 1))
+          newO.classhandler.translate(newO, Me.SelStartXr, Me.SelStartYr)
+          gcd.CurrentDrawing.arrEntities.Add(newO)
+
+          ' For i = 0 To newO.p.max Step 2
+          '
+          '     nuevos = puntos.RotateFromPointWithAngle(Me.SelStartXr, Me.SelStartYr, dp * (ry - 1), newO.p[i], newO.p[i + 1])
+          '     newO.P[i] = nuevos[0]
+          '     newO.P[i + 1] = nuevos[1]
+          '     nuevos.Clear
+          ' Next
+
+          newO = Null
+        Endif
+      Next
+
+    Next
+
+    clsEntities.Finish
+
+  End If
+
+  gcd.clsJobPrevious = Me
+  gcd.clsJob = clsDefaultJob
+  clsDrawingAids.CleanTexts
+  clsEntities.DeSelection()
+  gcd.DrawOriginals = False
+  appmain.regen
+  Me.Active = False
+  gcd.ToolActive = False
+
+End

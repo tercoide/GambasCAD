@@ -1,0 +1,833 @@
+' Gambas module file
+
+'
+' RADG
+' Rapid Application Development for Gambas
+'
+' Copyright (C) Martín Belmonte
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 2 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+'
+
+Export
+
+Public Function Mimex(strMimeType As String) As String[] ''Devuelve una lista de los programas que estan asociados al tipo mime que se pasa como parametro.
+
+  Dim stxOut As New String[]
+  Dim df As DesktopFile
+
+  For Each df In DesktopFile.FromMime(strMimeType)
+    stxOut.Add(df.ProgramName)
+  Next
+
+  Return stxOut
+
+End
+
+'' Devuelve el valor en pixeles de una cadena de texto, teniendo en cuenta la tipografía
+'' Ejemplo:
+'' Dim i As Integer
+'' i = TextWidth(TextBox1.Text, TextBox1.Font.Name, TextBox1.Font.Size)
+
+Public Function TextWidth(str As String, sFont As String, zSize As Integer) As Integer
+
+  Dim fnt As New Font
+
+  fnt.Name = sFont
+  fnt.Size = zSize
+
+  Return fnt.TextWidth(str)
+
+End
+
+Public Function MimeAppPicture(strApp As String, intSize As Integer) As Picture '' Devuelve la pintura "picture" de una aplicación.
+
+  Dim pic As Picture
+
+  If DesktopFile[strApp] Then
+    pic = DesktopFile[strApp].GetIcon(22).Picture
+  Else
+    pic = Picture["icon:/" & CStr(intSize) & "/remove"]
+  Endif
+
+  Return pic
+
+End
+
+'' Returns a circular image with the color indicated as a parameter
+
+Public Function ImageDot(xColor As Integer) As Image
+
+  Dim hColor As ColorInfo
+  Dim img As Image
+  'Dim D As Integer
+
+  hColor = Color[Color.ButtonBackground]
+
+  img = New Image(128, 128)
+
+  Paint.Begin(img)
+
+  Paint.MoveTo(64, 64)
+
+  Paint.Rectangle(0, 0, 128, 128)
+  Paint.Stroke
+
+  Paint.Arc(64, 64, 60, 0, 2 * Pi)
+  Paint.ClosePath
+
+  Paint.LineWidth = 0
+
+  Paint.LineWidth = 10
+
+  Paint.Brush = Paint.Color(Color.RGB(0, 0, 0, 255))
+
+  'Paint.Brush = Paint.Color(Color.Blue)
+  If hColor.Luminance > 160 Then
+    Paint.Brush = Paint.Color(Color.Black)
+  Else
+    Paint.Brush = Paint.Color(Color.White)
+  Endif
+
+  Paint.Brush = Paint.Color(xColor)
+  Paint.Fill(True)
+
+  If hColor.Luminance > 160 Then
+    Paint.Brush = Paint.Color(Color.Black)
+  Else
+    Paint.Brush = Paint.Color(Color.White)
+  Endif
+
+  Paint.Stroke
+
+  Paint.End
+
+  Return img
+
+End
+
+'' Return the same image but with a frame
+
+Public Function ImageFrame(img As Image) As Image
+
+  'Dim lt As Variant
+  'Dim img As Image
+
+  'For Each lt In Starter.cColors
+  Dim hColor As ColorInfo
+
+  hColor = Color[Color.ButtonBackground]
+
+  Paint.Begin(img)
+  Paint.NewPath
+
+  If hColor.Luminance > 160 Then
+    Paint.Brush = Paint.Color(Color.Black)
+  Else
+    Paint.Brush = Paint.Color(Color.White)
+  Endif
+
+  '  Paint.Brush = Paint.Color(Color.Black)
+
+  Paint.LineWidth = 2
+  Paint.MoveTo(1, 1)
+  Paint.LineTo(img.W - 1, 1)
+  Paint.LineTo(img.W - 1, img.H - 1)
+  Paint.LineTo(1, img.H - 1)
+  Paint.LineTo(1, 1)
+  Paint.LineTo(img.W - 1, 1)
+
+  Paint.Stroke
+  Paint.End
+  'Next
+  Return img
+
+End
+
+Public Function FileChooser(Optional strInputPath As String, Optional stxExt As String[]) As String[] ''Selecciona la ruta completa de un archivo, con el nombre y las extensiones. Como opcional se puede pasar un directorio que es a donde se dirigira el filechooser cuando se abra. También como opcional se pued epasar un filtro de tipos de archivos separados por :, por ejemolo "txt:csv"
+
+  Dim strExt As String
+  Dim strFilterA As String
+  Dim strFilterB As String
+  Dim stxFilter As New String[]
+  Dim stxFilepaths As New String[] ' Para el caso de seleccion de multiples archivos
+
+  If strInputPath = "" Then
+    strInputPath = User.Home
+  Endif
+
+  Dialog.Title = ("Select File")
+  Dialog.Filter = Null
+
+  If stxExt Then
+    If stxExt.Count > 0 Then
+      For Each strExt In stxExt
+        stxFilter.Add("*." & String.LCase(strExt) & ";" & "*." & String.UCase(strExt))
+      Next
+      strFilterA = stxFilter.Join(";")
+      strFilterB = ("Filter") & ": " & stxExt.Join(",")
+      Dialog.Filter = [strFilterA, strFilterB]
+    Endif
+  Endif
+
+  If Not Dialog.OpenFile(True) Then
+    stxFilepaths = Dialog.Paths
+  Endif
+  Return stxFilepaths
+
+End
+
+Public Function DirChooser(Optional stInputPath As String) As String  ''Selecciona la ruta de un directorio mediante una caja de dialogo.
+
+  Dim stDirPath As String
+
+  If stInputPath = "" Then
+    stInputPath = User.Home
+  Else
+    Dialog.Path = stInputPath
+  Endif
+
+  Dialog.Title = ("Select directory")
+  Dialog.Filter = Null
+  Dialog.SelectDirectory
+
+  stDirPath = Dialog.Path
+
+  Return stDirPath
+
+End
+
+Public Sub SendEmail(stxAddreses As String[], stxNames As String[], Optional strMode As String, Optional strSubject As String, Optional strBody As String, Optional strAttachment As String)
+
+  Dim intR As Integer
+  Dim strAddresses As String
+  Dim strNames As String
+
+  For intR = 0 To stxAddreses.Max
+
+    If intR = 0 Then
+      strAddresses = stxAddreses[intR]
+    Else
+      strAddresses = strAddresses & "; " & stxAddreses[intR]
+    Endif
+  Next
+
+  For intR = 0 To stxNames.Max
+
+    Select intR
+      Case 0
+        strNames = stxNames[intR]
+
+      Case stxNames.Max
+        strNames &= " ~ " & stxNames[intR]
+
+      Case Else
+        strNames &= " ~ " & stxNames[intR]
+    End Select
+
+  Next
+
+  If strMode = "" Then
+    strMode = "to"
+  Else
+    strMode = String.LCase(strMode)
+  Endif
+
+  If strSubject = "" Then
+    strSubject = ""
+  Endif
+
+  If strAttachment = "" Then
+    strAttachment = ""
+  Endif
+
+  If strBody = "" Then
+    strBody = ("Hi") & " " & strNames & "."
+  Endif
+
+  Desktop.SendMail(stxAddreses,,, strSubject, strBody)
+
+End
+
+Public Function GNumix(sDir As String) As Collection
+
+  'Dim sDir As String
+  Dim ctn As New Collection
+
+  'sDir = "/usr/share/icons/Numix/" & z & "/"
+  ctn.Add(sDir & "apps/help.svg", "help")
+  ctn.Add(sDir & "categories/preferences-desktop.svg", "options")
+
+  ctn.Add(sDir & "actions/add.svg", "add")
+  ctn.Add(sDir & "actions/archive-extract.svg", "extract")
+  ctn.Add(sDir & "actions/archive-insert.svg", "archive")
+  ctn.Add(sDir & "actions/chronometer-reset.svg", "reset")
+  ctn.Add(sDir & "actions/configure.svg", "options")
+  ctn.Add(sDir & "actions/default-document-open.svg", "open")
+  ctn.Add(sDir & "actions/window-close.svg", "close")
+  ctn.Add(sDir & "actions/document-new.svg", "new")
+  ctn.Add(sDir & "actions/default-folder-new.svg", "new-dir")
+  ctn.Add(sDir & "actions/document-export.svg", "export")
+  ctn.Add(sDir & "actions/document-import.svg", "import")
+  ctn.Add(sDir & "actions/document-new.svg", "new")
+  ctn.Add(sDir & "actions/document-page-setup.svg", "Page-setup")
+  ctn.Add(sDir & "actions/document-print-preview.svg", "preview")
+  ctn.Add(sDir & "actions/document-print.svg", "print")
+  ctn.Add(sDir & "actions/document-properties.svg", "properties")
+  ctn.Add(sDir & "actions/document-save-as.svg", "save-as")
+  ctn.Add(sDir & "actions/document-save.svg", "save")
+  ctn.Add(sDir & "actions/document-send.svg", "send")
+  ctn.Add(sDir & "actions/edit-clear.svg", "clear")
+  ctn.Add(sDir & "actions/edit-delete.svg", "delete")
+  ctn.Add(sDir & "actions/exit.svg", "quit")
+  ctn.Add(sDir & "actions/find.svg", "find")
+  ctn.Add(sDir & "actions/gtk-convert.svg", "convert")
+  ctn.Add(sDir & "actions/insert-image.svg", "insert-image")
+  ctn.Add(sDir & "actions/media-playlist-repeat.svg", "repeat")
+  ctn.Add(sDir & "actions/media-playlist-shuffle.svg", "shuffle")
+  ctn.Add(sDir & "actions/next.svg", "next")
+  ctn.Add(sDir & "actions/back.svg", "back")
+  'Player
+  ctn.Add(sDir & "actions/player_eject.svg", "eject")
+  ctn.Add(sDir & "actions/player_end.svg", "end")
+  ctn.Add(sDir & "actions/player_fwd.svg", "forward")
+  ctn.Add(sDir & "actions/player_pause.svg", "pause")
+  ctn.Add(sDir & "actions/player_play.svg", "play")
+  ctn.Add(sDir & "actions/player_record.svg", "record")
+  ctn.Add(sDir & "actions/player_rew.svg", "rewind")
+  ctn.Add(sDir & "actions/player_start.svg", "start")
+  ctn.Add(sDir & "actions/player_stop.svg", "stop")
+  ctn.Add(sDir & "actions/stock_edit.svg", "edit")
+  ctn.Add(sDir & "actions/stock_refresh.svg", "refresh")
+  ctn.Add(sDir & "actions/table.svg", "table")
+  ctn.Add(sDir & "actions/tag.svg", "tag")
+  ctn.Add(sDir & "actions/view-media-lyrics.svg", "lyric")
+  ctn.Add(sDir & "actions/view-media-playlist.svg", "playlist")
+  ctn.Add(sDir & "actions/window-close.svg", "close")
+
+  ctn.Add(sDir & "status/locked.svg", "locked")
+
+  ctn.Add(sDir & "categories/applications-development.svg", "tools")
+  ctn.Add(sDir & "categories/applications-utilities.svg", "menu")
+  ctn.Add(sDir & "devices/audio-speakers.svg", "speaker")
+  ctn.Add(sDir & "devices/media-cdr.svg", "cdroom")
+  ctn.Add(sDir & "mimetypes/application-7zip.svg", "7zip")
+  ctn.Add(sDir & "mimetypes/application-acad.svg", "acad")
+  ctn.Add(sDir & "mimetypes/application-apk.svg", "apk")
+  ctn.Add(sDir & "mimetypes/application-archive-zip.svg", "archive-zip")
+  ctn.Add(sDir & "mimetypes/application-ascii.svg", "ascii")
+  ctn.Add(sDir & "mimetypes/application-atom+xml.svg", "atom")
+  ctn.Add(sDir & "mimetypes/application-autocad_dwg.svg", "autocad_dwg")
+  ctn.Add(sDir & "mimetypes/application-blank.svg", "blank")
+  ctn.Add(sDir & "mimetypes/application-clariscad.svg", "clariscad")
+  ctn.Add(sDir & "mimetypes/application-database.svg", "database")
+  ctn.Add(sDir & "mimetypes/application-document.svg", "document")
+  ctn.Add(sDir & "mimetypes/application-document-template.svg", "document-template")
+  ctn.Add(sDir & "mimetypes/application-drawing.svg", "drawing")
+  ctn.Add(sDir & "mimetypes/application-dwg.svg", "dwg")
+  ctn.Add(sDir & "mimetypes/application-dxf.svg", "dxf")
+  ctn.Add(sDir & "mimetypes/application-epub+zip.svg", "epub+zip")
+  ctn.Add(sDir & "mimetypes/application-executable.svg", "executable")
+  ctn.Add(sDir & "mimetypes/application-flash.svg", "flash")
+  ctn.Add(sDir & "mimetypes/application-font-snf.svg", "font-snf")
+  ctn.Add(sDir & "mimetypes/application-font.svg", "font")
+  ctn.Add(sDir & "mimetypes/application-geo+json.svg", "geo+json")
+  ctn.Add(sDir & "mimetypes/application-gpx.svg", "gpx")
+  ctn.Add(sDir & "mimetypes/application-gpx+xml.svg", "gpx+xml")
+  ctn.Add(sDir & "mimetypes/application-gzip.svg", "gzip")
+  ctn.Add(sDir & "mimetypes/application-illustrator.svg", "illustrator")
+  ctn.Add(sDir & "mimetypes/application-image-jpg.svg", "jpg")
+  ctn.Add(sDir & "mimetypes/application-image-png.svg", "png")
+  ctn.Add(sDir & "mimetypes/application-images.svg", "images")
+  ctn.Add(sDir & "mimetypes/application-install.svg", "install")
+  ctn.Add(sDir & "mimetypes/application-javascript.svg", "javascript")
+  ctn.Add(sDir & "mimetypes/application-java.svg", "java")
+  ctn.Add(sDir & "mimetypes/application-json.svg", "json")
+  ctn.Add(sDir & "mimetypes/application-mathematica.svg", "mathematica")
+  ctn.Add(sDir & "mimetypes/application-mbox.svg", "mbox")
+  ctn.Add(sDir & "mimetypes/application-msword.svg", "msword")
+  ctn.Add(sDir & "mimetypes/application-music-blank.svg", "music-blank")
+  ctn.Add(sDir & "mimetypes/application-octet-stream.svg", "octet")
+  ctn.Add(sDir & "mimetypes/application-ogg.svg", "ogg")
+  ctn.Add(sDir & "mimetypes/application-pdf.svg", "pdf")
+  ctn.Add(sDir & "mimetypes/application-pgp-keys.svg", "keys")
+  ctn.Add(sDir & "mimetypes/application-pgp-signature.svg", "signature")
+  ctn.Add(sDir & "mimetypes/application-pgp.svg", "pgp")
+  ctn.Add(sDir & "mimetypes/application-pkix-cert.svg", "cert")
+  ctn.Add(sDir & "mimetypes/application-postscript.svg", "postscript")
+  ctn.Add(sDir & "mimetypes/application-presentation.svg", "presentation")
+  ctn.Add(sDir & "mimetypes/application-ram.svg", "ram")
+  ctn.Add(sDir & "mimetypes/application-rdata.svg", "rdata")
+  ctn.Add(sDir & "mimetypes/application-rss.svg", "rss")
+  ctn.Add(sDir & "mimetypes/application-rtf.svg", "rtf")
+  ctn.Add(sDir & "mimetypes/application-software.svg", "software")
+  ctn.Add(sDir & "mimetypes/application-sql.svg", "sql")
+  ctn.Add(sDir & "mimetypes/application-template.svg", "template")
+  ctn.Add(sDir & "mimetypes/application-text.svg", "text")
+  ctn.Add(sDir & "mimetypes/application-text-template.svg", "text-template")
+  ctn.Add(sDir & "mimetypes/application-users.svg", "users")
+  ctn.Add(sDir & "mimetypes/application-vector.svg", "vector")
+  ctn.Add(sDir & "mimetypes/application-vestor.svg", "vestor")
+  ctn.Add(sDir & "mimetypes/application-video.svg", "video")
+  ctn.Add(sDir & "mimetypes/application-vnd-google-earth-kml.svg", "kml")
+  ctn.Add(sDir & "mimetypes/application-vnd.google-earth.kmz.svg", "kmz")
+  ctn.Add(sDir & "mimetypes/application-vnd.ms-access.svg", "accdb")
+  ctn.Add(sDir & "mimetypes/application-vnd.ms-cab-compressed.svg", "cab")
+  ctn.Add(sDir & "mimetypes/application-vnd.ms-excel.svg", "vnd.ms-excel")
+  ctn.Add(sDir & "mimetypes/application-vnd.ms-powerpoint.presentation.macroEnabled.12.svg", "ppt")
+  ctn.Add(sDir & "mimetypes/application-vnd.ms-word.document.macroEnabled.12.svg", "doc")
+  ctn.Add(sDir & "mimetypes/application-vnd.oasis.opendocument.database.svg", "odb")
+  ctn.Add(sDir & "mimetypes/application-vnd.oasis.opendocument.drawing-template.svg", "vnd.oasis.opendocument.drawing-template")
+  ctn.Add(sDir & "mimetypes/application-vnd.oasis.opendocument.formula.svg", "odf")
+  ctn.Add(sDir & "mimetypes/application-vnd.oasis.opendocument.presentation.svg", "odp")
+  ctn.Add(sDir & "mimetypes/application-vnd.oasis.opendocument.spreadsheet.svg", "ods")
+  ctn.Add(sDir & "mimetypes/application-vnd.oasis.opendocument.text.svg", "odt")
+  ctn.Add(sDir & "mimetypes/application-vnd.oasis.opendocument.text-web.svg", "web")
+  ctn.Add(sDir & "mimetypes/application-vnd.openxmlformats-officedocument.wordprocessingml.template.svg", "vnd.openxmlformats-officedocument.wordprocessingml.template")
+  ctn.Add(sDir & "mimetypes/application-vnd.rn-realmedia.svg", "rn")
+  ctn.Add(sDir & "mimetypes/application-vnd.scribus.svg", "scribus")
+  ctn.Add(sDir & "mimetypes/application-vnd.snap.svg", "snap")
+  ctn.Add(sDir & "mimetypes/application-vnd.sun.xml.calc.svg", "calc")
+  ctn.Add(sDir & "mimetypes/application-vnd.sun.xml.draw.svg", "draw")
+  ctn.Add(sDir & "mimetypes/application-vnd.sun.xml.writer.svg", "writer")
+  ctn.Add(sDir & "mimetypes/application-vnd.tcpdump.pcap.svg", "pcap")
+  ctn.Add(sDir & "mimetypes/application-vnd.wordperfect.svg", "wpd")
+  ctn.Add(sDir & "mimetypes/application-vnd.xdgapp.svg", "xdgapp")
+  ctn.Add(sDir & "mimetypes/application-word.svg", "word")
+  ctn.Add(sDir & "mimetypes/application-x-7z-ace.svg", "ace")
+  ctn.Add(sDir & "mimetypes/application-x-7z-arj.svg", "arj")
+  ctn.Add(sDir & "mimetypes/application-x-7z-compressed.svg", "7z-compressed")
+  ctn.Add(sDir & "mimetypes/application-x-abiword.svg", "abiword")
+  ctn.Add(sDir & "mimetypes/application-x-addon.svg", "addon")
+  ctn.Add(sDir & "mimetypes/application-x-anki.svg", "anki")
+  ctn.Add(sDir & "mimetypes/application-x-apkg.svg", "apkg")
+  ctn.Add(sDir & "mimetypes/application-x-arc.svg", "arc")
+  ctn.Add(sDir & "mimetypes/application-x-ar.svg", "ar")
+  ctn.Add(sDir & "mimetypes/application-x-backpack.svg", "backpack")
+  ctn.Add(sDir & "mimetypes/application-x-bittorrent.svg", "bittorrent")
+  ctn.Add(sDir & "mimetypes/application-x-blender.svg", "blender")
+  ctn.Add(sDir & "mimetypes/application-x-bzdvi.svg", "bzdvi")
+  ctn.Add(sDir & "mimetypes/application-x-bzip-compressed.svg", "bzip")
+  ctn.Add(sDir & "mimetypes/application-x-bzip-compressed-tar.svg", "tar-bzip")
+  ctn.Add(sDir & "mimetypes/application-x-bzpdf.svg", "bzpdf")
+  ctn.Add(sDir & "mimetypes/application-x-bzpostscript.svg", "bzpostscript")
+  ctn.Add(sDir & "mimetypes/application-x-cda.svg", "cda")
+  ctn.Add(sDir & "mimetypes/application-x-class-file.svg", "class")
+  ctn.Add(sDir & "mimetypes/application-x-compress.svg", "compress")
+  ctn.Add(sDir & "mimetypes/application-x-compress-tar.svg", "tar")
+  ctn.Add(sDir & "mimetypes/application-x-cpio.svg", "cpio")
+  ctn.Add(sDir & "mimetypes/application-x-csproj.svg", "csproj")
+  ctn.Add(sDir & "mimetypes/application-x-cuecard.svg", "cuecard")
+  ctn.Add(sDir & "mimetypes/application-x-cue.svg", "cue")
+  ctn.Add(sDir & "mimetypes/application-x-designer.svg", "designer")
+  ctn.Add(sDir & "mimetypes/application-x-desktop.svg", "desktop")
+  ctn.Add(sDir & "mimetypes/application-x-dgn.svg", "dgn")
+  ctn.Add(sDir & "mimetypes/application-x-domingo.svg", "domingo")
+  ctn.Add(sDir & "mimetypes/application-x-egon.svg", "egon")
+  ctn.Add(sDir & "mimetypes/application-x-executable-script.svg", "script")
+  ctn.Add(sDir & "mimetypes/application-x-extension-fcstd.svg", "fcstd")
+  ctn.Add(sDir & "mimetypes/application-x-fictionbook+xml.svg", "fictionbook+xml")
+  ctn.Add(sDir & "mimetypes/application-x-flashqard.svg", "flashqard")
+  ctn.Add(sDir & "mimetypes/application-x-font-afm.svg", "afm")
+  ctn.Add(sDir & "mimetypes/application-x-font-bdf.svg", "bdf")
+  ctn.Add(sDir & "mimetypes/application-x-font-dos.svg", "dos")
+  ctn.Add(sDir & "mimetypes/application-x-font-framemaker.svg", "framemaker")
+  ctn.Add(sDir & "mimetypes/application-x-font-libgrx.svg", "libgrx")
+  ctn.Add(sDir & "mimetypes/application-x-font-linux-psf.svg", "linupsf")
+  ctn.Add(sDir & "mimetypes/application-x-font-otf.svg", "otf")
+  ctn.Add(sDir & "mimetypes/application-x-font-pcf.svg", "pcf")
+  ctn.Add(sDir & "mimetypes/application-x-font-snf.svg", "snf")
+  ctn.Add(sDir & "mimetypes/application-x-font-speedo.svg", "speedo")
+  ctn.Add(sDir & "mimetypes/application-x-font-sunos-news.svg", "sunos")
+  ctn.Add(sDir & "mimetypes/application-x-font-tex.svg", "tex")
+  ctn.Add(sDir & "mimetypes/application-x-font-tex-tfm.svg", "tetfm")
+  ctn.Add(sDir & "mimetypes/application-x-font-ttf.svg", "ttf")
+  ctn.Add(sDir & "mimetypes/application-x-font-ttx.svg", "ttx")
+  ctn.Add(sDir & "mimetypes/application-x-font-vfont.svg", "vfont")
+  ctn.Add(sDir & "mimetypes/application-x-gambas3.svg", "gambas3")
+  ctn.Add(sDir & "mimetypes/application-x-gameboy-rom.svg", "rom")
+  ctn.Add(sDir & "mimetypes/application-x-gnucash.svg", "gnucash")
+  ctn.Add(sDir & "mimetypes/application-x-gnumeric.svg", "gnumeric")
+  ctn.Add(sDir & "mimetypes/application-x-granuledeck.svg", "granuledeck")
+  ctn.Add(sDir & "mimetypes/application-x-gzdvi.svg", "gzdvi")
+  ctn.Add(sDir & "mimetypes/application-x-gzpdf.svg", "gzpdf")
+  ctn.Add(sDir & "mimetypes/application-x-gzpostscript.svg", "gzpostscript")
+  ctn.Add(sDir & "mimetypes/application-x-img.svg", "img")
+  ctn.Add(sDir & "mimetypes/application-x-ipynb+json.svg", "ipynb+json")
+  ctn.Add(sDir & "mimetypes/application-x-iso.svg", "iso")
+  ctn.Add(sDir & "mimetypes/application-x-jar.svg", "jar")
+  ctn.Add(sDir & "mimetypes/application-x-javascript.svg", "js")
+  ctn.Add(sDir & "mimetypes/application-x-jmemorizelesson.svg", "jmemorizelesson")
+  ctn.Add(sDir & "mimetypes/application-x-jokosher.svg", "jokosher")
+  ctn.Add(sDir & "mimetypes/application-x-jvlt.svg", "jvlt")
+  ctn.Add(sDir & "mimetypes/application-x-k3b.svg", "k3b")
+  ctn.Add(sDir & "mimetypes/application-x-keepass2.svg", "keepass2")
+  ctn.Add(sDir & "mimetypes/application-x-keepass.svg", "keepass")
+  ctn.Add(sDir & "mimetypes/application-x-kgeographymap.svg", "kgeographymap")
+  ctn.Add(sDir & "mimetypes/application-x-kontour.svg", "kontour")
+  ctn.Add(sDir & "mimetypes/application-x-krita.svg", "krita")
+  ctn.Add(sDir & "mimetypes/application-x-kvtml.svg", "kvtml")
+  ctn.Add(sDir & "mimetypes/application-x-lha.svg", "lha")
+  ctn.Add(sDir & "mimetypes/application-x-lhz.svg", "lhz")
+  ctn.Add(sDir & "mimetypes/application-x-lrzip.svg", "lrzip")
+  ctn.Add(sDir & "mimetypes/application-x-ludem.svg", "ludem")
+  ctn.Add(sDir & "mimetypes/application-x-lyx.svg", "lyx")
+  ctn.Add(sDir & "mimetypes/application-x-lzip.svg", "lzip")
+  ctn.Add(sDir & "mimetypes/application-x-lzma.svg", "lzma")
+  ctn.Add(sDir & "mimetypes/application-x-lzop.svg", "lzop")
+  ctn.Add(sDir & "mimetypes/application-x-lzpdf.svg", "lzpdf")
+  ctn.Add(sDir & "mimetypes/application-x-m4.svg", "m4")
+  ctn.Add(sDir & "mimetypes/application-x-matroska.svg", "matroska")
+  ctn.Add(sDir & "mimetypes/application-xml-dtd.svg", "dtd")
+  ctn.Add(sDir & "mimetypes/application-xml.svg", "xml")
+  ctn.Add(sDir & "mimetypes/application-x-mobipocket-ebook.svg", "mobi")
+  ctn.Add(sDir & "mimetypes/application-x-mono-develop.svg", "mono")
+  ctn.Add(sDir & "mimetypes/application-x-ms-dos-executable.svg", "exe")
+  ctn.Add(sDir & "mimetypes/application-x-msdownload.svg", "msdownload")
+  ctn.Add(sDir & "mimetypes/application-x-msi.svg", "msi")
+  ctn.Add(sDir & "mimetypes/application-x-mswinurl.svg", "mswinurl")
+  ctn.Add(sDir & "mimetypes/application-x-musescore.svg", "musescore")
+  ctn.Add(sDir & "mimetypes/application-x-musescore+xml.svg", "musescore+xml")
+  ctn.Add(sDir & "mimetypes/application-x-navi-animation.svg", "navi")
+  ctn.Add(sDir & "mimetypes/application-x-object.svg", "object")
+  ctn.Add(sDir & "mimetypes/application-x-openteacher.svg", "openteacher")
+  ctn.Add(sDir & "mimetypes/application-x-openteachingmedia.svg", "openteachingmedia")
+  ctn.Add(sDir & "mimetypes/application-x-openteachingtopography.svg", "openteachingtopography")
+  ctn.Add(sDir & "mimetypes/application-x-openteachingwords.svg", "openteachingwords")
+  ctn.Add(sDir & "mimetypes/application-x-osm+xml.svg", "osm+xml")
+  ctn.Add(sDir & "mimetypes/application-x-overhoor.svg", "overhoor")
+  ctn.Add(sDir & "mimetypes/application-x-overhoringsprogrammatalen.svg", "overhoringsprogrammatalen")
+  ctn.Add(sDir & "mimetypes/application-x-pak.svg", "pak")
+  ctn.Add(sDir & "mimetypes/application-x-pauker.svg", "pauker")
+  ctn.Add(sDir & "mimetypes/application-x-perl.svg", "perl")
+  ctn.Add(sDir & "mimetypes/application-x-php.svg", "php")
+  ctn.Add(sDir & "mimetypes/application-x-pkcs12.svg", "pkcs12")
+  ctn.Add(sDir & "mimetypes/application-x-python-bytecode.svg", "pyc")
+  ctn.Add(sDir & "mimetypes/application-x-quattropro.svg", "quattropro")
+  ctn.Add(sDir & "mimetypes/application-x-riff.svg", "riff")
+  ctn.Add(sDir & "mimetypes/application-x-ruby.svg", "ruby")
+  ctn.Add(sDir & "mimetypes/application-x-sami.svg", "sami")
+  ctn.Add(sDir & "mimetypes/application-x-scilab.svg", "scilab")
+  ctn.Add(sDir & "mimetypes/application-xsd.svg", "xsd")
+  ctn.Add(sDir & "mimetypes/application-x-sharedlib.svg", "sharedlib")
+  ctn.Add(sDir & "mimetypes/application-x-shar.svg", "shar")
+  ctn.Add(sDir & "mimetypes/application-x-siag.svg", "siag")
+  ctn.Add(sDir & "mimetypes/application-x-sln.svg", "sln")
+  ctn.Add(sDir & "mimetypes/application-xslt+xml.svg", "xslt+xml")
+  ctn.Add(sDir & "mimetypes/application-x-sony-bbeb.svg", "bbeb")
+  ctn.Add(sDir & "mimetypes/application-xspf+xml.svg", "xspf+xml")
+  ctn.Add(sDir & "mimetypes/application-x-sqlite2.svg", "sqlite2")
+  ctn.Add(sDir & "mimetypes/application-x-sqlite3.svg", "sqlite3")
+  ctn.Add(sDir & "mimetypes/application-x-stuffit.svg", "stuffit")
+  ctn.Add(sDir & "mimetypes/application-x-subrip.svg", "subrip")
+  ctn.Add(sDir & "mimetypes/application-x-tarz.svg", "tarz")
+  ctn.Add(sDir & "mimetypes/application-x-teach2000.svg", "teach2000")
+  ctn.Add(sDir & "mimetypes/application-x-teachmaster.svg", "teachmaster")
+  ctn.Add(sDir & "mimetypes/application-x-tex-gf.svg", "tegf")
+  ctn.Add(sDir & "mimetypes/application-x-tgif.svg", "tgif")
+  ctn.Add(sDir & "mimetypes/application-x-tha.svg", "tha")
+  ctn.Add(sDir & "mimetypes/application-x-theme.svg", "theme")
+  ctn.Add(sDir & "mimetypes/application-x-thz.svg", "thz")
+  ctn.Add(sDir & "mimetypes/application-x-trash.svg", "trash")
+  ctn.Add(sDir & "mimetypes/application-x-tzo.svg", "tzo")
+  ctn.Add(sDir & "mimetypes/application-x-vocabularium.svg", "vocabularium")
+  ctn.Add(sDir & "mimetypes/application-x-vokabeltrainer.svg", "vokabeltrainer")
+  ctn.Add(sDir & "mimetypes/application-x-webarchive.svg", "webarchive")
+  ctn.Add(sDir & "mimetypes/application-x-wrts.svg", "wrts")
+  ctn.Add(sDir & "mimetypes/application-x-xar.svg", "xar")
+  ctn.Add(sDir & "mimetypes/application-x-xpinstall.svg", "xpinstall")
+  ctn.Add(sDir & "mimetypes/application-x-xzpdf.svg", "xzpdf")
+  ctn.Add(sDir & "mimetypes/application-x-xz.svg", "xz")
+  ctn.Add(sDir & "mimetypes/application-x-zerosize.svg", "zerosize")
+  ctn.Add(sDir & "mimetypes/application-x-zoo.svg", "zoo")
+  ctn.Add(sDir & "mimetypes/audio-aac.svg", "aac")
+  ctn.Add(sDir & "mimetypes/audio-ac3.svg", "ac3")
+  ctn.Add(sDir & "mimetypes/audio-m4a.svg", "m4a")
+  ctn.Add(sDir & "mimetypes/audio-midi.svg", "midi")
+  ctn.Add(sDir & "mimetypes/audio-mme.P[1].svg", "mp2")
+  ctn.Add(sDir & "mimetypes/audio-mme.P[2].svg", "mp3")
+  ctn.Add(sDir & "mimetypes/audio-mpeg.svg", "mpeg")
+  ctn.Add(sDir & "mimetypes/audio-scpls.svg", "scpls")
+  ctn.Add(sDir & "mimetypes/audio-x-adpcm.svg", "adpcm")
+  ctn.Add(sDir & "mimetypes/audio-x-aiff.svg", "aiff")
+  ctn.Add(sDir & "mimetypes/audio-x-flac+ogg.svg", "flac+ogg")
+  ctn.Add(sDir & "mimetypes/audio-x-flac.svg", "flac")
+  ctn.Add(sDir & "mimetypes/audio-x-generic.svg", "generic")
+  ctn.Add(sDir & "mimetypes/audio-x-it.svg", "it")
+  ctn.Add(sDir & "mimetypes/audio-x-monkey.svg", "monkey")
+  ctn.Add(sDir & "mimetypes/audio-x-mp3-playlist.svg", "mp3-playlist")
+  ctn.Add(sDir & "mimetypes/audio-x-mpegurl.svg", "mpegurl")
+  ctn.Add(sDir & "mimetypes/audio-x-mpg.svg", "mpg")
+  ctn.Add(sDir & "mimetypes/audio-x-ms-wma.svg", "ms-wma")
+  ctn.Add(sDir & "mimetypes/audio-x-scpis.svg", "scpis")
+  ctn.Add(sDir & "mimetypes/audio-x-shorten.svg", "shorten")
+  ctn.Add(sDir & "mimetypes/audio-x-speex+ogg.svg", "speex+ogg")
+  ctn.Add(sDir & "mimetypes/audio-x-vorbis+ogg.svg", "vorbis+ogg")
+  ctn.Add(sDir & "mimetypes/audio-x-wav.svg", "wav")
+  ctn.Add(sDir & "mimetypes/audio-x-xi.svg", "xi")
+  ctn.Add(sDir & "mimetypes/audio-x-xm.svg", "xm")
+  ctn.Add(sDir & "mimetypes/authors.svg", "authors")
+  ctn.Add(sDir & "mimetypes/binary.svg", "binary")
+  ctn.Add(sDir & "mimetypes/changelog.svg", "changelog")
+  ctn.Add(sDir & "mimetypes/chdr.svg", "chdr")
+  ctn.Add(sDir & "mimetypes/contents2.svg", "contents2")
+  ctn.Add(sDir & "mimetypes/copying.svg", "copying")
+  ctn.Add(sDir & "mimetypes/credits.svg", "credits")
+  ctn.Add(sDir & "mimetypes/csharp.svg", "csharp")
+  ctn.Add(sDir & "mimetypes/csh.svg", "csh")
+  ctn.Add(sDir & "mimetypes/c++src.svg", "c++src")
+  ctn.Add(sDir & "mimetypes/csrc.svg", "csrc")
+  ctn.Add(sDir & "mimetypes/c++.svg", "c++")
+  ctn.Add(sDir & "mimetypes/c.svg", "c")
+  ctn.Add(sDir & "mimetypes/deb.svg", "deb")
+  ctn.Add(sDir & "mimetypes/divx.svg", "divx")
+  ctn.Add(sDir & "mimetypes/empty.svg", "empty")
+  ctn.Add(sDir & "mimetypes/encrypted.svg", "encrypted")
+  ctn.Add(sDir & "mimetypes/exec.svg", "exec")
+  ctn.Add(sDir & "mimetypes/extension.svg", "extension")
+  ctn.Add(sDir & "mimetypes/folder_tar.svg", "folder_tar")
+  ctn.Add(sDir & "mimetypes/font-afm.svg", "font-afm")
+  ctn.Add(sDir & "mimetypes/font_bitmap.svg", "font_bitmap")
+  ctn.Add(sDir & "mimetypes/font_truetype.svg", "font_truetype")
+  ctn.Add(sDir & "mimetypes/font_type1.svg", "font_type1")
+  ctn.Add(sDir & "mimetypes/font-woff.svg", "woff")
+  ctn.Add(sDir & "mimetypes/gddoc.svg", "gddoc")
+  ctn.Add(sDir & "mimetypes/gddraw.svg", "gddraw")
+  ctn.Add(sDir & "mimetypes/gdform.svg", "gdform")
+  ctn.Add(sDir & "mimetypes/gdlink.svg", "gdlink")
+  ctn.Add(sDir & "mimetypes/gdnote.svg", "gdnote")
+  ctn.Add(sDir & "mimetypes/gdscript.svg", "gdscript")
+  ctn.Add(sDir & "mimetypes/gdsheet.svg", "gdsheet")
+  ctn.Add(sDir & "mimetypes/gdslides.svg", "gdslides")
+  ctn.Add(sDir & "mimetypes/gdtable.svg", "gdtable")
+  ctn.Add(sDir & "mimetypes/gif.svg", "gif")
+  ctn.Add(sDir & "mimetypes/gnome-mime-application-x-7z-compressed.svg", "7z")
+  ctn.Add(sDir & "mimetypes/gnome-mime-application-x-dvi.svg", "dvi")
+  ctn.Add(sDir & "mimetypes/gnome-mime-application-x-font-linux-psf.svg", "psf")
+  ctn.Add(sDir & "mimetypes/gnome-mime-application-x-glade.svg", "glade")
+  ctn.Add(sDir & "mimetypes/gnome-mime-application-xhtml+xml.svg", "xhtml+xml")
+  ctn.Add(sDir & "mimetypes/gnome-mime-application-x-killustrator.svg", "killustrator")
+  ctn.Add(sDir & "mimetypes/gnome-mime-application-x-kpresenter.svg", "kpresenter")
+  ctn.Add(sDir & "mimetypes/gnome-mime-application-x-kspread.svg", "kspread")
+  ctn.Add(sDir & "mimetypes/gnome-mime-application-x-kword.svg", "kword")
+  ctn.Add(sDir & "mimetypes/gnome-mime-image-jpeg.svg", "jpeg")
+  ctn.Add(sDir & "mimetypes/gnome-mime-image.svg", "image")
+  ctn.Add(sDir & "mimetypes/gnome-mime-image-x-xpixmap.svg", "xpixmap")
+  ctn.Add(sDir & "mimetypes/gnome-mime-text-css.svg", "css")
+  ctn.Add(sDir & "mimetypes/gnome-mime-text-vnd.wap.wml.svg", "wap")
+  ctn.Add(sDir & "mimetypes/gnome-mime-video-x-ms-wmv.svg", "wmv")
+  ctn.Add(sDir & "mimetypes/gnome-package.svg", "package")
+  ctn.Add(sDir & "mimetypes/gtkrc.svg", "gtkrc")
+  ctn.Add(sDir & "mimetypes/html.svg", "html")
+  ctn.Add(sDir & "mimetypes/image-bmp.svg", "bmp")
+  ctn.Add(sDir & "mimetypes/image-cgm.svg", "cgm")
+  ctn.Add(sDir & "mimetypes/image-emf.svg", "emf")
+  ctn.Add(sDir & "mimetypes/image-ico.svg", "ico")
+  ctn.Add(sDir & "mimetypes/image-jpeg2000.svg", "jpeg2000")
+  ctn.Add(sDir & "mimetypes/image-openraster.svg", "openraster")
+  ctn.Add(sDir & "mimetypes/image-tiff.svg", "tiff")
+  ctn.Add(sDir & "mimetypes/image-vnd.zbrush.pcx.svg", "pcx")
+  ctn.Add(sDir & "mimetypes/image-webp.svg", "webp")
+  ctn.Add(sDir & "mimetypes/image-wmf.svg", "wmf")
+  ctn.Add(sDir & "mimetypes/image-x-3ds.svg", "3ds")
+  ctn.Add(sDir & "mimetypes/image-x-adobe-dng.svg", "dng")
+  ctn.Add(sDir & "mimetypes/image-x-canon-cr2.svg", "cr2")
+  ctn.Add(sDir & "mimetypes/image-x-canon-crw.svg", "crw")
+  ctn.Add(sDir & "mimetypes/image-x-eps.svg", "eps")
+  ctn.Add(sDir & "mimetypes/image-x-exr.svg", "exr")
+  ctn.Add(sDir & "mimetypes/image-x-fuji-raf.svg", "fuji-raf")
+  ctn.Add(sDir & "mimetypes/image-x-hdr.svg", "hdr")
+  ctn.Add(sDir & "mimetypes/image-x-icon.svg", "icon")
+  ctn.Add(sDir & "mimetypes/image-x-kodak-dcr.svg", "dcr")
+  ctn.Add(sDir & "mimetypes/image-x-kodak-kdc.svg", "kdc")
+  ctn.Add(sDir & "mimetypes/image-x-minolta-mrw.svg", "mrw")
+  ctn.Add(sDir & "mimetypes/image-x-nikon-nef.svg", "nef")
+  ctn.Add(sDir & "mimetypes/image-x-olympus-orf.svg", "orf")
+  ctn.Add(sDir & "mimetypes/image-x-panasonic-raw2.svg", "raw2")
+  ctn.Add(sDir & "mimetypes/image-x-panasonic-raw.svg", "raw")
+  ctn.Add(sDir & "mimetypes/image-x-panasonic-rw2.svg", "rw2")
+  ctn.Add(sDir & "mimetypes/image-x-panasonic-rw.svg", "rw")
+  ctn.Add(sDir & "mimetypes/image-x-pentax-pef.svg", "pentapef")
+  ctn.Add(sDir & "mimetypes/image-x-psdimage-x-psd.svg", "psdpsd")
+  ctn.Add(sDir & "mimetypes/image-x-psd.svg", "psd")
+  ctn.Add(sDir & "mimetypes/image-x-sigma-x3f.svg", "x3f")
+  ctn.Add(sDir & "mimetypes/image-x-sony-arw.svg", "arw")
+  ctn.Add(sDir & "mimetypes/image-x-tga.svg", "tga")
+  ctn.Add(sDir & "mimetypes/image-x-xcf.svg", "xcf")
+  ctn.Add(sDir & "mimetypes/image-x-xcursor.svg", "xcursor")
+  ctn.Add(sDir & "mimetypes/image-x-xfig.svg", "xfig")
+  ctn.Add(sDir & "mimetypes/inode-symlink.svg", "symlink")
+  ctn.Add(sDir & "mimetypes/internet-feed.svg", "feed")
+  ctn.Add(sDir & "mimetypes/java-source.svg", "java-source")
+  ctn.Add(sDir & "mimetypes/kpresenter_kpr.svg", "kpresenter_kpr")
+  ctn.Add(sDir & "mimetypes/libreoffice-oasis-spreadsheet.svg", "sos")
+  ctn.Add(sDir & "mimetypes/makefile.svg", "makefile")
+  ctn.Add(sDir & "mimetypes/message-news.svg", "news")
+  ctn.Add(sDir & "mimetypes/message-rfc822.svg", "rfc822")
+  ctn.Add(sDir & "mimetypes/message.svg", "message")
+  ctn.Add(sDir & "mimetypes/message-x-gnu-rmail.svg", "rmail")
+  ctn.Add(sDir & "mimetypes/misc.svg", "misc")
+  ctn.Add(sDir & "mimetypes/model.svg", "model")
+  ctn.Add(sDir & "mimetypes/model-vnd.dwf.svg", "dwf")
+  ctn.Add(sDir & "mimetypes/model-vrml.svg", "vrml")
+  ctn.Add(sDir & "mimetypes/model-x3d.svg", "x3d")
+  ctn.Add(sDir & "mimetypes/model-x.stl-binary.svg", "stl")
+  ctn.Add(sDir & "mimetypes/music.svg", "music")
+  ctn.Add(sDir & "mimetypes/none.svg", "none")
+  ctn.Add(sDir & "mimetypes/office-contact.svg", "contact")
+  ctn.Add(sDir & "mimetypes/office-illustration.svg", "illustration")
+  ctn.Add(sDir & "mimetypes/office-spreadsheet.svg", "spreadsheet")
+  ctn.Add(sDir & "mimetypes/package_editors.svg", "editors")
+  ctn.Add(sDir & "mimetypes/package-gdebi.svg", "gdebi")
+  ctn.Add(sDir & "mimetypes/package_wordprocessing.svg", "wordprocessing")
+  ctn.Add(sDir & "mimetypes/plan.svg", "plan")
+  ctn.Add(sDir & "mimetypes/playlist-automatic.svg", "automatic")
+  ctn.Add(sDir & "mimetypes/python.svg", "py")
+  ctn.Add(sDir & "mimetypes/rar.svg", "rar")
+  ctn.Add(sDir & "mimetypes/readme.svg", "readme")
+  ctn.Add(sDir & "mimetypes/rpm.svg", "rpm")
+  ctn.Add(sDir & "mimetypes/sh.svg", "sh")
+  ctn.Add(sDir & "mimetypes/sound.svg", "sound")
+  ctn.Add(sDir & "mimetypes/source.svg", "source")
+  ctn.Add(sDir & "mimetypes/stock_addressbook.svg", "addressbook")
+  ctn.Add(sDir & "mimetypes/stock_calendar.svg", "calendar")
+  ctn.Add(sDir & "mimetypes/stock_certificate.svg", "certificate")
+  ctn.Add(sDir & "mimetypes/svg.svg", "svg")
+  ctn.Add(sDir & "mimetypes/text2.svg", "text2")
+  ctn.Add(sDir & "mimetypes/text-csv.svg", "csv")
+  'ctn.Add(sDir & "mimetypes/text-directory.svg", "directory")
+  ctn.Add(sDir & "mimetypes/text-enriched.svg", "enriched")
+  ctn.Add(sDir & "mimetypes/text-html_alt.svg", "html_alt")
+  ctn.Add(sDir & "mimetypes/text-htmlh.svg", "htmlh")
+  ctn.Add(sDir & "mimetypes/text-markdown.svg", "markdown")
+  ctn.Add(sDir & "mimetypes/text-mht.svg", "mht")
+  ctn.Add(sDir & "mimetypes/text-plain.svg", "plain")
+  ctn.Add(sDir & "mimetypes/text-rdf+xml.svg", "rdf+xml")
+  ctn.Add(sDir & "mimetypes/text-richtext.svg", "richtext")
+  ctn.Add(sDir & "mimetypes/text-rust.svg", "rust")
+  ctn.Add(sDir & "mimetypes/text-sgml.svg", "sgml")
+  ctn.Add(sDir & "mimetypes/text-vcalendar.svg", "vcalendar")
+  ctn.Add(sDir & "mimetypes/text-vnd.qt.linguist.svg", "linguist")
+  ctn.Add(sDir & "mimetypes/text-x-arduino.svg", "arduino")
+  ctn.Add(sDir & "mimetypes/text-x-bak.svg", "bak")
+  ctn.Add(sDir & "mimetypes/text-x-bibtex.svg", "bibtex")
+  ctn.Add(sDir & "mimetypes/text-x-c++hdr.svg", "c++hdr")
+  ctn.Add(sDir & "mimetypes/text-x-cmake.svg", "cmake")
+  ctn.Add(sDir & "mimetypes/text-x-crystal.svg", "crystal")
+  ctn.Add(sDir & "mimetypes/text-x-dsrc.svg", "dsrc")
+  ctn.Add(sDir & "mimetypes/text-x-emacs-lisp.svg", "lisp")
+  ctn.Add(sDir & "mimetypes/text-x-fortran.svg", "fortran")
+  ctn.Add(sDir & "mimetypes/text-x-gettext-translation.svg", "translation")
+  ctn.Add(sDir & "mimetypes/text-x-go.svg", "go")
+  ctn.Add(sDir & "mimetypes/text-x-haskell.svg", "haskell")
+  ctn.Add(sDir & "mimetypes/text-x-haxe.svg", "haxe")
+  ctn.Add(sDir & "mimetypes/text-xhtml+xml.svg", "xhtml")
+  ctn.Add(sDir & "mimetypes/text-x-iptables.svg", "iptables")
+  ctn.Add(sDir & "mimetypes/text-x-ipynb.svg", "ipynb")
+  ctn.Add(sDir & "mimetypes/text-x-katefilelist.svg", "katefilelist")
+  ctn.Add(sDir & "mimetypes/text-x-lilypond.svg", "lilypond")
+  ctn.Add(sDir & "mimetypes/text-x-log.svg", "log")
+  ctn.Add(sDir & "mimetypes/text-x-lua.svg", "lua")
+  ctn.Add(sDir & "mimetypes/text-x-matlab.svg", "matlab")
+  ctn.Add(sDir & "mimetypes/text-x-microdvd.svg", "microdvd")
+  ctn.Add(sDir & "mimetypes/text-x-nfo.svg", "nfo")
+  ctn.Add(sDir & "mimetypes/text-x-nim.svg", "nim")
+  ctn.Add(sDir & "mimetypes/text-x-objchdr.svg", "objchdr")
+  ctn.Add(sDir & "mimetypes/text-x-objcsrc.svg", "objcsrc")
+  ctn.Add(sDir & "mimetypes/text-x-ocaml.svg", "ocaml")
+  ctn.Add(sDir & "mimetypes/text-x-octave.svg", "octave")
+  ctn.Add(sDir & "mimetypes/text-x-opml.svg", "opml")
+  ctn.Add(sDir & "mimetypes/text-x-opml+xml.svg", "opml+xml")
+  ctn.Add(sDir & "mimetypes/text-x-pascal.svg", "pascal")
+  ctn.Add(sDir & "mimetypes/text-x-patch.svg", "patch")
+  ctn.Add(sDir & "mimetypes/text-x-po.svg", "po")
+  ctn.Add(sDir & "mimetypes/text-x-python3.svg", "python3")
+  ctn.Add(sDir & "mimetypes/text-x-qml.svg", "qml")
+  ctn.Add(sDir & "mimetypes/text-x-rsrc.svg", "rsrc")
+  ctn.Add(sDir & "mimetypes/text-x-R.svg", "r")
+  ctn.Add(sDir & "mimetypes/text-x-sass.svg", "sass")
+  ctn.Add(sDir & "mimetypes/text-x-scala.svg", "scala")
+  ctn.Add(sDir & "mimetypes/text-x-scheme.svg", "scheme")
+  ctn.Add(sDir & "mimetypes/text-x-scss.svg", "scss")
+  ctn.Add(sDir & "mimetypes/text-x.svg", "x")
+  ctn.Add(sDir & "mimetypes/text-x-tcl.svg", "tcl")
+  ctn.Add(sDir & "mimetypes/text-x-texinfo.svg", "texinfo")
+  ctn.Add(sDir & "mimetypes/text-x-vala.svg", "vala")
+  ctn.Add(sDir & "mimetypes/text-x-vcard.svg", "vcard")
+  ctn.Add(sDir & "mimetypes/text-x-xslfo.svg", "xslfo")
+  ctn.Add(sDir & "mimetypes/tgz.svg", "tgz")
+  ctn.Add(sDir & "mimetypes/torrent.svg", "torrent")
+  ctn.Add(sDir & "mimetypes/txt2.svg", "txt2")
+  ctn.Add(sDir & "mimetypes/txt.svg", "txt")
+  ctn.Add(sDir & "mimetypes/unknown.svg", "unknown")
+  ctn.Add(sDir & "mimetypes/uri-mms.svg", "mms")
+  ctn.Add(sDir & "mimetypes/uri-mmst.svg", "mmst")
+  ctn.Add(sDir & "mimetypes/uri-mmsu.svg", "mmsu")
+  ctn.Add(sDir & "mimetypes/uri-pnm.svg", "pnm")
+  ctn.Add(sDir & "mimetypes/uri-rtspt.svg", "rtspt")
+  ctn.Add(sDir & "mimetypes/uri-rtspu.svg", "rtspu")
+  ctn.Add(sDir & "mimetypes/video-mlt-playlist.svg", "mlt")
+  ctn.Add(sDir & "mimetypes/video-mme.P[4].svg", "mp4")
+  ctn.Add(sDir & "mimetypes/video-vivo.svg", "vivo")
+  ctn.Add(sDir & "mimetypes/video-wavelet.svg", "wavelet")
+  ctn.Add(sDir & "mimetypes/video-webm.svg", "webm")
+  ctn.Add(sDir & "mimetypes/video-x-anim.svg", "anim")
+  ctn.Add(sDir & "mimetypes/video-x-flic.svg", "flic")
+  ctn.Add(sDir & "mimetypes/video-x-flv.svg", "flv")
+  ctn.Add(sDir & "mimetypes/video-x-google-vlc-plugin.svg", "vlc")
+  ctn.Add(sDir & "mimetypes/video-x-javafx.svg", "javafx")
+  ctn.Add(sDir & "mimetypes/video-x-matroska.svg", "mkv")
+  ctn.Add(sDir & "mimetypes/video-x-mng.svg", "mng")
+  ctn.Add(sDir & "mimetypes/video-x-ms-asf.svg", "asf")
+  ctn.Add(sDir & "mimetypes/video-x-msvideo.svg", "msvideo")
+  ctn.Add(sDir & "mimetypes/video-x-ms-wmp.svg", "wmp")
+  ctn.Add(sDir & "mimetypes/video-x-nsv.svg", "nsv")
+  ctn.Add(sDir & "mimetypes/video-x-ogm+ogg.svg", "ogm")
+  ctn.Add(sDir & "mimetypes/video-x-sgi-movie.svg", "sgi")
+  ctn.Add(sDir & "mimetypes/video-x-theora+ogg.svg", "theora")
+  ctn.Add(sDir & "mimetypes/virtualbox-hdd.svg", "hdd")
+  ctn.Add(sDir & "mimetypes/virtualbox-ova.svg", "ova")
+  ctn.Add(sDir & "mimetypes/virtualbox-ovf.svg", "ovf")
+  ctn.Add(sDir & "mimetypes/virtualbox-vbox-extpack.svg", "extpack")
+  ctn.Add(sDir & "mimetypes/virtualbox-vbox.svg", "vbox")
+  ctn.Add(sDir & "mimetypes/virtualbox-vdi.svg", "vdi")
+  ctn.Add(sDir & "mimetypes/virtualbox-vhd.svg", "vhd")
+  ctn.Add(sDir & "mimetypes/virtualbox-vmdk.svg", "vmdk")
+  ctn.Add(sDir & "mimetypes/vnd.oasis.opendocument.drawing.svg", "odg")
+  ctn.Add(sDir & "mimetypes/wps-office-dot.svg", "dot")
+  ctn.Add(sDir & "mimetypes/wps-office-dps.svg", "dps")
+  ctn.Add(sDir & "mimetypes/wps-office-dpt.svg", "dpt")
+  ctn.Add(sDir & "mimetypes/wps-office-et.svg", "et")
+  ctn.Add(sDir & "mimetypes/wps-office-ett.svg", "ett")
+  ctn.Add(sDir & "mimetypes/wps-office-pot.svg", "pot")
+  ctn.Add(sDir & "mimetypes/wps-office-wps.svg", "wps")
+  ctn.Add(sDir & "mimetypes/wps-office-wpt.svg", "wpt")
+  ctn.Add(sDir & "mimetypes/wps-office-xls.svg", "xls")
+  ctn.Add(sDir & "mimetypes/wps-office-xlt.svg", "xlt")
+  ctn.Add(sDir & "mimetypes/www.svg", "www")
+  ctn.Add(sDir & "mimetypes/x-mail-distribution-list.svg", "list")
+  ctn.Add(sDir & "mimetypes/x-world-x-3dmf.svg", "3dmf")
+  ctn.Add(sDir & "mimetypes/zip.svg", "zip")
+  ctn.Add(sDir & "mimetypes/zsh.svg", "zsh")
+
+  ctn.Add(sDir & "places/folder-sound.svg", "audio")
+  ctn.Add(sDir & "places/default-folder.svg", "directory")
+
+  ctn.Add(sDir & "status/info.svg", "info")
+
+  Return ctn
+
+End

@@ -1,0 +1,72 @@
+' Gambas class file
+
+' GauchoCAD
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+
+Inherits ToolsBase
+Create Static
+Public Const Gender As String = "Explode"
+
+Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer = 0) As Boolean
+
+  ' Aprovechamos para establecer los helpers (comentarios de ayuda en pantalla)
+
+  Dim i As Integer
+  Dim e As Entity
+
+  clsDrawingAids.HelperTrabajo = ("Explode") & " "
+
+  ' chequeamos si hubo seleccion previa
+  Me.SelectionCount = clsEntities.GetSelectionCount()
+
+  If Me.SelectionCount = 0 Then                                     ' we have no elements in the selection
+
+    clsDrawingAids.Helper.texto = clsDrawingAids.HelperTrabajo & ": " & ("Select blocks")
+
+    gcd.clsJobPrevious = Me
+    gcd.clsJob = clsDefaultJob
+
+  Else                                                                    ' EXPLOTA !!!
+
+    For i = gcd.CurrentDrawing.arrEntities.Max To 0 Step -1
+
+      e = gcd.CurrentDrawing.arrEntities[i]
+      If e.Selected Then
+        Select e.Gender
+          Case "Insert", "Dimension"
+            'e.ForDeletion = True
+          Case Else
+            ' le saco la referencia a un bloque
+
+            e.Block = ""
+            e.BlockNumber = -1
+
+        End Select
+      End If
+    Next
+    clsEntities.DeleteSelected(True)
+
+    Me.Finish
+
+  Endif
+
+  gcd.ToolActive = True
+
+End

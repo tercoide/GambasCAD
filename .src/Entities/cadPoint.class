@@ -1,0 +1,244 @@
+' Gambas class file
+
+' GauchoCAD
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+Create Static
+'Fast
+
+Public Const Gender As String = "Point"
+Public Const DrawingOrder As Integer = 1        ' 1 = draws first
+Public Const HelperTrabajo As String = ("a point")
+Public Const ParamType As String = "P"                             ' that is Point, Point; could be Color Text, etc
+Public Const ParamHelper As String = "Point"
+Public Const GAMBASCADENTITY As String = "EntityBase"
+Public Const USEWITH As String = "EntityBuilder"
+Public Const PointsToDraw As Integer = 1             ' minimal point requered for drawing something usefull
+Public Const OrthogonalIgnored As Boolean = False
+Public Const OrthogonalForced As Boolean = False
+Public Const ParamDefault As String = " "
+Public Const StretchAble As Boolean = True           ' Si lo puedo deformar
+Public Selected As Boolean
+
+Public DrawAble As Boolean = False          ' True si durante la construccion ya tiene suficientes elementos para poder hacer una representacion digna
+Public Visible As Boolean = True            ' si esta entidad puede ser mostrada independientmente
+Public Finished As Boolean = False          ' colocar en true cuando se llegue a completar
+Public StepsDone As Integer                 ' esto lo cambia cls ElementBuilder durante la construccion
+
+' JSON and DXF Read/Export
+Public Const JSON_Reading As Boolean = True
+Public Const JSON_Export As Boolean = False
+
+Public Const DXF_Reading As Boolean = True
+Public Const DXF_Export As Boolean = True
+
+' The entity handler receives a user action, and returns the number of expected parameter
+' If definitive = true, means the parameter is set
+Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
+
+
+
+  If Me.StepsDone = 0 Then
+    eBuild.DrawAble = True
+    Try eBuild.P[0] = vParam[1]
+    Try eBuild.P[1] = vParam[2]
+
+    If definitive Then Return True
+
+
+  Endif
+
+
+End
+
+Public Sub Translate(e As Entity, dX As Float, dY As Float, Optional OnlySelected As Boolean = False)
+
+  Dim i As Integer
+
+  If OnlySelected Then
+
+    For i = 0 To e.Psel.Max
+      If e.Psel[i] Then
+
+        e.P[i * 2] += dx
+        e.P[i * 2 + 1] += dy
+
+      Endif
+    Next
+
+  Else
+
+    puntos.Translate(e.p, dx, dy)
+  Endif
+
+End
+
+Public Sub Rotate(e As Entity, radians As Float)
+
+  puntos.Rotate(e.p, radians)
+
+End
+
+Public Sub Scale(e As Entity, sX As Float, sY As Float)
+
+  Dim i As Integer
+
+  For i = 0 To e.p.max Step 2
+
+    e.P[i] = e.P[i] * sX
+    e.P[i + 1] = e.P[i + 1] * sY
+
+  Next
+
+End
+
+Public Sub Draw(oE As Entity)
+
+  If Not oE.Visible Then Return
+  If Not oE.DrawAble Then Return
+  oE.ColorToPaint = gcd.GetGBColor(oE.colour, oE.Layerid)
+  gl.PointSize(oe.LineWidth)
+  gl.Begin(gl.POINTS)
+  gl.Vertex2f(oe.P[0], oe.P[1])
+  gl.End
+
+End
+
+'' A fat version of the line
+Public Sub DrawSelected(oE As Entity)
+
+End
+'' A fat version of the line
+
+Public Sub DrawRemark(oE As Entity)
+
+End
+
+'' The paint version of the entity
+Public Function Draw2(oE As Entity)
+
+End
+
+'' Creo los puntos de interes
+'' Build point of interest
+
+Public Function BuildPOI(oE As Entity, Optional arrIndex As Integer = -1) As Integer
+
+  If arrIndex < 0 Then arrIndex = gcd.CurrentDrawing.arrEntities.Max       ' si este valor no es provisto , estos POI son de la ultima entidad
+
+  oe.PoiPoints.Clear
+  oe.PoiType.Clear
+
+  ' points: end-mid-end
+  oe.poiPoints.insert([oE.p[0], oE.p[1]])
+  oe.poiType.Add(gcd.poiEndPoint)
+
+End
+
+' This function will return False if the element couldn't be created for some reason: bad or incomple user input
+' True means all is good, False will instruct the clsEntityBuilder to delete it
+Public Sub Finish(oE As Entity) As Boolean
+
+  'Print "Finish en EntityBase"
+  'CreatePolygon(oe)
+  If oe.fParam.Count = 0 Then oe.fParam.Add(0)
+
+  BuildPOI(oe)
+
+  ' busco el tipo de linea, si hace falta
+  If oE.LineTypeName = "Dashed" Then oE.LineType = 1
+  ' tareas finales de armado del objeto
+
+  oE.psel.resize(oE.p.count / 2)
+
+  oE.DrawAble = True
+  oE.Selected = False
+  oE.Finished = True
+
+End
+
+
+Public Sub ExportDXFCol(e As Entity, ByRef cExport As Collection) As Boolean
+
+  cExport.Add("POINT", dxf.codEntity)
+  clsEntities.DXFExportCommonCol(e, cExport)
+  cExport.Add("AcDbPoint", "100")
+  cExport.Add(CStr(e.p[0]), dxf.codX0)
+  cExport.Add(CStr(e.p[1]), dxf.codY0)
+  cExport.Add("0", DXF.codZ0)
+  cExport.Add(CStr(e.fParam[0]), "39")
+
+End
+
+
+Public Sub ExportDXF(e As Entity, hFile As File)
+
+  Print #hFIle, "  0"                       ' Entity type
+  Print #hFIle, "POINT"
+  clsEntities.DXFExportCommon(e, hFile)
+  Print #hFIle, "100"                     ' Subclass marker
+  Print #hFIle, "AcDbPoint"
+  Print #hFIle, " 10"                      ' X0
+  Print #hFIle, CStr(e.p[0])
+  Print #hFIle, " 20"                      ' Y0
+  Print #hFIle, CStr(e.p[1])
+  Print #hFIle, " 30"                      ' Z0
+  Print #hFIle, "0" 'CStr(e.p[2])
+  Print #hFIle, " 39"                      ' Thickness
+  If e.fParam.Count > 0 Then
+    Print #hFIle, CStr(e.fParam[0])
+  Else
+    Print #hFIle, "0"
+  End If
+
+End
+
+' 100 Subclass marker(AcDbPoint)
+'
+' 10 Point location( In WCS) DXF: X value; APP: 3 D point
+'
+' 20, 30 DXF: Y And Z values Of point location( In WCS)
+'
+' 39 Thickness(Optional ; Default = 0)
+'
+' 210 Extrusion direction(Optional ; Default = 0, 0, 1) DXF: X value; APP: 3 D vector
+'
+' 220, 230 DXF: Y And Z values Of extrusion direction(Optional )
+'
+' 50 Angle Of the X axis For the UCS In effect when the point was drawn(Optional , Default = 0); used when PDMODE Is Nonzero
+Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
+
+  Dim i As Integer
+
+  For i = 0 To sClaves.Max
+
+    If sClaves[i] = "10" Then e.P.Add(CFloat(sValues[i]))
+    If sClaves[i] = "20" Then e.P.Add(CFloat(sValues[i]))
+    'If sClaves[i] = "30" Then e.P.Add(CFloat(sValues[i]))
+    If sClaves[i] = "39" Then e.fParam.Add(CFloat(sValues[i]))
+
+  Next
+  Return True
+
+
+Catch
+
+  Return False
+
+End

@@ -1,0 +1,422 @@
+' Gambas class file
+
+' GauchoCAD
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+Create Static
+' Fast
+
+Public Const Gender As String = "Ellipse"
+Public Const PointsToDraw As Integer = 1             ' minimal point requered for drawing something usefull
+Public Const HelperTrabajo As String = ("Draw an ellipse")
+Public Const ParamType As String = "PPRRR"
+Public Const ParamHelper As String = "Start point;Major Radious;Minor/Major;Start;End"      ' a little text that is shown at the prompt waiting for user input during build
+Public Const ParamDefault As String = " ;  ;0.5;0;360"
+Public Const USEWITH As String = "EntityBuilder"
+Public Const DrawingOrder As Integer = 0        ' 1 = draws first
+Public Const OrthogonalIgnored As Boolean = False
+Public Const OrthogonalForced As Boolean = False
+Public Const StretchAble As Boolean = True           ' Si lo puedo deformar
+Public DrawAble As Boolean = False          ' True si durante la construccion ya tiene suficientes elementos para poder hacer una representacion digna
+Public Finished As Boolean = False          ' colocar en true cuando se llegue a completar
+Public StepsDone As Integer                 ' esto lo cambia cls ElementBuilder durante la construccion
+
+' vars creadas en finish
+
+Public recorrido As Float
+Public angle As Float
+
+' JSON and DXF Read/Export
+Public Const JSON_Reading As Boolean = True
+Public Const JSON_Export As Boolean = False
+
+Public Const DXF_Reading As Boolean = True
+Public Const DXF_Export As Boolean = True
+
+' The entity handler receives a user action, and returns the number of expected parameter
+' If definitive = true, means the parameter is set
+Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
+
+  Dim f As Float
+  Dim ip As Integer
+
+  If Me.StepsDone = 0 Then
+
+    If vParam[0] <> "point" Then Return Me.StepsDone
+
+    Try eBuild.P[0] = vParam[1]
+    Try eBuild.P[1] = vParam[2]
+    eBuild.P[2] = eBuild.P[0]
+    eBuild.P[3] = eBuild.P[1]
+    If definitive Then Return True
+
+  Else If Me.StepsDone = 1 Then
+
+    If vParam[0] <> "point" Then Return False
+
+    eBuild.DrawAble = True
+    Try eBuild.P[2] = vParam[1]
+    Try eBuild.P[3] = vParam[2]
+    eBuild.fParam[0] = 0.5
+    eBuild.fParam[1] = 0
+    eBuild.fParam[2] = 360
+    If definitive Then Return True
+
+  Else If Me.StepsDone = 2 Then   ' recibimos la relacion de minor/major
+
+    If vParam[0] = "point" Then  ' vino como un punto, entonces la calculo de otra manera
+
+      ' return the angle from horizontal to us
+      eBuild.fParam[0] = Abs(puntos.PointToLineDistance([vParam[1], vParam[2]], [eBuild.p[0], eBuild.p[1], eBuild.p[2], eBuild.p[3]])) / puntos.distancia(eBuild.p[0], eBuild.p[1], eBuild.p[2], eBuild.p[3])
+
+    Else If vParam[0] = "float" Then  ' vino como un punto, entonces la calculo de otra manera
+      eBuild.fParam[0] = vParam[1]
+
+    Else
+      Return False
+    End If
+
+    If definitive Then Return True
+
+  Else If Me.StepsDone = 3 Or Me.StepsDone = 4 Then    ' recibimos el angulo inicial
+
+    If Me.StepsDone = 3 Then ip = 1 Else ip = 2
+
+    If vParam[0] = "float" Then  ' vino como un punto, entonces la calculo de otra manera
+      eBuild.fParam[ip] = vParam[1]
+
+    Else If vParam[0] = "point" Then
+      f = Ang(vParam[1] - eBuild.P[0], vParam[2] - eBuild.P[1])
+      f *= 180 / Pi
+      eBuild.fParam[ip] = f
+    Else
+      Return False
+    End If
+
+    If definitive Then Return True
+
+
+  Else
+    Return False
+  End If
+
+
+
+
+End
+
+Public Sub Translate(e As Entity, dX As Float, dY As Float, Optional OnlySelected As Boolean = False)
+
+  Dim i As Integer
+
+  If OnlySelected Then
+
+    For i = 0 To e.Psel.Max
+      If e.Psel[i] Then
+
+        e.P[i * 2] += dx
+        e.P[i * 2 + 1] += dy
+
+      Endif
+    Next
+
+  Else
+
+    puntos.Translate(e.p, dx, dy)
+  Endif
+
+End
+
+Public Sub Rotate(e As Entity, radians As Float)
+
+  puntos.Rotate(e.p, radians)
+
+End
+
+Public Sub Scale(e As Entity, sX As Float, sY As Float)
+
+  Dim i As Integer
+
+  For i = 0 To e.p.max Step 2
+
+    e.P[i] = e.P[i] * sX
+
+    e.P[i + 1] = e.P[i + 1] * sY
+
+  Next
+
+  ' start/end
+  If sx < 0 Then
+    E.fParam[1] = 360 - E.fParam[1]
+    E.fParam[2] = 360 - E.fParam[2]
+    Swap e.fParam[1], e.fParam[2]
+    If E.fParam[2] < E.fParam[1] Then E.fParam[2] += 360
+
+  Endif
+
+  If sy < 0 Then
+    E.fParam[1] = 360 - E.fParam[1]
+    E.fParam[2] = 360 - E.fParam[2]
+    Swap e.fParam[1], e.fParam[2]
+    If E.fParam[2] < E.fParam[1] Then E.fParam[2] += 360
+  Endif
+
+End
+
+Public Sub Draw(oE As Entity)
+
+  Dim x, y, theta, angle_increment As Float
+  Dim i As Integer
+  Dim major, minor, la As Float
+
+  If Not oE.Visible Then Return
+
+  major = Sqr((oE.p[2] - oE.p[0]) ^ 2 + (oE.p[3] - oE.p[1]) ^ 2)
+  angle = Ang(oE.p[2] - oE.p[0], oE.p[3] - oE.p[1])          ' Los coordenadas del eje mayor son relativas al centro
+
+  Minor = major * oE.fParam[0]
+  If major = 0 Then major = 1
+
+  oE.PolyLine.Clear
+  angle_increment = Pi * 2 / 360 '* oe.fParam[3]
+  For theta = oE.fParam[1] / 180 * Pi To oE.fParam[2] / 180 * Pi Step angle_increment
+    ' el punto considerando 0,0 al centro
+    x = major * Cos(theta) * Cos(angle) - minor * Sin(theta) * Sin(angle)
+    y = major * Cos(theta) * Sin(angle) + minor * Sin(theta) * Cos(angle)
+    oE.PolyLine.Add(x + oE.p[0])
+    oE.PolyLine.Add(y + oE.p[1])
+
+  Next
+
+  oE.ColorToPaint = gcd.GetGBColor(oE.colour, oE.Layerid)
+  GLplus.PolyLines(oE.PolyLine, oE.ColorToPaint, oe.LineWidth, oe.LineType)
+
+  ' ayudas al user
+  If Me.StepsDone = 3 Or Me.StepsDone = 4 Then ' dibujo una linea para indicar el angulo
+    Dim iP As Integer
+    Dim x0, y0, x1, y1 As Float
+
+    If Me.StepsDone = 3 Then ip = 1 Else ip = 2
+    x0 = oe.P[0]          ' centro de la elipse
+    y0 = oe.P[1]
+    x1 = x0 + major * Cos(angle + oe.fParam[ip] / 180 * Pi) * 1.1
+    y1 = y0 + major * Sin(angle + oe.fParam[ip] / 180 * Pi) * 1.1
+
+    glPlus.Lines([x0, y0, x1, y1], Starter.flgOnScreenHelpColor)
+
+  Endif
+
+End
+
+'' A fat version of the entity
+Public Sub DrawSelected(oE As Entity)
+
+  GLplus.PolyLines(oE.PolyLine, Starter.flgWindowBackColor, oE.LineWidth, gcd.stiDashed)
+  GLplus.PolyLines(oE.PolyLine, gcd.ColorForSelected, oE.LineWidth, oE.LineType)
+
+End
+
+'' A fat version of the entity
+Public Sub DrawRemark(oE As Entity)
+
+  '  GLplus.PolyLines(oE.PolyLine, Starter.flgWindowBackColor, oE.LineWidth, gcd.stiDashed)
+  '  GLplus.PolyLines(oE.PolyLine, oE.ColorToPaint, oE.LineWidth + 2, oE.LineType)
+  If oe.Selected Then
+    GLplus.PolyLines(oE.PolyLine, Starter.flgWindowBackColor, oE.LineWidth + 2, gcd.stiDashed)
+    GLplus.PolyLines(oE.PolyLine, gcd.ColorForSelected, oE.LineWidth + 2, oE.LineType)
+  Else
+    GLplus.PolyLines(oE.PolyLine, Starter.flgWindowBackColor, oE.LineWidth, gcd.stiDashed)
+    GLplus.PolyLines(oE.PolyLine, oE.ColorToPaint, oE.LineWidth + 2, oE.LineType)
+  Endif
+
+End
+
+Public Function Draw2(oE As Entity)
+
+  If Not oE.Visible Then Return
+
+  Dim major, minor, la As Float
+
+  major = Sqr((oE.p[2] - oE.p[0]) ^ 2 + (oE.p[3] - oE.p[1]) ^ 2)
+  angle = Ang(oE.p[2] - oE.p[0], oE.p[3] - oE.p[1])          ' Los coordenadas del eje mayor son relativas al centro
+  If Not oE.Finished Then
+    If Me.StepsDone < 2 Then
+      oE.fParam[0] = 0.5
+      Me.start = 0
+      Me.recorrido = 2 * Pi
+      Minor = major * oE.fParam[0]
+    Else If Me.StepsDone < 3 Then
+      Minor = major * oE.fParam[0]
+      'If oE.fParam[0] > major Then oE.fParam[0] = major
+      'Minor = oE.fParam[0]
+
+    Endif
+  Endif
+  Minor = major * oE.fParam[0]
+  If major = 0 Then major = 1
+
+  paint.Save
+
+  paint.brush = Paint.Color(oE.ColorToPaint)
+
+  paint.Translate(oE.p[0], oE.p[1])
+  paint.Rotate(-angle)
+  Paint.Scale(1, Minor / major)
+  paint.LineWidth = oE.LineWidth ' / gcd.CurrentDrawing.ScaleZoom / gcd.ScaleLines
+  paint.arc(0, 0, major, Me.start, Me.recorrido)
+  paint.Stroke
+  paint.Restore
+
+End
+
+' This function will return False if the element couldn't be created for some reason: bad or incomple user input
+' True means all is good, False will instruct the clsEntityBuilder to delete it
+Public Sub Finish(oE As Entity) As Boolean
+
+  ' calculo el recorrido del arco como
+  ' OJO en la ELLIPSE vienen en radianes, y en ARC en grados
+
+  'CreatePolygon
+
+  ' tareas finales de armado del objeto
+
+  oE.psel.resize(oE.p.count / 2)
+
+  oE.DrawAble = True
+  oE.Selected = False
+  oE.Finished = True
+
+  If oE.fParam[2] < oE.fParam[1] Then oE.fParam[2] += 360
+
+End
+
+' Importo los datos que puedo procesar de una coleccion y genero un Entity para ser agregado a un array
+Public Function ImportJsonCol(c As Collection, e As Entity) As Boolean
+
+  e.P.Add(c["center"][0])
+  e.P.Add(c["center"][1])
+  e.P.Add(c["sm_axis"][0] + c["center"][0])
+  e.P.Add(c["sm_axis"][1] + c["center"][1])
+
+  e.fParam.Add(c["axis_ratio"])
+  e.fParam.Add(c["start_angle"] * 180 / Pi)
+  e.fParam.Add(c["end_angle"] * 180 / Pi)
+
+  Return True
+
+
+Catch
+
+  Return False
+
+End
+
+Public Sub ExportDXFCol(e As Entity, ByRef cExport As Collection) As Boolean
+
+  cExport.Add("ELLIPSE", dxf.codEntity)
+  clsEntities.DXFExportCommonCol(e, cExport)
+  cExport.Add("AcDbEllipse", "100")
+  cExport.Add(CStr(e.p[0]), dxf.codCenterX)
+  cExport.Add(CStr(e.p[1]), dxf.codCenterY)
+  cExport.Add(CStr(e.p[2] - e.p[0]), dxf.codX1)
+  cExport.Add(CStr(e.p[3] - e.p[1]), dxf.codY1)
+  cExport.Add(CStr(e.fParam[0]), dxf.codRadius)         ' minor/major
+  cExport.Add(CStr(e.fParam[1] / 180 * Pi), "41")       ' start angle radians
+  cExport.Add(CStr(e.fParam[2] / 180 * Pi), "42")       ' end angle
+
+
+End
+
+Public Sub ExportDXF(e As Entity, hFile As File)
+
+  Print #hFIle, "  0"
+  Print #hFIle, "ELLIPSE"
+  clsEntities.DXFExportCommon(e, hFile)
+  Print #hFIle, "100"
+  Print #hFIle, "AcDbEllipse"
+  Print #hFIle, " 10"                      ' X0
+  Print #hFIle, CStr(e.p[0])
+  Print #hFIle, " 20"                      ' Y0
+  Print #hFIle, CStr(e.p[1])
+  Print #hFIle, " 30"                      ' Z0
+  Print #hFIle, "0"
+  Print #hFIle, " 11"                      ' X1 eje major, relativo al centro
+  Print #hFIle, CStr(e.p[2] - e.p[0])
+  Print #hFIle, " 21"                      ' Y1 eje major, relativo al centro
+  Print #hFIle, CStr(e.p[3] - e.p[1])
+  Print #hFIle, " 31"                      ' Z1 eje major, relativo al centro
+  Print #hFIle, CStr(0)
+  Print #hFIle, " 40"                      ' ratio
+  Print #hFIle, CStr(e.fParam[0])
+  Print #hFIle, " 41"                      ' start angle
+  Print #hFIle, CStr(e.fParam[1] / 180 * Pi)
+  Print #hFIle, " 42"                      ' end angle
+  Print #hFIle, CStr(e.fParam[2] / 180 * Pi)
+
+End
+
+Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
+
+  Dim i As Integer
+
+  For i = 0 To sClaves.Max
+
+    If sClaves[i] = "10" Then e.P.Add(CFloat(sValues[i]))     ' centro
+    If sClaves[i] = "20" Then e.P.Add(CFloat(sValues[i]))
+    If sClaves[i] = "11" Then e.P.Add(CFloat(sValues[i]) + e.P[0])     ' eje mayor, relativo al centro
+    If sClaves[i] = "21" Then e.P.Add(CFloat(sValues[i]) + e.P[1])
+    If sClaves[i] = "40" Then e.fParam.Add(CFloat(sValues[i]))
+    If sClaves[i] = "41" Then e.fParam.Add(CFloat(sValues[i]) * 180 / Pi)
+    If sClaves[i] = "42" Then e.fParam.Add(CFloat(sValues[i]) * 180 / Pi)
+
+  Next
+  Return True
+
+
+Catch
+
+  Return False
+
+End
+
+' "entity": "ELLIPSE",
+' "index": 2361,
+' "type": 35,
+' "handle": [0, 1182054],
+' "size": 69,
+' "bitsize": 508,
+' "ownerhandle": [12, 1, 63, 1181991],
+' "_subclass": "AcDbEntity",
+' "layer": [5, 1, 16, 16],
+' "preview_exists": 0,
+' "entmode": 0,
+' "nolinks": 1,
+' "color": 256,
+' "ltype_scale": 1.0,
+' "ltype_flags": 0,
+' "plotstyle_flags": 0,
+' "invisible": 0,
+' "linewt": 29,
+' "_subclass": "AcDbEllipse",
+' "center": [7009.61831681532385, 2976.85246778371811, 0.0],
+' "sm_axis": [0.0, 49.45738929978734, 0.0],
+' "extrusion": [0.0, 0.0, 1.0],
+' "axis_ratio": 0.49999997319111,
+' "start_angle": 4.64635013554486,
+' "end_angle": 7.92002047881431

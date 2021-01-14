@@ -1,0 +1,911 @@
+' Gambas module file
+
+'
+' RADG
+' Rapid Application Development for Gambas
+'
+' Copyright (C) Martín Belmonte
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 2 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+'
+
+Export
+
+Public Function Resume() As String
+
+  Dim strResume As String
+
+  strResume = "<b>So: </b>" & Distro()
+  strResume &= " <b>Arquitectura.So: </b>" & ArqSO()
+  strResume &= " <b>Arquitectura.Proc: </b>" & ArqMicro()
+  strResume &= " <b>Procesador: </b>" & MicroType()
+  strResume &= " <b>Ram: </b>" & Ram()
+  strResume &= " <b>Nombre.PC: </b>" & ComputerName()
+  strResume &= " <b>Usuario: </b>" & CurrentUser()
+  strResume &= " <b>Usuarios: </b>" & AllUsers()
+  strResume &= " <b>Grupo: </b>" & WGroup()
+  strResume &= " <b>Gambas: </b>" & Vgambas()
+  strResume &= " <b>Actualizado: </b>" & LastUpgrade()
+
+  Return strResume
+
+End
+
+'' Returns the default file manager.
+
+Public Function DeFiBro() As String
+
+  Dim str As String
+
+  Shell "xdg-mime query default inode/directory" To str
+
+  Return str
+
+End
+
+'' Returns the xmi installed distribution
+
+Public Function DistroNoshell() As String
+
+  Dim str As String
+
+  str = File.Load("/etc/issue.net")
+
+  Return str
+
+End
+
+Public Function Distro() As String
+
+  Dim strDistro As String
+  Dim strDistroShort As String
+  Dim stxDistros As New String[]
+  Dim stxDistro As New String[]
+  Dim intN As Integer
+
+  strDistro = File.Load("/etc/issue")
+  Replace(strDistro, gb.Tab, "")
+  strDistro = Trim(strDistro)
+
+  strDistro = strDistro
+  strDistro = Replace(strDistro, "  ", " ")
+  strDistro = Replace(strDistro, "  ", " ")
+  strDistro = Replace(strDistro, gb.Tab, " ")
+  strDistro = Replace(strDistro, gb.Tab, " ")
+  strDistro = String.LCase(strDistro)
+
+  stxDistros.clear
+  stxDistro.clear
+
+  stxDistros.Add("arch")
+  stxDistros.Add("debian")
+  stxDistros.Add("fedora")
+  stxDistros.Add("redhat")
+  stxDistros.Add("gentoo")
+  stxDistros.Add("manjaro")
+  stxDistros.Add("mint")
+  stxDistros.Add("opensuse")
+  stxDistros.Add("ubuntu")
+  stxDistros.Add("peppermint")
+
+  stxDistro = Split(strDistro, " ")
+
+  strDistroShort = ("Unknown")
+
+  For intN = 0 To stxDistro.Max
+
+    If stxDistros.Find(stxDistro[intN]) <> -1 Then
+      strDistroShort = stxDistro[intN]
+      Break
+    Endif
+
+  Next
+
+  Return strDistroShort
+
+End
+
+''Returns the Architecture of the Operating System
+
+Public Function ArqSO() As String
+
+  Return System.Architecture
+
+End
+
+''Returns the Processor Architecture
+
+Public Function ArqMicro() As String
+
+  Dim sArqPro As String
+
+  Exec ["uname", "-p"] To sArqPro
+  Return Replace(sArqPro, "\n", "")
+
+End
+
+'' Returns the type of Processor
+
+Public Function MicroType() As String
+
+  Dim sPro As String
+
+  Shell "cat /proc/cpuinfo | grep -i ghz | uniq | cut -f2 -d" & ":" To sPro
+  Return LTrim(Replace(sPro, "\n", ""))
+
+End
+
+'' Returns amount of Ram in MB also with free -m
+
+Public Function Ram() As String
+
+  Dim sRam As String
+
+  Exec ["cat", "/proc/meminfo"] To sRam
+  Try sRam = Scan(sRam, "*MemTotal:*\n*")[1]
+  If Error Then
+    sRam = ""
+  Else
+    While Not IsDigit(Right(sRam))
+      sRam = Left(sRam, -1)
+    Wend
+    sRam = Trim(sRam)
+  Endif
+
+  If sRam Then
+    Try sRam = Format(CInt(sRam) / 1024, "0") & " MB"
+    If Not Error Then Return sRam
+  Endif
+
+End
+
+'' Returns the computer name
+
+Public Function ComputerName() As String
+
+  Return System.Host
+
+End
+
+'' Returns the active user
+Public Function CurrentUser() As String[]
+
+  Return System.User.Name
+
+End
+
+'' List the shrimp project directories recursively from the directory passed to it as a parameter.
+
+Public Function GetProjectsDir(strPath As String) As String[]
+
+  Dim stxRaw As New String[]
+  Dim stx As New String[]
+  Dim int As Integer
+
+  stxRaw.Clear
+  stxRaw = RDir(strPath, "*.project", gb.File, True)
+  stx.Clear
+
+  For int = 0 To stxRaw.Max
+    If uty.DirGambas(strPath &/ File.Dir(stxRaw[int])) = True Then
+      If stx.Exist(strPath &/ stxRaw[int]) = False Then
+        stx.Add(strPath &/ stxRaw[int])
+      Endif
+    Endif
+  Next
+
+  Return stx
+
+End
+
+'' Returns an array with the data of a shrimp project, as an input parameter you require the root directory of the project.
+
+Public Function GetProjectInfo(strPath As String) As Collection
+
+  Dim ctn As New Collection
+  Dim strFile As String
+  Dim stxPro As New String[]
+  Dim int As Integer
+  Dim strTag As String
+  Dim strVal As String
+
+  '' Project standard information
+  ctn.Clear
+  ctn.Add([""], "Address")                        'prmail:TEXT:Correo electrónico
+  ctn.Add([""], "Arguments")                      '::
+  ctn.Add([""], "Authors")                        'prdev:INTEGER:Desarrollador del programa
+  ctn.Add([""], "Categories")                     'prpkct:TEXT:Categoría del paquete
+  ctn.Add([""], "CompiledWithGambas")             '::
+  ctn.Add([""], "Component")                      'prcomp:TEXT:Componentes empleados
+  ctn.Add([""], "ControlPublic")                  '::
+  ctn.Add([""], "CreateEachDirectory")            '::
+  ctn.Add([""], "CreateMenu")                     '::
+  ctn.Add([""], "CreateShortcut")                 '::
+  ctn.Add([""], "CurrentArgument")                '::
+  ctn.Add([""], "Dependencies")                   '::
+  ctn.Add([""], "Description")                    'prdesc:TEXT:Descripción del programa
+  ctn.Add([strPath], "Directory")                 '::
+  ctn.Add([""], "DoNotTranslate")                 '::
+  ctn.Add([""], "Environment")                    '::
+  ctn.Add([""], "ExecPath")                       '::
+  ctn.Add([""], "ExtraAutoconfTest")              '::
+  ctn.Add([""], "ExtraDependencies")              '::
+  ctn.Add([""], "ExtraDesktop")                   '::
+  ctn.Add([""], "ExtraFiles")                     '::
+  ctn.Add([""], "GambasProjectFile")              '::
+  ctn.Add([""], "GambasVersion")                  'prgver:TEXT:Versión de Gambas
+  ctn.Add([""], "Groups")                         'prpkgr:TEXT:Grupo del paquete
+  ctn.Add([""], "Icon")                           'pricon:TEXT:Icono del programa
+  ctn.Add([""], "KeepDebugInfo")                  '::
+  ctn.Add([""], "Language")                       'prlan:INTEGER:Idioma del programa
+  ctn.Add([""], "License")                        'prlic:INTEGER:Licencia del programa
+  ctn.Add([""], "Maintainer")                     'prmaint:TEXT:Mantenedor del programa
+  ctn.Add([""], "Menus")                          'prpkmu:TEXT:Menú del paquete
+  ctn.Add([""], "MimeTypes")                      '::
+  ctn.Add([""], "ModulePublic")                   '::
+  ctn.Add([""], "PackageName")                    'prpkna:TEXT:Nombre del paquete
+  ctn.Add([""], "Packager")                       'prpkge:TEXT:Empaquetador
+  ctn.Add([""], "PackageSignature")               '::
+  ctn.Add([""], "PackageVersion")                 '::
+  ctn.Add([""], "Prefix")                         'prpfix:INTEGER:Prfijo del vendedor
+  ctn.Add([""], "Profiling")                      '::
+  ctn.Add([""], "RedirectStderr")                 '::
+  ctn.Add([""], "RunAfter")                       '::
+  ctn.Add([""], "SameDependencies")               '::
+  ctn.Add([""], "SameFiles")                      '::
+  ctn.Add([""], "Screenshot")                     '::
+  ctn.Add([""], "SourcePath")                     '::
+  ctn.Add([""], "Startup")                        'prstrt:TEXT:Clase de inicio
+  ctn.Add([""], "Systems")                        'prsyst:TEXT:Sistemas para los que se empaqueto el programa
+  ctn.Add([""], "TabSize")                        'prtabz:INTEGER:Tamaño del tabulador
+  ctn.Add([""], "Tags")                           '::
+  ctn.Add([""], "Title")                          'prname:TEXT:Nombre del programa
+  ctn.Add([""], "Translate")                      'prtran:INTEGER:Cantidad de traducciones del prgrama
+  ctn.Add([""], "Type")                           '::
+  ctn.Add([""], "Url")                            'prurl:TEXT:Sitio web del programa
+  ctn.Add([""], "UseHttpServer")                  '::
+  ctn.Add([""], "UseRelease")                     '::
+  ctn.Add([""], "UseTerminal")                    '::
+  ctn.Add([""], "Vendor")                         'prvndr:TEXT:Vendedor del prgrama
+  ctn.Add([""], "VendorPrefix")                   '::
+  ctn.Add([""], "Version")                        'prver:TEXT:Versión del programa
+  ctn.Add([""], "VersionFile")                    '::
+  ctn.Add([""], "Warnings")                       '::
+  ctn.Add([""], "WebSite")                        'prweb:TEXT:Página web
+
+  strFile = strPath &/ ".project"
+
+  If Stat(strFile).Type = gb.File Then
+    '' Loading the .project file
+    stxPro = fil.FileLoad(strFile)
+
+    For int = 0 To stxPro.Max
+      Print stxPro[int]
+      Select InStr(stxPro[int], "=")
+        Case 0
+          Select String.Mid(stxPro[int], 1, 16)
+            Case "# Gambas Project"
+              strTag = "GambasProjectFile"
+              strVal = Replace(stxPro[int], "# Gambas Project File ", "")
+
+              If ctn.Exist("GambasProjectFile") Then
+                ctn["GambasProjectFile"] = [strVal]
+              Else
+                ctn.Add(strVal, "GambasProjectFile")
+              Endif
+
+            Case "# Compiled with "
+              strTag = "CompiledWithGambas"
+              strVal = Replace(stxPro[int], "# Compiled with Gambas ", "")
+
+              If ctn.Exist("CompiledWithGambas") Then
+                ctn["CompiledWithGambas"] = [strVal]
+              Else
+                ctn.Add([strVal], "CompiledWithGambas")
+              Endif
+          End Select
+
+        Case Else
+          strTag = Split(stxPro[int], "=")[0]
+          strVal = Split(stxPro[int], "=")[1]
+
+          If ctn.Exist(strTag) Then
+            If ctn[strTag][0] = "" Then
+              ctn[strTag] = [strVal]
+            Else
+              ctn[strTag].Add(strVal)
+            Endif
+          Else
+            ctn.Add([strVal], strTag)
+          Endif
+
+      End Select
+    Next
+  Endif
+  Return ctn
+
+End
+
+''Returns an array with the data of a prawn project hosted on the farm, as input parameter requires the project identifier.
+
+Public Function GetFarmInfo(strPath As String) As Collection
+
+  Dim ctn As New Collection
+  Dim strFile As String
+  Dim stxPro As New String[]
+  Dim int As Integer
+  Dim strTag As String
+  Dim strVal As String
+
+  '' Project standard information
+  ctn.Clear
+  ctn.Add([""], "Id")                             'gfidx:INTEGER PRIMARY KEY AUTOINCREMENT:Identificador
+  ctn.Add([""], "Name")                           'gfname:TEXT UNIQUE:Nombre
+  ctn.Add([""], "Version")                        'gfvers:TEXT:Versión
+  ctn.Add([""], "LastVersion")                    'gflast:TEXT:Última versión
+  ctn.Add([""], "Vendor")                         'gfvndr:TEXT:Vendedor
+  ctn.Add([""], "Release")                        'gfrel:TEXT:Lanzamiento
+  ctn.Add([""], "UploadDate")                     'gfupld:TEXT:Fecha de carga
+  ctn.Add([""], "Description")                    'gfdesc:TEXT:Descripción
+  ctn.Add([""], "URL")                            'gfurl:TEXT:URL
+  ctn.Add([""], "Size")                           'gfsize:TEXT:tamaño
+  ctn.Add([""], "RequiredGambasVersion")          'gfgver:TEXT:Versión requerida de Gambas
+  ctn.Add([""], "Checksum")                       'gfchk:TEXT:Suma de comprobación
+  ctn.Add([""], "DownloadCount")                  'gfdwlc:INTEGER:Cuenta de descargas
+  ctn.Add([""], "FullDownloadCount")              'gfdwlf:INTEGER:Cuenta de descargas completa
+  ctn.Add([""], "VoteCount")                      'gfvote:INTEGER:Recuento de votos
+  ctn.Add([""], "Owner")                          'gfownr:TEXT:Propietario
+  ctn.Add([""], "Size")                           'gfsize2:TEXT:tamaño
+  ctn.Add([""], "Tags")                           'gftags:TEXT:Etiquetas
+
+  strFile = strPath &/ ".farm"
+
+  If Stat(strFile).Type = gb.File Then
+    ''Loading the .farm file
+    stxPro = fil.FileLoad(strFile)
+
+    For int = 0 To stxPro.Max
+      Print stxPro[int]
+      Select InStr(stxPro[int], "=")
+        Case 0
+          'skip
+        Case Else
+          strTag = Split(stxPro[int], "=")[0]
+          strVal = Split(stxPro[int], "=")[1]
+          strVal = Replace(strVal, "\r", "")
+
+          If ctn.Exist(strTag) Then
+            If ctn[strTag][0] = "" Then
+              ctn[strTag] = [strVal]
+            Else
+              ctn[strTag].Add(strVal)
+            Endif
+          Else
+            ctn.Add([strVal], strTag)
+          Endif
+
+      End Select
+    Next
+  Endif
+  Return ctn
+
+End
+
+'' Returns the a list of Linux system users.
+
+Public Function GetSystemUsers() As String[]
+
+  Dim stxTUsr As New String[]
+  Dim stxUsr As New String[]
+  Dim strUser As String
+
+  stxTUsr = uty.FileLoad("/etc/passwd")
+
+  If stxTUsr.Count > 0 Then
+
+    For Each strUser In stxTUsr
+      If Split(strUser, ":")[5] = "/home" &/ Split(strUser, ":")[0] Then
+        If InStr(Split(strUser, ":")[6], "false") = 0 Then
+          stxUsr.Add(Split(strUser, ":")[0])
+        Endif
+      Endif
+    Next
+  Endif
+
+  Return stxUsr
+
+End
+
+'' Returns the users we have created
+
+Public Function AllUsers() As String
+
+  Dim sUser As String
+
+  Shell "cat /etc/passwd |grep -iw '100.' | cut -d ':' -f1" To sUser
+
+  Return Replace(sUser, "\n", "")
+
+End
+
+'' Returns the Computer Workgroup
+
+Public Function WGroup() As String
+
+  Return System.Domain
+
+End
+
+'' Returns the filesystem
+
+Public Function SysFile(ruta As String) As String
+
+  Dim sSF As String
+
+  Exec ["df", "-h", ruta] To sSF 'We store characteristics of the File System passed en route
+  Try sSF = Scan(sSF, "*\n*")[1] 'We hide the Error if it can't find the string
+  If Error Then sSF = ""
+  Return Replace(sSF, "\n", "")
+
+End
+
+''Returns the gambas version installed on the computer
+
+Public Function Vgambas() As String
+
+  Return System.FullVersion
+
+End
+
+''Returns a collection with the project information housed in the ".project" file. If you do not pass the path of the .project file from which you want to extract the information, the function will return the data of the local project. Then, the order of each item is as follows:<ol start="0"><li>Title</li><li>Description</li><li>Authors</li><li>Vendor</li><li>Version</li><li>Component</li><li>Language</li><li>Startup</li><li>Icon</li></ol>
+
+Public Function ProjInfo(strPath As String) As Collection
+
+  Dim ctn As Collection = ["Title": "~", "Startup": "~", "Icon": "~", "Version": "~", "Component": [], "Description": "~", "Authors": [], "Language": "~", "Vendor": "~", "Iconart": "~", "Iconurl": "~", "Iconset": "~", "Iconlic": "~"]
+  Dim str As String
+  Dim stx As New String[]
+  Dim i As Integer
+  Dim tag As String
+  Dim att As String
+
+  If Exist(strPath) Then
+    str = File.Load(strPath)
+    stx = Split(str, "\n")
+
+    If stx.Count > 0 Then
+      For i = 0 To stx.Max
+        If InStr(stx[i], "=") > 0 Then
+          tag = Split(stx[i], "=")[0]
+          att = Split(stx[i], "=")[1]
+          att = Replace(att, "\"", "")
+          If ctn.Exist(tag) Then
+            Select tag
+              Case "Component", "Authors"
+                ctn[tag].Add(att)
+              Case Else
+                ctn[tag] = att
+            End Select
+          Else
+            ctn.Add(att, tag)
+          Endif
+        Endif
+      Next
+    Endif
+  Endif
+  Return ctn
+
+End
+
+'' Returns the IP of the computer, it only works under OS with Systemd, for this it uses shell and the command "ip addr show".
+
+Public Function AddressIP() As String
+
+  Dim strAddr As String
+  Dim stxAddr As New String[]
+  Dim strPart As String
+  Dim strIP As String
+
+  Shell "ip addr show" To strAddr
+  If Len(strAddr) > 0 Then
+    stxAddr = Split(strAddr, " ")
+    For Each strPart In stxAddr
+      If InStr(strPart, ".") > 0 Then
+        If InStr(strPart, "/24") > 0 Then
+          strIP = Split(strPart, "/")[0]
+        Endif
+      Endif
+    Next
+  Endif
+  Return strIP
+
+End
+
+'' Returns the IP v4 of the local network, as input parameter requires the base IP address, for example "192.168.1" but if the parameter is not passed then use the IP of the computer where the program is running removing the last one number. The output format of each item in the array is host-name [tab] 8.8.8.8
+
+Public Function LANIP(Optional strBase As String) As String[]
+
+  Dim strAddr As String
+  Dim stxTmp As New String[]
+  Dim stxAddr As New String[]
+  Dim strPart As String
+
+  If InStr(strBase, ".") = 0 Then
+    strBase = Split(AddressIP(), ".")[0] & "."
+    strBase &= Split(AddressIP(), ".")[1] & "."
+    strBase &= Split(AddressIP(), ".")[2]
+  Endif
+
+  Shell "nmap -sP " & strBase & ".1-254" To strAddr
+
+  If Len(strAddr) > 0 Then
+    stxTmp = Split(strAddr, "\n")
+    For Each strPart In stxTmp
+      If InStr(strPart, "Nmap scan report for ") > 0 Then
+        strPart = Replace(strPart, "Nmap scan report for ", "")
+        strPart = Replace(strPart, " ", "\t")
+        strPart = Replace(strPart, "(", "")
+        strPart = Replace(strPart, ")", "")
+        stxAddr.Add(strPart)
+      Endif
+    Next
+  Endif
+  Return stxAddr
+
+End
+
+'' Returns the last digit of the IP
+
+Public Function LastNIP() As String
+
+  Dim sIPs As String
+
+  Shell "ifconfig | grep inet: | grep Difus.|cut -d '.' -f5|cut  -d ' ' -f1" To sIPs
+  Return RTrim(Replace(sIPs, "\n", " "))
+
+End
+
+'' Returns the serial number of the hard disk to be used as Pk in the BDD
+
+Public Function Hdserial() As String
+
+  Dim sNS As String
+
+  Shell "udevadm info --query=property --name=sda | grep SERIAL_ | awk -F '=' '{print $2}'" To sNS
+  Return RTrim(Replace(sNS, "\n", " "))
+
+End
+
+'' Returns UUID of the swap to be used as PK of the BDD (Requires Administrator permissions)
+
+Public Function UUIDswap() As String
+
+  Dim sUID As String
+
+  Shell "blkid | grep swap | cut -d ' ' -f2 |cut -d '=' -f2" To sUID
+  Return Left(Right(sUID, -1), -2)
+
+End
+
+''Returns the Date of the last time the system was updated
+
+Public Function LastUpgrade() As String
+
+  Dim long_iso As String
+  Dim strDistroShort As String
+  Dim strLastUpgrade As String
+
+  long_iso = "long-iso"
+
+  strDistroShort = Distro()
+
+  Select strDistroShort
+    Case "debian"
+      strLastUpgrade = Format$(Stat("/var/log/apt").Time, "yyyy/mm/dd hh:nn:ss")
+      strLastUpgrade = RTrim(Replace(strLastUpgrade, "\n", " "))
+
+    Case Else
+      strLastUpgrade = ("Unknown")
+  End Select
+
+  Return strLastUpgrade
+
+End
+
+'' <p>Returns a text matrix with the configuration of the system number.</p><ol><li>Decimales</li><li>Miles</li><li>??</li><li>??</li><li>??</li><li>Codificación</li></ol>
+
+Public Function GetLcNumeric() As String[]
+
+  Dim str As String
+  Dim stx As New String[]
+
+  Shell "locale LC_NUMERIC" To str
+
+  If InStr(str, "\n") > 0 Then
+    stx = Split(str, "\n")
+  Endif
+
+  Return stx
+
+End
+
+''Returns the status regarding the installation of a package. It requires as an input parameter the exact name of the package.
+
+Public Function PkgStat(strPkg As String) As Boolean
+
+  Dim strDistroShort As String
+  Dim strCommand As String
+  Dim strPkgStatus As String
+  Dim bolPkgStatus As Boolean
+
+  strDistroShort = Distro()
+
+  ' Obtencion de resultados
+  Select strDistroShort
+    Case "arch", "manjaro"
+      strCommand = "pacman -Qs " & strPkg
+
+      Shell strCommand & " 2>&1" To strPkgStatus
+
+      If strPkgStatus <> "" Then
+        strPkgStatus = Split(strPkgStatus, "\n")[0]
+        strPkgStatus = Split(strPkgStatus, " ")[0]
+      Endif
+
+      Select strPkgStatus
+        Case "local/" & strPkg
+          bolPkgStatus = True
+        Case Else
+          bolPkgStatus = False
+      End Select
+
+    Case "debian", "ubuntu", "mint", "peppermint"
+
+      strCommand = "dpkg-query -W -f='${Status}\n' " & strPkg
+
+      Shell strCommand & " 2>&1" To strPkgStatus
+
+      If strPkgStatus = "install ok installed\n" Then
+        bolPkgStatus = True
+      Else
+        bolPkgStatus = False
+      Endif
+
+  End Select
+
+  Return bolPkgStatus
+
+End
+
+''Returns a text matrix with the paths of the music folders, images, documents, etc. the /home/user directory
+
+Public Function XDGFolder() As String[]
+
+  Dim strHome As String
+  Dim stxXDGTmp As New String[]
+  Dim stxXDGFolders As New String[]
+  Dim strDirsFile As String
+  Dim strFlux As String
+  Dim intL As Integer
+  Dim strTmp As String
+  Dim strVar As String
+  Dim strFolder As String
+
+  strHome = User.Home
+
+  strDirsFile = strHome &/ ".config/user-dirs.dirs"
+
+  If Exist(strDirsFile) Then
+    strFlux = File.Load(strDirsFile)
+
+    stxXDGTmp = Split(strFlux, gb.NewLine)
+
+    For intL = 0 To stxXDGTmp.Max
+      strTmp = stxXDGTmp[intL]
+      If strTmp <> "" Then
+        If String.Mid(strTmp, 1, 4) = "XDG_" Then
+          If InStr(strTmp, "=")
+
+            strVar = ""
+            strFolder = ""
+
+            strVar = Split(strTmp, "=")[0]
+            strVar = Split(strVar, "_")[1]
+            strVar = String.LCase(strVar)
+
+            strFolder = Split(strTmp, "=")[1]
+            strFolder = Replace(strFolder, "$HOME/", "")
+            strFolder = Replace(strFolder, Chr(34), "")
+            strFolder = strHome &/ strFolder
+
+            stxXDGFolders.Add(strVar & ":" & strFolder)
+
+          Endif
+        Endif
+      Endif
+    Next
+  Endif
+
+  Return stxXDGFolders
+
+End
+
+''Check if the packages that are passed to you as parameters in an array are installed in the system, it returns an array with the packages that are not installed, if everything was, the returned array would be empty.
+
+Public Function PkgDep(stxPackages As String[]) As String[]
+
+  Dim intPkg As Integer
+  Dim stxMissing As New String[] ' Lista de paquetes que falta instalar
+
+  For intPkg = 0 To stxPackages.Max
+    If PkgStat(stxPackages[intPkg]) = False Then
+      stxMissing.Add(stxPackages[intPkg])
+    Endif
+  Next
+
+  Return stxMissing
+
+End
+
+Public Sub Install_read()
+
+  Dim StrInput As String
+
+  Read #Last, StrInput, -80
+
+End
+
+''Returns a list of all the mime types that are covered in the system.
+
+Public Function MimeTypesList() As String[]
+
+  Dim stxOut As New String[]
+  Dim strDefaults As String
+
+  strDefaults = "/usr/share/mime/types"
+
+  If Exist(strDefaults) Then
+    If Stat(strDefaults).Type = gb.File Then
+      stxOut = Split(File.Load(strDefaults), "\n")
+    Endif
+  Endif
+
+  Return stxOut
+
+End
+
+''Returns a list with the default associated program and the path of the icon if it exists.
+
+Public Function MimeDefaultApp(strMimeType As String) As String[]
+
+  Dim stx As New String[]
+  Dim strOut As String
+  Dim stxOut As New String[]
+  Dim strDefaults As String
+  Dim strLine As String
+  Dim strMim As String
+  Dim strApp As String
+
+  If Exist("/usr/share/applications/defaults.list") Then
+    strDefaults = "/usr/share/applications/defaults.list"
+  Else
+    If Exist(User.Home &/ ".config/mimeapps.list") Then
+      strDefaults = User.Home &/ ".config/mimeapps.list"
+    Endif
+  Endif
+
+  If Exist(strDefaults) Then
+    Select Stat(strDefaults).Type
+      Case gb.File, gb.Link
+        stx = Split(File.Load(strDefaults), "\n")
+        If stx.Count > 0 Then
+          For Each strLine In stx
+            If InStr(strLine, "=") > 0 Then
+              strLine = CleanDestop(strLine)
+              strMim = Split(strLine, "=")[0]
+              strApp = Split(strLine, "=")[1]
+              If strMim = strMimeType Then
+                If InStr(strApp, ".") > 0 Then
+                  strOut = Split(strApp, ".")[0]
+                Else
+                  strOut = strApp
+                Endif
+                stxOut.Add(strOut)
+              Endif
+            Endif
+
+          Next
+        Endif
+    End Select
+  Endif
+
+  Return stxOut
+
+End
+
+Private Function CleanDestop(s As String) As String
+
+  Dim stx As New String[]
+  Dim r As String
+
+  stx = ["org.gnome.", ".Desktop"]
+  For Each r In stx
+    s = Replace(s, r, "")
+  Next
+
+  Return s
+
+End
+
+''Returns an identifier of length N generated by the random combination of characters and numbers. It is for lists of objects that you want to name with names of 4 or 6 characters for example.
+
+Public Function UUIDHandle(i As Integer) As String
+
+  Dim s As String
+  Dim x As Integer
+  Dim stx As New String[]
+  Dim o As String
+  Dim c As Integer
+  Dim r As Integer
+
+  o = ""
+
+  If i > 0 Then
+
+    s = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+    For x = 1 To String.Len(s)
+      stx.Add(String.Mid(s, x, 1))
+    Next
+
+    For c = 0 To i - 1
+      r = Rand(0, stx.Count - 1)
+      o &= stx[r]
+    Next
+
+  Endif
+
+  Return o
+
+End
+
+''Returns a Universal Unique Identifier generated by the <b> uuidgen -t </b> command. Just change the octet of the timestamp. Remember that it is generated based on the time "-t"
+
+Public Function UUIDGen() As String
+
+  Dim str As String
+
+  Shell "uuidgen -t" To str
+
+  If String.Len(str) > 36 Then
+    str = String.Mid(str, 1, 36)
+  Endif
+
+  Return str
+
+End
+
+''Returns a universal unique identifier generated by loading the /proc/sys/kernel/random/uuid file. It always gives all the different octets for each time the function is run.
+
+Public Function UUIDProc() As String
+
+  Dim str As String
+
+  str = File.Load("/proc/sys/kernel/random/uuid")
+  str = RTrim(str)
+
+  Return str
+
+End

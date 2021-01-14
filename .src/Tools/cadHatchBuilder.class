@@ -1,0 +1,243 @@
+' Gambas class file
+
+' GauchoCAD
+' A simple CAD made in Gambas
+'
+' Copyright (C) Martin Belmonte
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+
+Inherits ToolsBase
+Public Const Gender As String = "Hatchs"
+
+Public StepsDone As Integer
+
+Public UserResponse As Integer  ' 1 = Cancel ; 2 =
+Public entHatch As Entity
+Public Xmenor As Float = 1e10
+Public Ymenor As Float = 1e10
+Public Xmayor As Float = -1e10
+Public Ymayor As Float = -1e10
+
+Public polyHatchFinal As Polygon
+Public polyEntity As Polygon
+
+
+Public Function Start(Optional filename As Variant, Optional _mode As Integer = 0) As Boolean
+
+  Dim xf As String[]
+  Dim f As String
+  Dim iREt, nsel As Integer
+
+  ' desde el grafico entramos siempre a esta parte de la clase
+  ' yo tengo q saber el estado de la comunicacion con el user
+  ' entonces verifico
+
+  Select Case StepsDone
+    Case 0 ' nuevo hatch
+
+      iRet = FHatch.Showmodal()
+
+      Debug gcd.CurrentDrawing.LastHatchFile
+
+      Select Case iRet
+        Case 2 ' busqueda de contorno
+          gcd.clsJobPrevious = Me
+          gcd.clsJob = clsDefaultJob
+          StepsDone = 1 ' cuando vuelvo aca, ya tengo un contorno
+
+        Case 1 ' el user cancelo el hetch
+          gcd.clsJobPrevious = Me
+          gcd.clsJob = clsDefaultJob
+          StepsDone = 0 ' cuando vuelvo aca, empiezo de nuevo
+
+      End Select
+
+    Case 1 ' vengo de seleccionar los parametros de hatch
+
+      nSel = clsEntities.GetSelectionCount()
+      If nsel = 0 Then Return
+      If (gcd.CurrentDrawing.arrEntities[gcd.CurrentDrawing.arrSelecIndex[0]].Gender <> "LWPolyline") And (gcd.CurrentDrawing.arrEntities[gcd.CurrentDrawing.arrSelecIndex[0]].PolyLine.Count < 6) Then
+        Message("El contorno esta mal definido")
+
+      Else
+        StepsDone = 2
+        iRet = FHatch.Showmodal()
+
+
+        Debug gcd.CurrentDrawing.LastHatchFile
+
+
+
+        Select Case iRet
+          Case 2 ' nueva busqueda de contorno
+            gcd.clsJobPrevious = Me
+            gcd.clsJob = clsDefaultJob
+            StepsDone = 1 ' cuando vuelvo aca, ya tengo un contorno
+
+          Case 1 ' el user cancelo el hetch
+            gcd.clsJobPrevious = Me
+            gcd.clsJob = clsDefaultJob
+            StepsDone = 0 ' cuando vuelvo aca, empiezo de nuevo
+
+          Case 3 ' confirma el Hatch
+
+            entHatch = New Entity
+            entHatch.Gender = "Hatch"
+            entHatch.ClassHandler = cadHatch
+            entHatch.ClassHandler.SetEntity(entHatch)
+            entHatch.StringData[cadHatch.sdaPattern] = gcd.CurrentDrawing.LastHatchPattern
+            entHatch.StringData[cadHatch.sdaPaternFile] = gcd.CurrentDrawing.LastHatchFile
+
+
+            entHatch.fParam[cadHatch.ipaScale] = gcd.CurrentDrawing.LastScale
+            entHatch.fParam[cadHatch.ipaRotation] = gcd.CurrentDrawing.LastAngle
+
+            ' FIXME: reparar cuando este terminado layers
+            entHatch.layerid = "0" 'gcd.GetLayerID(appmain.CurrentLayer)
+
+            entHatch.colour = appmain.CurrentColor
+            entHatch.ColorToPaint = Starter.gColor[entHatch.colour]
+
+            If gcd.CurrentDrawing.arrEntities[gcd.CurrentDrawing.arrSelecIndex[0]].Gender <> "LWPolyline" Then
+              If gcd.CurrentDrawing.arrEntities[gcd.CurrentDrawing.arrSelecIndex[0]].PolyLine.Count >= 6 Then
+                entHatch.P.Insert(gcd.CurrentDrawing.arrEntities[gcd.CurrentDrawing.arrSelecIndex[0]].PolyLine.Copy())
+              Endif
+
+            Else
+
+              entHatch.P.Insert(gcd.CurrentDrawing.arrEntities[gcd.CurrentDrawing.arrSelecIndex[0]].p.Copy())
+
+            Endif
+
+            gcd.CurrentDrawing.arrEntities.Add(entHatch)
+
+            entHatch.ClassHandler.Finish(entHatch, entHatch.ClassHandler.StepsDone)
+
+            'LastEntity = entHatch                                       ' save it to repeat on rigth click
+
+            gcd.clsJobPrevious = Me
+            gcd.clsJob = clsDefaultJob
+            clsDefaultJob.PoiChecking = True
+            clsDrawingAids.CleanTexts
+
+            clsEntities.GLGenDrawList
+
+            appmain.redraw
+
+        End Select
+
+      Endif
+
+  End Select
+
+End
+
+Public Sub FillEntityWithHatch(entToFill As Entity)
+
+  ' Parametros de la entidad:
+
+  ' P[]:        son los puntos de la polilinea que define el contorno del sombreado
+  ' fParam[0]:  escala del sombreado
+  ' fParam[1]:  angulo
+  ' StringData[0]: nombre del patron del sombreado
+
+  Dim e As New Entity
+  Dim fPAtternSide As Float
+  Dim iPatternNx, iPatternNy As Integer
+  Dim nx As Integer
+  Dim ny As Integer
+  Dim ie As Integer
+
+  GetBoundLimits(entToFill)    ' veo los limites del contorno
+
+  ' cargo el sombreado en un array auxiliar
+  Dim enxPattern As New Entity[]
+
+  Dxf.LoadFile(entToFill.StringData[cadHatch.sdaPaternFile], enxPattern, True, True, True) ' lo cargo
+
+  ' necesito saber cuanto mide el contorno para aplicar la escala y multiplicar hasta cubrir todo el contorno
+  Dim flxPatternLimits As Float[]
+  flxPatternLimits = clsEntities.ComputeLimits(enxPattern)
+
+  ' los patrones son cuadrados, computo el lado
+  fPatternSide = 100 ' flxPatternLimits[2] - flxPatternLimits[0]
+
+  ' calculo cuantos patrones necesito
+  iPatternNx = (Xmayor - Xmenor) / fPAtternSide / entToFill.fParam[cadHatch.ipaScale] + 1
+  iPatternNy = (ymayor - ymenor) / fPAtternSide / entToFill.fParam[cadHatch.ipaScale] + 1
+
+  ' creo un array para el sombreado total
+  Dim enxPatternTotal As New Entity[]
+  For nx = 0 To iPatternNx - 1
+    For ny = 0 To iPatternNy - 1
+      For ie = 0 To enxPattern.Max
+        enxPatternTotal.Add(clsEntities.ClonEntity(enxPattern[ie]))
+        enxPatternTotal.Last.ClassHandler.scale(enxPatternTotal.Last, entToFill.fParam[cadHatch.ipaScale], entToFill.fParam[cadHatch.ipaScale])
+        enxPatternTotal.Last.ClassHandler.translate(enxPatternTotal.Last, nx * fPAtternSide * entToFill.fParam[cadHatch.ipaScale] + Xmenor, ny * fPAtternSide * entToFill.fParam[cadHatch.ipaScale] + ymenor)
+        enxPatternTotal.Last.ClassHandler.Finish(enxPatternTotal.Last)
+      Next
+    Next
+  Next
+
+  ' ahora tengo que filtrar las entidades que quedan fuera del contorno y generar lineas sueltas que forman
+  ' el sombreado (por ahora seran solo lineas)
+  ' esas lineas las acumulo en un array
+
+  For Each e In enxPatternTotal
+
+    Select Case e.Gender
+      Case "Line", "LWPolyline"
+        entToFill.PolyLine.Insert(puntos.PolyPolyIntersection(e.p, entToFill.p))
+      Case "Circle", "Arc", "Ellipse"
+        ' estas entidades deben dibujarse primero
+        e.ClassHandler.Draw(e)
+        entToFill.PolyLine.Insert(puntos.PolyPolyIntersection(e.PolyLine, entToFill.p))
+    End Select
+
+  Next
+  ' en este momento tengo el hatch, tengo q guardar estas lineas en algun lugar
+  ' (o no)
+  ' op.PolyLine podria ser
+
+End
+
+Public Sub GetBoundLimits(e As Entity)
+
+  Dim i As Integer
+
+  For i = 0 To e.p.max Step 2
+
+    If e.p[i] < Xmenor Then Xmenor = e.p[i]
+
+    If e.p[i + 1] < Ymenor Then Ymenor = e.p[i + 1]
+
+    If e.p[i] > Xmayor Then Xmayor = e.p[i]
+
+    If e.p[i + 1] > Ymayor Then Ymayor = e.p[i + 1]
+
+  Next
+
+End
+
+
+Public Function ConformPolygon() As Boolean ' True = contorno bien definido
+
+  ' formo el poligono que seria la interseccion de todos los pasados como parametro
+  'gcd.CurrentDrawing.arrSelecIndex
+
+End
+
