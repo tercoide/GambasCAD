@@ -53,13 +53,169 @@ Public Function Action_Activate(cAction As String) As Boolean
   ' El string de la acción es una propiedad de cada botón o menú
   ' El código que se ejecuta lo hace dentro de la rutina llamada, nunca dentro de este mismo evento.
 
-  Print Last.name
+  Dim NewDrawing As ClsDrawing
+  Dim f, fDxf, fBak As String
+  Dim fMinimal As String = "./minimal/minimal-2010.dxf"
+  Dim fx As String[]
+  Dim fbas As String
+  Dim t As String
 
-  Select Case cAction
+  Try Print Last.name
 
-    Case "mFileImport"
+  Select Case LCase(cAction)
+
+    Case "file_new"
+
+      NewDrawing = New ClsDrawing
+      gcd.Drawings.Add(NewDrawing)
+      gcd.CurrentDrawing = gcd.Drawings.Last
+      gcd.CurrentDrawing.FileName = User.Home &/ "drawing1.dxf"
+      dxf.LoadFile(fMinimal, gcd.CurrentDrawing.cModel)
+      gcd.CurrentDrawing.cEntities = gcd.CurrentDrawing.cModel["ENTITIES"]
+      gcd.CurrentDrawing.cBlocks = gcd.CurrentDrawing.cModel["BLOCKS"]
+      gcd.CurrentDrawing.cHeader = gcd.CurrentDrawing.cModel["HEADER"]
+      gcd.CurrentDrawing.cLayers = gcd.CurrentDrawing.cModel["TABLES"]["LAYER"]
+      gcd.CurrentDrawing.cLtypes = gcd.CurrentDrawing.cModel["TABLES"]["LTYPE"]
+      gcd.CurrentDrawing.HandSeed = gcd.iHeader("$HANDSEED")
+
+
+      Me.Text = f
 
       ' Print Last.name
+    Case "file_open"
+
+      Dialog.Title = ("Select File")
+      Dialog.OpenFile(False)
+      fx = Dialog.Path
+      If fx.Count > 0 Then
+        f = fx[0]
+        If Exist(f) Then
+          If Stat(f).Type = gb.File Then
+            Select Lower(File.Ext(f))
+              Case "dwg"
+
+                NewDrawing = New ClsDrawing
+                gcd.Drawings.Add(NewDrawing)
+                gcd.CurrentDrawing = gcd.Drawings.Last
+                gcd.CurrentDrawing.FileName = f
+                dxf.LoadFile(fMinimal, gcd.CurrentDrawing.cModel)
+
+                fMain.Mouse = Mouse.Wait
+                Application.Busy = 1
+                fDxf = dxf.DWGtoDXF(f)
+
+                gcd.CurrentDrawing.RequiresFileRename = True
+
+                dxf.LoadFile(fDxf, gcd.CurrentDrawing.cModel, False, False, False)
+                gcd.CurrentDrawing.cEntities = gcd.CurrentDrawing.cModel["ENTITIES"]
+                gcd.CurrentDrawing.cBlocks = gcd.CurrentDrawing.cModel["BLOCKS"]
+                gcd.CurrentDrawing.cHeader = gcd.CurrentDrawing.cModel["HEADER"]
+                gcd.CurrentDrawing.cLayers = gcd.CurrentDrawing.cModel["TABLES"]["LAYER"]
+                gcd.CurrentDrawing.cLtypes = gcd.CurrentDrawing.cModel["TABLES"]["LTYPE"]
+                gcd.CurrentDrawing.HandSeed = gcd.iHeader("$HANDSEED")
+
+
+                gcd.UpdateGraphics
+
+                ' modelo recien cargado
+                cadZoomE.Start()                                ' por ahora mostramos el dibujo centrado, hasta q leamos el estado anterior
+
+                Me.Text = f
+
+
+                Application.Busy = 0
+                fMain.Mouse = Mouse.Arrow
+              Case "dxf"
+
+                NewDrawing = New ClsDrawing
+                gcd.Drawings.Add(NewDrawing)
+                gcd.CurrentDrawing = gcd.Drawings.Last
+                dxf.LoadFile(fMinimal, gcd.CurrentDrawing.cModel)
+
+                gcd.CurrentDrawing.FileName = f
+
+                gcd.CurrentDrawing.RequiresFileRename = False
+
+                dxf.LoadFile(f, gcd.CurrentDrawing.cModel, False, False, False)
+                gcd.CurrentDrawing.cEntities = gcd.CurrentDrawing.cModel["ENTITIES"]
+                gcd.CurrentDrawing.cBlocks = gcd.CurrentDrawing.cModel["BLOCKS"]
+                gcd.CurrentDrawing.cHeader = gcd.CurrentDrawing.cModel["HEADER"]
+                gcd.CurrentDrawing.cLayers = gcd.CurrentDrawing.cModel["TABLES"]["LAYER"]
+                gcd.CurrentDrawing.cLtypes = gcd.CurrentDrawing.cModel["TABLES"]["LTYPE"]
+                gcd.CurrentDrawing.HandSeed = gcd.iHeader("$HANDSEED")
+
+                gcd.UpdateGraphics
+
+                cadZoomE.Start()                                ' por ahora mostramos el dibujo centrado, hasta q leamos el estado anterior
+
+                Me.Text = f
+
+
+
+            End Select
+          Endif
+        Endif
+      Endif
+
+
+
+    Case "file_save"
+
+      f = gcd.CurrentDrawing.FileName
+      '   t = "/tmp/tmp.json"
+      fbas = File.Dir(f) &/ File.BaseName(f)
+      fBak = "'" & fbas & ".bak'"
+      If File.Ext(f) = "dwg" Or gcd.CurrentDrawing.RequiresFileRename Then
+        Me.gTask("saveas")
+        Return
+      Else
+        If Exist(f) Then
+          If Exist(fBak) Then Shell "rm " & fBak Wait
+          Shell "mv '" & f & "' '" & fbas & ".bak'" Wait
+        End If
+
+        Dxf.SaveFile(f, gcd.CurrentDrawing.cModel)
+
+      Endif
+
+
+
+    Case "file_saveas"
+
+      f = gcd.CurrentDrawing.FileName
+      fbas = File.Dir(f) &/ File.BaseName(f)
+      fBak = "'" & fbas & ".bak'"
+
+      Dialog.Filter = ["*.dxf", "DXF Drawing exchange 2010"]
+      Dialog.SaveFile()
+      If Dialog.Path Then
+        f = Dialog.Path
+        If Exist(f) Then
+          If Message.Question(("The file exist"), ("Replace"), ("Cancel")) = 2 Then
+            f = ""
+          Endif
+        Endif
+      Else
+        f = ""
+      Endif
+
+      If f = "" Then
+        Print "Cancel"
+      Else
+
+        If LCase(File.Ext(f)) <> "dxf" Then f &= ".dxf"
+
+        If Exist(f) Then
+          If Exist(fBak) Then Shell "rm " & fBak Wait
+          Shell "mv '" & f & "' '" & fbas & ".bak'" Wait
+        End If
+
+        Dxf.SaveFile(f, gcd.CurrentDrawing.cModel)
+        gcd.CurrentDrawing.FileName = f
+        Me.Text = f
+
+
+      Endif
 
 
   End Select
@@ -849,6 +1005,23 @@ Public Sub tbnSnap_Click()
     gcd.SnapMode = -1
     tbnSnap.foreground = Color.Buttonforeground
     tbnSnap.Font.Bold = False
+  Endif
+
+
+End
+
+Public Sub tbnGrid_Click()
+
+
+  If tbnGrid.Value Then
+    gcd.GridMode = gcd.GridModePrev
+    tbnGrid.foreground = Color.DarkGray
+    tbnGrid.Font.Bold = True
+  Else
+    gcd.GridModePrev = gcd.GridMode
+    gcd.GridMode = -1
+    tbnGrid.foreground = Color.Buttonforeground
+    tbnGrid.Font.Bold = False
   Endif
 
 
