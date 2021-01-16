@@ -46,7 +46,8 @@ Public HookSize As Integer = 16                       '' for use with poi
 Public Orthogonal As Boolean = False              '' idem Ortho F8 del CAD
 Public OrthogonalForced As Boolean = False
 Public OrthogonalIgnored As Boolean = False
-Public SnapMode As Integer                      '' Bitwise: -1 Off ; 0 = Nearest; 1 = Endpoint; 2 = midpoint
+Public SnapMode As Integer                      ' Bitwise: -1 Off ; 0 = Nearest; 1 = Endpoint; 2 = midpoint
+Public SnapModePrev As Integer                      ' Bitwise: -1 Off ; 0 = Nearest; 1 = Endpoint; 2 = midpoint
 
 Public clsJob As Object                             '' what I am doing now, thats either selecting or something else
 Public clsJobPrevious As Object                     '' what was doing before
@@ -105,6 +106,16 @@ Public Const flgGCD_New As Integer = 8
 Public Drawings As New ClsDrawing[]
 Public DrawingReady As Boolean = False
 Public CurrentDrawing As ClsDrawing
+
+Public gColor As New Integer[]      '' Colors list
+'Tincho
+'Vars direct or derivated from config xml
+Public flgWindowBackColor As Integer '= Color.Blac  '' Window backgrount color
+Public flgWindowTextColor As Integer   '' Window helper text color
+Public flgWindowInfoColor As Integer   '' Window helper text colorPublic flgWindowCursorColor As Integer '' Window cursor color
+Public flgWindowCursorColor As Integer   '' Window helper text color
+Public flgWhiteAndBlack As Integer     '' El color blanco/negro siempre sera distinto al
+Public flgOnScreenHelpColor As Integer = Color.LightGray    '' Tincho, esta es nueva
 
 ' ' Referencias
 ' Public cLayers As Collection    '' All layers data from dwg is listed here
@@ -247,31 +258,31 @@ End
 
 Public Sub Redraw()
 
-  appmain.redraw
+  fMain.redraw
 
 End
 
 Public Sub Regen()
 
-  appmain.Regen
+  fMain.Regen
 
 End
 
 Public Function Metros(l As Integer) As Float
 
-  Return appmain.Metros(l)
+  Return fMain.Metros(l)
 
 End
 
 Public Sub Main()
 
-  Select Starter.flgWindowBackColor
+  Select flgWindowBackColor
     Case Color.Black
       'Case &1B2224
-      Starter.flgWhiteAndBlack = Color.White
+      flgWhiteAndBlack = Color.White
 
     Case Else
-      Starter.flgWhiteAndBlack = Color.Black
+      flgWhiteAndBlack = Color.Black
 
   End Select
 
@@ -279,10 +290,6 @@ Public Sub Main()
   ' ' armo el array de colores
   ' gcolor = DecodeColor()
   '
-  ' ' corrijo los colores que no se ven contra el fondo
-  ' gcolor[0] = WhiteAndBlack
-  ' gcolor[7] = WhiteAndBlack
-  ' gcolor[255] = WhiteAndBlack
 
   ' this is what we are doing now
   clsJob = clsDefaultJob
@@ -293,12 +300,12 @@ Public Sub Main()
 
   'FileName = User.Home &/ "autosaveV5.xml"
 
-  'FontList = glPlus.LoadFonts(Application.Path &/ "Fonts/LFF")
-  FontList = glPlus.LoadFonts(Starter.sFonts)
+  FontList = glPlus.LoadFonts(Application.Path &/ "fonts/lff")
+  'FontList = glPlus.LoadFonts(gcd.sFonts)
   glPlus.SelectFont("romand")
 
-  'texturelist = glPlus.LoadTextures(Application.Path &/ "Textures")
-  texturelist = glPlus.LoadTextures(Starter.sTextures)
+  texturelist = glPlus.LoadTextures(Application.Path &/ "textures")
+  'texturelist = glPlus.LoadTextures(gcd.sTextures)
 
 End
 
@@ -435,43 +442,43 @@ End
 Public Function GetGBColor(CADcolor As Integer, layerID As String) As Integer
 
   ' FIXME: reparar post layers
-  'Return Starter.flgWhiteAndBlack
+  'Return gcd.flgWhiteAndBlack
 
-  If Not gcd.CurrentDrawing.cLayers.Exist(layerID) Then Return Starter.flgWhiteAndBlack
+  If Not gcd.CurrentDrawing.cLayers.Exist(layerID) Then Return gcd.flgWhiteAndBlack
 
   ' color
   If CADcolor = 256 Then          ' buscar color del layer
 
     If TypeOf(gcd.CurrentDrawing.cLayers[layerID][dxf.codColor]) = gb.Object Then
-      Return Starter.gColor[gcd.CurrentDrawing.cLayers[layerID][dxf.codColor]["index"]]
+      Return gColor[gcd.CurrentDrawing.cLayers[layerID][dxf.codColor]["index"]]
     Else
-      Return Starter.gColor[gcd.CurrentDrawing.cLayers[layerID][dxf.codColor]]
+      Return gColor[gcd.CurrentDrawing.cLayers[layerID][dxf.codColor]]
     Endif
 
-    'Return Starter.gColor[11]
+    'Return gcd.gColor[11]
 
   Else If CADcolor = 257 Then     ' buscar color del objeto
 
     If TypeOf(gcd.CurrentDrawing.cLayers[layerID][dxf.codColor]) = gb.Object Then
-      Return Starter.gColor[gcd.CurrentDrawing.cLayers[layerID][dxf.codColor]["index"]]
+      Return gColor[gcd.CurrentDrawing.cLayers[layerID][dxf.codColor]["index"]]
     Else
-      Return Starter.gColor[gcd.CurrentDrawing.cLayers[layerID][dxf.codColor]]
+      Return gColor[gcd.CurrentDrawing.cLayers[layerID][dxf.codColor]]
     Endif
-    'Return Starter.gColor[gcd.CurrentDrawing.cLayers[layerID][dxf.codColor]["index"]]    ' FIXME: cambiar esto
-    'Return Starter.gColor[12]
+    'Return gcd.gColor[gcd.CurrentDrawing.cLayers[layerID][dxf.codColor]["index"]]    ' FIXME: cambiar esto
+    'Return gcd.gColor[12]
 
   Else If CADcolor = 0 Then       ' buscar color del bloque
     If TypeOf(gcd.CurrentDrawing.cLayers[layerID][dxf.codColor]) = gb.Object Then
-      Return Starter.gColor[gcd.CurrentDrawing.cLayers[layerID][dxf.codColor]["index"]]
+      Return gColor[gcd.CurrentDrawing.cLayers[layerID][dxf.codColor]["index"]]
     Else
-      Return Starter.gColor[gcd.CurrentDrawing.cLayers[layerID][dxf.codColor]]
+      Return gColor[gcd.CurrentDrawing.cLayers[layerID][dxf.codColor]]
     Endif
-    'Return Starter.gColor[13]
-    'Return Starter.gColor[gcd.CurrentDrawing.cLayers[layerID][dxf.codColor]["index"]]   ' FIXME: cambiar esto
+    'Return gcd.gColor[13]
+    'Return gcd.gColor[gcd.CurrentDrawing.cLayers[layerID][dxf.codColor]["index"]]   ' FIXME: cambiar esto
 
   Else
 
-    Return Starter.gColor[CADcolor]
+    Return gColor[CADcolor]
 
   Endif
 
