@@ -224,7 +224,7 @@ Public Sub UpdateLineWtCombo()
   Dim f As Float
 
   ' primero agregamos la correspondiente a ByLayer
-  imagen = New Image(fMain.tblLineWt.w * 0.9, fMain.tblLineWt.h * 0.9, Color.ButtonBackground)
+  imagen = New Image(fMain.tblLineWt.w * 0.9, fMain.tblLineWt.h * 0.9, fMain.tblLineWt.Background)
 
   Paint.Begin(imagen)
   '  +------------------------------------+
@@ -247,7 +247,7 @@ Public Sub UpdateLineWtCombo()
   ' ahora espesores especificos
   For f = 0.1 To 1.2 Step 0.1
     ' primero agregamos la correspondiente a ByLayer
-    imagen = New Image(fMain.tblLineWt.w * 0.9, fMain.tblLineWt.h * 0.9, Color.ButtonBackground)
+    imagen = New Image(fMain.tblLineWt.w * 0.9, fMain.tblLineWt.h * 0.9, fMain.tblLineWt.Background)
 
     Paint.Begin(imagen)
     Paint.AntiAlias = True
@@ -270,8 +270,90 @@ Public Sub UpdateLineWtCombo()
 
   Next
 
+  '   test id[mm]
+  ' # ¡DIV/0!	0	0
+  ' 0, 05 1 0, 05
+  ' 0, 09 2 0, 09
+  ' 0, 1 3 0, 1
+  ' 0, 13 4 0, 13
+  ' 0, 15 5 0, 15
+  ' 0, 18 6 0, 18
+  ' 0, 2 7 0, 2
+  ' 0, 25 8 0, 25
+  ' 0, 3 9 0, 3
+  ' 0, 35 10 0, 35
+  ' 0, 4 11 0, 4
+  ' 0, 45 12 0, 45
+  ' 0, 5 13 0, 5
+  ' 0, 53 14 0, 53
+  ' 0, 6 15 0, 6
+  ' 0, 65 16 0, 65
+  ' 0, 7 17 0, 7
+  ' 0, 8 18 0, 8
+  ' 0, 9 19 0, 9
+  ' 1 20 1
+  ' 0, 4761904761905 21 1, 06
+  ' 0, 9090909090909 22 1, 2
+  ' 1, 304347826087 23 1, 4
+  ' 1, 6666666666667 24 1, 58
+  ' 2 25 2
+  ' 	26 2, 11
+  ' 	27
+  ' 	28
+  ' ByLayer 29
+  ' ByBlock 30
+  ' Default 31
+
+
 
 End
+
+Public Sub UpdateLineTypeCombo()
+
+  ' se define en DXF con los codigos:
+  ' 40 = largo total por tramo ( = suma de Abs(code 49) )
+  ' 73 = numero de elementos (linea,espacio, punto) = 0 si es continua
+  ' 49 = largo de cada elemento: 0 = dot, negativo = espacio, positivo = linea
+  Dim imagen As Image
+  Dim Xc, Yc, i, trame, TotalTrames As Integer
+  Dim LW As Float
+  Dim lty As LType
+  Dim f As Float
+
+  '  +------------------------------------+
+  '  + Phantom                            +
+  '  + -- - -- - -- - -- - -- - -- - --   +
+  '  +------------------------------------+
+
+  ' ahora espesores especificos
+  For Each lty In CurrentDrawing.arrLTYpes
+    Inc i
+
+    ' primero agregamos la correspondiente a ByLayer
+    imagen = New Image(fMain.tblLTypes.w * 0.9, fMain.tblLTypes.h * 0.9, fMain.tblLTypes.Background)
+
+    Paint.Begin(imagen)
+    Paint.AntiAlias = True
+    Paint.MoveTo(0, imagen.h * 0.8)
+    Paint.LineWidth = 1
+    Paint.Dash = lty.TrameLength
+    Paint.RelLineTo(imagen.w, 0)
+    Paint.Stroke
+    Paint.Dash = Null
+    ' Texto
+    Paint.MoveTo(0, 0)
+    Paint.LineWidth = 1
+    Paint.Text(lty.Name,,,, imagen.h * 0.5, Align.topLeft)
+    Paint.Fill
+    Paint.End
+
+    fMain.tblLTypes.AddToolButton("tbnLType" & CStr(i),, imagen.Picture, "ltype_change_" & lty.Name)
+
+  Next
+
+
+End
+
 
 
 Public Function iCadColor(sColor As String) As Integer
@@ -550,13 +632,58 @@ Public Sub ReadLayers()
   For Each cLay As Collection In CurrentDrawing.cLayers
     hLay = New Layer
     hLay.Name = cLay[dxf.codName]
-    hLay.Shown = cLay[dxf.codColor] >= 0
-    hLay.Colour = gcd.gColor[Abs(cLay[dxf.codColor])]
+    hLay.Shown = CInt(cLay[dxf.codColor]) >= 0
+    hLay.Colour = gcd.gColor[Abs(CInt(cLay[dxf.codColor]))]
     hLay.handle = cLay[dxf.codHandle]
   Next
 
 End
 
+'' Reads LTypes collection and puts data in arrLTypes
+Public Sub ReadLTypes()
+
+  Dim hlty As LType
+  Dim t, i As Integer
+  Dim fTrameLength As Float
+  Dim sNextKey As String
+
+  ' primero eliminamos lo q haya
+  CurrentDrawing.arrLayers.Clear
+  For Each c As Collection In CurrentDrawing.cLtypes
+    hlty = New LType
+    hlty.Name = c[dxf.codName]
+    hlty.Description = c["3"]
+    hlty.handle = c[dxf.codHandle]
+    hlty.nTrames = CInt(c["73"])
+    If hlty.nTrames > 0 Then hlty.Length = c["40"]
+    i = 0
+    For t = 1 To hlty.nTrames
+      Do
+        If t > 1 Then
+          sNextKey = "49_" & CStr(i)
+        Else
+          sNextKey = "49"
+        Endif
+        If c.Exist(sNextKey) Then
+          Inc i
+          hlty.TrameLength.Add(Abs(CFloat(c[sNextKey])) * 2.5) ' TODO: verificar este valor arbitrario
+          If hlty.TrameLength.Last = 0 Then hlty.TrameLength.Last = 1
+
+          Break
+        Endif
+        Inc i
+        If i = 1000 Then Return
+      Loop
+
+    Next
+
+    CurrentDrawing.arrLTYpes.Add(hlty)
+
+
+
+  Next
+
+End
 
 Public Function GetGBColor(CADcolor As Integer, layerID As String) As Integer
 
