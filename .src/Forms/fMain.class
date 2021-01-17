@@ -44,6 +44,7 @@ Public flgSearchingPOI As Boolean
 
 Public Sub Run() As Boolean
 
+
   tblLines.AddToolButton("tblLine",, Picture.Load(main.Params["Dirs/PNG", Application.Path &/ "png/48x48"] &/ "line.png"), "cadLine")
   tblLines.AddToolButton("tblLWPolyline",, Picture.Load(main.Params["Dirs/PNG", Application.Path &/ "png/48x48"] &/ "hexagon.png"), "cadlwpolyline")
 
@@ -57,7 +58,7 @@ Public Sub Run() As Boolean
 
 End
 
-Public Function Action_Activate(cAction As String) As Boolean
+Public Function Action_Activate(sAction As String) As Boolean
   ' Acciones de los botones y los menús (para no repetir código)
   ' El string de la acción es una propiedad de cada botón o menú
   ' El código que se ejecuta lo hace dentro de la rutina llamada, nunca dentro de este mismo evento.
@@ -71,7 +72,7 @@ Public Function Action_Activate(cAction As String) As Boolean
 
   Try Print Last.name
 
-  Select Case LCase(cAction)
+  Select Case LCase(sAction)
 
     Case "file_new"
 
@@ -223,8 +224,27 @@ Public Function Action_Activate(cAction As String) As Boolean
 
 
       Endif
+    Case Like "color_*"
+      Dim iColor As Integer
+      Dim imgCirculito As Image
+      iColor = CInt(Mid(sAction, 7))
+      mbtColors.Text = "Color " & CStr(iColor) 'Me.mbtColors.Children[iColor].Text
+      If iColor = 256 Then mbtColors.Text = "ByLayer"
+      If iColor = 257 Then mbtColors.Text = "ByBlock"
 
+      imgCirculito = New Image(16, 16) ', Color.ButtonBackground)
 
+      Paint.Begin(imgCirculito)
+      Paint.LineWidth = 2
+      Paint.Arc(8, 8, 7, 0, 2 * Pi)
+      Paint.Brush = Paint.Color(gcd.gColor[iColor])
+      Paint.Fill(True)
+      Paint.Brush = Paint.Color(Color.Black)
+      Paint.Stroke()
+      Paint.End
+
+      mbtColors.Picture = imgCirculito.Picture
+      mbtColors.Refresh
   End Select
 
 End
@@ -734,41 +754,7 @@ End
 '
 ' End
 '
-' Public Sub AddColorsPics()
-'
-'   Dim lt As Variant[]
-'   Dim img As Image
-'
-'   For Each lt In gcd.cColors
-'
-'     img = New Image(16, 16, btnLtypes.Background)
-'
-'     Paint.Begin(img)
-'
-'     Paint.NewPath
-'
-'     Select gcd.flgWhiteAndBlack
-'       Case 0
-'         Paint.Brush = Paint.Color(Color.Black)
-'       Case Else
-'         Paint.Brush = Paint.Color(Color.White)
-'     End Select
-'
-'     Paint.Begin(img)
-'     Paint.LineWidth = 2
-'     Paint.Arc(8, 8, 7, 0, 2 * Pi)
-'     Paint.Brush = Paint.Color(Val(gcd.cColors.Key))
-'     Paint.Fill(True)
-'     Paint.Brush = Paint.Color(Color.Black)
-'     Paint.Stroke()
-'     Paint.End
-'
-'     'lt.Insert([img.Copy()])
-'     gcd.cColors[gcd.cColors.Key][1] = img.Copy()
-'
-'   Next
-'
-' End
+
 
 Public Sub Form_KeyPress()
 
@@ -1034,14 +1020,15 @@ Public Sub tbnGrid_Click()
 
 End
 
-Public Sub tblLines_Click()
-
-  Dim sAction As String
-
-  sAction = tblLines.Action
-  Debug "ToolButtonList action =", sAction
 
 
-End
 
 
+
+' Public Sub mbtColors_Click()
+'
+'   ' es redundante, pero debemos llamar a
+'   Me.Action_Activate(mbtColors.Tag)
+'
+'
+' End

@@ -6,7 +6,7 @@ Export
 Inherits UserControl
 
 
-Public Const _Properties As String = "*,Text,KeepLast,Detatchable"
+Public Const _Properties As String = "*,Text,KeepLast,ListDirection,Picture,Detatchable"
 Public Const _DefaultEvent As String = "Click"
 Public Const _DefaultSize As String = "32,32"
 Public Const _Similar As String = "ToolButton"
@@ -17,6 +17,7 @@ Event Click
 Property DefaultButton As Integer
 Property KeepLast As Boolean
 Property ListDirection As Integer   ' 0=vertical 1=horiz 2=square grid
+Property Picture As Picture
 
 Property Text As String
 
@@ -30,7 +31,8 @@ Private $ListDirection As Integer
 
 Private $Detatchable As Boolean
 
-Private hForm As DrawingArea      ' the form containing the list
+Private hForm As Form      ' the form containing the list
+Private hToggle As ToggleButton
 Private hObs As Observer
 
 Private H0 As Integer
@@ -50,10 +52,14 @@ Public Sub _new()
 
 
 
-  hForm = New DrawingArea(Me) As "da"
+  hForm = New Form As "da"
+  hForm.Border = False
+
+
+  hToggle = New ToggleButton(Me) As "tog"
 
   ' hForm.Background = Color.Red
-  ' hForm.Ignore = True     ' evitamos q fMain lo acomode
+  'hForm.Ignore = True     ' evitamos q fMain lo acomode
   'hForm.Visible = False    ' no es el momento de mostrarlo
   ' hForm.AutoResize = True
   Me.Proxy = hForm
@@ -61,7 +67,6 @@ Public Sub _new()
   Me.Ignore = True
 
 
-  hObs = New Observer(hForm)
 
 End
 
@@ -69,9 +74,15 @@ End
 
 Public Sub buttons_click()
 
+  ' verifico en que parte hizo el click, el triangulo superior izq actua
+  ' el triang inf derecho despliega mas botones
+
 
   Me.Action = Last.Action
   'Debug "Last action", tbnChilds.Last.action, "from", tbnChilds.Last.Name
+  Toggle.Picture = Last.Picture
+  Toggle.Action = Last.Action
+  Toggle.Tooltip = Last.tooltip
   Toggle.Value = 0
   Raise Click
 
@@ -89,7 +100,7 @@ Public Function AddToolButton(sName As String, Optional sText As String = "", hP
 
   ' vemos si hace falta inicializar
   If tbnChilds.Count = 0 Then
-    Toggle = New ToggleButton(hForm) As "tb"
+    Toggle = New ToggleButton(Me) As "tb"
 
     h0 = Me.H
     w0 = Me.W
@@ -99,11 +110,13 @@ Public Function AddToolButton(sName As String, Optional sText As String = "", hP
     Toggle.w = Me.W
 
     Toggle.Proxy = hForm
-    ' hForm.top = Me.Top
-    ' hForm.Left = Me.Left
+
     '
     'tbnChilds.Add(Toggle)
     Toggle.Picture = hPicture
+
+    hObs = New Observer(Toggle)
+
   Endif
 
   newTBN.Name = sName
@@ -122,18 +135,18 @@ Public Function AddToolButton(sName As String, Optional sText As String = "", hP
   Select Case $ListDirection
     Case 0 ' se despliega hacia abajo
       ' cambio el tamanio del formulario
-      hForm.Height = (tbnChilds.Count + 1) * Me.H
+      hForm.Height = tbnChilds.Count * Me.H
       hForm.Width = Me.W
       ' ubico el boton
-      newTBN.Top = (tbnChilds.Max + 1) * Me.H
+      newTBN.Top = tbnChilds.Max * Me.H
       newTBN.Left = 0
 
     Case 1 ' se despliega hacia la derecha
       hForm.Height = Me.Height
-      hForm.Width = Me.w * (tbnChilds.Count + 1)
+      hForm.Width = Me.w * tbnChilds.Count
       ' ubico el boton
-      newTBN.Top = (tbnChilds.Max + 1) * Me.H
-      newTBN.Left = 0
+      newTBN.Top = 0
+      newTBN.Left = tbnChilds.Max * Me.w
 
   End Select
 
@@ -141,29 +154,72 @@ Public Function AddToolButton(sName As String, Optional sText As String = "", hP
 
 End
 
+Public Sub hObs_Click()
+
+  ' verifico en que parte hizo el click, el triangulo superior izq actua
+  ' el triang inf derecho despliega mas botones
+
+  Dim x As Integer = Mouse.X
+  Dim y As Integer = Mouse.y
+  Dim Despliega As Boolean
+
+  x -= Toggle.X
+  y -= Toggle.Y
+
+  If x = 0 Then
+    Despliega = True
+  Else
+    If y / x >= 0.5 Then Despliega = False Else Despliega = True
+
+  End If
+
+  If Despliega Then
+
+    Stop Event
+
+    Me.Action = Toggle.Action
+    Raise Click
+
+  End If
+
+End
+
+
+
+
 Public Sub tb_Click()
 
   ' cambio el tamanio del contenedor
 
   If Toggle.Value Then
 
-    Select Case $ListDirection
-      Case 0 ' se despliega hacia abajo
-        ' cambio el tamanio del formulario
-
-        Me.Width = 32
-        Me.H = Me.W * (tbnChilds.Count + 1) * Me.H
+    hForm.top = Toggle.Screeny
+    hForm.Left = Toggle.ScreenX
 
 
-      Case 1 ' se despliega hacia la derecha
-        hForm.Height = Me.Height
-        hForm.Width = Me.w * (tbnChilds.Count + 1)
 
-    End Select
+    ' Select Case $ListDirection
+    '   Case 0 ' se despliega hacia abajo
+    '     ' cambio el tamanio del formulario
+    '
+    '     Me.Width = w0
+    '     Me.H = Me.W * (tbnChilds.Count + 1) * Me.H
+    '
+    '
+    '
+    '
+    '   Case 1 ' se despliega hacia la derecha
+    '     Me.Height = h0
+    '     Me.Width = Me.h * (tbnChilds.Count + 1)
+    '
+    ' End Select
+    hForm.Show()
 
   Else
-    Me.Width = w0
-    Me.H = h0
+    hForm.Hide()
+
+    ' Me.Width = w0
+    ' Me.H = h0
 
   Endif
 
@@ -226,12 +282,13 @@ End
 
 Private Function ListDirection_Read() As Integer
 
-
+  Return $ListDirection
 
 End
 
 Private Sub ListDirection_Write(Value As Integer)
 
+  $ListDirection = Value
 
 
 End
@@ -262,57 +319,63 @@ End
 ' End
 
 
+'
+' Public Sub da_MouseDown()
+'
+'   ' aqui tenemos que mostrar el resto de los botones?
+'
+'
+'   $bState = True
+'   hForm.Refresh
+'   'Raise Click
+'
+' End
+'
+' Public Sub da_MouseUp()
+'
+'   $bState = False
+'   hForm.Refresh
+'
+' End
+'
+'
+' Public Sub da_Click()
+'
+'   $bState = False
+'   hForm.Refresh
+'
+' End
 
-Public Sub da_MouseDown()
+'
+'
+' Public Sub da_Enter()
+'
+'
+'
+'   hForm.Refresh
+'
+' End
+'
+' Public Sub da_Leave()
+'
+'   hForm.Refresh
+'
+' End
+'
+' Public Sub da_GotFocus()
+'
+'   hForm.Refresh
+'
+' End
+'
+' Public Sub da_LostFocus()
+'
+'   hForm.Refresh
+'
+' End
 
-  ' aqui tenemos que mostrar el resto de los botones?
+Public Sub da_Deactivate()
 
-
-  $bState = True
-  hForm.Refresh
-  'Raise Click
-
-End
-
-Public Sub da_MouseUp()
-
-  $bState = False
-  hForm.Refresh
-
-End
-
-
-Public Sub da_Click()
-
-  $bState = False
-  hForm.Refresh
-
-End
-
-
-
-Public Sub da_Enter()
-
-
-
-  hForm.Refresh
-
-End
-
-Public Sub da_Leave()
-
-  hForm.Refresh
-
-End
-
-Public Sub da_GotFocus()
-
-  hForm.Refresh
-
-End
-
-Public Sub da_LostFocus()
-
-  hForm.Refresh
+  Toggle.value = 0
 
 End
