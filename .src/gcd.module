@@ -189,6 +189,106 @@ Public Sub LayersTransfer()
 
 End
 
+'' Transfer layers to main windows ComboBox
+Public Sub UpdateLayersCombo()
+
+  Dim i As Integer
+  Dim sName As String = "_menuLay"
+  Dim mLayer As New Menu(fMain), m2 As Menu
+
+  For i = 0 To fMain.Menus.Count - 1
+    If fMain.Menus[i].Name = sName Then fMain.Menus[i].Delete
+  Next
+  mLayer.Name = sName
+  For Each cLayer As Collection In CurrentDrawing.cLayers
+    m2 = New Menu(mLayer)
+    m2.Text = cLayer[dxf.codName]
+    m2.Picture = paintPlus.picCirculito(8, gColor[iCadColor(cLayer[dxf.codColor])], Color.ButtonForeground)
+    m2.Action = "layer_change_" & cLayer[dxf.codName]
+  Next
+  fMain.mbtLayers.Menu = sName
+  fMain.mbtLayers.Text = mLayer.Children[0].Text
+  fMain.mbtLayers.Picture = mLayer.Children[0].Picture
+  Return
+
+
+
+End
+
+'' Should be called after updating layers
+Public Sub UpdateLineWtCombo()
+
+  Dim imagen As Image
+  Dim Xc, Yc As Integer
+  Dim LW As Float
+  Dim f As Float
+
+  ' primero agregamos la correspondiente a ByLayer
+  imagen = New Image(fMain.tblLineWt.w * 0.9, fMain.tblLineWt.h * 0.9, Color.ButtonBackground)
+
+  Paint.Begin(imagen)
+  '  +------------------------------------+
+  '  +   ---------------------  0.00mm    +
+  '  +------------------------------------+
+  Paint.MoveTo(0, imagen.h / 2)
+  lw = CurrentDrawing.cLayers[gcd.CurrentDrawing.CurrLayer][dxf.codLWht] / 100 * 3
+  Paint.LineWidth = lw
+  If Paint.LineWidth < 1 Then Paint.LineWidth = 1
+  Paint.RelLineTo(imagen.w / 2, 0)
+  Paint.Stroke
+  Paint.MoveTo(imagen.w / 10 * 5.5, imagen.h * 0.1)
+  Paint.LineWidth = 1
+  Paint.Text("ByLayer",,,, imagen.h * 0.6, Align.Left)
+  Paint.Fill
+  Paint.End
+
+  fMain.tblLineWt.AddToolButton("tbnLineWtByLayer",, imagen.Picture, "linewt_change_" & CStr(lw * 100))
+
+  ' ahora espesores especificos
+  For f = 0.1 To 1.2 Step 0.1
+    ' primero agregamos la correspondiente a ByLayer
+    imagen = New Image(fMain.tblLineWt.w * 0.9, fMain.tblLineWt.h * 0.9, Color.ButtonBackground)
+
+    Paint.Begin(imagen)
+    Paint.AntiAlias = True
+    '  +------------------------------------+
+    '  +   ---------------------  0.00mm    +
+    '  +------------------------------------+
+    Paint.MoveTo(0, imagen.h / 2)
+    lw = f * 3
+    Paint.LineWidth = lw
+    If Paint.LineWidth < 1 Then Paint.LineWidth = 1
+    Paint.RelLineTo(imagen.w / 2, 0)
+    Paint.Stroke
+    Paint.MoveTo(imagen.w / 10 * 5.5, imagen.h * 0.1)
+    Paint.LineWidth = 1
+    Paint.Text(Format(f, "0.00mm"),,,, imagen.h * 0.6, Align.Left)
+    Paint.Fill
+    Paint.End
+
+    fMain.tblLineWt.AddToolButton("tbnLineWt" & CStr(f),, imagen.Picture, "linewt_change_" & CStr(lw * 100))
+
+  Next
+
+
+End
+
+
+Public Function iCadColor(sColor As String) As Integer
+
+  sColor = LCase(sColor)
+  If sColor = "bylayer" Then Return 256
+  If sColor = "byblock" Then Return 257
+  If sColor = "byobject" Then Return 258
+  Try Return CInt(sColor)
+  Return 0
+
+
+
+End
+
+
+
 Public Sub BlocksTransfer()
 
   Dim iEnt As Collection
@@ -440,6 +540,23 @@ Public Function GetLayerID(LayerName As String) As String
   Next
 
 End
+
+'' Reads layers collection and puts data in arrLayers
+Public Sub ReadLayers()
+
+  Dim hLay As Layer
+  ' primero eliminamos lo q haya
+  CurrentDrawing.arrLayers.Clear
+  For Each cLay As Collection In CurrentDrawing.cLayers
+    hLay = New Layer
+    hLay.Name = cLay[dxf.codName]
+    hLay.Shown = cLay[dxf.codColor] >= 0
+    hLay.Colour = gcd.gColor[Abs(cLay[dxf.codColor])]
+    hLay.handle = cLay[dxf.codHandle]
+  Next
+
+End
+
 
 Public Function GetGBColor(CADcolor As Integer, layerID As String) As Integer
 

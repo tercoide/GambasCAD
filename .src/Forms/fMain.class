@@ -69,10 +69,18 @@ Public Function Action_Activate(sAction As String) As Boolean
   Dim fx As String[]
   Dim fbas As String
   Dim t As String
+  Dim iColor As Integer
+  Dim imgCirculito As Image
+  Dim clsJob As String
 
   Try Print Last.name
 
   Select Case LCase(sAction)
+
+    Case "file_quit"
+
+      Me.Close
+      Quit
 
     Case "file_new"
 
@@ -87,6 +95,10 @@ Public Function Action_Activate(sAction As String) As Boolean
       gcd.CurrentDrawing.cLayers = gcd.CurrentDrawing.cModel["TABLES"]["LAYER"]
       gcd.CurrentDrawing.cLtypes = gcd.CurrentDrawing.cModel["TABLES"]["LTYPE"]
       gcd.CurrentDrawing.HandSeed = gcd.iHeader("$HANDSEED")
+      gcd.UpdateGraphics
+
+      gcd.UpdateLayersCombo
+      gcd.UpdateLineWtCombo
 
 
       Me.Text = f
@@ -128,7 +140,7 @@ Public Function Action_Activate(sAction As String) As Boolean
 
               ' modelo recien cargado
               cadZoomE.Start()                                ' por ahora mostramos el dibujo centrado, hasta q leamos el estado anterior
-
+              gcd.UpdateLayersCombo
               Me.Text = f
 
 
@@ -154,6 +166,8 @@ Public Function Action_Activate(sAction As String) As Boolean
               gcd.CurrentDrawing.HandSeed = gcd.iHeader("$HANDSEED")
 
               gcd.UpdateGraphics
+              gcd.UpdateLayersCombo
+
 
               cadZoomE.Start()                                ' por ahora mostramos el dibujo centrado, hasta q leamos el estado anterior
 
@@ -224,27 +238,56 @@ Public Function Action_Activate(sAction As String) As Boolean
 
 
       Endif
+
+
     Case Like "color_*"
-      Dim iColor As Integer
-      Dim imgCirculito As Image
+
       iColor = CInt(Mid(sAction, 7))
       mbtColors.Text = "Color " & CStr(iColor) 'Me.mbtColors.Children[iColor].Text
       If iColor = 256 Then mbtColors.Text = "ByLayer"
       If iColor = 257 Then mbtColors.Text = "ByBlock"
 
-      imgCirculito = New Image(16, 16) ', Color.ButtonBackground)
+      mbtColors.Picture = paintPlus.picCirculito(8, gcd.gColor[iColor], Color.ButtonForeground)
 
-      Paint.Begin(imgCirculito)
-      Paint.LineWidth = 2
-      Paint.Arc(8, 8, 7, 0, 2 * Pi)
-      Paint.Brush = Paint.Color(gcd.gColor[iColor])
-      Paint.Fill(True)
-      Paint.Brush = Paint.Color(Color.Black)
-      Paint.Stroke()
-      Paint.End
 
-      mbtColors.Picture = imgCirculito.Picture
-      mbtColors.Refresh
+    Case Like "cad*"
+
+
+      Dim o As Object, RunWith As String, c As Class
+
+      gcd.clsJobPrevious = gcd.clsJob
+
+      o = Object.New(sAction)
+
+      ' check if the class needs to be run trough other class
+      If o.usewith = "" Then                        ' its a tool
+        gcd.clsJob = o
+        gcd.clsJob.start
+
+      Else                                           ' its propably an eentity
+
+        gcd.clsJob = Object.New(o.usewith)
+        gcd.clsJob.start(o)
+
+      End If
+
+
+
+    Case Like "layer_change_*"
+
+      Dim sLayerName As String
+
+      sLayerName = Mid(sAction, 14)
+
+      mbtLayers.Text = sLayerName
+      iColor = gcd.CurrentDrawing.cLayers[sLayerName][dxf.codColor]
+      mbtLayers.Picture = paintPlus.picCirculito(8, gcd.gColor[iColor], Color.ButtonForeground)
+
+    Case Like "linewt_change_*"
+
+      gcd.CurrentDrawing.CurrLineWt = CInt(Mid(sAction, 15))
+
+
   End Select
 
 End
@@ -256,6 +299,14 @@ Public Sub Form_Activate()
   GLplus.Init(glarea1)
 
 End
+
+Public Sub form_Close()
+
+  main.Terminate
+
+
+End
+
 
 Public Sub glarea1_Resize()
 
@@ -706,54 +757,6 @@ End
 '   Endif
 '
 ' End
-'
-' Public Sub AddWidthsPics()
-'
-'   Dim wt As Variant
-'   Dim img As Image
-'   Dim hColor As ColorInfo
-'   Dim mm As String
-'   Dim px As Float
-'
-'   hColor = Color[Color.ButtonBackground]
-'
-'   iTheme = hColor.Luminance
-'
-'   For Each wt In gcd.cWidths
-'     mm = wt[0]
-'     If CInt(gcd.cWidths.Key) > 0 And CInt(gcd.cWidths.Key) < 27 Then
-'       img = New Image(btnLtypes.Width, 8, btnLtypes.Background)
-'       px = gcd.cWidths.Key
-'     Else
-'       img = New Image(btnLtypes.Width / 2, 8, btnLtypes.Background)
-'       px = 1
-'     Endif
-'
-'     Paint.Begin(img)
-'     If hColor.Luminance > 160 Then
-'       Paint.Brush = Paint.Color(Color.Black)
-'     Else
-'       Paint.Brush = Paint.Color(Color.White)
-'     Endif
-'
-'     Paint.NewPath
-'     Paint.LineWidth = px ' CFloat(wt) * 3
-'     Paint.MoveTo(4, 4)
-'
-'     'If CInt(gcd.cWidths.Key) > 0 And CInt(gcd.cWidths.Key) < 27 Then
-'     Paint.LineTo(btnLtypes.Width - 4, 4)
-'     'Else
-'     '  Paint.LineTo(CInt(btnLtypes.Width / 2), 4)
-'     'Endif
-'
-'     Paint.Stroke
-'     Paint.End
-'     gcd.cWidths[gcd.cWidths.Key] = [mm, px, img]
-'
-'   Next
-'
-' End
-'
 
 
 Public Sub Form_KeyPress()
