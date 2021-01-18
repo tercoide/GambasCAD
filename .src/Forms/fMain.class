@@ -44,6 +44,14 @@ Public flgSearchingPOI As Boolean
 
 Public Sub Run() As Boolean
 
+  ' acomodo el tamanio de los controles
+
+  Me.tblLineWt.w = 128
+  Me.tblLTypes.w = 128
+  Me.mbtColors.w = 128
+  Me.mbtLayers.w = 128
+
+
 
   tblLines.AddToolButton("tblLine",, Picture.Load(main.Params["Dirs/PNG", Application.Path &/ "png/48x48"] &/ "line.png"), "cadLine")
   tblLines.AddToolButton("tblLWPolyline",, Picture.Load(main.Params["Dirs/PNG", Application.Path &/ "png/48x48"] &/ "hexagon.png"), "cadlwpolyline")
@@ -252,6 +260,8 @@ Public Function Action_Activate(sAction As String) As Boolean
 
       mbtColors.Picture = paintPlus.picCirculito(8, gcd.gColor[iColor], Color.ButtonForeground)
 
+      gcd.CurrentDrawing.CurrColor = iColor
+
 
     Case Like "cad*"
 
@@ -286,9 +296,16 @@ Public Function Action_Activate(sAction As String) As Boolean
       iColor = gcd.CurrentDrawing.cLayers[sLayerName][dxf.codColor]
       mbtLayers.Picture = paintPlus.picCirculito(8, gcd.gColor[iColor], Color.ButtonForeground)
 
+      ' informamos
+      gcd.CurrentDrawing.CurrLayer = gcd.FindLaIndex(sLayerName)
+
     Case Like "linewt_change_*"
 
-      gcd.CurrentDrawing.CurrLineWt = CInt(Mid(sAction, 15))
+      gcd.CurrentDrawing.CurrLineWt = CInt(Mid(sAction, 15)) / 100
+
+    Case Like "ltype_change_*"
+
+      gcd.CurrentDrawing.CurrLineType = gcd.FindLtIndex(Mid(sAction, 14))
 
 
   End Select
@@ -705,62 +722,6 @@ Public Sub Regen()
 
 End
 
-'
-' Public Sub AddLtypesPics()
-'
-'   Dim lt As Variant
-'   Dim dash As Float[]
-'   Dim img As Image
-'   Dim hColor As ColorInfo
-'   'Dim pxl As Integer
-'
-'   hColor = Color[Color.ButtonBackground]
-'
-'   If iTheme <> hColor.Luminance Then
-'     iTheme = hColor.Luminance
-'
-'     For Each lt In gcd.cStyles
-'
-'       dash = lt[0]
-'
-'       img = New Image(btnLtypes.Width, 8, btnLtypes.Background)
-'
-'       Paint.Begin(img)
-'       Paint.NewPath
-'       Select dash.Count
-'         Case 0, 1
-'
-'         Case Else
-'           Paint.Dash = dash
-'
-'       End Select
-'
-'       hColor = Color[Color.ButtonBackground]
-'
-'       If hColor.Luminance > 160 Then
-'         Paint.Brush = Paint.Color(Color.Black)
-'       Else
-'         Paint.Brush = Paint.Color(Color.White)
-'       Endif
-'
-'       Paint.LineWidth = 1
-'       Paint.MoveTo(4, 4)
-'       Paint.LineTo(btnLtypes.Width - 4, 4)
-'       Paint.Stroke
-'       Paint.End
-'
-'       If gcd.cStyles[gcd.cStyles.Key].Count = 4 Then
-'         gcd.cStyles[gcd.cStyles.Key][3] = img
-'       Else
-'         gcd.cStyles[gcd.cStyles.Key].Add(img)
-'       Endif
-'
-'     Next
-'
-'   Endif
-'
-' End
-
 
 Public Sub Form_KeyPress()
 
@@ -1026,15 +987,3 @@ Public Sub tbnGrid_Click()
 
 End
 
-
-
-
-
-
-' Public Sub mbtColors_Click()
-'
-'   ' es redundante, pero debemos llamar a
-'   Me.Action_Activate(mbtColors.Tag)
-'
-'
-' End
