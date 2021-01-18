@@ -30,87 +30,87 @@ Private Radianes As Float
 Private glSelectedList As Integer
 
 Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer = 0) As Boolean
-  ' Llamada por FCAD al inicio de la aplicacion de esta herramienta
+    ' Llamada por FCAD al inicio de la aplicacion de esta herramienta
 
-  Dim i As Integer
-  ' Aprovechamos para establecer los helpers (comentarios de ayuda en pantalla)
-  Me.PointsDone = 0
-  Me.PointsTotal = 2
+    Dim i As Integer
+    ' Aprovechamos para establecer los helpers (comentarios de ayuda en pantalla)
+    Me.PointsDone = 0
+    Me.PointsTotal = 2
 
-  clsDrawingAids.HelperTrabajo = ("Rotate") & " "
+    clsDrawingAids.HelperTrabajo = ("Rotate") & " "
 
-  ' chequeamos si hubo seleccion previa
-  Me.SelectionCount = clsEntities.GetSelectionCount()
+    ' chequeamos si hubo seleccion previa
+    Me.SelectionCount = clsEntities.GetSelectionCount()
 
-  If Me.SelectionCount = 0 Then                                     ' we have no elements in the selection
+    If Me.SelectionCount = 0 Then                                     ' we have no elements in the selection
 
-    clsDrawingAids.Helper.texto = clsDrawingAids.HelperTrabajo & ": " & ("Select entities")
+        clsDrawingAids.Helper.texto = clsDrawingAids.HelperTrabajo & ": " & ("Select entities")
 
-    gcd.clsJobPrevious = Me
-    gcd.clsJob = clsDefaultJob
+        gcd.clsJobPrevious = Me
+        gcd.clsJob = clsDefaultJob
 
-  Else                                                                    ' need the first point
+    Else                                                                    ' need the first point
 
-    clsDrawingAids.Helper.texto = clsDrawingAids.HelperTrabajo & ": " & ("Base point")
-    clsDrawingAids.HelperTrabajo = clsDrawingAids.HelperTrabajo & Str(Me.SelectionCount) & " " & ("elements")
-    Me.inxSelected.Clear
-    For i = 0 To gcd.CurrDrawing.arrEntities.Max                  ' recolecto las entidades a modificar
-      If gcd.CurrDrawing.arrEntities[i].selected Then Me.inxSelected.Add(i)                               ' y las meto en un  array
+        clsDrawingAids.Helper.texto = clsDrawingAids.HelperTrabajo & ": " & ("Base point")
+        clsDrawingAids.HelperTrabajo = clsDrawingAids.HelperTrabajo & Str(Me.SelectionCount) & " " & ("elements")
+        Me.inxSelected.Clear
+        For i = 0 To gcd.CurrDrawing.arrEntities.Max                  ' recolecto las entidades a modificar
+            If gcd.CurrDrawing.arrEntities[i].selected Then Me.inxSelected.Add(i)                               ' y las meto en un  array
 
-    Next
+        Next
 
-    ' genero drawing lists
+        ' genero drawing lists
 
-    clsEntities.GLGenDrawListAll(True)
-    fMain.redraw
+        clsEntities.GLGenDrawListAll(True)
+        fMain.redraw
 
-  Endif
-  Me.Active = True
-  gcd.ToolActive = True
+    Endif
+    Me.Active = True
+    gcd.ToolActive = True
 
 End
 
 Public Function MouseUp(mouseX As Integer, mouseY As Integer)
 
-  Dim i As Integer
+    Dim i As Integer
 
-  Inc Me.PointsDone
+    Inc Me.PointsDone
 
-  If Me.PointsDone = 1 Then ' acabo de marcar el punto base
+    If Me.PointsDone = 1 Then ' acabo de marcar el punto base
 
-    ' ya tengo cosas seleccionadas
-    clsDrawingAids.Helper.texto = clsDrawingAids.HelperTrabajo & ": " & ("Angle") & " [90]"
+        ' ya tengo cosas seleccionadas
+        clsDrawingAids.Helper.texto = clsDrawingAids.HelperTrabajo & ": " & ("Angle") & " [90]"
 
-    ' punto real base
-    Me.SelStartXr = puntos.Near(fMain.Xreal(mousex))
-    Me.SelStartYr = puntos.Near(fMain.Yreal(mouseY))
+        ' punto real base
+        Me.SelStartXr = puntos.Near(fMain.Xreal(mousex))
+        Me.SelStartYr = puntos.Near(fMain.Yreal(mouseY))
 
-    Me.glTranslate[0] = Me.SelStartXr
-    Me.glTranslate[1] = Me.SelStartYr
-    Me.glTranslate[2] = 0
+        Me.glTranslate[0] = Me.SelStartXr
+        Me.glTranslate[1] = Me.SelStartYr
+        Me.glTranslate[2] = 0
 
-    gl.PushMatrix
-    gl.NewList(gcd.CurrDrawing.GlListSelectedEntities, gl.COMPILE)                      ' genero los graficos dentro de la lista
-    gl.Translatef(-Me.SelStartXr, -Me.SelStartYr, 0)
-    For i = 0 To gcd.CurrDrawing.arrEntities.Max 'Me.inxSelected.Max
-      If gcd.CurrDrawing.arrEntities[i].selected Then gl.CallList(gcd.CurrDrawing.arrEntities[i].glDrwList)
-    Next
-    gl.EndList
-    gl.PopMatrix
+        gl.PushMatrix
+        gl.NewList(gcd.CurrDrawing.GlListSelectedEntities, gl.COMPILE)                      ' genero los graficos dentro de la lista
+        gl.Translatef(-Me.SelStartXr, -Me.SelStartYr, 0)
+        For i = 0 To gcd.CurrDrawing.arrEntities.Max 'Me.inxSelected.Max
+            If gcd.CurrDrawing.arrEntities[i].selected Then gl.CallList(gcd.CurrDrawing.arrEntities[i].glDrwList)
+        Next
+        gl.EndList
+        gl.PopMatrix
 
-    ' prevenir acciones tontas como hacer click en otro elemento antes de terminar con el actual
-    ' TODO: reparar -> gcd.CurrDrawing.DesHabilitarBotones
-  Else If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
-    '     ' permitir otros trabajos
-    '     ' TODO: reparar -> gcd.CurrDrawing.HabilitarBotones
-    'Me.SelEndXr = puntos.Near(fMain.Xreal(mousex)
-    'Me.SelEndyr = puntos.Near(fMain.Yreal(mouseY))
+        ' prevenir acciones tontas como hacer click en otro elemento antes de terminar con el actual
+        ' TODO: reparar -> gcd.CurrDrawing.DesHabilitarBotones
+    Else If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
+        '     ' permitir otros trabajos
+        '     ' TODO: reparar -> gcd.CurrDrawing.HabilitarBotones
+        'Me.SelEndXr = puntos.Near(fMain.Xreal(mousex)
+        'Me.SelEndyr = puntos.Near(fMain.Yreal(mouseY))
 
-    'Radianes = Ang(Me.SelEndXr - Me.SelStartXr, Me.SelEndYr - Me.SelStartYr)
-    '
-    Me.Finish()
+        'Radianes = Ang(Me.SelEndXr - Me.SelStartXr, Me.SelEndYr - Me.SelStartYr)
+        '
+        Me.Finish()
 
-  Endif
+    Endif
 
 End
 
@@ -130,107 +130,107 @@ End
 
 Public Function MouseMove(mouseX As Integer, mouseY As Integer) ' called by FCAD-> DrawingArea_MouseMove
 
-  If Me.PointsDone = 1 Then
-    '     ' we compare Real values from the starting point to the location
-    '     ' represente by the mouse now, taking account that the drawing
-    '     ' could have being moved by the mouse wheel
-    '
-    '     ' new Real position is
-    Me.SelEndXr = puntos.Near(fMain.Xreal(mouseX))
-    Me.SelEndyr = puntos.Near(fMain.Yreal(mouseY))
+    If Me.PointsDone = 1 Then
+        '     ' we compare Real values from the starting point to the location
+        '     ' represente by the mouse now, taking account that the drawing
+        '     ' could have being moved by the mouse wheel
+        '
+        '     ' new Real position is
+        Me.SelEndXr = puntos.Near(fMain.Xreal(mouseX))
+        Me.SelEndyr = puntos.Near(fMain.Yreal(mouseY))
 
-    Radianes = Ang(Me.SelEndXr - Me.SelStartXr, Me.SelEndYr - Me.SelStartYr)
+        Radianes = Ang(Me.SelEndXr - Me.SelStartXr, Me.SelEndYr - Me.SelStartYr)
 
-    Me.glAngle = Radianes * 180 / Pi
+        Me.glAngle = Radianes * 180 / Pi
 
-    clsDrawingAids.Helper.texto = clsDrawingAids.HelperTrabajo & ": " & ("Angle") & " [90]" & Format$(Me.glAngle, "0.0")
+        clsDrawingAids.Helper.texto = clsDrawingAids.HelperTrabajo & ": " & ("Angle") & " [90]" & Format$(Me.glAngle, "0.0")
 
-  End If
+    End If
 
-  Debug Me.glAngle, Me.glTranslate[0], Me.glTranslate[1], Me.glTranslate[2]
-  gcd.Redraw
+    Debug Me.glAngle, Me.glTranslate[0], Me.glTranslate[1], Me.glTranslate[2]
+    gcd.Redraw
 
 End
 
 Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD en el evento FCAD_KeyPress cuando recibe una texto + <Enter>
 
-  If Me.PointsDone = 1 Then                     ' estamos esperando que nos responda si quere Ortogonal o Polar
+    If Me.PointsDone = 1 Then                     ' estamos esperando que nos responda si quere Ortogonal o Polar
 
-    If EnteredText = "" Then                        ' enter es Ortogonal
-      Radianes = 90 / 180 * Pi
-      Inc Me.PointsDone
-      Me.Finish
+        If EnteredText = "" Then                        ' enter es Ortogonal
+            Radianes = 90 / 180 * Pi
+            Inc Me.PointsDone
+            Me.Finish
 
-    Else
-      Radianes = CFloat(EnteredText) / 180 * Pi
-      Inc Me.PointsDone
-      Me.Finish
+        Else
+            Radianes = CFloat(EnteredText) / 180 * Pi
+            Inc Me.PointsDone
+            Me.Finish
+        End If
+
     End If
-
-  End If
 
 Catch
 
-  clsDrawingAids.ErrorMessage = ("Bad input")
+    clsDrawingAids.ErrorMessage = ("Bad input")
 
 End
 
 Public Sub Finish()
 
-  Dim i As Integer, ip As Integer, Prot As New Float[]
+    Dim i As Integer, ip As Integer, Prot As New Float[]
 
-  If Me.PointsDone = Me.PointsTotal Then
+    If Me.PointsDone = Me.PointsTotal Then
 
-    For i = 0 To Me.inxSelected.max
+        For i = 0 To Me.inxSelected.max
 
-      ' en todos los casos, roto los puntos
-      puntos.Translate(gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].p, -Me.SelStartXr, -Me.SelStartYr)  ' pero primero translado
-      puntos.Rotate(gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].p, Radianes)
-      puntos.Translate(gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].p, Me.SelStartXr, Me.SelStartYr)    ' y regreso
+            ' en todos los casos, roto los puntos
+            puntos.Translate(gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].p, -Me.SelStartXr, -Me.SelStartYr)  ' pero primero translado
+            puntos.Rotate(gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].p, Radianes)
+            puntos.Translate(gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].p, Me.SelStartXr, Me.SelStartYr)    ' y regreso
 
-      ' en algunos casos, algo mas
-      Select Case LCase$(gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].Gender)
-        Case "text", "mtext"
-          gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].fParam[0] += Radianes * 180 / Pi
-          If gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].fParam[0] >= 360 Then gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].fParam[0] -= 360
+            ' en algunos casos, algo mas
+            Select Case LCase$(gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].Gender)
+                Case "text", "mtext"
+                    gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].fParam[0] += Radianes * 180 / Pi
+                    If gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].fParam[0] >= 360 Then gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].fParam[0] -= 360
 
-        Case "insert"
-          gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].fParam[2] += Radianes * 180 / Pi
-          If gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].fParam[2] >= 360 Then gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].fParam[2] -= 360
+                Case "insert"
+                    gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].fParam[2] += Radianes * 180 / Pi
+                    If gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].fParam[2] >= 360 Then gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].fParam[2] -= 360
 
-        Case "arc"
-          ' start
-          gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].fParam[1] += Radianes * 180 / Pi
-          If gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].fParam[1] >= 360 Then gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].fParam[1] -= 360
+                Case "arc"
+                    ' start
+                    gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].fParam[1] += Radianes * 180 / Pi
+                    If gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].fParam[1] >= 360 Then gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].fParam[1] -= 360
 
-          ' finish
-          gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].fParam[2] += Radianes * 180 / Pi
-          If gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].fParam[2] >= 360 Then gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].fParam[2] -= 360
+                    ' finish
+                    gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].fParam[2] += Radianes * 180 / Pi
+                    If gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].fParam[2] >= 360 Then gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].fParam[2] -= 360
 
-        Case "ellipse"
-          ' start
-          gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].fParam[1] += Radianes
-          If gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].fParam[1] >= 2 * Pi Then gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].fParam[1] -= 2 * Pi
+                Case "ellipse"
+                    ' start
+                    gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].fParam[1] += Radianes
+                    If gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].fParam[1] >= 2 * Pi Then gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].fParam[1] -= 2 * Pi
 
-          ' finish
-          gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].fParam[2] += Radianes
-          If gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].fParam[2] >= 2 * Pi Then gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].fParam[2] -= 2 * Pi
+                    ' finish
+                    gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].fParam[2] += Radianes
+                    If gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].fParam[2] >= 2 * Pi Then gcd.CurrDrawing.arrEntities[Me.inxSelected[i]].fParam[2] -= 2 * Pi
 
-      End Select
+            End Select
 
-    Next
+        Next
 
-    clsEntities.Finish
+        clsEntities.Finish
 
-  Endif
+    Endif
 
-  gl.DeleteLists(glSelectedList, 1)
-  gcd.clsJobPrevious = Me
-  gcd.clsJob = clsDefaultJob
-  clsDrawingAids.CleanTexts
-  clsEntities.DeSelection()
-  fMain.regen
-  Me.Active = False
-  gcd.ToolActive = False
+    gl.DeleteLists(glSelectedList, 1)
+    gcd.clsJobPrevious = Me
+    gcd.clsJob = clsDefaultJob
+    clsDrawingAids.CleanTexts
+    clsEntities.DeSelection()
+    fMain.regen
+    Me.Active = False
+    gcd.ToolActive = False
 
 End

@@ -133,83 +133,83 @@ Public arrUndo As New Entity[]             '' An array to put an unmodified copy
 
 Public Sub LayersTransfer()
 
-  Dim tLay As New Collection
-  Dim i As Integer
-  Dim il As Variant
-  Dim ml As Variant
-  Dim prop As String
-  Dim iLay As Collection
-  Dim mLay As Collection
-  Dim r As Integer
+    Dim tLay As New Collection
+    Dim i As Integer
+    Dim il As Variant
+    Dim ml As Variant
+    Dim prop As String
+    Dim iLay As Collection
+    Dim mLay As Collection
+    Dim r As Integer
 
-  If CurrDrawing.cImport.Count > 0 Then
-    If CurrDrawing.cImport.Exist("Layers") Then
-      iLay = CurrDrawing.cImport["Layers"]
-      If CurrDrawing.cModel.Exist("Layers") Then
-        mLay = CurrDrawing.cModel["LAYERS"]
+    If CurrDrawing.cImport.Count > 0 Then
+        If CurrDrawing.cImport.Exist("Layers") Then
+            iLay = CurrDrawing.cImport["Layers"]
+            If CurrDrawing.cModel.Exist("Layers") Then
+                mLay = CurrDrawing.cModel["LAYERS"]
 
-        For Each il In iLay
-          r = 0
-          For Each ml In mLay
-            If ml["name"] = il["name"] Then
-              r = -1
-              Break
+                For Each il In iLay
+                    r = 0
+                    For Each ml In mLay
+                        If ml["name"] = il["name"] Then
+                            r = -1
+                            Break
+                        Else
+                            Inc r
+                        Endif
+                    Next
+
+                    If r > -1 Then
+                        tLay.Add(Format(r, "0"), "id")
+                        tLay.Add("layer", "type")
+                        For Each prop In ["name", "show", "frozen", "locked", "color", "style", "width", "print"]
+                            tLay.Add(il[prop], prop)
+                        Next
+                        mLay.Add(tLay.copy(), Format(r, "0"))
+                        tLay.Clear
+                    Endif
+
+                Next
             Else
-              Inc r
+                For Each il In iLay
+                    tLay.Add(Format(i, "0"), "id")
+                    tLay.Add("layer", "type")
+
+                    For Each prop In ["name", "show", "frozen", "locked", "color", "style", "width", "print"]
+                        tLay.Add(iLay[prop], prop)
+                    Next
+
+                    mLay.Add(tLay.copy(), Format(i, "0"))
+                    tLay.Clear
+                    Inc i
+                Next
             Endif
-          Next
-
-          If r > -1 Then
-            tLay.Add(Format(r, "0"), "id")
-            tLay.Add("layer", "type")
-            For Each prop In ["name", "show", "frozen", "locked", "color", "style", "width", "print"]
-              tLay.Add(il[prop], prop)
-            Next
-            mLay.Add(tLay.copy(), Format(r, "0"))
-            tLay.Clear
-          Endif
-
-        Next
-      Else
-        For Each il In iLay
-          tLay.Add(Format(i, "0"), "id")
-          tLay.Add("layer", "type")
-
-          For Each prop In ["name", "show", "frozen", "locked", "color", "style", "width", "print"]
-            tLay.Add(iLay[prop], prop)
-          Next
-
-          mLay.Add(tLay.copy(), Format(i, "0"))
-          tLay.Clear
-          Inc i
-        Next
-      Endif
+        Endif
     Endif
-  Endif
 
 End
 
 '' Transfer layers to main windows ComboBox
 Public Sub UpdateLayersCombo()
 
-  Dim i As Integer
-  Dim sName As String = "_menuLay"
-  Dim mLayer As New Menu(fMain), m2 As Menu
+    Dim i As Integer
+    Dim sName As String = "_menuLay"
+    Dim mLayer As New Menu(fMain), m2 As Menu
 
-  For i = 0 To fMain.Menus.Count - 1
-    If fMain.Menus[i].Name = sName Then fMain.Menus[i].Delete
-  Next
-  mLayer.Name = sName
-  For Each cLayer As Collection In CurrDrawing.cLayers
-    m2 = New Menu(mLayer)
-    m2.Text = cLayer[dxf.codName]
-    m2.Picture = paintPlus.picCirculito(8, gColor[iCadColor(cLayer[dxf.codColor])], Color.ButtonForeground)
-    m2.Action = "layer_change_" & cLayer[dxf.codName]
-  Next
-  fMain.mbtLayers.Menu = sName
-  fMain.mbtLayers.Text = mLayer.Children[0].Text
-  fMain.mbtLayers.Picture = mLayer.Children[0].Picture
-  Return
+    For i = 0 To fMain.Menus.Count - 1
+        If fMain.Menus[i].Name = sName Then fMain.Menus[i].Delete
+    Next
+    mLayer.Name = sName
+    For Each cLayer As Collection In CurrDrawing.cLayers
+        m2 = New Menu(mLayer)
+        m2.Text = cLayer[dxf.codName]
+        m2.Picture = paintPlus.picCirculito(8, gColor[iCadColor(cLayer[dxf.codColor])], Color.ButtonForeground)
+        m2.Action = "layer_change_" & cLayer[dxf.codName]
+    Next
+    fMain.mbtLayers.Menu = sName
+    fMain.mbtLayers.Text = mLayer.Children[0].Text
+    fMain.mbtLayers.Picture = mLayer.Children[0].Picture
+    Return
 
 
 
@@ -218,91 +218,91 @@ End
 '' Should be called after updating layers
 Public Sub UpdateLineWtCombo()
 
-  Dim imagen As Image
-  Dim Xc, Yc As Integer
-  Dim LW As Float
-  Dim f As Float
+    Dim imagen As Image
+    Dim Xc, Yc As Integer
+    Dim LW As Float
+    Dim f As Float
 
-  ' primero agregamos la correspondiente a ByLayer
-  imagen = New Image(fMain.tblLineWt.w * 0.9, fMain.tblLineWt.h * 0.9, fMain.tblLineWt.Background)
-
-  Paint.Begin(imagen)
-  '  +------------------------------------+
-  '  +   ---------------------  0.00mm    +
-  '  +------------------------------------+
-  Paint.MoveTo(0, imagen.h / 2)
-  lw = CurrDrawing.cLayers[gcd.CurrDrawing.CurrLayer][dxf.codLWht] / 100 * 3
-  Paint.LineWidth = lw
-  If Paint.LineWidth < 1 Then Paint.LineWidth = 1
-  Paint.RelLineTo(imagen.w / 2, 0)
-  Paint.Stroke
-  Paint.MoveTo(imagen.w / 10 * 5.5, imagen.h * 0.1)
-  Paint.LineWidth = 1
-  Paint.Text("ByLayer",,,, imagen.h * 0.6, Align.Left)
-  Paint.Fill
-  Paint.End
-
-  fMain.tblLineWt.AddToolButton("tbnLineWtByLayer",, imagen.Picture, "linewt_change_" & CStr(lw * 100))
-
-  ' ahora espesores especificos
-  For f = 0.1 To 1.2 Step 0.1
     ' primero agregamos la correspondiente a ByLayer
     imagen = New Image(fMain.tblLineWt.w * 0.9, fMain.tblLineWt.h * 0.9, fMain.tblLineWt.Background)
 
     Paint.Begin(imagen)
-    Paint.AntiAlias = True
     '  +------------------------------------+
     '  +   ---------------------  0.00mm    +
     '  +------------------------------------+
     Paint.MoveTo(0, imagen.h / 2)
-    lw = f * 3
+    lw = CurrDrawing.cLayers[gcd.CurrDrawing.CurrLayer][dxf.codLWht] / 100 * 3
     Paint.LineWidth = lw
     If Paint.LineWidth < 1 Then Paint.LineWidth = 1
     Paint.RelLineTo(imagen.w / 2, 0)
     Paint.Stroke
     Paint.MoveTo(imagen.w / 10 * 5.5, imagen.h * 0.1)
     Paint.LineWidth = 1
-    Paint.Text(Format(f, "0.00mm"),,,, imagen.h * 0.6, Align.Left)
+    Paint.Text("ByLayer",,,, imagen.h * 0.6, Align.Left)
     Paint.Fill
     Paint.End
 
-    fMain.tblLineWt.AddToolButton("tbnLineWt" & CStr(f),, imagen.Picture, "linewt_change_" & CStr(lw * 100))
+    fMain.tblLineWt.AddToolButton("tbnLineWtByLayer",, imagen.Picture, "linewt_change_" & CStr(lw * 100))
 
-  Next
+    ' ahora espesores especificos
+    For f = 0.1 To 1.2 Step 0.1
+        ' primero agregamos la correspondiente a ByLayer
+        imagen = New Image(fMain.tblLineWt.w * 0.9, fMain.tblLineWt.h * 0.9, fMain.tblLineWt.Background)
 
-  '   test id[mm]
-  ' # ¡DIV/0!	0	0
-  ' 0, 05 1 0, 05
-  ' 0, 09 2 0, 09
-  ' 0, 1 3 0, 1
-  ' 0, 13 4 0, 13
-  ' 0, 15 5 0, 15
-  ' 0, 18 6 0, 18
-  ' 0, 2 7 0, 2
-  ' 0, 25 8 0, 25
-  ' 0, 3 9 0, 3
-  ' 0, 35 10 0, 35
-  ' 0, 4 11 0, 4
-  ' 0, 45 12 0, 45
-  ' 0, 5 13 0, 5
-  ' 0, 53 14 0, 53
-  ' 0, 6 15 0, 6
-  ' 0, 65 16 0, 65
-  ' 0, 7 17 0, 7
-  ' 0, 8 18 0, 8
-  ' 0, 9 19 0, 9
-  ' 1 20 1
-  ' 0, 4761904761905 21 1, 06
-  ' 0, 9090909090909 22 1, 2
-  ' 1, 304347826087 23 1, 4
-  ' 1, 6666666666667 24 1, 58
-  ' 2 25 2
-  ' 	26 2, 11
-  ' 	27
-  ' 	28
-  ' ByLayer 29
-  ' ByBlock 30
-  ' Default 31
+        Paint.Begin(imagen)
+        Paint.AntiAlias = True
+        '  +------------------------------------+
+        '  +   ---------------------  0.00mm    +
+        '  +------------------------------------+
+        Paint.MoveTo(0, imagen.h / 2)
+        lw = f * 3
+        Paint.LineWidth = lw
+        If Paint.LineWidth < 1 Then Paint.LineWidth = 1
+        Paint.RelLineTo(imagen.w / 2, 0)
+        Paint.Stroke
+        Paint.MoveTo(imagen.w / 10 * 5.5, imagen.h * 0.1)
+        Paint.LineWidth = 1
+        Paint.Text(Format(f, "0.00mm"),,,, imagen.h * 0.6, Align.Left)
+        Paint.Fill
+        Paint.End
+
+        fMain.tblLineWt.AddToolButton("tbnLineWt" & CStr(f),, imagen.Picture, "linewt_change_" & CStr(lw * 100))
+
+    Next
+
+    '   test id[mm]
+    ' # ¡DIV/0!	0	0
+    ' 0, 05 1 0, 05
+    ' 0, 09 2 0, 09
+    ' 0, 1 3 0, 1
+    ' 0, 13 4 0, 13
+    ' 0, 15 5 0, 15
+    ' 0, 18 6 0, 18
+    ' 0, 2 7 0, 2
+    ' 0, 25 8 0, 25
+    ' 0, 3 9 0, 3
+    ' 0, 35 10 0, 35
+    ' 0, 4 11 0, 4
+    ' 0, 45 12 0, 45
+    ' 0, 5 13 0, 5
+    ' 0, 53 14 0, 53
+    ' 0, 6 15 0, 6
+    ' 0, 65 16 0, 65
+    ' 0, 7 17 0, 7
+    ' 0, 8 18 0, 8
+    ' 0, 9 19 0, 9
+    ' 1 20 1
+    ' 0, 4761904761905 21 1, 06
+    ' 0, 9090909090909 22 1, 2
+    ' 1, 304347826087 23 1, 4
+    ' 1, 6666666666667 24 1, 58
+    ' 2 25 2
+    ' 	26 2, 11
+    ' 	27
+    ' 	28
+    ' ByLayer 29
+    ' ByBlock 30
+    ' Default 31
 
 
 
@@ -310,76 +310,76 @@ End
 
 Public Sub UpdateLineTypeCombo()
 
-  ' se define en DXF con los codigos:
-  ' 40 = largo total por tramo ( = suma de Abs(code 49) )
-  ' 73 = numero de elementos (linea,espacio, punto) = 0 si es continua
-  ' 49 = largo de cada elemento: 0 = dot, negativo = espacio, positivo = linea
-  Dim imagen As Image
-  Dim Xc, Yc, i, trame, TotalTrames As Integer
-  Dim LW As Float
-  Dim lty As LType
-  Dim f As Float
+    ' se define en DXF con los codigos:
+    ' 40 = largo total por tramo ( = suma de Abs(code 49) )
+    ' 73 = numero de elementos (linea,espacio, punto) = 0 si es continua
+    ' 49 = largo de cada elemento: 0 = dot, negativo = espacio, positivo = linea
+    Dim imagen As Image
+    Dim Xc, Yc, i, trame, TotalTrames As Integer
+    Dim LW As Float
+    Dim lty As LType
+    Dim f As Float
 
-  '  +------------------------------------+
-  '  + Phantom                            +
-  '  + -- - -- - -- - -- - -- - -- - --   +
-  '  +------------------------------------+
+    '  +------------------------------------+
+    '  + Phantom                            +
+    '  + -- - -- - -- - -- - -- - -- - --   +
+    '  +------------------------------------+
 
-  ' ahora espesores especificos
-  For Each lty In CurrDrawing.arrLTYpes
-    Inc i
+    ' ahora espesores especificos
+    For Each lty In CurrDrawing.arrLTYpes
+        Inc i
 
-    ' primero agregamos la correspondiente a ByLayer
-    imagen = New Image(fMain.tblLTypes.w * 0.9, fMain.tblLTypes.h * 0.9, fMain.tblLTypes.Background)
+        ' primero agregamos la correspondiente a ByLayer
+        imagen = New Image(fMain.tblLTypes.w * 0.9, fMain.tblLTypes.h * 0.9, fMain.tblLTypes.Background)
 
-    Paint.Begin(imagen)
-    Paint.AntiAlias = True
-    Paint.MoveTo(0, imagen.h * 0.8)
-    Paint.LineWidth = 1
-    Paint.Dash = lty.TrameLength
-    Paint.RelLineTo(imagen.w, 0)
-    Paint.Stroke
-    Paint.Dash = Null
-    ' Texto
-    Paint.MoveTo(0, 0)
-    Paint.LineWidth = 1
-    Paint.Text(lty.Name,,,, imagen.h * 0.5, Align.topLeft)
-    Paint.Fill
-    Paint.End
+        Paint.Begin(imagen)
+        Paint.AntiAlias = True
+        Paint.MoveTo(0, imagen.h * 0.8)
+        Paint.LineWidth = 1
+        Paint.Dash = lty.TrameLength
+        Paint.RelLineTo(imagen.w, 0)
+        Paint.Stroke
+        Paint.Dash = Null
+        ' Texto
+        Paint.MoveTo(0, 0)
+        Paint.LineWidth = 1
+        Paint.Text(lty.Name,,,, imagen.h * 0.5, Align.topLeft)
+        Paint.Fill
+        Paint.End
 
-    fMain.tblLTypes.AddToolButton("tbnLType" & CStr(i),, imagen.Picture, "ltype_change_" & lty.Name)
+        fMain.tblLTypes.AddToolButton("tbnLType" & CStr(i),, imagen.Picture, "ltype_change_" & lty.Name)
 
-  Next
+    Next
 
 
 End
 
 Public Function FindLtIndex(sName As String) As Integer
 
-  Dim i As Integer
+    Dim i As Integer
 
-  For i = 0 To gcd.CurrDrawing.arrLTYpes.Max
+    For i = 0 To gcd.CurrDrawing.arrLTYpes.Max
 
-    If gcd.CurrDrawing.arrLTYpes[i].Name = sname Then Return i
+        If gcd.CurrDrawing.arrLTYpes[i].Name = sname Then Return i
 
-  Next
+    Next
 
-  Return -1
+    Return -1
 
 End
 
 
 Public Function FindLaIndex(sName As String) As Integer
 
-  Dim i As Integer
+    Dim i As Integer
 
-  For i = 0 To gcd.CurrDrawing.arrLayers.Max
+    For i = 0 To gcd.CurrDrawing.arrLayers.Max
 
-    If gcd.CurrDrawing.arrLayers[i].Name = sname Then Return i
+        If gcd.CurrDrawing.arrLayers[i].Name = sname Then Return i
 
-  Next
+    Next
 
-  Return -1
+    Return -1
 
 End
 
@@ -388,12 +388,12 @@ End
 
 Public Function iCadColor(sColor As String) As Integer
 
-  sColor = LCase(sColor)
-  If sColor = "bylayer" Then Return 256
-  If sColor = "byblock" Then Return 257
-  If sColor = "byobject" Then Return 258
-  Try Return CInt(sColor)
-  Return 0
+    sColor = LCase(sColor)
+    If sColor = "bylayer" Then Return 256
+    If sColor = "byblock" Then Return 257
+    If sColor = "byobject" Then Return 258
+    Try Return CInt(sColor)
+    Return 0
 
 
 
@@ -403,123 +403,123 @@ End
 
 Public Sub BlocksTransfer()
 
-  Dim iEnt As Collection
-  Dim mEnt As Collection
-  Dim grp As Collection
-  Dim e As Variant
-  Dim mGrp As Collection
+    Dim iEnt As Collection
+    Dim mEnt As Collection
+    Dim grp As Collection
+    Dim e As Variant
+    Dim mGrp As Collection
 
-  If CurrDrawing.cImport.Count > 0 Then
-    If CurrDrawing.cImport.Exist("Blocks") Then
-      iEnt = CurrDrawing.cImport["Blocks"]
-      If CurrDrawing.cModel.Exist("Blocks") Then
-        mEnt = CurrDrawing.cModel["Blocks"]
+    If CurrDrawing.cImport.Count > 0 Then
+        If CurrDrawing.cImport.Exist("Blocks") Then
+            iEnt = CurrDrawing.cImport["Blocks"]
+            If CurrDrawing.cModel.Exist("Blocks") Then
+                mEnt = CurrDrawing.cModel["Blocks"]
 
-        For Each grp In iEnt
-          If mEnt.Exist(iEnt.Key) = False Then
-            mEnt.Add(grp.Copy(), iEnt.Key)
-          Else
-            mGrp = mEnt[iEnt.Key]
-            For Each e In grp
-              mGrp.Add(e, grp.Key)
-            Next
+                For Each grp In iEnt
+                    If mEnt.Exist(iEnt.Key) = False Then
+                        mEnt.Add(grp.Copy(), iEnt.Key)
+                    Else
+                        mGrp = mEnt[iEnt.Key]
+                        For Each e In grp
+                            mGrp.Add(e, grp.Key)
+                        Next
 
-          Endif
+                    Endif
 
-        Next
-      Else
+                Next
+            Else
 
-        CurrDrawing.cModel.Add(iEnt.Copy(), "Blocks")
+                CurrDrawing.cModel.Add(iEnt.Copy(), "Blocks")
 
-      Endif
+            Endif
+        Endif
     Endif
-  Endif
 
 End
 
 Public Sub EntitiesTransfer2()
 
-  Dim iEnt As Collection
-  Dim mEnt As Collection
-  Dim grp As Collection
-  Dim e As Variant
-  Dim mGrp As Collection
+    Dim iEnt As Collection
+    Dim mEnt As Collection
+    Dim grp As Collection
+    Dim e As Variant
+    Dim mGrp As Collection
 
-  If CurrDrawing.cImport.Count > 0 Then
-    If CurrDrawing.cImport.Exist("Entities") Then
-      iEnt = CurrDrawing.cImport["Entities"]
-      If CurrDrawing.cModel.Exist("Entities") Then
-        mEnt = CurrDrawing.cModel["Entities"]
+    If CurrDrawing.cImport.Count > 0 Then
+        If CurrDrawing.cImport.Exist("Entities") Then
+            iEnt = CurrDrawing.cImport["Entities"]
+            If CurrDrawing.cModel.Exist("Entities") Then
+                mEnt = CurrDrawing.cModel["Entities"]
 
-        For Each grp In iEnt
-          If mEnt.Exist(iEnt.Key) = False Then
-            mEnt.Add(grp.Copy(), iEnt.Key)
-          Else
-            mGrp = mEnt[iEnt.Key]
-            For Each e In grp
-              mGrp.Add(e, grp.Key)
-            Next
+                For Each grp In iEnt
+                    If mEnt.Exist(iEnt.Key) = False Then
+                        mEnt.Add(grp.Copy(), iEnt.Key)
+                    Else
+                        mGrp = mEnt[iEnt.Key]
+                        For Each e In grp
+                            mGrp.Add(e, grp.Key)
+                        Next
 
-          Endif
+                    Endif
 
-        Next
+                Next
 
-      Endif
+            Endif
+        Endif
     Endif
-  Endif
 
 End
 
 Public Sub Redraw()
 
-  fMain.redraw
+    fMain.redraw
 
 End
 
 Public Sub Regen()
 
-  fMain.Regen
+    fMain.Regen
 
 End
 
 Public Function Metros(l As Integer) As Float
 
-  Return fMain.Metros(l)
+    Return fMain.Metros(l)
 
 End
 
 Public Sub Main()
 
-  Select flgWindowBackColor
-    Case Color.Black
-      'Case &1B2224
-      flgWhiteAndBlack = Color.White
+    Select flgWindowBackColor
+        Case Color.Black
+            'Case &1B2224
+            flgWhiteAndBlack = Color.White
 
-    Case Else
-      flgWhiteAndBlack = Color.Black
+        Case Else
+            flgWhiteAndBlack = Color.Black
 
-  End Select
+    End Select
 
-  'If WindowBackColor = 0 Then WhiteAndBlack = Color.White Else WhiteAndBlack = Color.Black
-  ' ' armo el array de colores
-  ' gcolor = DecodeColor()
-  '
+    'If WindowBackColor = 0 Then WhiteAndBlack = Color.White Else WhiteAndBlack = Color.Black
+    ' ' armo el array de colores
+    ' gcolor = DecodeColor()
+    '
 
-  ' this is what we are doing now
-  clsJob = clsDefaultJob
-  clsJob.start()
-  clsJobPrevious = clsDefaultJob
-  clsJobPreZoom = clsDefaultJob
-  clsJobPreviousParam = 0
+    ' this is what we are doing now
+    clsJob = clsDefaultJob
+    clsJob.start()
+    clsJobPrevious = clsDefaultJob
+    clsJobPreZoom = clsDefaultJob
+    clsJobPreviousParam = 0
 
-  'FileName = User.Home &/ "autosaveV5.xml"
+    'FileName = User.Home &/ "autosaveV5.xml"
 
-  FontList = glPlus.LoadFonts(Application.Path &/ "fonts/lff")
-  'FontList = glPlus.LoadFonts(gcd.sFonts)
-  glPlus.SelectFont("romand")
+    FontList = glPlus.LoadFonts(Application.Path &/ "fonts/lff")
+    'FontList = glPlus.LoadFonts(gcd.sFonts)
+    glPlus.SelectFont("romand")
 
-  texturelist = glPlus.LoadTextures(Application.Path &/ "textures")
-  'texturelist = glPlus.LoadTextures(gcd.sTextures)
+    texturelist = glPlus.LoadTextures(Application.Path &/ "textures")
+    'texturelist = glPlus.LoadTextures(gcd.sTextures)
 
 End
 
@@ -529,58 +529,58 @@ End
 
 Public Sub ImportBlocksFromDXF(colData As Collection) ', obxEntities As Entity[]) As Integer
 
-  Dim iTotalEntities As Integer, colent, colBlk As Collection, flxPoints As New Float[], P As Float[]
-  Dim hBlock As String
-  Dim cEntyList As New Collection
-  Dim hEnty As Variant, iEnty As Integer
-  Dim cEnty As Variant[]
+    Dim iTotalEntities As Integer, colent, colBlk As Collection, flxPoints As New Float[], P As Float[]
+    Dim hBlock As String
+    Dim cEntyList As New Collection
+    Dim hEnty As Variant, iEnty As Integer
+    Dim cEnty As Variant[]
 
-  If Not colData.Exist("BLOCKS") Then Return
-  For Each colBlk In colData["BLOCKS"]
-    Dim newBlock As New Block
-    newBlock.entities = New Entity[]
-    newBlock.name = colBlk[dxf.codName]
-    newBlock.handle = colBlk[dxf.codHandle]
-    newBlock.layer = colBlk[dxf.codLayer]
-    If colBlk.Exist("entities") Then
+    If Not colData.Exist("BLOCKS") Then Return
+    For Each colBlk In colData["BLOCKS"]
+        Dim newBlock As New Block
+        newBlock.entities = New Entity[]
+        newBlock.name = colBlk[dxf.codName]
+        newBlock.handle = colBlk[dxf.codHandle]
+        newBlock.layer = colBlk[dxf.codLayer]
+        If colBlk.Exist("entities") Then
 
-      ImpEnty6(colBlk["entities"], newBlock.entities)
+            ImpEnty6(colBlk["entities"], newBlock.entities)
 
-    Else
+        Else
 
-      Debug "Error loading block", newBlock.name
+            Debug "Error loading block", newBlock.name
 
-    End If
-    gcd.CurrDrawing.arrBlocks.Add(newBlock)
-    'ImportEntities2(colBlk["Entities"], newBlock.entities, newBlock.name)
+        End If
+        gcd.CurrDrawing.arrBlocks.Add(newBlock)
+        'ImportEntities2(colBlk["Entities"], newBlock.entities, newBlock.name)
 
-  Next
-  'Stop
+    Next
+    'Stop
 
 End
 
 '' Importa las cosas de manera descentralizada
 Public Sub ImpEnty6(cEny As Collection, obx As Entity[])
 
-  Dim e As Collection               ' Current Entity
-  Dim entNueva As Entity
+    Dim e As Collection               ' Current Entity
+    Dim entNueva As Entity
 
-  For Each e In cEny                                              ' Para cada Coleccion de datos de vrx
-    If e.Exist(dxf.codEntity) Then                                     ' es una entidad?
-      entNueva = New Entity                                       ' entonces, creamos una nueva
+    For Each e In cEny                                              ' Para cada Coleccion de datos de vrx
+        If e.Exist(dxf.codEntity) Then                                     ' es una entidad?
+            entNueva = New Entity                                       ' entonces, creamos una nueva
 
-      If InStr("POINT ATTDEF ATTRIB LINE LWPOLYLINE CIRCLE ELLIPSE ARC TEXT MTEXT SPLINE SOLID LEADER INSERT DIMENSION_LINEAR DIMENSION_DIAMETER DIMENSION_RADIUS DIMENSION_ANG3PT DIMENSION_ALIGNED DIMENSION_ORDINATE LARGE_RADIAL_DIMENSION ARC_DIMENSION", UCase(e[dxf.codEntity])) = 0 Then Continue
+            If InStr("POINT ATTDEF ATTRIB LINE LWPOLYLINE CIRCLE ELLIPSE ARC TEXT MTEXT SPLINE SOLID LEADER INSERT DIMENSION DIMENSION_LINEAR DIMENSION_DIAMETER DIMENSION_RADIUS DIMENSION_ANG3PT DIMENSION_ALIGNED DIMENSION_ORDINATE LARGE_RADIAL_DIMENSION ARC_DIMENSION", UCase(e[dxf.codEntity])) = 0 Then Continue
 
-      If clsEntities.ImportDxfToEntity(e, entNueva) Then         ' si esta implementada, llenamos los datos
+            If clsEntities.DXFImportToEntity(e, entNueva) Then         ' si esta implementada, llenamos los datos
 
-        obx.Add(entNueva)
-        entNueva = Null                                           ' limpiamos
-      Else                                                        ' no esta implementada
-        Print "Entidad no implementada o con errores:", e["entity"]
-      Endif
+                obx.Add(entNueva)
+                entNueva = Null                                           ' limpiamos
+            Else                                                        ' no esta implementada
+                Print "Entidad no implementada o con errores:", e["entity"]
+            Endif
 
-    Endif
-  Next
+        Endif
+    Next
 
 End
 
@@ -589,31 +589,31 @@ End
 
 Public Function ApplyLayerProperties(Optional mode As Integer = 0)
 
-  Dim e As Entity, cLayer As Collection
-  'Dim LayerName As String
+    Dim e As Entity, cLayer As Collection
+    'Dim LayerName As String
 
-  Print "Aplicando propiedades del Layers"
+    Print "Aplicando propiedades del Layers"
 
-  For Each e In gcd.CurrDrawing.arrEntities
+    For Each e In gcd.CurrDrawing.arrEntities
 
-    If mode = 1 Then
-      ' reconstruyo el ID del layer en la entidad, para ello busco en la lista cual coincide con su nombre
-      For Each cLayer In gcd.CurrDrawing.cLayers
-        If e.layer = cLayer["name"] Then
-          e.layerID = cLayer["id"]
-          Break
+        If mode = 1 Then
+            ' reconstruyo el ID del layer en la entidad, para ello busco en la lista cual coincide con su nombre
+            For Each cLayer In gcd.CurrDrawing.cLayers
+                If e.layer = cLayer["name"] Then
+                    e.layerID = cLayer["id"]
+                    Break
+                Endif
+            Next
+
         Endif
-      Next
 
-    Endif
+        ' nombre, el que pudo haber cambiado (exepto el "0")
+        e.layer = gcd.CurrDrawing.cLayers[e.layerID]["name"]
 
-    ' nombre, el que pudo haber cambiado (exepto el "0")
-    e.layer = gcd.CurrDrawing.cLayers[e.layerID]["name"]
+        ' visibiliad
+        If gcd.CurrDrawing.cLayers[e.layerID]["show"] Then e.visible = True Else e.visible = False
 
-    ' visibiliad
-    If gcd.CurrDrawing.cLayers[e.layerID]["show"] Then e.visible = True Else e.visible = False
-
-  Next
+    Next
 
 End
 
@@ -621,150 +621,150 @@ End
 '' Si mode = 1, primero recontruye el layerID (para ser usado luego de abrir un archivo)
 Public Function ApplyLayerPropertieToEntity(e As Entity)
 
-  Dim cLayer As Collection
-  'Dim LayerName As String
+    Dim cLayer As Collection
+    'Dim LayerName As String
 
-  ' reconstruyo el ID del layer en la entidad, para ello busco en la lista cual coincide con su nombre
-  For Each cLayer In gcd.CurrDrawing.cLayers
-    If e.layer = cLayer["name"] Then
-      e.layerID = cLayer["id"]
-      Break
-    Endif
-  Next
+    ' reconstruyo el ID del layer en la entidad, para ello busco en la lista cual coincide con su nombre
+    For Each cLayer In gcd.CurrDrawing.cLayers
+        If e.layer = cLayer["name"] Then
+            e.layerID = cLayer["id"]
+            Break
+        Endif
+    Next
 
-  ' nombre, el que pudo haber cambiado (exepto el "0")
-  e.layer = gcd.CurrDrawing.cLayers[e.layerID]["name"]
+    ' nombre, el que pudo haber cambiado (exepto el "0")
+    e.layer = gcd.CurrDrawing.cLayers[e.layerID]["name"]
 
-  ' visibiliad
-  If gcd.CurrDrawing.cLayers[e.layerID]["show"] Then e.visible = True Else e.visible = False
+    ' visibiliad
+    If gcd.CurrDrawing.cLayers[e.layerID]["show"] Then e.visible = True Else e.visible = False
 
 End
 
 Public Function GetLayerID(LayerName As String) As String
 
-  Dim cLayer As Collection
+    Dim cLayer As Collection
 
-  ' FIXME: reparar post layers
-  Return "0"
+    ' FIXME: reparar post layers
+    Return "0"
 
-  For Each cLayer In gcd.CurrDrawing.cLayers
-    If cLayer["name"] = LayerName Then Return cLayer["id"]
-  Next
+    For Each cLayer In gcd.CurrDrawing.cLayers
+        If cLayer["name"] = LayerName Then Return cLayer["id"]
+    Next
 
 End
 
 '' Reads layers collection and puts data in arrLayers
 Public Sub ReadLayers()
 
-  Dim hLay As Layer
-  ' primero eliminamos lo q haya
-  CurrDrawing.arrLayers.Clear
-  For Each cLay As Collection In CurrDrawing.cLayers
-    hLay = New Layer
-    hLay.Name = cLay[dxf.codName]
-    hLay.Shown = CInt(cLay[dxf.codColor]) >= 0
-    hLay.Colour = gcd.gColor[Abs(CInt(cLay[dxf.codColor]))]
-    hLay.handle = cLay[dxf.codHandle]
-  Next
+    Dim hLay As Layer
+    ' primero eliminamos lo q haya
+    CurrDrawing.arrLayers.Clear
+    For Each cLay As Collection In CurrDrawing.cLayers
+        hLay = New Layer
+        hLay.Name = cLay[dxf.codName]
+        hLay.Shown = CInt(cLay[dxf.codColor]) >= 0
+        hLay.Colour = gcd.gColor[Abs(CInt(cLay[dxf.codColor]))]
+        hLay.handle = cLay[dxf.codHandle]
+    Next
 
 End
 
 '' Reads LTypes collection and puts data in arrLTypes
 Public Sub ReadLTypes()
 
-  Dim hlty As LType
-  Dim t, i As Integer
-  Dim fTrameLength As Float
-  Dim sNextKey As String
+    Dim hlty As LType
+    Dim t, i As Integer
+    Dim fTrameLength As Float
+    Dim sNextKey As String
 
-  ' primero eliminamos lo q haya
-  CurrDrawing.arrLayers.Clear
-  For Each c As Collection In CurrDrawing.cLtypes
-    hlty = New LType
-    hlty.Name = c[dxf.codName]
-    hlty.Description = c["3"]
-    hlty.handle = c[dxf.codHandle]
-    hlty.nTrames = CInt(c["73"])
-    If hlty.nTrames > 0 Then hlty.Length = c["40"]
-    i = 0
-    For t = 1 To hlty.nTrames
-      Do
-        If t > 1 Then
-          sNextKey = "49_" & CStr(i)
-        Else
-          sNextKey = "49"
-        Endif
-        If c.Exist(sNextKey) Then
-          Inc i
-          hlty.TrameLength.Add(Abs(CFloat(c[sNextKey])) * 2.5) ' TODO: verificar este valor arbitrario
-          If hlty.TrameLength.Last = 0 Then hlty.TrameLength.Last = 1
+    ' primero eliminamos lo q haya
+    CurrDrawing.arrLayers.Clear
+    For Each c As Collection In CurrDrawing.cLtypes
+        hlty = New LType
+        hlty.Name = c[dxf.codName]
+        hlty.Description = c["3"]
+        hlty.handle = c[dxf.codHandle]
+        hlty.nTrames = CInt(c["73"])
+        If hlty.nTrames > 0 Then hlty.Length = c["40"]
+        i = 0
+        For t = 1 To hlty.nTrames
+            Do
+                If t > 1 Then
+                    sNextKey = "49_" & CStr(i)
+                Else
+                    sNextKey = "49"
+                Endif
+                If c.Exist(sNextKey) Then
+                    Inc i
+                    hlty.TrameLength.Add(Abs(CFloat(c[sNextKey])) * 2.5) ' TODO: verificar este valor arbitrario
+                    If hlty.TrameLength.Last = 0 Then hlty.TrameLength.Last = 1
 
-          Break
-        Endif
-        Inc i
-        If i = 1000 Then Return
-      Loop
+                    Break
+                Endif
+                Inc i
+                If i = 1000 Then Return
+            Loop
+
+        Next
+
+        CurrDrawing.arrLTYpes.Add(hlty)
+
+
 
     Next
-
-    CurrDrawing.arrLTYpes.Add(hlty)
-
-
-
-  Next
 
 End
 
 Public Function GetGBColor(CADcolor As Integer, layerID As String) As Integer
 
-  ' FIXME: reparar post layers
-  'Return gcd.flgWhiteAndBlack
+    ' FIXME: reparar post layers
+    'Return gcd.flgWhiteAndBlack
 
-  If Not gcd.CurrDrawing.cLayers.Exist(layerID) Then Return gcd.flgWhiteAndBlack
+    If Not gcd.CurrDrawing.cLayers.Exist(layerID) Then Return gcd.flgWhiteAndBlack
 
-  ' color
-  If CADcolor = 256 Then          ' buscar color del layer
+    ' color
+    If CADcolor = 256 Then          ' buscar color del layer
 
-    If TypeOf(gcd.CurrDrawing.cLayers[layerID][dxf.codColor]) = gb.Object Then
-      Return gColor[gcd.CurrDrawing.cLayers[layerID][dxf.codColor]["index"]]
+        If TypeOf(gcd.CurrDrawing.cLayers[layerID][dxf.codColor]) = gb.Object Then
+            Return gColor[gcd.CurrDrawing.cLayers[layerID][dxf.codColor]["index"]]
+        Else
+            Return gColor[gcd.CurrDrawing.cLayers[layerID][dxf.codColor]]
+        Endif
+
+        'Return gcd.gColor[11]
+
+    Else If CADcolor = 257 Then     ' buscar color del objeto
+
+        If TypeOf(gcd.CurrDrawing.cLayers[layerID][dxf.codColor]) = gb.Object Then
+            Return gColor[gcd.CurrDrawing.cLayers[layerID][dxf.codColor]["index"]]
+        Else
+            Return gColor[gcd.CurrDrawing.cLayers[layerID][dxf.codColor]]
+        Endif
+        'Return gcd.gColor[gcd.CurrDrawing.cLayers[layerID][dxf.codColor]["index"]]    ' FIXME: cambiar esto
+        'Return gcd.gColor[12]
+
+    Else If CADcolor = 0 Then       ' buscar color del bloque
+        If TypeOf(gcd.CurrDrawing.cLayers[layerID][dxf.codColor]) = gb.Object Then
+            Return gColor[gcd.CurrDrawing.cLayers[layerID][dxf.codColor]["index"]]
+        Else
+            Return gColor[gcd.CurrDrawing.cLayers[layerID][dxf.codColor]]
+        Endif
+        'Return gcd.gColor[13]
+        'Return gcd.gColor[gcd.CurrDrawing.cLayers[layerID][dxf.codColor]["index"]]   ' FIXME: cambiar esto
+
     Else
-      Return gColor[gcd.CurrDrawing.cLayers[layerID][dxf.codColor]]
+
+        Return gColor[CADcolor]
+
     Endif
-
-    'Return gcd.gColor[11]
-
-  Else If CADcolor = 257 Then     ' buscar color del objeto
-
-    If TypeOf(gcd.CurrDrawing.cLayers[layerID][dxf.codColor]) = gb.Object Then
-      Return gColor[gcd.CurrDrawing.cLayers[layerID][dxf.codColor]["index"]]
-    Else
-      Return gColor[gcd.CurrDrawing.cLayers[layerID][dxf.codColor]]
-    Endif
-    'Return gcd.gColor[gcd.CurrDrawing.cLayers[layerID][dxf.codColor]["index"]]    ' FIXME: cambiar esto
-    'Return gcd.gColor[12]
-
-  Else If CADcolor = 0 Then       ' buscar color del bloque
-    If TypeOf(gcd.CurrDrawing.cLayers[layerID][dxf.codColor]) = gb.Object Then
-      Return gColor[gcd.CurrDrawing.cLayers[layerID][dxf.codColor]["index"]]
-    Else
-      Return gColor[gcd.CurrDrawing.cLayers[layerID][dxf.codColor]]
-    Endif
-    'Return gcd.gColor[13]
-    'Return gcd.gColor[gcd.CurrDrawing.cLayers[layerID][dxf.codColor]["index"]]   ' FIXME: cambiar esto
-
-  Else
-
-    Return gColor[CADcolor]
-
-  Endif
 
 End
 
 Public Function UUHandleUnique(d As ClsDrawing) As String
 
-  '5 Entity handle; text string Of up To 16 hexadecimal digits(fixed)
-  Inc d.LastHandle
-  Return Hex(d.LastHandle, 6)
+    '5 Entity handle; text string Of up To 16 hexadecimal digits(fixed)
+    Inc d.LastHandle
+    Return Hex(d.LastHandle, 6)
 
 End
 
@@ -791,10 +791,10 @@ End
 
 Public Function NewHandle() As String
 
-  ' Lo handles estan repartido por todas las colecciones, entonces mantenemos una variable
-  ' de ambiente para obtener el nuevo
-  Inc CurrDrawing.HandSeed
-  Return Hex(CurrDrawing.HandSeed)
+    ' Lo handles estan repartido por todas las colecciones, entonces mantenemos una variable
+    ' de ambiente para obtener el nuevo
+    Inc CurrDrawing.HandSeed
+    Return Hex(CurrDrawing.HandSeed)
 
 End
 
@@ -803,35 +803,35 @@ End
 '' a Regen if specified.
 Public Function UpdateGraphics(Optional handles As String[] = [], DoRegen As Boolean = True)
 
-  Dim cEntity As Collection, entNueva As Entity
+    Dim cEntity As Collection, entNueva As Entity
 
-  'UpdateLayers
-  ImportBlocksFromDXF(gcd.CurrDrawing.cModel)
+    'UpdateLayers
+    ImportBlocksFromDXF(gcd.CurrDrawing.cModel)
 
-  If handles.Count = 0 Then                   ' Update all entities
+    If handles.Count = 0 Then                   ' Update all entities
 
-    gcd.ImpEnty6(gcd.CurrDrawing.cEntities, gcd.CurrDrawing.arrEntities)
+        gcd.ImpEnty6(gcd.CurrDrawing.cEntities, gcd.CurrDrawing.arrEntities)
 
-  Else                                        ' Update only entities with handles provided
+    Else                                        ' Update only entities with handles provided
 
-    For Each sHandle As String In handles
+        For Each sHandle As String In handles
 
-      If gcd.CurrDrawing.cEntities.Exist(sHandle) Then  ' la actualizo
+            If gcd.CurrDrawing.cEntities.Exist(sHandle) Then  ' la actualizo
 
-        entNueva = New Entity                                       ' entonces, creamos una nueva
-        If clsEntities.ImportJsonToEntity(gcd.CurrDrawing.cEntities[sHandle], entNueva) Then         ' si esta implementada, llenamos los datos
+                entNueva = New Entity                                       ' entonces, creamos una nueva
+                If clsEntities.ImportJsonToEntity(gcd.CurrDrawing.cEntities[sHandle], entNueva) Then         ' si esta implementada, llenamos los datos
 
-          gcd.CurrDrawing.arrEntities.Add(entNueva)
-          entNueva = Null                                           ' limpiamos
+                    gcd.CurrDrawing.arrEntities.Add(entNueva)
+                    entNueva = Null                                           ' limpiamos
 
-        Endif
-      Endif
+                Endif
+            Endif
 
-    Next
+        Next
 
-  End If
+    End If
 
-  If DoRegen Then Regen
+    If DoRegen Then Regen
 
 End
 
@@ -863,76 +863,79 @@ End
 
 Public Sub UpdateModel()
 
-  Dim ent As Entity
-  Dim dxfExporting As Boolean
-  Dim cNewEntity As Collection
-  Dim sNewHandle As String
-  Dim iHandle As Integer
+    Dim ent As Entity
+    Dim dxfExporting As Boolean
+    Dim cNewEntity As Collection
+    Dim sNewHandle As String
+    Dim iHandle As Integer
 
-  For Each ent In CurrDrawing.arrEntities
+    For Each ent In CurrDrawing.arrEntities
 
-    dxfExporting = False               ' Supongo que la clase todvia no esta lista
+        dxfExporting = False               ' Supongo que la clase todvia no esta lista
 
-    ' Esto puede fallar en caso q no este lista, por eso el Try
-    Try dxfExporting = ent.ClassHandler.DXF_Export
+        ' la primera verificacion que hago es ver si la entidad es de un insert, entonces no se guarda
+        If ent.iInsert >= 0 Then Continue
 
-    If dxfExporting Then               ' La clase esta lista para crear/editar JSON
+        ' Esto puede fallar en caso q no este lista, por eso el Try
+        Try dxfExporting = ent.ClassHandler.DXF_Export
 
-      ' Verifico si la entidad ya existe en cModel, o fue creada por el usuario graficamente
-      If CurrDrawing.cEntities.Exist(ent.Handle) Then
+        If dxfExporting Then               ' La clase esta lista para crear/editar JSON
 
-        ' Ya existe
+            ' Verifico si la entidad ya existe en cModel, o fue creada por el usuario graficamente
+            If CurrDrawing.cEntities.Exist(ent.Handle) Then
 
-        ent.ClassHandler.ExportDXFCol(ent, CurrDrawing.cEntities[ent.Handle])
+                ' Ya existe
 
-      Else
-        ' No existe, debemos crear la entrada
-        cNewEntity = New Collection
-        sNewHandle = NewHandle()
-        ' iHandle = CurrDrawing.cModel["AuxHeader"]["HANDSEED"]
-        CurrDrawing.cEntities.Add(cNewEntity, sNewHandle)
-        ent.Handle = sNewHandle
+                ent.ClassHandler.ExportDXFCol(ent, CurrDrawing.cEntities[ent.Handle])
 
-        ent.ClassHandler.ExportDXFCol(ent, CurrDrawing.cEntities[sNewHandle])
+            Else
+                ' No existe, debemos crear la entrada
+                cNewEntity = New Collection
+                sNewHandle = NewHandle()
+                ' iHandle = CurrDrawing.cModel["AuxHeader"]["HANDSEED"]
+                CurrDrawing.cEntities.Add(cNewEntity, sNewHandle)
+                ent.Handle = sNewHandle
 
-        'CurrDrawing.cModel["AuxHeader"]["HANDSEED"] = iHandle + 1
+                ent.ClassHandler.ExportDXFCol(ent, CurrDrawing.cEntities[sNewHandle])
 
-      End If
-    End If
+                'CurrDrawing.cModel["AuxHeader"]["HANDSEED"] = iHandle + 1
 
-  Next
+            End If
+        End If
+
+    Next
 
 End
 
 
 Public Function iHeader(VarName As String) As Integer
 
-  Return Val("&H" & CurrDrawing.cHeader[VarName][CurrDrawing.cHeader[VarName].First])
+    Return Val("&H" & CurrDrawing.cHeader[VarName][CurrDrawing.cHeader[VarName].First])
 
 
 End
 
 Public Function GetHeaderValue(VarName As String) As Variant
 
-  If CurrDrawing.cHeader.Exist(VarName) Then
-    If CurrDrawing.cHeader[VarName].count = 1 Then
-      If CurrDrawing.cHeader[VarName][CurrDrawing.cHeader[VarName].First].key = "70" Then
-        Return CInt(CurrDrawing.cHeader[VarName][CurrDrawing.cHeader[VarName].First])
-      Else If CurrDrawing.cHeader[VarName][CurrDrawing.cHeader[VarName].First].key = "40" Then
-        Return CFloat(CurrDrawing.cHeader[VarName][CurrDrawing.cHeader[VarName].First])
-      Else
-        Return CurrDrawing.cHeader[VarName][CurrDrawing.cHeader[VarName].First]
-      Endif
+    If CurrDrawing.cHeader.Exist(VarName) Then
+        If CurrDrawing.cHeader[VarName].count = 1 Then
+            If CurrDrawing.cHeader[VarName][CurrDrawing.cHeader[VarName].First].key = "70" Then
+                Return CInt(CurrDrawing.cHeader[VarName][CurrDrawing.cHeader[VarName].First])
+            Else If CurrDrawing.cHeader[VarName][CurrDrawing.cHeader[VarName].First].key = "40" Then
+                Return CFloat(CurrDrawing.cHeader[VarName][CurrDrawing.cHeader[VarName].First])
+            Else
+                Return CurrDrawing.cHeader[VarName][CurrDrawing.cHeader[VarName].First]
+            Endif
 
-    Else ' tiene mas de un elemento, Y LOS SUPONGO TODOS VARIANT
-      Dim vRet As New Variant[]
-      For Each vVar As Variant In CurrDrawing.cHeader[VarName]
-        vRet.Add(vVar)
-      Next
-      Return vRet
+        Else ' tiene mas de un elemento, Y LOS SUPONGO TODOS VARIANT
+            Dim vRet As New Variant[]
+            For Each vVar As Variant In CurrDrawing.cHeader[VarName]
+                vRet.Add(vVar)
+            Next
+            Return vRet
 
+        Endif
     Endif
-  Endif
 
 
 

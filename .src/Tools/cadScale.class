@@ -29,113 +29,113 @@ Public Const Gender As String = "Scale"
 Public ScaleFactor As Float
 
 Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer = 0) As Boolean
-  ' Llamada por FCAD al inicio de la aplicacion de esta herramienta
+    ' Llamada por FCAD al inicio de la aplicacion de esta herramienta
 
-  ' Aprovechamos para establecer los helpers (comentarios de ayuda en pantalla)
-  Me.PointsDone = 0
-  Me.PointsTotal = 2
+    ' Aprovechamos para establecer los helpers (comentarios de ayuda en pantalla)
+    Me.PointsDone = 0
+    Me.PointsTotal = 2
 
-  clsDrawingAids.HelperTrabajo = ("Scale") & " "
+    clsDrawingAids.HelperTrabajo = ("Scale") & " "
 
-  ' chequeamos si hubo seleccion previa
-  Me.SelectionCount = clsEntities.GetSelectionCount()
+    ' chequeamos si hubo seleccion previa
+    Me.SelectionCount = clsEntities.GetSelectionCount()
 
-  If Me.SelectionCount = 0 Then                                     ' we have no elements in the selection
+    If Me.SelectionCount = 0 Then                                     ' we have no elements in the selection
 
-    clsDrawingAids.Helper.texto = clsDrawingAids.HelperTrabajo & ": " & ("Select entities")
+        clsDrawingAids.Helper.texto = clsDrawingAids.HelperTrabajo & ": " & ("Select entities")
 
-    gcd.clsJobPrevious = Me
-    gcd.clsJob = clsDefaultJob
+        gcd.clsJobPrevious = Me
+        gcd.clsJob = clsDefaultJob
 
-  Else                                                                    ' need the first point
+    Else                                                                    ' need the first point
 
-    clsDrawingAids.Helper.texto = clsDrawingAids.HelperTrabajo & ": " & ("Base point")
-    clsDrawingAids.HelperTrabajo = clsDrawingAids.HelperTrabajo & Str(Me.SelectionCount) & " " & ("elements")
+        clsDrawingAids.Helper.texto = clsDrawingAids.HelperTrabajo & ": " & ("Base point")
+        clsDrawingAids.HelperTrabajo = clsDrawingAids.HelperTrabajo & Str(Me.SelectionCount) & " " & ("elements")
 
-  Endif
-  Me.Active = True
-  gcd.ToolActive = True
+    Endif
+    Me.Active = True
+    gcd.ToolActive = True
 
 End
 
 Public Function MouseUp(mouseX As Integer, mouseY As Integer) ' called by FCAD-> DrawingArea_MouseUp
 
-  Dim i As Integer
+    Dim i As Integer
 
-  Inc Me.PointsDone
+    Inc Me.PointsDone
 
-  If Me.PointsDone = 1 Then ' acabo de marcar el punto base
+    If Me.PointsDone = 1 Then ' acabo de marcar el punto base
 
-    ' ya tengo cosas seleccionadas
-    clsDrawingAids.Helper.texto = ("Final point")
+        ' ya tengo cosas seleccionadas
+        clsDrawingAids.Helper.texto = ("Final point")
 
-    ' punto real base
-    Me.SelStartXr = puntos.Near(fMain.Xreal(mousex))
-    Me.SelStartYr = puntos.Near(fMain.Yreal(mouseY))
+        ' punto real base
+        Me.SelStartXr = puntos.Near(fMain.Xreal(mousex))
+        Me.SelStartYr = puntos.Near(fMain.Yreal(mouseY))
 
-    ' and we save the mouse click
-    Me.SelStartX = mousex
-    Me.SelStartY = mouseY
+        ' and we save the mouse click
+        Me.SelStartX = mousex
+        Me.SelStartY = mouseY
 
-    Me.glTranslate[0] = Me.SelStartXr
-    Me.glTranslate[1] = Me.SelStartYr
-    Me.glTranslate[2] = 0
+        Me.glTranslate[0] = Me.SelStartXr
+        Me.glTranslate[1] = Me.SelStartYr
+        Me.glTranslate[2] = 0
 
-    gl.PushMatrix
-    gl.NewList(gcd.CurrDrawing.GlListSelectedEntities, gl.COMPILE)                      ' genero los graficos dentro de la lista
-    gl.Translatef(-Me.SelStartXr, -Me.SelStartYr, 0)
-    For i = 0 To gcd.CurrDrawing.arrEntities.Max 'Me.inxSelected.Max
-      If gcd.CurrDrawing.arrEntities[i].selected Then gl.CallList(gcd.CurrDrawing.arrEntities[i].glDrwList)
-    Next
-    gl.EndList
-    gl.PopMatrix
+        gl.PushMatrix
+        gl.NewList(gcd.CurrDrawing.GlListSelectedEntities, gl.COMPILE)                      ' genero los graficos dentro de la lista
+        gl.Translatef(-Me.SelStartXr, -Me.SelStartYr, 0)
+        For i = 0 To gcd.CurrDrawing.arrEntities.Max 'Me.inxSelected.Max
+            If gcd.CurrDrawing.arrEntities[i].selected Then gl.CallList(gcd.CurrDrawing.arrEntities[i].glDrwList)
+        Next
+        gl.EndList
+        gl.PopMatrix
 
-    ' prevenir acciones tontas como hacer click en otro elemento antes de terminar con el actual
-    ' TODO: reparar -> gcd.CurrDrawing.DesHabilitarBotones
-  Else If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
-    ' permitir otros trabajos
-    ' TODO: reparar -> gcd.CurrDrawing.HabilitarBotones
+        ' prevenir acciones tontas como hacer click en otro elemento antes de terminar con el actual
+        ' TODO: reparar -> gcd.CurrDrawing.DesHabilitarBotones
+    Else If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
+        ' permitir otros trabajos
+        ' TODO: reparar -> gcd.CurrDrawing.HabilitarBotones
 
-    ' we have the point set from MouseMove
-    Me.SelEndX = mousex
-    Me.SelEndY = mouseY
+        ' we have the point set from MouseMove
+        Me.SelEndX = mousex
+        Me.SelEndY = mouseY
 
-    clsEntities.Move(-Me.SelStartXr, -Me.SelStartYr, True)
-    clsEntities.Scale(ScaleFactor, ScaleFactor, 1, True)
-    clsEntities.Move(Me.SelStartXr, Me.SelStartYr, True)
+        clsEntities.Move(-Me.SelStartXr, -Me.SelStartYr, True)
+        clsEntities.Scale(ScaleFactor, ScaleFactor, 1, True)
+        clsEntities.Move(Me.SelStartXr, Me.SelStartYr, True)
 
-    clsEntities.Finish
+        clsEntities.Finish
 
-    Me.Finish()
+        Me.Finish()
 
-  Endif
-  fMain.redraw
+    Endif
+    fMain.redraw
 
 End
 
 Public Function MouseMove(mouseX As Integer, mouseY As Integer) ' called by FCAD-> DrawingArea_MouseMove
 
-  If Me.PointsDone = 1 Then
-    ' we compare Real values from the starting point to the location
-    ' represente by the mouse now, taking account that the drawing
-    ' could have being moved by the mouse wheel
+    If Me.PointsDone = 1 Then
+        ' we compare Real values from the starting point to the location
+        ' represente by the mouse now, taking account that the drawing
+        ' could have being moved by the mouse wheel
 
-    ' new Real position is
-    Me.SelEndXr = puntos.Near(fMain.Xreal(mousex))
-    Me.SelEndyr = puntos.Near(fMain.Yreal(mouseY))
+        ' new Real position is
+        Me.SelEndXr = puntos.Near(fMain.Xreal(mousex))
+        Me.SelEndyr = puntos.Near(fMain.Yreal(mouseY))
 
-    '  we need To determine scale factor
-    '
-    ' lets say is the distance from first click to the current position / 10
-    '
+        '  we need To determine scale factor
+        '
+        ' lets say is the distance from first click to the current position / 10
+        '
 
-    ScaleFactor = (puntos.distancia(mousex, mouseY, Me.SelStartX, Me.SelStartY) - 50) / 50
+        ScaleFactor = (puntos.distancia(mousex, mouseY, Me.SelStartX, Me.SelStartY) - 50) / 50
 
-    Me.glScale[0] = ScaleFactor
-    Me.glScale[1] = ScaleFactor
-    Me.glScale[2] = ScaleFactor
+        Me.glScale[0] = ScaleFactor
+        Me.glScale[1] = ScaleFactor
+        Me.glScale[2] = ScaleFactor
 
-  End If
-  gcd.Redraw
+    End If
+    gcd.Redraw
 
 End

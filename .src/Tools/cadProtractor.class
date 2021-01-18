@@ -28,104 +28,104 @@ Public Const Gender As String = "Protractor"
 Private Poli As New Float[]
 
 Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer = 0) As Boolean
-  ' Llamada por FCAD al inicio de la aplicacion de esta herramienta
+    ' Llamada por FCAD al inicio de la aplicacion de esta herramienta
 
-  Dim i As Integer
-  ' Aprovechamos para establecer los helpers (comentarios de ayuda en pantalla)
-  Me.PointsDone = 0
-  Me.PointsTotal = 1e10
+    Dim i As Integer
+    ' Aprovechamos para establecer los helpers (comentarios de ayuda en pantalla)
+    Me.PointsDone = 0
+    Me.PointsTotal = 1e10
 
-  clsDrawingAids.HelperTrabajo = "Protractor: " & ("mark first point")
-  Poli.Add(0)
-  Poli.Add(0)
+    clsDrawingAids.HelperTrabajo = "Protractor: " & ("mark first point")
+    Poli.Add(0)
+    Poli.Add(0)
 
-  Me.Active = True
-  gcd.ToolActive = True
+    Me.Active = True
+    gcd.ToolActive = True
 
 End
 
 Public Function MouseUp(mouseX As Integer, mouseY As Integer)
 
-  Dim i As Integer
+    Dim i As Integer
 
-  Inc Me.PointsDone
+    Inc Me.PointsDone
 
-  Me.SelEndXr = puntos.Near(fMain.Xreal(mousex))
-  Me.SelEndyr = puntos.Near(fMain.Yreal(mouseY))
+    Me.SelEndXr = puntos.Near(fMain.Xreal(mousex))
+    Me.SelEndyr = puntos.Near(fMain.Yreal(mouseY))
 
-  Poli[Poli.max - 1] = Me.SelEndXr
-  Poli[Poli.max] = Me.SelEndYr
+    Poli[Poli.max - 1] = Me.SelEndXr
+    Poli[Poli.max] = Me.SelEndYr
 
-  If Me.PointsDone = 3 Then Me.Finish
-  If Me.PointsDone = 2 Then clsDrawingAids.HelperTrabajo = "Protractor: " & ("mark center")
+    If Me.PointsDone = 3 Then Me.Finish
+    If Me.PointsDone = 2 Then clsDrawingAids.HelperTrabajo = "Protractor: " & ("mark center")
 
-  Poli.Add(Me.SelEndXr)
-  Poli.Add(Me.SelEndYr)
+    Poli.Add(Me.SelEndXr)
+    Poli.Add(Me.SelEndYr)
 
 End
 
 Public Function MouseMove(mouseX As Integer, mouseY As Integer) ' called by FCAD-> DrawingArea_MouseMove
 
-  Dim a1, a2, r As Float
+    Dim a1, a2, r As Float
 
-  If Poli.Count = 0 Then Return
-  Me.SelEndXr = puntos.Near(fMain.Xreal(mouseX))
-  Me.SelEndyr = puntos.Near(fMain.Yreal(mouseY))
-  Poli[Poli.max - 1] = Me.SelEndXr
-  Poli[Poli.max] = Me.SelEndYr
+    If Poli.Count = 0 Then Return
+    Me.SelEndXr = puntos.Near(fMain.Xreal(mouseX))
+    Me.SelEndyr = puntos.Near(fMain.Yreal(mouseY))
+    Poli[Poli.max - 1] = Me.SelEndXr
+    Poli[Poli.max] = Me.SelEndYr
 
-  If Me.PointsDone = 2 Then
+    If Me.PointsDone = 2 Then
 
-    a1 = Ang(poli[0] - poli[2], poli[1] - poli[3])
-    If a1 < 0 Then a1 += 2 * Pi
-    a2 = Ang(Me.SelEndXr - poli[2], Me.SelEndYr - poli[3])
-    If a2 < 0 Then a2 += 2 * Pi
-    r = a2 - a1
-    If r < 0 Then r += 2 * Pi
-    clsDrawingAids.HelperTrabajo = ("Angle") & " = " & Str(r * 180 / Pi)
+        a1 = Ang(poli[0] - poli[2], poli[1] - poli[3])
+        If a1 < 0 Then a1 += 2 * Pi
+        a2 = Ang(Me.SelEndXr - poli[2], Me.SelEndYr - poli[3])
+        If a2 < 0 Then a2 += 2 * Pi
+        r = a2 - a1
+        If r < 0 Then r += 2 * Pi
+        clsDrawingAids.HelperTrabajo = ("Angle") & " = " & Str(r * 180 / Pi)
 
-  Endif
+    Endif
 
-  fMain.redraw
-  ' fMain.regen
+    fMain.redraw
+    ' fMain.regen
 
 End
 
 Public Sub Draw()               ' called by gcd.CurrDrawing.drwArea_Draw
 
-  glPlus.PolyLines(Poli, Color.DarkBlue, Color.RGB(0, 255, 100, 200))
+    glPlus.PolyLines(Poli, Color.DarkBlue, Color.RGB(0, 255, 100, 200))
 
 End
 
 Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD en el evento FCAD_KeyPress cuando recibe una texto + <Enter>
 
-  If EnteredText = "" Then        'enter
+    If EnteredText = "" Then        'enter
 
-    Me.Finish
+        Me.Finish
 
-  End If
+    End If
 
 Catch
 
-  clsDrawingAids.ErrorMessage = ("Bad input")
+    clsDrawingAids.ErrorMessage = ("Bad input")
 
 End
 
 Public Sub Finish()
 
-  Dim i As Integer, ip As Integer, Prot As New Float[]
+    Dim i As Integer, ip As Integer, Prot As New Float[]
 
-  If Me.PointsDone >= 2 Then
+    If Me.PointsDone >= 2 Then
 
-    clsDrawingAids.HelperTrabajo = ("Angle") & " = " & Str(puntos.PoligonLength(poli, False))
+        clsDrawingAids.HelperTrabajo = ("Angle") & " = " & Str(puntos.PoligonLength(poli, False))
 
-  Endif
+    Endif
 
-  gcd.clsJobPrevious = Me
-  gcd.clsJob = clsDefaultJob
-  clsEntities.DeSelection()
-  fMain.regen
-  Me.Active = False
-  gcd.ToolActive = False
+    gcd.clsJobPrevious = Me
+    gcd.clsJob = clsDefaultJob
+    clsEntities.DeSelection()
+    fMain.regen
+    Me.Active = False
+    gcd.ToolActive = False
 
 End

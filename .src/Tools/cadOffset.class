@@ -33,239 +33,239 @@ Public iEntitySelected As Integer
 '   4 Goto 2
 
 Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer = 0) As Boolean
-  ' Llamada por FCAD al inicio de la aplicacion de esta herramienta
+    ' Llamada por FCAD al inicio de la aplicacion de esta herramienta
 
-  ' Aprovechamos para establecer los helpers (comentarios de ayuda en pantalla)
-  Me.PointsDone = 0
-  Me.PointsTotal = 2
+    ' Aprovechamos para establecer los helpers (comentarios de ayuda en pantalla)
+    Me.PointsDone = 0
+    Me.PointsTotal = 2
 
-  Me.PoiChecking = False
-  Me.EntityChecking = True
+    Me.PoiChecking = False
+    Me.EntityChecking = True
 
-  clsDrawingAids.HelperTrabajo = "Offset, " & ("enter distance") & " [0.10]"
-  Me.NextParamType = "F"
-  Me.NextParamDefault = 0.1
-  ' para esta herramienta necesito desdeleciconar todo
-  clsEntities.DeSelection()
+    clsDrawingAids.HelperTrabajo = "Offset, " & ("enter distance") & " [0.10]"
+    Me.NextParamType = "F"
+    Me.NextParamDefault = 0.1
+    ' para esta herramienta necesito desdeleciconar todo
+    clsEntities.DeSelection()
 
-  Me.Active = True
-  gcd.ToolActive = True
+    Me.Active = True
+    gcd.ToolActive = True
 
 End
 
 Public Function MouseUp(mouseX As Integer, mouseY As Integer) ' called by FCAD-> DrawingArea_MouseUp
 
-  Dim d, dx, dy, m1, m2, angle As Float
-  Dim flxIntersec As Float[]
-  Dim e As Entity
-  Dim flxItersec As Float[]
+    Dim d, dx, dy, m1, m2, angle As Float
+    Dim flxIntersec As Float[]
+    Dim e As Entity
+    Dim flxItersec As Float[]
 
-  If Me.PointsDone = 1 Then ' estoy intentando seleccionar una entidad
+    If Me.PointsDone = 1 Then ' estoy intentando seleccionar una entidad
 
-    If gcd.CurrDrawing.iEntity[3] >= 0 Then
-      Select Case gcd.CurrDrawing.arrEntities[gcd.CurrDrawing.iEntity[3]].Gender
-        Case "Line", "LWPolyline", "Circle", "Arc", "Ellipse", "Spline"
-          Me.iEntitySelected = gcd.CurrDrawing.iEntity[3]
-          clsEntities.SelectElem(Me.iEntitySelected)
-          clsDrawingAids.Helper.texto = ("Side to offset")
-          Me.PointsDone = 2
-        Case Else
-          Me.iEntitySelected = -1
-          clsDrawingAids.ErrorMessage = ("Can't offset that entity")
-      End Select
+        If gcd.CurrDrawing.iEntity[3] >= 0 Then
+            Select Case gcd.CurrDrawing.arrEntities[gcd.CurrDrawing.iEntity[3]].Gender
+                Case "Line", "LWPolyline", "Circle", "Arc", "Ellipse", "Spline"
+                    Me.iEntitySelected = gcd.CurrDrawing.iEntity[3]
+                    clsEntities.SelectElem(Me.iEntitySelected)
+                    clsDrawingAids.Helper.texto = ("Side to offset")
+                    Me.PointsDone = 2
+                Case Else
+                    Me.iEntitySelected = -1
+                    clsDrawingAids.ErrorMessage = ("Can't offset that entity")
+            End Select
 
-      ' punto real base
-      Me.SelStartXr = fMain.Xreal(mousex)
-      Me.SelStartYr = fMain.Yreal(mouseY)
+            ' punto real base
+            Me.SelStartXr = fMain.Xreal(mousex)
+            Me.SelStartYr = fMain.Yreal(mouseY)
+        End If
+
+    Else If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
+        Me.SelEndXr = fMain.Xreal(mousex)
+        Me.SelEndYr = fMain.Yreal(mouseY)
+
+        e = gcd.CurrDrawing.arrEntities[Me.iEntitySelected]
+        ' creo una nueva entidad en el mismo lugar
+        gcd.CurrDrawing.arrEntities.Add(clsEntities.ClonEntity(e))
+        e = gcd.CurrDrawing.arrEntities.Last
+        e.ClassHandler.Finish(e)
+
+        Select Case e.Gender
+            Case "Spline", "LWPolyline"
+                ' voy a aplicar una logica basica: veo cual es mayor dx, dy diferencia de clicks
+                If (Me.SelEndXr - Me.SelStartXr) > (Me.SelEndYr - Me.SelStartYr) Then ' X prevalece
+                    If (Me.SelEndXr > Me.SelStartXr) Then dx = offset Else dx = -offset
+                Else
+                    If (Me.SelEndYr > Me.SelStartYr) Then dy = offset Else dy = -offset
+                End If
+                e.ClassHandler.translate(e, dx, dy)
+
+            Case "Circle", "Arc"
+                d = puntos.distancia(Me.SelEndXr, Me.SelEndyr, e.P[0], e.p[1])
+                If d < e.fParam[0] Then e.fParam[0] -= offset Else e.fParam[0] += offset
+
+            Case "Ellipse"
+                d = puntos.distancia(Me.SelEndXr, Me.SelEndyr, e.P[0], e.p[1])
+                m1 = puntos.distancia(e.P[0], e.p[1], e.P[2], e.p[3])
+
+                If d < m1 Then ' contraigo la ellipse
+                    e.P[2] -= (e.P[2] - e.p[0]) / m1 * offset
+                    e.P[3] -= (e.P[3] - e.p[1]) / m1 * offset
+                Else
+                    e.P[2] += (e.P[2] - e.p[0]) / m1 * offset
+                    e.P[3] += (e.P[3] - e.p[1]) / m1 * offset
+                End If
+
+            Case "Line"
+
+                If (e.P[2] - e.P[0]) <> 0 Then
+                    ' la pendiente de la recta donde esta la linea es
+                    m1 = (e.P[3] - e.P[1]) / (e.P[2] - e.P[0])
+                    If m1 <> 0 Then
+                        m2 = -1 / m1
+                        angle = ATan(m2)
+                        dx = Offset * Cos(Angle)
+                        dy = Offset * Sin(angle)
+
+                        ' necesito saber de que lado estamos
+                        flxIntersec = puntos.lineLineIntersection([Me.SelEndXr, Me.SelEndyr], [10e6, Me.SelEndyr], [e.P[0], e.p[1]], [e.P[2], e.p[3]])
+                        If flxIntersec[0] > Me.SelEndXr Then            ' estamos a la izquierda
+                            dx *= -1
+                            dy *= -1
+                        Endif
+                    Else
+                        If Me.SelEndYr > e.P[1] Then dy = Offset Else dy = -Offset
+                    End If
+                Else
+                    If Me.SelEndXr > e.P[0] Then dx = Offset Else dx = -Offset
+
+                Endif
+
+                e.ClassHandler.translate(e, dx, dy)
+
+        End Select
+        clsEntities.glGenDrawList()
+        clsEntities.glGenDrawListAll
+        gcd.Redraw
+        clsDrawingAids.HelperTrabajo = "Offset: " & ("select an entity") & "/<Esc>"
+
+        Me.PointsDone = 1
+
     End If
-
-  Else If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
-    Me.SelEndXr = fMain.Xreal(mousex)
-    Me.SelEndYr = fMain.Yreal(mouseY)
-
-    e = gcd.CurrDrawing.arrEntities[Me.iEntitySelected]
-    ' creo una nueva entidad en el mismo lugar
-    gcd.CurrDrawing.arrEntities.Add(clsEntities.ClonEntity(e))
-    e = gcd.CurrDrawing.arrEntities.Last
-    e.ClassHandler.Finish(e)
-
-    Select Case e.Gender
-      Case "Spline", "LWPolyline"
-        ' voy a aplicar una logica basica: veo cual es mayor dx, dy diferencia de clicks
-        If (Me.SelEndXr - Me.SelStartXr) > (Me.SelEndYr - Me.SelStartYr) Then ' X prevalece
-          If (Me.SelEndXr > Me.SelStartXr) Then dx = offset Else dx = -offset
-        Else
-          If (Me.SelEndYr > Me.SelStartYr) Then dy = offset Else dy = -offset
-        End If
-        e.ClassHandler.translate(e, dx, dy)
-
-      Case "Circle", "Arc"
-        d = puntos.distancia(Me.SelEndXr, Me.SelEndyr, e.P[0], e.p[1])
-        If d < e.fParam[0] Then e.fParam[0] -= offset Else e.fParam[0] += offset
-
-      Case "Ellipse"
-        d = puntos.distancia(Me.SelEndXr, Me.SelEndyr, e.P[0], e.p[1])
-        m1 = puntos.distancia(e.P[0], e.p[1], e.P[2], e.p[3])
-
-        If d < m1 Then ' contraigo la ellipse
-          e.P[2] -= (e.P[2] - e.p[0]) / m1 * offset
-          e.P[3] -= (e.P[3] - e.p[1]) / m1 * offset
-        Else
-          e.P[2] += (e.P[2] - e.p[0]) / m1 * offset
-          e.P[3] += (e.P[3] - e.p[1]) / m1 * offset
-        End If
-
-      Case "Line"
-
-        If (e.P[2] - e.P[0]) <> 0 Then
-          ' la pendiente de la recta donde esta la linea es
-          m1 = (e.P[3] - e.P[1]) / (e.P[2] - e.P[0])
-          If m1 <> 0 Then
-            m2 = -1 / m1
-            angle = ATan(m2)
-            dx = Offset * Cos(Angle)
-            dy = Offset * Sin(angle)
-
-            ' necesito saber de que lado estamos
-            flxIntersec = puntos.lineLineIntersection([Me.SelEndXr, Me.SelEndyr], [10e6, Me.SelEndyr], [e.P[0], e.p[1]], [e.P[2], e.p[3]])
-            If flxIntersec[0] > Me.SelEndXr Then            ' estamos a la izquierda
-              dx *= -1
-              dy *= -1
-            Endif
-          Else
-            If Me.SelEndYr > e.P[1] Then dy = Offset Else dy = -Offset
-          End If
-        Else
-          If Me.SelEndXr > e.P[0] Then dx = Offset Else dx = -Offset
-
-        Endif
-
-        e.ClassHandler.translate(e, dx, dy)
-
-    End Select
-    clsEntities.glGenDrawList()
-    clsEntities.glGenDrawListAll
-    gcd.Redraw
-    clsDrawingAids.HelperTrabajo = "Offset: " & ("select an entity") & "/<Esc>"
-
-    Me.PointsDone = 1
-
-  End If
 
 End
 
 Public Sub KeyText(EnteredText As String)
 
-  ' this could be many things, but lets concentrate in what to expect and check if its correct
-  ' The element provides a constant called ParamType wich is a string like "PPFCTB"
-  ' P = point in X,Y format with decimal point as dot "."
-  '     it can also be @X,Y wich means that the coordinates are relative to the last point
-  ' F = float, thats any number
-  ' T = a text or a single character too
-  ' C = color input
-  ' B = boolean, Yes/Si or No
+    ' this could be many things, but lets concentrate in what to expect and check if its correct
+    ' The element provides a constant called ParamType wich is a string like "PPFCTB"
+    ' P = point in X,Y format with decimal point as dot "."
+    '     it can also be @X,Y wich means that the coordinates are relative to the last point
+    ' F = float, thats any number
+    ' T = a text or a single character too
+    ' C = color input
+    ' B = boolean, Yes/Si or No
 
-  ' Lets see what are we expecting
-  Dim Xt, Zt As Float, ErrTxt As String, Relative As Boolean
+    ' Lets see what are we expecting
+    Dim Xt, Zt As Float, ErrTxt As String, Relative As Boolean
 
-  Select Case Me.NextParamType
+    Select Case Me.NextParamType
 
-    Case "P", "+"
-      ' errtxt = ", expected a valid point like 12.4,9.5  or @12.34,10.5"
-      ' ' lets filter
-      ' EnteredText = Trim$(UCase$(EnteredText))
-      ' ' So we expect a position x,y , but in some cases it can be
-      ' ' C = close
-      ' ' U = undo, delete last segment
-      ' ' and others
-      '
-      ' If Left(EnteredText, 1) = "C" Then          ' close the element
-      '     ' got othe first point and exit
-      '     elem.P[iPoints * 2] = elem.P[0]
-      '     elem.P[iPoints * 2 + 1] = elem.P[1]
-      '     Me.Finish
-      '
-      ' Else If Left(EnteredText, 1) = "U" Then     ' undo last command and go
-      '
-      '     elem.P.remove(elem.P.max)
-      '     elem.P.remove(elem.P.max)
-      '     Me.Finish
-      ' Else                                        ' an X,Y or @X,Y
-      '
-      '     If InStr(EnteredText, "@") > 0 Then    ' may be a point
-      '         Relative = True
-      '         EnteredText = Replace(EnteredText, "@", "")
-      '     Endif
-      '     Xt = CFloat(Split(EnteredText, ",")[0])
-      '     Zt = CFloat(Split(EnteredText, ",")[1])
-      '
-      '     ' if we are stll here, input was good
-      '     elem.P[iPoints * 2] = Xt
-      '     elem.P[iPoints * 2 + 1] = Zt
-      '
-      '     If Relative And (elem.P.count > 2) Then
-      '         elem.P[iPoints * 2] += elem.P[(iPoints - 1) * 2]
-      '         elem.P[iPoints * 2 + 1] += elem.P[(iPoints - 1) * 2 + 1]
-      '
-      '     Endif
-      '     Inc iPoints
-      '     AdvanceStep
-      '
-      ' End If
+        Case "P", "+"
+            ' errtxt = ", expected a valid point like 12.4,9.5  or @12.34,10.5"
+            ' ' lets filter
+            ' EnteredText = Trim$(UCase$(EnteredText))
+            ' ' So we expect a position x,y , but in some cases it can be
+            ' ' C = close
+            ' ' U = undo, delete last segment
+            ' ' and others
+            '
+            ' If Left(EnteredText, 1) = "C" Then          ' close the element
+            '     ' got othe first point and exit
+            '     elem.P[iPoints * 2] = elem.P[0]
+            '     elem.P[iPoints * 2 + 1] = elem.P[1]
+            '     Me.Finish
+            '
+            ' Else If Left(EnteredText, 1) = "U" Then     ' undo last command and go
+            '
+            '     elem.P.remove(elem.P.max)
+            '     elem.P.remove(elem.P.max)
+            '     Me.Finish
+            ' Else                                        ' an X,Y or @X,Y
+            '
+            '     If InStr(EnteredText, "@") > 0 Then    ' may be a point
+            '         Relative = True
+            '         EnteredText = Replace(EnteredText, "@", "")
+            '     Endif
+            '     Xt = CFloat(Split(EnteredText, ",")[0])
+            '     Zt = CFloat(Split(EnteredText, ",")[1])
+            '
+            '     ' if we are stll here, input was good
+            '     elem.P[iPoints * 2] = Xt
+            '     elem.P[iPoints * 2 + 1] = Zt
+            '
+            '     If Relative And (elem.P.count > 2) Then
+            '         elem.P[iPoints * 2] += elem.P[(iPoints - 1) * 2]
+            '         elem.P[iPoints * 2 + 1] += elem.P[(iPoints - 1) * 2 + 1]
+            '
+            '     Endif
+            '     Inc iPoints
+            '     AdvanceStep
+            '
+            ' End If
 
-    Case "T"
-      ' errtxt = ", expected text, not a point"
-      ' ' its a valid input?
-      ' If EnteredText = "" Then
-      '
-      '     'elem.stringdata[0] = EnteredText
-      '     elem.stringdata[0] &= ParamDefault[elem.ClassHandler.StepsDone]
-      ' Else If elem.stringdata[0] <> "" Then                      ' we have a previous entry
-      '
-      '     elem.stringdata[0] &= "|" & EnteredText  ' split if necessary
-      '
-      ' Else
-      '
-      '     elem.stringdata[0] &= EnteredText                      ' first entry
-      '
-      ' End If
-      '
-      ' AdvanceStep
+        Case "T"
+            ' errtxt = ", expected text, not a point"
+            ' ' its a valid input?
+            ' If EnteredText = "" Then
+            '
+            '     'elem.stringdata[0] = EnteredText
+            '     elem.stringdata[0] &= ParamDefault[elem.ClassHandler.StepsDone]
+            ' Else If elem.stringdata[0] <> "" Then                      ' we have a previous entry
+            '
+            '     elem.stringdata[0] &= "|" & EnteredText  ' split if necessary
+            '
+            ' Else
+            '
+            '     elem.stringdata[0] &= EnteredText                      ' first entry
+            '
+            ' End If
+            '
+            ' AdvanceStep
 
-    Case "F", "M", "A", "L"                 ' Float, Mixed, Angle, Longitud
-      ErrTxt = ("enter a valid text size")
+        Case "F", "M", "A", "L"                 ' Float, Mixed, Angle, Longitud
+            ErrTxt = ("enter a valid text size")
 
-      If EnteredText = "" Then
+            If EnteredText = "" Then
 
-        Offset = Me.NextParamDefault
+                Offset = Me.NextParamDefault
 
-      Else
+            Else
 
-        Offset = CFloat(EnteredText)
+                Offset = CFloat(EnteredText)
 
-      Endif
-      clsDrawingAids.HelperTrabajo = "Offset: " & ("select an entity")
+            Endif
+            clsDrawingAids.HelperTrabajo = "Offset: " & ("select an entity")
 
-      Inc Me.PointsDone
+            Inc Me.PointsDone
 
-    Case "C"                                ' color
-      ' If Dialog.SelectColor() Then
-      '     elem.fParam[iFloat] = CFloat(Dialog.Color)
-      '     Inc iFloat
-      '     AdvanceStep
-      '
-      ' Endif
-      ' Key.Cod
+        Case "C"                                ' color
+            ' If Dialog.SelectColor() Then
+            '     elem.fParam[iFloat] = CFloat(Dialog.Color)
+            '     Inc iFloat
+            '     AdvanceStep
+            '
+            ' Endif
+            ' Key.Cod
 
-  End Select
+    End Select
 
 Finally
 
-  Return
+    Return
 
 Catch
 
-  ' unexpected input
-  clsDrawingAids.ErrorMessage = ("Bad input") & " " & ErrTxt
+    ' unexpected input
+    clsDrawingAids.ErrorMessage = ("Bad input") & " " & ErrTxt
 
 End

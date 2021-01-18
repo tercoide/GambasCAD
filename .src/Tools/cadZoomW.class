@@ -28,101 +28,101 @@ Create Static
 Public Const Gender As String = "ZoomW"
 
 Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer = 0) As Boolean
-  ' Modes:
-  '       0 = Move, all points in the element must be selected, or click on it.
-  '       1 = Stretch, selection may be partial, each element is called to see if the support stretching
+    ' Modes:
+    '       0 = Move, all points in the element must be selected, or click on it.
+    '       1 = Stretch, selection may be partial, each element is called to see if the support stretching
 
-  Me.Mode = _Mode
-  Me.PoiChecking = False
+    Me.Mode = _Mode
+    Me.PoiChecking = False
 
 End
 
 Public Function MouseDown(mouseX As Integer, mouseY As Integer) ' esta rutina es llamada por FCAD en el evento DrawingArea_MouseDown
 
-  If Mouse.Left Then
-    Me.SelStartX = mouseX
-    Me.SelStartY = mouseY
-    Me.SelEndX = Me.SelStartX
-    Me.SelEndy = Me.SelStartY
+    If Mouse.Left Then
+        Me.SelStartX = mouseX
+        Me.SelStartY = mouseY
+        Me.SelEndX = Me.SelStartX
+        Me.SelEndy = Me.SelStartY
 
-    Me.SelStartXr = fMain.Xreal(mouseX)
-    Me.SelStartYr = fMain.Yreal(mouseY)
+        Me.SelStartXr = fMain.Xreal(mouseX)
+        Me.SelStartYr = fMain.Yreal(mouseY)
 
-    Me.Active = True
-  End If
+        Me.Active = True
+    End If
 
 End
 
 Public Function MouseUp(mouseX As Integer, mouseY As Integer) ' esta rutina es llamada por FCAD en el evento DrawingArea_MouseUp
 
-  Me.SelEndX = mousex
-  Me.SelEndy = mouseY
-  Me.Active = False
+    Me.SelEndX = mousex
+    Me.SelEndy = mouseY
+    Me.Active = False
 
-  ' corrijo para start<end
-  If Me.SelStartX > Me.SelEndX Then Swap Me.SelStartX, Me.SelEndX
-  If Me.SelStartY < Me.SelEndy Then Swap Me.SelStartY, Me.SelEndy                     ' this is FLIPPED
+    ' corrijo para start<end
+    If Me.SelStartX > Me.SelEndX Then Swap Me.SelStartX, Me.SelEndX
+    If Me.SelStartY < Me.SelEndy Then Swap Me.SelStartY, Me.SelEndy                     ' this is FLIPPED
 
-  ' Paso a coordenadas reales
-  Me.SelStartXr = fMain.Xreal(Me.SelStartX)
-  Me.SelStartYr = fMain.Yreal(Me.SelStartY)
-  Me.SelEndXr = fMain.Xreal(Me.SelEndX)
-  Me.SelEndyr = fMain.Yreal(Me.SelEndy)
+    ' Paso a coordenadas reales
+    Me.SelStartXr = fMain.Xreal(Me.SelStartX)
+    Me.SelStartYr = fMain.Yreal(Me.SelStartY)
+    Me.SelEndXr = fMain.Xreal(Me.SelEndX)
+    Me.SelEndyr = fMain.Yreal(Me.SelEndy)
 
-  ' veo si el rectangulo es suficientemente grande como para representar una seleccion por rectangulo
-  If (Me.SelEndX - Me.SelStartX + (-Me.SelEndy + Me.SelStartY)) < 10 Then ' es un rectangulo minusculo
+    ' veo si el rectangulo es suficientemente grande como para representar una seleccion por rectangulo
+    If (Me.SelEndX - Me.SelStartX + (-Me.SelEndy + Me.SelStartY)) < 10 Then ' es un rectangulo minusculo
 
-    clsDrawingAids.ErrorMessage = ("Window is too small")
+        clsDrawingAids.ErrorMessage = ("Window is too small")
 
-  Else
-    ' engañamos a estas vars
+    Else
+        ' engañamos a estas vars
 
-    gcd.CurrDrawing.Xmayor = Me.SelEndXr
-    gcd.CurrDrawing.Xmenor = Me.SelStartXr
+        gcd.CurrDrawing.Xmayor = Me.SelEndXr
+        gcd.CurrDrawing.Xmenor = Me.SelStartXr
 
-    gcd.CurrDrawing.Ymayor = Me.SelEndYr
-    gcd.CurrDrawing.Ymenor = Me.SelStartYr
+        gcd.CurrDrawing.Ymayor = Me.SelEndYr
+        gcd.CurrDrawing.Ymenor = Me.SelStartYr
 
-    cadZoomE.Start(, 1)
-    Me.Finish
+        cadZoomE.Start(, 1)
+        Me.Finish
 
-  End If
+    End If
 
 End
 
 Public Function MouseMove(mouseX As Integer, mouseY As Integer) ' esta rutina es llamada por FCAD en el evento DrawingArea_MouseMove
 
-  Me.SelEndX = mousex
+    Me.SelEndX = mousex
 
-  Me.SelEndy = mouseY
+    Me.SelEndy = mouseY
 
-  Me.SelEndXr = fMain.Xreal(mouseX)
-  Me.SelEndYr = fMain.Yreal(mouseY)
+    Me.SelEndXr = fMain.Xreal(mouseX)
+    Me.SelEndYr = fMain.Yreal(mouseY)
 
-  fMain.redraw
+    fMain.redraw
 
 End
 
 Public Sub Draw() ' esta rutina es llamada por FCAD en el evento DrawingArea_Draw
-  ' por ultimo, y para que se vea arriba, la seleccion
+    ' por ultimo, y para que se vea arriba, la seleccion
 
-  If Not Me.Active Then Return
+    If Not Me.Active Then Return
 
-  Dim xyStart, xyEnd As Float[]
+    Dim xyStart, xyEnd As Float[]
 
-  GLplus.Rectangle2D(Me.SelStartXr, Me.SelStartYr, Me.SelEndXr - Me.SelStartXr, Me.SelEndYr - Me.SelStartYr,,,,, Color.DarkBlue, 1, 0, 2)
+    GLplus.Rectangle2D(Me.SelStartXr, Me.SelStartYr, Me.SelEndXr - Me.SelStartXr, Me.SelEndYr - Me.SelStartYr,,,,, Color.DarkBlue, 1, 0, 2)
 
 End
 
 Public Sub Finish()
 
-  gcd.clsJob = gcd.clsJobPrevious
-  gcd.clsJobPrevious = Me
+    gcd.clsJob = gcd.clsJobPrevious
+    gcd.clsJobPrevious = Me
 
-  clsDrawingAids.CleanTexts
+    clsDrawingAids.CleanTexts
 
-  Me.Active = False
+    Me.Active = False
 
-  gcd.ToolActive = True
+    gcd.ToolActive = True
 
 End
