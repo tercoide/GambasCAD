@@ -504,6 +504,7 @@ End
 
 Public Sub GLArea1_MouseMove()
 
+  'Debug "Pan", gcd.CurrDrawing.PanX, gcd.CurrDrawing.Pany
   CursorX = mouse.x
   CursorY = mouse.y
   Me.flgSearchingEntity = True ' FIXME: poner en false despues de reparar
@@ -524,7 +525,7 @@ Public Sub GLArea1_MouseMove()
             End If
 
           Else
-            Debug "No puedo buscar entidades"
+            'Debug "No puedo buscar entidades"
           End If
         Else
           If Not Me.flgSearchingPOI Then
@@ -664,19 +665,15 @@ End
 
 ' El objetivo es que el zoom dinamico se haga manteniendo el dibujo que esta en la pos del mouse
 Public Sub GLArea1_MouseWheel()
-  ' ex  Public Sub drwArea_MouseWheel()
 
   Dim px, py, dx, dy, factor As Float
   ' chequeamos si vale la pena seguir dibujando la grid, o sea, menos de 3 pixels
 
-  dx = Mouse.x - GLArea1.w / 2
-  dy = Mouse.y - GLArea1.h / 2
-
 
   If Pixels(puntos.GridSpacing) < 5 Then puntos.Gridactive = False Else puntos.Gridactive = True
 
-  px = Xreal(GLArea1.w / 2)
-  py = Yreal(GLArea1.h / 2)
+  px = Xreal(Mouse.x) ' posicion real en donde esta el mouse, previo al zoom
+  py = Yreal(Mouse.y)
 
   ' TODO: , redondear para que la escala sea 1:100 1:75 1:50 etc
 
@@ -684,28 +681,16 @@ Public Sub GLArea1_MouseWheel()
 
   gcd.CurrDrawing.ScaleZoom = gcd.CurrDrawing.ScaleZoom * factor
 
+  dx = Xreal(Mouse.x) ' posicion real en donde esta el mouse, posterior al zoom
+  dy = Yreal(Mouse.y)
+
   ' pero con ciertos limites TODO: imponer
   ' If ScaleZoom < 0.001 Then ScaleZoom = 0.001
   ' If ScaleZoom > 50 Then ScaleZoom = 50
 
-  ' nuevo metodo
-  gcd.CurrDrawing.PanX *= factor
-  gcd.CurrDrawing.PanY *= factor
-
-  ' viejo metodo
-  ' gcd.CurrDrawing.PanX = -Pixels(px)
-  ' If mouse.x < glarea1.w * 0.2 Then
-  '   gcd.CurrDrawing.PanX -= gcd.CurrDrawing.ScaleZoom * 5 * Mouse.Delta
-  ' Else If mouse.x > glarea1.w * 0.8 Then
-  '   gcd.CurrDrawing.PanX += gcd.CurrDrawing.ScaleZoom * 5 * Mouse.Delta
-  ' Endif
-  '
-  ' gcd.CurrDrawing.PanY = -Pixels(py)
-  ' If mouse.y < glarea1.h * 0.2 Then
-  '   gcd.CurrDrawing.PanY -= gcd.CurrDrawing.ScaleZoom * 5 * Mouse.Delta
-  ' Else If mouse.y > glarea1.h * 0.8 Then
-  '   gcd.CurrDrawing.PanY += gcd.CurrDrawing.ScaleZoom * 5 * Mouse.Delta
-  ' Endif
+  ' nuevo metodo (el Pan esta en pixels)
+  gcd.CurrDrawing.PanX += pixels(dx - px)
+  gcd.CurrDrawing.PanY += pixels(dy - py)
 
   redraw
 
@@ -926,8 +911,8 @@ Public Sub Form_KeyPress()
         '
         ' End Select
 
-      Else
-        KeysAccumulator &= Key.Text
+        ' Else
+        'KeysAccumulator = Key.Text
         clsDrawingAids.ErrorMessage = ""
       Endif
 
@@ -987,3 +972,12 @@ Public Sub tbnGrid_Click()
 
 End
 
+
+Public Sub lblCommand_KeyPress()
+
+  ' las teclas que no procese fMain sera procesadas aqui
+  KeysAccumulator &= Key.Text
+
+  lblCommand.Text = ""
+
+End
