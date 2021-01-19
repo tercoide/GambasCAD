@@ -165,7 +165,7 @@ Public Sub glGenDrawList(Optional iEntity As Integer = -1)
 
     Else
 
-        If Not gl.islist(gcd.CurrDrawing.GlListAllEntities) Then gcd.CurrDrawing.GlListAllEntities = gl.GenLists(1)
+        ' If Not gl.islist(gcd.CurrDrawing.GlListAllEntities) Then gcd.CurrDrawing.GlListAllEntities = gl.GenLists(1)
         Dim t As Float = Timer
         ' listas de entidades
         For i = 0 To gcd.CurrDrawing.arrEntities.Max
@@ -187,7 +187,7 @@ Public Sub glGenDrawList(Optional iEntity As Integer = -1)
 
         ' lista de todas las entidades
         t = Timer
-        GLGenDrawListAll
+        glGenDrawListLAyers
 
         Debug "GLlista de todas generada en  ", Timer - t
     End If
@@ -231,6 +231,53 @@ Public Sub glGenDrawListAll(Optional ExcludeSelected As Boolean = False)
     Next
 
     gl.EndList
+
+    For i = 0 To gcd.CurrDrawing.arrLayers.max
+        If Not gl.islist(gcd.CurrDrawing.arrLayers[i].glList) Then gcd.CurrDrawing.arrLayers[i].glList = gl.GenLists(1)
+        gl.NewList(gcd.CurrDrawing.arrLayers[i].glList, gl.COMPILE)
+    Next
+    For i = 0 To gcd.CurrDrawing.arrEntities.max
+        If Not (gcd.CurrDrawing.arrEntities[i].Selected And ExcludeSelected) Then gl.CallList(gcd.CurrDrawing.arrEntities[i].glDrwList)
+
+    Next
+
+    gl.EndList
+
+End
+
+'' Generates a GL list for the selected
+'' Mode: 0=Selected version 1=Normal version
+Public Sub glGenDrawListLAyers(Optional aLayer As Layer)
+
+    Dim i As Integer
+    Dim e As Entity
+
+    If aLayer Then
+
+        If Not gl.islist(aLayer.glList) Then aLayer.glList = gl.GenLists(1)
+        gl.NewList(aLayer.glList, gl.COMPILE)
+        For Each e In gcd.CurrDrawing.arrEntities
+
+            If e.pLayer = aLayer Then gl.CallList(e.glDrwList)
+
+        Next
+        gl.EndList
+
+    Else
+
+        For Each aLayer In gcd.CurrDrawing.arrLayers
+            If Not gl.islist(aLayer.glList) Then aLayer.glList = gl.GenLists(1)
+            gl.NewList(aLayer.glList, gl.COMPILE)
+            For Each e In gcd.CurrDrawing.arrEntities
+
+                If e.pLayer = aLayer Then gl.CallList(e.glDrwList)
+
+            Next
+            gl.EndList
+
+        Next
+
+    Endif
 
 End
 
@@ -941,7 +988,7 @@ Public Function ComputeLimits(Optional entities As Entity[], OnlyVisibles As Boo
     If Not entities Then entGroup = gcd.CurrDrawing.arrEntities Else entGroup = Entities
 
     For Each e In entGroup
-        'If e.block = "" Then
+
         If (OnlyVisibles And e.Visible) Or Not OnlyVisibles Then
 
             If e.Polygon.Count > 0 Then
@@ -1074,7 +1121,6 @@ Public Function GetParentBlock(iEntity As Integer) As Integer
 
 End
 
-
 '' Imports data from a collection to an entity. True if the entity is handled by GauchoCAD at this version,
 '' False if entity couldn't be created for some reason.
 Public Function DXFImportToEntity(c As Collection, e As Entity) As Boolean
@@ -1110,7 +1156,6 @@ Public Function DXFImportToEntity(c As Collection, e As Entity) As Boolean
         Try e.colour = c[dxf.codColor]            ' no es obligatorio
         Try e.LineWidth = c[dxf.codLWht] / 100    ' por eso el try
         If e.LineWidth < 1 Then e.LineWidth = 1
-
 
         clsHandler.Finish(e)
 

@@ -129,89 +129,28 @@ Public flgOnScreenHelpColor As Integer = Color.LightGray    '' Tincho, esta es n
 ' Vars for entities edition
 Public arrUndo As New Entity[]             '' An array to put an unmodified copy of an entity before modifying it and then restoring it to the previous version.
 
-'' This transfer layers from imported file, one collection actually, to the model collection
-
-Public Sub LayersTransfer()
-
-    Dim tLay As New Collection
-    Dim i As Integer
-    Dim il As Variant
-    Dim ml As Variant
-    Dim prop As String
-    Dim iLay As Collection
-    Dim mLay As Collection
-    Dim r As Integer
-
-    If CurrDrawing.cImport.Count > 0 Then
-        If CurrDrawing.cImport.Exist("Layers") Then
-            iLay = CurrDrawing.cImport["Layers"]
-            If CurrDrawing.cModel.Exist("Layers") Then
-                mLay = CurrDrawing.cModel["LAYERS"]
-
-                For Each il In iLay
-                    r = 0
-                    For Each ml In mLay
-                        If ml["name"] = il["name"] Then
-                            r = -1
-                            Break
-                        Else
-                            Inc r
-                        Endif
-                    Next
-
-                    If r > -1 Then
-                        tLay.Add(Format(r, "0"), "id")
-                        tLay.Add("layer", "type")
-                        For Each prop In ["name", "show", "frozen", "locked", "color", "style", "width", "print"]
-                            tLay.Add(il[prop], prop)
-                        Next
-                        mLay.Add(tLay.copy(), Format(r, "0"))
-                        tLay.Clear
-                    Endif
-
-                Next
-            Else
-                For Each il In iLay
-                    tLay.Add(Format(i, "0"), "id")
-                    tLay.Add("layer", "type")
-
-                    For Each prop In ["name", "show", "frozen", "locked", "color", "style", "width", "print"]
-                        tLay.Add(iLay[prop], prop)
-                    Next
-
-                    mLay.Add(tLay.copy(), Format(i, "0"))
-                    tLay.Clear
-                    Inc i
-                Next
-            Endif
-        Endif
-    Endif
-
-End
-
 '' Transfer layers to main windows ComboBox
 Public Sub UpdateLayersCombo()
 
     Dim i As Integer
     Dim sName As String = "_menuLay"
     Dim mLayer As New Menu(fMain), m2 As Menu
+    Dim aLayer As Layer
 
     For i = 0 To fMain.Menus.Count - 1
         If fMain.Menus[i].Name = sName Then fMain.Menus[i].Delete
     Next
     mLayer.Name = sName
-    For Each cLayer As Collection In CurrDrawing.cLayers
+    For Each aLayer In CurrDrawing.arrLayers
         m2 = New Menu(mLayer)
-        m2.Text = cLayer[dxf.codName]
-        m2.Picture = paintPlus.picCirculito(8, gColor[iCadColor(cLayer[dxf.codColor])], Color.ButtonForeground)
-        m2.Action = "layer_change_" & cLayer[dxf.codName]
+        m2.Text = aLayer.Name
+        m2.Picture = paintPlus.picCirculito(8, aLayer.Colour, Color.ButtonForeground)
+        m2.Action = "layer_change_" & aLayer.Name
     Next
     fMain.mbtLayers.Menu = sName
     fMain.mbtLayers.Text = mLayer.Children[0].Text
     fMain.mbtLayers.Picture = mLayer.Children[0].Picture
     Return
-
-
 
 End
 
@@ -304,8 +243,6 @@ Public Sub UpdateLineWtCombo()
     ' ByBlock 30
     ' Default 31
 
-
-
 End
 
 Public Sub UpdateLineTypeCombo()
@@ -351,7 +288,6 @@ Public Sub UpdateLineTypeCombo()
 
     Next
 
-
 End
 
 Public Function FindLtIndex(sName As String) As Integer
@@ -368,7 +304,6 @@ Public Function FindLtIndex(sName As String) As Integer
 
 End
 
-
 Public Function FindLaIndex(sName As String) As Integer
 
     Dim i As Integer
@@ -383,9 +318,6 @@ Public Function FindLaIndex(sName As String) As Integer
 
 End
 
-
-
-
 Public Function iCadColor(sColor As String) As Integer
 
     sColor = LCase(sColor)
@@ -395,11 +327,7 @@ Public Function iCadColor(sColor As String) As Integer
     Try Return CInt(sColor)
     Return 0
 
-
-
 End
-
-
 
 Public Sub BlocksTransfer()
 
@@ -659,12 +587,31 @@ Public Sub ReadLayers()
     Dim hLay As Layer
     ' primero eliminamos lo q haya
     CurrDrawing.arrLayers.Clear
-    For Each cLay As Collection In CurrDrawing.cLayers
+    For Each cLay As Collection In gcd.CurrDrawing.cModel["TABLES"]["LAYER"]
         hLay = New Layer
         hLay.Name = cLay[dxf.codName]
-        hLay.Shown = CInt(cLay[dxf.codColor]) >= 0
+        hLay.Visible = CInt(cLay[dxf.codColor]) >= 0
         hLay.Colour = gcd.gColor[Abs(CInt(cLay[dxf.codColor]))]
         hLay.handle = cLay[dxf.codHandle]
+        CurrDrawing.arrLayers.Add(hLay)
+    Next
+
+End
+
+'' Reads entities and fill arrLayers
+Public Sub ReadEntities()
+
+    Dim hLay As Layer
+    Dim e As Entity
+
+    ' primero eliminamos lo q haya
+    For Each hLay In CurrDrawing.arrLayers
+        hLay.Entities.Clear
+    Next
+
+    For Each e In CurrDrawing.arrEntities
+        e.pLayer = CurrDrawing.arrLayers[gcd.FindLaIndex(e.LayerId)]
+        e.pLayer.Entities.Add(e)
     Next
 
 End
@@ -709,8 +656,6 @@ Public Sub ReadLTypes()
 
         CurrDrawing.arrLTYpes.Add(hlty)
 
-
-
     Next
 
 End
@@ -719,39 +664,24 @@ Public Function GetGBColor(CADcolor As Integer, layerID As String) As Integer
 
     ' FIXME: reparar post layers
     'Return gcd.flgWhiteAndBlack
+    Dim iColor As Integer
+
+    iColor = Abs(CInt(gcd.CurrDrawing.cLayers[layerID][dxf.codColor]))
 
     If Not gcd.CurrDrawing.cLayers.Exist(layerID) Then Return gcd.flgWhiteAndBlack
 
     ' color
     If CADcolor = 256 Then          ' buscar color del layer
 
-        If TypeOf(gcd.CurrDrawing.cLayers[layerID][dxf.codColor]) = gb.Object Then
-            Return gColor[gcd.CurrDrawing.cLayers[layerID][dxf.codColor]["index"]]
-        Else
-            Return gColor[gcd.CurrDrawing.cLayers[layerID][dxf.codColor]]
-        Endif
-
-        'Return gcd.gColor[11]
+        Return gColor[iColor]
 
     Else If CADcolor = 257 Then     ' buscar color del objeto
 
-        If TypeOf(gcd.CurrDrawing.cLayers[layerID][dxf.codColor]) = gb.Object Then
-            Return gColor[gcd.CurrDrawing.cLayers[layerID][dxf.codColor]["index"]]
-        Else
-            Return gColor[gcd.CurrDrawing.cLayers[layerID][dxf.codColor]]
-        Endif
-        'Return gcd.gColor[gcd.CurrDrawing.cLayers[layerID][dxf.codColor]["index"]]    ' FIXME: cambiar esto
-        'Return gcd.gColor[12]
+        Return gColor[iColor]
 
-    Else If CADcolor = 0 Then       ' buscar color del bloque
-        If TypeOf(gcd.CurrDrawing.cLayers[layerID][dxf.codColor]) = gb.Object Then
-            Return gColor[gcd.CurrDrawing.cLayers[layerID][dxf.codColor]["index"]]
-        Else
-            Return gColor[gcd.CurrDrawing.cLayers[layerID][dxf.codColor]]
-        Endif
-        'Return gcd.gColor[13]
-        'Return gcd.gColor[gcd.CurrDrawing.cLayers[layerID][dxf.codColor]["index"]]   ' FIXME: cambiar esto
-
+    Else If CADcolor = 0 Then
+        ' buscar color del bloque
+        Return gColor[iColor]
     Else
 
         Return gColor[CADcolor]
@@ -797,7 +727,6 @@ Public Function NewHandle() As String
     Return Hex(CurrDrawing.HandSeed)
 
 End
-
 
 '' Updates the Graphics with the changes in the Model. Can be applied to certain entities only. Forces
 '' a Regen if specified.
@@ -858,9 +787,6 @@ End
 '
 ' End
 
-
-
-
 Public Sub UpdateModel()
 
     Dim ent As Entity
@@ -907,11 +833,9 @@ Public Sub UpdateModel()
 
 End
 
-
 Public Function iHeader(VarName As String) As Integer
 
     Return Val("&H" & CurrDrawing.cHeader[VarName][CurrDrawing.cHeader[VarName].First])
-
 
 End
 
@@ -937,7 +861,4 @@ Public Function GetHeaderValue(VarName As String) As Variant
         Endif
     Endif
 
-
-
 End
-

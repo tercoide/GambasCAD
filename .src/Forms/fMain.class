@@ -41,7 +41,6 @@ Public flgShowInspector As Boolean = True
 Public flgSearchingEntity As Boolean = False  ' impide cuellos de botellla
 Public flgSearchingPOI As Boolean
 
-
 Public Sub Run() As Boolean
 
     ' acomodo el tamanio de los controles
@@ -51,13 +50,10 @@ Public Sub Run() As Boolean
     Me.mbtColors.w = 128
     Me.mbtLayers.w = 128
 
-
-
     tblLines.AddToolButton("tblLine",, Picture.Load(main.Params["Dirs/PNG", Application.Path &/ "png/48x48"] &/ "line.png"), "cadLine")
     tblLines.AddToolButton("tblLWPolyline",, Picture.Load(main.Params["Dirs/PNG", Application.Path &/ "png/48x48"] &/ "hexagon.png"), "cadlwpolyline")
 
     tblLines.AddToolButton("tblText",, Picture.Load(main.Params["Dirs/PNG", Application.Path &/ "png/48x48"] &/ "seleccionar.png"), "cadText")
-
 
     Action_Activate("file_new")
 
@@ -105,11 +101,13 @@ Public Function Action_Activate(sAction As String) As Boolean
             gcd.CurrDrawing.HandSeed = gcd.iHeader("$HANDSEED")
             gcd.UpdateGraphics
 
-            gcd.UpdateLayersCombo
-            gcd.UpdateLineWtCombo
             gcd.ReadLTypes
             gcd.ReadLayers
+            gcd.ReadEntities
+            gcd.UpdateLayersCombo
+            gcd.UpdateLineWtCombo
             gcd.UpdateLineTypeCombo
+            gcd.UpdateGraphics
 
             Me.Text = f
 
@@ -147,13 +145,16 @@ Public Function Action_Activate(sAction As String) As Boolean
 
                             gcd.ReadLTypes
                             gcd.ReadLayers
+                            gcd.ReadEntities
+                            gcd.UpdateLayersCombo
+                            gcd.UpdateLineWtCombo
+                            gcd.UpdateLineTypeCombo
                             gcd.UpdateGraphics
 
                             ' modelo recien cargado
                             cadZoomE.Start()                                ' por ahora mostramos el dibujo centrado, hasta q leamos el estado anterior
-                            gcd.UpdateLayersCombo
-                            Me.Text = f
 
+                            Me.Text = f
 
                             Application.Busy = 0
                             fMain.Mouse = Mouse.Arrow
@@ -176,21 +177,21 @@ Public Function Action_Activate(sAction As String) As Boolean
                             gcd.CurrDrawing.cLtypes = gcd.CurrDrawing.cModel["TABLES"]["LTYPE"]
                             gcd.CurrDrawing.HandSeed = gcd.iHeader("$HANDSEED")
 
-                            gcd.UpdateGraphics
+                            gcd.ReadLTypes
+                            gcd.ReadLayers
+                            gcd.ReadEntities
                             gcd.UpdateLayersCombo
-
+                            gcd.UpdateLineWtCombo
+                            gcd.UpdateLineTypeCombo
+                            gcd.UpdateGraphics
 
                             cadZoomE.Start()                                ' por ahora mostramos el dibujo centrado, hasta q leamos el estado anterior
 
                             Me.Text = f
 
-
-
                     End Select
                 Endif
             Endif
-
-
 
         Case "file_save"
 
@@ -210,8 +211,6 @@ Public Function Action_Activate(sAction As String) As Boolean
                 Dxf.SaveFile(f, gcd.CurrDrawing.cModel)
 
             Endif
-
-
 
         Case "file_saveas"
 
@@ -247,9 +246,7 @@ Public Function Action_Activate(sAction As String) As Boolean
                 gcd.CurrDrawing.FileName = f
                 Me.Text = f
 
-
             Endif
-
 
         Case Like "color_*"
 
@@ -262,9 +259,7 @@ Public Function Action_Activate(sAction As String) As Boolean
 
             gcd.CurrDrawing.CurrColor = iColor
 
-
         Case Like "cad*"
-
 
             Dim o As Object, RunWith As String, c As Class
 
@@ -283,8 +278,6 @@ Public Function Action_Activate(sAction As String) As Boolean
                 gcd.clsJob.start(o)
 
             End If
-
-
 
         Case Like "layer_change_*"
 
@@ -307,12 +300,9 @@ Public Function Action_Activate(sAction As String) As Boolean
 
             gcd.CurrDrawing.CurrLineType = gcd.FindLtIndex(Mid(sAction, 14))
 
-
     End Select
 
 End
-
-
 
 Public Sub Form_Activate()
 
@@ -324,9 +314,7 @@ Public Sub form_Close()
 
     main.Terminate
 
-
 End
-
 
 Public Sub glarea1_Resize()
 
@@ -337,6 +325,7 @@ End
 Public Sub GLArea1_draw()
 
     Dim iParent As Integer
+    Dim i As Integer
 
     If Not gcd.DrawingReady Then Return
 
@@ -373,6 +362,10 @@ Public Sub GLArea1_draw()
     clsDrawingAids.DibujaHelper
 
     gcd.clsJob.Draw()
+
+    For i = 0 To gcd.CurrDrawing.arrLayers.Max
+        If gcd.CurrDrawing.arrLayers[i].Visible Then gl.CallList(gcd.CurrDrawing.arrLayers[i].glList)
+    Next
 
     gl.CallList(gcd.CurrDrawing.GlListAllEntities)                      ' si GL no tiene contexto, la lista no se genera. Es necesario que la instancia de FCAD este cargada.
 
@@ -662,13 +655,11 @@ Public Function Metros(pixeles As Integer) As Float  ' converts pixels to meters
 
 End
 
-
 ' El objetivo es que el zoom dinamico se haga manteniendo el dibujo que esta en la pos del mouse
 Public Sub GLArea1_MouseWheel()
 
     Dim px, py, dx, dy, factor As Float
     ' chequeamos si vale la pena seguir dibujando la grid, o sea, menos de 3 pixels
-
 
     If Pixels(puntos.GridSpacing) < 5 Then puntos.Gridactive = False Else puntos.Gridactive = True
 
@@ -705,13 +696,11 @@ End
 '' Regenera las listas de OpenGL
 Public Sub Regen()
 
-    'gcd.UpdateLayers
     clsEntities.glGenDrawList
     clsEntities.glGenDrawListSel
     redraw
 
 End
-
 
 Public Sub Form_KeyPress()
 
@@ -729,7 +718,6 @@ Public Sub Form_KeyPress()
 
         Case Key.Enter, Key.Return
             Debug KeysAccumulator
-
 
             Form_Activate()
 
@@ -773,7 +761,6 @@ Public Sub Form_KeyPress()
             ' btnGrid.Value = puntos.Gridactive
 
         Case Key.F11
-
 
         Case Key.Esc
 
@@ -922,9 +909,6 @@ Public Sub Form_KeyPress()
 
 End
 
-
-
-
 Public Sub tbnOrtho_Click()
 
     gcd.Orthogonal = tbnOrtho.value
@@ -940,7 +924,6 @@ End
 
 Public Sub tbnSnap_Click()
 
-
     If tbnSnap.Value Then
         gcd.SnapMode = gcd.SnapModePrev
         tbnSnap.foreground = Color.DarkGreen
@@ -952,11 +935,9 @@ Public Sub tbnSnap_Click()
         tbnSnap.Font.Bold = False
     Endif
 
-
 End
 
 Public Sub tbnGrid_Click()
-
 
     If tbnGrid.Value Then
         gcd.GridMode = gcd.GridModePrev
@@ -969,9 +950,7 @@ Public Sub tbnGrid_Click()
         tbnGrid.Font.Bold = False
     Endif
 
-
 End
-
 
 Public Sub lblCommand_KeyPress()
 
