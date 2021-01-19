@@ -462,6 +462,7 @@ Public Sub ImportBlocksFromDXF(colData As Collection) ', obxEntities As Entity[]
     Dim cEntyList As New Collection
     Dim hEnty As Variant, iEnty As Integer
     Dim cEnty As Variant[]
+    Dim i As Integer
 
     If Not colData.Exist("BLOCKS") Then Return
     For Each colBlk In colData["BLOCKS"]
@@ -470,20 +471,23 @@ Public Sub ImportBlocksFromDXF(colData As Collection) ', obxEntities As Entity[]
         newBlock.name = colBlk[dxf.codName]
         newBlock.handle = colBlk[dxf.codHandle]
         newBlock.layer = colBlk[dxf.codLayer]
+        gcd.CurrDrawing.arrBlocks.Add(newBlock)
+
+    Next
+    For Each colBlk In colData["BLOCKS"]
+
         If colBlk.Exist("entities") Then
 
-            ImpEnty6(colBlk["entities"], newBlock.entities)
+            ImpEnty6(colBlk["entities"], gcd.CurrDrawing.arrBlocks[i].entities)
 
         Else
 
             Debug "Error loading block", newBlock.name
 
         End If
-        gcd.CurrDrawing.arrBlocks.Add(newBlock)
-        'ImportEntities2(colBlk["Entities"], newBlock.entities, newBlock.name)
+        Inc i
 
     Next
-    'Stop
 
 End
 
@@ -504,7 +508,8 @@ Public Sub ImpEnty6(cEny As Collection, obx As Entity[])
                 obx.Add(entNueva)
                 entNueva = Null                                           ' limpiamos
             Else                                                        ' no esta implementada
-                Print "Entidad no implementada o con errores:", e["entity"]
+                Print "Entidad no implementada o con errores:", e[dxf.codHandle], e[dxf.codEntity]
+                'Stop
             Endif
 
         Endif
@@ -578,6 +583,13 @@ Public Function GetLayerID(LayerName As String) As String
     For Each cLayer In gcd.CurrDrawing.cLayers
         If cLayer["name"] = LayerName Then Return cLayer["id"]
     Next
+
+End
+
+'' Reads vars
+Public Sub ReadVars()
+
+    'gcd.CurrDrawing.UCS.Add(gcd.GetHeaderValue("ucsx"))
 
 End
 
@@ -733,7 +745,6 @@ End
 Public Function UpdateGraphics(Optional handles As String[] = [], DoRegen As Boolean = True)
 
     Dim cEntity As Collection, entNueva As Entity
-
 
     ImportBlocksFromDXF(gcd.CurrDrawing.cModel)
 

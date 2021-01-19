@@ -39,16 +39,30 @@ Public Visible As Boolean = True            ' si esta entidad puede ser mostrada
 Public Finished As Boolean = False          ' colocar en true cuando se llegue a completar
 Public StepsDone As Integer                 ' esto lo cambia cls ElementBuilder durante la construccion
 
-
 Public TextEntry As String
 
 Public elem As Entity
-
 
 Public XYreal As Float[]
 
 Public extension As Float
 Public iBloque As Integer
+
+' fParam helpers
+Public Const TotalParams As Integer = 8
+Public Const ipaEscX As Integer = 0
+Public Const ipaEscY As Integer = 1
+Public Const ipaEscZ As Integer = 2
+Public Const ipaRotacion As Integer = 3
+Public Const ipaVertJustif As Integer = 4
+Public Const ipaRelativeFactor As Integer = 5
+Public Const ipaObliqueAngle As Integer = 6
+Public Const ipaExtension As Integer = 7
+
+' stringdata helpers
+Public Const sdaTotalParams As Integer = 2
+Public Const sdaText As Integer = 0
+Public Const sdaStyle As Integer = 1
 
 ' Para mejor generalidad y para compatibilidad futura usaremos los P[] asi con los CODE del DXF
 ' P[] = DXF CODE
@@ -79,7 +93,6 @@ Public iBloque As Integer
 
 '' Mode = DimType ver gcd.DimXXXX constants
 
-
 Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
 
     Dim i As Integer
@@ -87,6 +100,10 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
     DimTypeSet = False
     For i = 0 To sClaves.Max
+
+        If sClaves[i] = "2" Then e.pBlock = clsEntities.FIndBlock(sValues[i])   ' this could be null
+        If sClaves[i] = "10" Then e.p.Add(CFloat(sValues[i]))         ' X0
+        If sClaves[i] = "20" Then e.P.Add(CFloat(sValues[i]))         ' Y0
 
         If sClaves[i] = "70" Then ' Dimension type:
             DimTypeSet = True
@@ -122,7 +139,6 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
                     e.ClassHandler = cadDIMENSION_ORDINATE
 
-
             End Select
         End If
 
@@ -131,12 +147,16 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     ' en algunos DXF el codigo 70 no esta
     If Not DimTypeSet Then e.ClassHandler = cadDIMENSION_LINEAR
 
+    clsEntities.setEntity(e)
+
+    ' tengo q presuponer que las escalas son = 1
+    e.fParam[Me.ipaEscX] = 1    ' esc X
+    e.fParam[Me.ipaEscY] = 1    ' esc Y
+    e.fParam[Me.ipaEscZ] = 1    ' esc Z
 
     Return e.ClassHandler.ImportDXF(e, sClaves, sValues)
 
-
-
-Catch
+    'Catch
 
     Return False
 

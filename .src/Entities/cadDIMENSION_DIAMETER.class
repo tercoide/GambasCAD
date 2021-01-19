@@ -76,35 +76,22 @@ Public Const sdaTotalParams As Integer = 2
 Public Const sdaText As Integer = 0
 Public Const sdaStyle As Integer = 1
 
-' Para mejor generalidad y para compatibilidad futura usaremos los P[] asi con los CODE del DXF
-' P[] = DXF CODE
-' 0 = 10
-' 1 = 20
-' 2 = 30    Definition points
-' 3 = 11
-' 4 = 12
-' ......
-' 20 = 36
+Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
 
-' 21 = 210
-' 22 = 220	Extrusion direction(Optional ; Default = 0, 0, 1)
-' 23 = 230
+    Dim i As Integer
 
-' fParam[] = DXF CODE
-' se usara asi
-' 0 =  70, Dimension type:  Values 0 - 6 are integer values that represent the dimension type.Values 32, 64, And 128 are bit values, which are added To the integer values(value 32 Is Always set In R13 And later releases)
-'       0 = Rotated; 1 = Aligned; 2 = Angular; 3 = Diameter; 4 = Radius; 5 = Angular3point; 6 = Ordinate
-'       32 = Indicates that the block reference(group code 2) Is Referenced by this dimension only
-'       64 = Ordinate type.This Is A bit value(bit 7)used only With integer value 6. If set, ordinate Is X - type; If Not set, ordinate Is Y - type
-'       128 = This Is A bit value(bit 8)added To the other group 70 values If the dimension text has been positioned at a user - defined location rather than at the Default location
-'
-' 1 =  71 Attachment point:
-'       1 = Top left ; 2 = Top center; 3 = Top right; 4 = Middle left; 5 = Middle center; 6 = Middle right; 7 = Bottom left; 8 = Bottom center; 9 = Bottom right
+    For i = 0 To sClaves.Max
 
-' 2 = DimScale
+    Next
 
-' The entity handler receives a user action, and returns the number of expected parameter
-' If definitive = true, means the parameter is set
+    Return True
+
+Catch
+
+    Return False
+
+End
+
 Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
 
     ' la linea solo recibe puntos
@@ -130,7 +117,6 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
 
     Endif
 
-
 End
 
 Public Sub Translate(e As Entity, dX As Float, dY As Float, Optional OnlySelected As Boolean = False)
@@ -153,7 +139,7 @@ End
 
 Public Sub Draw(Optional e As Entity)
 
-    cadInsert.Draw(e)
+    cadInsert.Draw(e, False)
 
 End
 
@@ -178,8 +164,6 @@ Public Sub ReBuildBlock(ELEM As Entity) As Block
 
     Dim newBlock As New Block
     Dim f1, f2 As New Float[]
-
-
 
     newBlock.entities = New Entity[]
 
@@ -219,14 +203,11 @@ Public Sub ReBuildBlock(ELEM As Entity) As Block
     elem.fParam[cadInsert.ipaEscY] = 1      ' ScaleY del inserto
     elem.fParam[cadInsert.ipaEscZ] = 1      ' ScaleY del inserto
 
-
     '  If stage = 0 Then     ' marco el primer punto
-
 
     '    Else If stage = 1 Then ' marco el segundo punto, lo que modifica los parametros del bloque
     elem.Visible = True
 
-
     ' el largo de la linea principal viene dado por la distancia entre ambos puntos
     d = puntos.distancia(elem.P[0], elem.P[1], elem.P[2], elem.P[3])
 
@@ -240,7 +221,6 @@ Public Sub ReBuildBlock(ELEM As Entity) As Block
     eLineaPpal.P[2] = d           ' X1
     eLineaPpal.P[3] = 0           ' Y1
 
-
     ' el largo de la linea principal viene dado por la distancia entre ambos puntos
     d = puntos.distancia(elem.P[0], elem.P[1], elem.P[2], elem.P[3])
 
@@ -253,7 +233,6 @@ Public Sub ReBuildBlock(ELEM As Entity) As Block
 
     eLineaPpal.P[2] = d           ' X1
     eLineaPpal.P[3] = 0           ' Y1
-
 
     ' el texto
     eText.StringData[cadMText.sdaText] = "D " & Format(d, Me.DimFormat)
@@ -262,7 +241,6 @@ Public Sub ReBuildBlock(ELEM As Entity) As Block
 
     ' la cuarta y quinta son las flechas , tengo que verificar si entran, o el texto
     If flxTextExt[2] * 1.1 > d Then                      ' no entra
-
 
         eOblique2.P[0] = 0           ' X0
         eOblique2.P[2] = -Me.DimArrowSize
@@ -286,14 +264,12 @@ Public Sub ReBuildBlock(ELEM As Entity) As Block
 
     End If
 
-
     ' linea principal
     eLineaPpal.P[1] = extension           ' Y0
     eLineaPpal.P[3] = extension           ' Y1
 
     ' texto
     eText.P[1] = Me.DimArrowWidth + extension
-
 
     eOblique2.P[1] = extension           ' X0
     eOblique2.P[3] = extension + Me.DimArrowWidth
@@ -302,7 +278,6 @@ Public Sub ReBuildBlock(ELEM As Entity) As Block
 
     ' End If
     Return newBlock
-
 
 End
 
@@ -347,7 +322,6 @@ End
 Public Function ImportJsonCol(c As Collection, e As Entity) As Boolean
 
     e.fParam.Resize(Me.TotalParams)
-
 
     ' "entity": "DIMENSION_DIAMETER",
     ' "index": 303,
@@ -428,7 +402,6 @@ Public Function ImportJsonCol(c As Collection, e As Entity) As Boolean
     e.P.Add(c["first_arc_pt"][0])
     e.P.Add(c["first_arc_pt"][1])
 
-
     ' "leader_len": 0.0,
     ' "dimstyle": [5, 1, 57, 57],
     ' "block": [5, 2, 4768, 4768]
@@ -441,13 +414,10 @@ Public Function ImportJsonCol(c As Collection, e As Entity) As Boolean
     e.Block = gcd.CurrDrawing.cmodel["BLOCKS"][c["block"][3]]["block_entity"][3]
     e.pBlock = ReBuildBlock(e)
 
-
     Return True
-
 
 Catch
 
     Return False
-
 
 End

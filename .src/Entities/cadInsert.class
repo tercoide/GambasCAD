@@ -54,6 +54,12 @@ Public Const ipaEscY As Integer = 1
 Public Const ipaEscZ As Integer = 2
 Public Const ipaRotacion As Integer = 3
 
+' special vars
+
+Public CurrLType As Integer
+Public CurrColor As Integer
+Public CurrLwt As Float
+
 Public Sub Translate(e As Entity, dX As Float, dY As Float, Optional OnlySelected As Boolean = False)
 
     Dim i As Integer
@@ -98,24 +104,42 @@ Public Sub Scale(e As Entity, sX As Float, sY As Float)
 
 End
 
-Public Sub Draw(oE As Entity)
+Public Sub Draw(oE As Entity, Optional Relative As Boolean = True)
 
     Dim ET As Entity, i As Integer
     Dim pBlockToDraw As Block
 
     If Not oe.Finished Then Return
 
-    gl.PushMatrix
-    gl.Translatef(fMain.pixels(oE.p[0]) / gcd.CurrDrawing.ScaleZoom, fMain.pixels(oE.p[1]) / gcd.CurrDrawing.ScaleZoom, 0)
-    gl.Rotatef(oE.fParam[Me.ipaRotacion], 0, 0, 1)
-    gl.Scalef(oE.fParam[Me.ipaEscX], oE.fParam[Me.ipaEscY], oE.fParam[Me.ipaEscZ])
+    ' gl.PushMatrix
+    ' If Relative Then gl.Translatef(fMain.pixels(oE.p[0]) / gcd.CurrDrawing.ScaleZoom, fMain.pixels(oE.p[1]) / gcd.CurrDrawing.ScaleZoom, 0)
+    ' gl.Rotatef(oE.fParam[Me.ipaRotacion], 0, 0, 1)
+    ' gl.Scalef(oE.fParam[Me.ipaEscX], oE.fParam[Me.ipaEscY], oE.fParam[Me.ipaEscZ])
+    If oe.pBlock Then Draw_List(oe.pBlock.entities, oe, Relative)
 
-    For Each ET In oe.pBlock 
+End
+
+Public Sub Draw_List(eList As Entity[], eParent As Entity, Optional Relative As Boolean = True)
+
+    Dim et As Entity
+
+    gl.PushMatrix
+    If Relative Then gl.Translatef(fMain.pixels(eParent.p[0]) / gcd.CurrDrawing.ScaleZoom, fMain.pixels(eParent.p[1]) / gcd.CurrDrawing.ScaleZoom, 0)
+    gl.Rotatef(eParent.fParam[Me.ipaRotacion], 0, 0, 1)
+    gl.Scalef(eParent.fParam[Me.ipaEscX], eParent.fParam[Me.ipaEscY], eParent.fParam[Me.ipaEscZ])
+
+    For Each ET In eList
         et.visible = True
-        et.LineType = oe.LineType
-        et.colour = oe.colour
-        et.LineWidth = oe.LineWidth
-        et.ClassHandler.Draw(et)
+        et.LineType = eParent.LineType
+        et.colour = eParent.colour
+        et.LineWidth = eParent.LineWidth
+
+        If et.Gender = "Insert" Then
+
+            Draw_List(et.pBlock.entities, et)
+        Else
+            et.ClassHandler.Draw(et)
+        End If
 
     Next
     gl.PopMatrix
@@ -257,9 +281,7 @@ End
 ' Importo los datos que puedo procesar de una coleccion y genero un Entity para ser agregado a un array
 Public Function ImportJsonCol(c As Collection, e As Entity) As Boolean
 
-
     e.fParam.Resize(Me.TotalParams)
-
 
     '    MANEJADO EN clsEntities
     '============================
@@ -283,7 +305,6 @@ Public Function ImportJsonCol(c As Collection, e As Entity) As Boolean
     '   "linewt": 30,
     '   "_subclass": "AcDbBlockReference",
 
-
     '   "ins_pt": [2897.47088581027083, 1635.43128744943124, 0.0],
     e.P.Add(c["ins_pt"][0])
     e.P.Add(c["ins_pt"][1])
@@ -303,7 +324,6 @@ Public Function ImportJsonCol(c As Collection, e As Entity) As Boolean
     e.Block = gcd.CurrDrawing.cModel["BLOCKS"][c["block_header"][3]]["name"]
 
     Return True
-
 
 Catch
 
@@ -379,7 +399,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
     For i = 0 To sClaves.Max
 
-        If sClaves[i] = "2" Then e.pBlock = clsEntities.FIndBlock(gcd.sValues[i])
+        If sClaves[i] = "2" Then e.pBlock = clsEntities.FIndBlock(sValues[i])
         If sClaves[i] = "10" Then e.P.Add(CFloat(sValues[i]))         ' X
         If sClaves[i] = "20" Then e.P.Add(CFloat(sValues[i]))         ' Y
         If sClaves[i] = "41" Then e.fParam[Me.ipaEscX] = CFloat(sValues[i])         ' esc X
@@ -389,8 +409,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     Next
     Return True
 
-
-Catch
+    'Catch
 
     Return False
 
