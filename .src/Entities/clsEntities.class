@@ -281,7 +281,42 @@ Public Sub glGenDrawListLAyers(Optional aLayer As Layer)
             gl.NewList(aLayer.glList, gl.COMPILE)
             For Each e In gcd.CurrDrawing.arrEntities
 
-                If e.pLayer = aLayer Then gl.CallList(e.glDrwList)
+                If e.pLayer = aLayer Then e.ClassHandler.Draw(e)
+
+            Next
+            gl.EndList
+
+        Next
+
+    Endif
+
+End
+
+'' Generates a GL list for the selected
+'' Mode: 0=Selected version 1=Normal version
+Public Sub glGenDrawListLAyers2(Optional aLayer As Layer)
+
+    Dim i As Integer
+    Dim e As Entity
+
+    If aLayer Then
+
+        If Not gl.islist(aLayer.glList) Then aLayer.glList = gl.GenLists(1)
+        gl.NewList(aLayer.glList, gl.COMPILE)
+        For Each e In gcd.CurrDrawing.arrEntities
+
+            If e.pLayer = aLayer Then gl.CallList(e.glDrwList)
+
+        Next
+        gl.EndList
+
+    Else
+
+        For Each aLayer In gcd.CurrDrawing.arrLayers
+            If Not gl.islist(aLayer.glList) Then aLayer.glList = gl.GenLists(1)
+            gl.NewList(aLayer.glList, gl.COMPILE)
+            For Each e In aLayer.Entities
+                e.ClassHandler.Draw(e)
 
             Next
             gl.EndList
@@ -844,6 +879,34 @@ Public Function SelectionSquare(X1real As Float, Y1real As Float, X2real As Floa
 
 End
 
+Public Function CollectVisibleEntities()
+
+    Dim x0, y0, x1, y1 As Float
+    Dim lay As Layer
+    Dim e As Entity
+    Dim i, tot As Integer
+
+    x0 = fMain.Xreal(0)
+    y1 = fMain.yreal(0)                     ' el eje Y esta invertido en OpenGL
+    x1 = fMain.Xreal(fMain.GLArea1.w)
+    y0 = fMain.yreal(fMain.GLArea1.h)
+
+    gcd.CurrDrawing.arrVisibleEntities.Clear
+    gcd.CurrDrawing.arrVisibleEntities.Resize(gcd.CurrDrawing.arrEntities.Count)
+    For i = 0 To gcd.CurrDrawing.arrEntities.Max
+        If gcd.CurrDrawing.arrEntities[i].pLayer.Visible Then
+
+            If SelPArtial(i, x0, y0, x1, y1) Then
+
+                gcd.CurrDrawing.arrVisibleEntities[tot] = i
+                Inc tot
+            End If
+        End If
+    Next
+    gcd.CurrDrawing.arrVisibleEntities.Resize(tot)
+
+End
+
 Public Function GetSelectionHandles(sHandles As String[]) As Integer
 
     Dim i As Integer
@@ -995,12 +1058,37 @@ Public Function ComputeLimits(Optional entities As Entity[], OnlyVisibles As Boo
     Dim e As Entity, i As Integer
     Dim entGroup As Entity[]
     Dim Xmenor As Float = 1e10, Ymenor As Float = 1e10, Xmayor As Float = -1e10, Ymayor As Float = -1e10
+    Dim newLimits As New Float[]
 
     If Not entities Then entGroup = gcd.CurrDrawing.arrEntities Else entGroup = Entities
 
     For Each e In entGroup
 
         If (OnlyVisibles And e.Visible) Or Not OnlyVisibles Then
+
+            If e.Gender = "Insert" Then
+
+                newLimits = ComputeLimits(e.pBlock.entities)
+                puntos.Translate(newLimits, e.P[0], e.P[1])
+                puntos.Rotate(newLimits, e.fParam[cadInsert.ipaRotacion]) ' TODO: verificar orden de esta y la siguiente linea
+                puntos.Scale(newLimits, e.fParam[cadInsert.ipaEscX], e.fParam[cadInsert.ipaEscY])
+                If Xmenor > newLimits[0] Then Xmenor = newLimits[0]
+                If ymenor > newLimits[1] Then ymenor = newLimits[01]
+                If Xmayor > newLimits[2] Then Xmayor = newLimits[2]
+                If Ymayor > newLimits[3] Then Ymayor = newLimits[3]
+            End If
+
+            If e.Gender Like "DIM*" Then
+
+                newLimits = ComputeLimits(e.pBlock.entities)
+                'puntos.Translate(newLimits, e.P[0], e.P[1])
+                'puntos.Rotate(newLimits, e.fParam[cadInsert.ipaRotacion]) ' TODO: verificar orden de esta y la siguiente linea
+                'puntos.Scale(newLimits, e.fParam[cadInsert.ipaEscX], e.fParam[cadInsert.ipaEscY])
+                If Xmenor > newLimits[0] Then Xmenor = newLimits[0]
+                If ymenor > newLimits[1] Then ymenor = newLimits[01]
+                If Xmayor > newLimits[2] Then Xmayor = newLimits[2]
+                If Ymayor > newLimits[3] Then Ymayor = newLimits[3]
+            End If
 
             If e.Polygon.Count > 0 Then
 
@@ -1031,7 +1119,7 @@ Public Function ComputeLimits(Optional entities As Entity[], OnlyVisibles As Boo
                 Next
             End If
         End If
-        'End If
+
     Next
 
     Return [Xmenor, Ymenor, Xmayor, Ymayor]
@@ -1083,32 +1171,32 @@ End
 ' '' Determines if the entity
 ' '' by default, if ANY point is selected, it can.
 
-Public Function SelPartial(i As Integer, X1real As Float, Y1real As Float, X2real As Float, Y2real As Float) As Boolean
+Fast Unsafe Public Function SelPartial(i As Integer, X1real As Float, Y1real As Float, X2real As Float, Y2real As Float) As Boolean
 
-    Dim ii As Integer, puedo As Boolean = False
+Dim ii As Integer, puedo As Boolean = False
 
-    Select Case gcd.CurrDrawing.arrEntities[i].Gender
+Select Case gcd.CurrDrawing.arrEntities[i].Gender
 
-        Case Else
+    Case Else
 
-            ' Si tengo un bounding poligon, entonces verifico que alguna linea lo cruce
-            puedo = puntos.IsPoligonCrossingRect(gcd.CurrDrawing.arrEntities[i].Polygon, X1real, Y1real, X2real, Y2real)
+        ' Si tengo un bounding poligon, entonces verifico que alguna linea lo cruce
+        puedo = puntos.IsPoligonCrossingRect(gcd.CurrDrawing.arrEntities[i].Polygon, X1real, Y1real, X2real, Y2real)
 
-            For Ii = 0 To gcd.CurrDrawing.arrEntities[i].p.max Step 2
-                If (gcd.CurrDrawing.arrEntities[i].p[iI] >= X1real And gcd.CurrDrawing.arrEntities[i].p[Ii] <= X2real) And (gcd.CurrDrawing.arrEntities[i].p[iI + 1] >= Y1real And gcd.CurrDrawing.arrEntities[i].p[iI + 1] <= Y2real) Then
-                    gcd.CurrDrawing.arrEntities[i].PSel[iI / 2] = True
-                    puedo = True
-                End If
-            Next
-
-            If puedo Then
-
-                Return True
-            Else
-                Return False
+        For Ii = 0 To gcd.CurrDrawing.arrEntities[i].p.max Step 2
+            If (gcd.CurrDrawing.arrEntities[i].p[iI] >= X1real And gcd.CurrDrawing.arrEntities[i].p[Ii] <= X2real) And (gcd.CurrDrawing.arrEntities[i].p[iI + 1] >= Y1real And gcd.CurrDrawing.arrEntities[i].p[iI + 1] <= Y2real) Then
+                gcd.CurrDrawing.arrEntities[i].PSel[iI / 2] = True
+                puedo = True
             End If
+        Next
 
-    End Select
+        If puedo Then
+
+            Return True
+        Else
+            Return False
+        End If
+
+End Select
 
 End
 

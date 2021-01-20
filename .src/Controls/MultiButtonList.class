@@ -10,10 +10,11 @@ Public Const _DefaultSize As String = "32,32"
 Public Const _Similar As String = "ToolButton"
 Public Const _Group As String = "Form" 'postapase
 Public Const _IsControl As Boolean = True 'postapase
-Public Const _DrawWith As String = "ToolButton" ' tincho
+Public Const _DrawWith As String = "GridView" ' tincho
 
 Event Click
 
+Property BtnPerRow As Integer
 Property DefaultButton As Integer
 Property KeepLast As Boolean
 Property ListDirection As Integer   ' 0=vertical 1=horiz 2=square grid
@@ -38,7 +39,17 @@ Private hObs As Observer
 Private H0 As Integer
 Private W0 As Integer
 
-Public tbnChilds As New ToolButton[]
+Public Struct StructButtonConfig
+    IsToggle As Boolean
+    KeepOpen As Boolean
+    FixWidth As Integer
+    DarkIconOff As Boolean
+
+End Struct
+
+Public ButtonConfig As New StructButtonConfig[]
+
+Public ButtonChilds As New ToolButton[]
 Private Toggle As ToggleButton
 
 Private LastButton As Integer     ' the last button pressed
@@ -55,8 +66,8 @@ Public Sub _new()
 
     hToggle = New ToggleButton(Me) As "tog"
 
-    ' hForm.Background = Color.Red
-    'hForm.Ignore = True     ' evitamos q fMain lo acomode
+    '   hForm.Background = Color.Red
+    '   hForm.Ignore = True     ' evitamos q fMain lo acomode
     'hForm.Visible = False    ' no es el momento de mostrarlo
     ' hForm.AutoResize = True
     Me.Proxy = hForm
@@ -71,7 +82,7 @@ Public Sub buttons_click()
     ' el triang inf derecho despliega mas botones
 
     Me.Action = Last.Action
-    'Debug "Last action", tbnChilds.Last.action, "from", tbnChilds.Last.Name
+    'Debug "Last action", ButtonChilds.Last.action, "from", ButtonChilds.Last.Name
     Toggle.Picture = Last.Picture
     Toggle.Action = Last.Action
     Toggle.Tooltip = Last.tooltip
@@ -82,17 +93,18 @@ End
 
 Public Sub Clear()
 
-    tbnChilds.Clear
+    ButtonChilds.Clear
     Toggle.Delete
 
 End
+'' Add buttons per row until all row are filled, then next row
 
 Public Function AddToolButton(sName As String, Optional sText As String = "", hPicture As Picture, sAction As String = "") As ToolButton
 
     Dim newTBN As New ToolButton(hForm) As "buttons"
 
     ' vemos si hace falta inicializar
-    If tbnChilds.Count = 0 Then
+    If ButtonChilds.Count = 0 Then
         Toggle = New ToggleButton(Me) As "tb"
 
         h0 = Me.H
@@ -105,7 +117,7 @@ Public Function AddToolButton(sName As String, Optional sText As String = "", hP
         Toggle.Proxy = hForm
 
         '
-        'tbnChilds.Add(Toggle)
+        'ButtonChilds.Add(Toggle)
         Toggle.Picture = hPicture
 
         hObs = New Observer(Toggle)
@@ -121,25 +133,25 @@ Public Function AddToolButton(sName As String, Optional sText As String = "", hP
     newTBN.Picture = hPicture
     newTBN.Refresh
 
-    tbnChilds.Add(newTBN)
+    ButtonChilds.Add(newTBN)
 
     ' con cada boton agregado, aumento el tamano del form padre
 
     Select Case $ListDirection
         Case 0 ' se despliega hacia abajo
             ' cambio el tamanio del formulario
-            hForm.Height = tbnChilds.Count * Me.H
+            hForm.Height = ButtonChilds.Count * Me.H
             hForm.Width = Me.W
             ' ubico el boton
-            newTBN.Top = tbnChilds.Max * Me.H
+            newTBN.Top = ButtonChilds.Max * Me.H
             newTBN.Left = 0
 
         Case 1 ' se despliega hacia la derecha
             hForm.Height = Me.Height
-            hForm.Width = Me.w * tbnChilds.Count
+            hForm.Width = Me.w * ButtonChilds.Count
             ' ubico el boton
             newTBN.Top = 0
-            newTBN.Left = tbnChilds.Max * Me.w
+            newTBN.Left = ButtonChilds.Max * Me.w
 
     End Select
 
@@ -189,14 +201,14 @@ Public Sub tb_Click()
         '     ' cambio el tamanio del formulario
         '
         '     Me.Width = w0
-        '     Me.H = Me.W * (tbnChilds.Count + 1) * Me.H
+        '     Me.H = Me.W * (ButtonChilds.Count + 1) * Me.H
         '
         '
         '
         '
         '   Case 1 ' se despliega hacia la derecha
         '     Me.Height = h0
-        '     Me.Width = Me.h * (tbnChilds.Count + 1)
+        '     Me.Width = Me.h * (ButtonChilds.Count + 1)
         '
         ' End Select
         hForm.Show()
@@ -340,5 +352,13 @@ End
 Public Sub da_Deactivate()
 
     Toggle.value = 0
+
+End
+
+Private Function BtnPerRow_Read() As Integer
+
+End
+
+Private Sub BtnPerRow_Write(Value As Integer)
 
 End

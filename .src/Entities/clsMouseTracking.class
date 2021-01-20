@@ -1,10 +1,10 @@
 ' Gambas class file
 
 Create Static
+Create Private
 'Fast Unsafe
 
 ' poi
-
 
 Public Function PoiTotalPoints() As Integer
 
@@ -150,7 +150,7 @@ End
 Public Function CheckAboveEntity(xr As Float, Yr As Float, tolerance As Float) As Integer
 
     Dim rData As New Float[], angle, angle2 As Float
-    Dim e, i, breathe, iPoligon, iLine, iPoint As Integer
+    Dim e, i, iVisible, breathe, iPoligon, iLine, iPoint As Integer
     Dim Found As Boolean = True
     Dim major, minor, la As Float
     Dim x, y, theta, angle_increment As Float
@@ -158,8 +158,13 @@ Public Function CheckAboveEntity(xr As Float, Yr As Float, tolerance As Float) A
     Dim T As Float = Timer
 
     fMain.flgSearchingEntity = True
-    For e = 0 To gcd.CurrDrawing.arrEntities.Max      ' for each es 10 veces mas lento que recorrer el array
-        If Not gcd.CurrDrawing.arrEntities[e].pLayer.Visible Then Continue
+    For iVisible = 0 To gcd.CurrDrawing.arrVisibleEntities.Max      ' for each es 10 veces mas lento que recorrer el array
+        e = gcd.CurrDrawing.arrVisibleEntities[iVisible]
+        If iVisible = 1000 Then                 ' limito la busqueda a 1000 entidades
+            iVisible = gcd.CurrDrawing.arrVisibleEntities.Count
+            Break
+        End If
+        'If Not gcd.CurrDrawing.arrEntities[e].pLayer.Visible Then Continue
         ' En el caso que la entidad sea la que estoy editando desde los grips, tengo que evitarla
 
         If e = clsDefaultJob.iEntityForEdit Then Continue
@@ -248,7 +253,7 @@ Public Function CheckAboveEntity(xr As Float, Yr As Float, tolerance As Float) A
 
                 If puntos.Around(xr, yr, gcd.CurrDrawing.arrEntities[e].P[0], gcd.CurrDrawing.arrEntities[e].P[1], tolerance) Then Break
 
-            Case "Solid", "Text", "MText"
+            Case "Solid", "Text", "MText", "Insert"
 
                 ' Text, MText, Solid y otros
                 If puntos.isInside(gcd.CurrDrawing.arrEntities[e].Polygon, xr, yr) Then Break
@@ -259,7 +264,7 @@ Public Function CheckAboveEntity(xr As Float, Yr As Float, tolerance As Float) A
 
         End Select
 
-        modUtils.DoEvents(0.25000)
+        modUtils.DoEvents(0.05000)
 
     Next
 
@@ -267,7 +272,7 @@ ExitSearch:
 
     fMain.flgSearchingEntity = False
     ' Debug "Above entity en ", Timer - t
-    If e = gcd.CurrDrawing.arrEntities.Count Then
+    If iVisible = gcd.CurrDrawing.arrVisibleEntities.Count Then
 
         Return -1
     Else
@@ -381,7 +386,6 @@ Public Sub CheckPOI(xr As Float, Yr As Float) As Float[]
                         puntoB.Add(gcd.CurrDrawing.LastPoint[1])
 
                     End If
-
 
                     ' veo si el punto b esta entre los extremos de la linea , aunque deberia estarlo!!!
                     If puntos.onSegment(e.P[0], e.P[1], puntoB[0], puntoB[1], e.P[2], e.P[3]) Then

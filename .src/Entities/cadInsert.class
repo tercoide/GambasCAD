@@ -221,11 +221,20 @@ Public Function BuildPOI(oE As Entity, Optional arrIndex As Integer = -1) As Int
 
     oe.PoiPoints.Clear
     oe.PoiType.Clear
+    oe.Polygon.Clear
 
     ' points
     oe.poiPoints.insert([oE.p[0], oE.p[1]])
     oe.poiType.Add(gcd.poiBasePoint)
     'oe.poiEntities.Add(arrIndex)
+
+    ' polygon
+    Dim fLimits As Float[]
+    fLimits = clsEntities.ComputeLimits(oe.pBlock.entities)
+    oe.Polygon.Insert([fLimits[0], fLimits[1], fLimits[2], fLimits[1], fLimits[2], fLimits[3], fLimits[0], fLimits[3]])
+    puntos.Scale(oe.Polygon, oe.fParam[cadInsert.ipaEscX], oe.fParam[cadInsert.ipaEscY])
+    puntos.Rotate(oe.Polygon, oe.fParam[cadInsert.ipaRotacion]) ' TODO: verificar orden de esta y la siguiente linea
+    puntos.Translate(oe.Polygon, oe.P[0], oe.P[1])
 
 End
 
@@ -407,6 +416,10 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
         If sClaves[i] = "43" Then e.fParam[Me.ipaEscZ] = CFloat(sValues[i])         ' esc Z
         If sClaves[i] = "50" Then e.fParam[Me.ipaRotacion] = CFloat(sValues[i])      ' rotacion
     Next
+
+    If e.fParam[Me.ipaEscZ] = 0 Then e.fParam[Me.ipaEscZ] = 1    ' esc Z
+    ' esc Z
+
     Return True
 
     'Catch

@@ -3,9 +3,7 @@
 '------------------------------------------------------------------------------
 
 'Variables del formulario
-'Public CurrDrawing As FCAD                '' CAD Editor
 
-Public CurrentForm As Form
 Public CurrentFile As String
 
 Public CursorX As Integer
@@ -13,22 +11,6 @@ Public CursorY As Integer
 
 Public KeysAccumulator As String
 Public TmrTicks As Integer
-
-Public SelectingColor As Boolean    '' Selecting Color
-Public CurrentColor As Integer
-Public imgColor As Image
-
-Public SelectingLayer As Boolean    '' Selecting Layer
-Public CurrentLayer As String = "0"
-
-Public SelectingLtype As Boolean    '' Selecting Linetype
-Public CurrentLtype As Integer
-
-Public SelectingWidth As Boolean    '' Selecting width
-Public CurrentWidth As Integer
-
-Public EditingText As Boolean       '' Editing Text value
-Public CurrentText As String
 
 'Public SelectedWidth As Boolean
 
@@ -41,6 +23,8 @@ Public flgShowInspector As Boolean = True
 Public flgSearchingEntity As Boolean = False  ' impide cuellos de botellla
 Public flgSearchingPOI As Boolean
 
+Public flgNewPosition As Boolean
+
 Public Sub Run() As Boolean
 
     ' acomodo el tamanio de los controles
@@ -49,6 +33,7 @@ Public Sub Run() As Boolean
     Me.tblLTypes.w = 128
     Me.mbtColors.w = 128
     Me.mbtLayers.w = 128
+    Me.cmbDimStyle.w = 128
 
     tblLines.AddToolButton("tblLine",, Picture.Load(main.Params["Dirs/PNG", Application.Path &/ "png/48x48"] &/ "line.png"), "cadLine")
     tblLines.AddToolButton("tblLWPolyline",, Picture.Load(main.Params["Dirs/PNG", Application.Path &/ "png/48x48"] &/ "hexagon.png"), "cadlwpolyline")
@@ -365,7 +350,7 @@ Public Sub GLArea1_draw()
         If gcd.CurrDrawing.arrLayers[i].Visible Then gl.CallList(gcd.CurrDrawing.arrLayers[i].glList)
     Next
 
-    'gl.CallList(gcd.CurrDrawing.GlListAllEntities)                      ' si GL no tiene contexto, la lista no se genera. Es necesario que la instancia de FCAD este cargada.
+    'gl.CallList(gcd.CurrDrawing.GlListAllEntities)
 
     ' POI dinamicos
     If gcd.CurrDrawing.flgShowPOIinfo Then
@@ -480,10 +465,7 @@ Public Sub GLArea1_DblClick()
 
                 Select e.Gender
                     Case "Text"
-                        If EditingText = False Then
 
-                            EditingText = False
-                        Endif
                 End Select
             Endif
             '======================= otra Tool
@@ -496,15 +478,16 @@ End
 Public Sub GLArea1_MouseMove()
 
     'Debug "Pan", gcd.CurrDrawing.PanX, gcd.CurrDrawing.Pany
+    Debug "MouseMove event", Rnd(0, 1000)
     CursorX = mouse.x
     CursorY = mouse.y
-    Me.flgSearchingEntity = True ' FIXME: poner en false despues de reparar
-    Me.flgSearchingPOI = True
+    'Me.flgSearchingEntity = True ' FIXME: poner en false despues de reparar
+    'Me.flgSearchingPOI = True
 
     Select gcd.clsJob.gender
 
         Case "Default"                                                  ' 1. Seleccionando
-
+            gcd.clsJob.MouseMove(mouse.x, mouse.y) ' dispatch event to the Job
             If gcd.clsJob.poichecking Then
                 If gcd.clsJob.iEntityForEdit < 0 Then
                     If Not Me.flgSearchingEntity Then
@@ -531,9 +514,8 @@ Public Sub GLArea1_MouseMove()
                     End If
                 End If
             End If
-            gcd.clsJob.MouseMove(mouse.x, mouse.y) ' dispatch event to the Job
 
-            If gcd.ShowInspector Then
+            If flgShowInspector Then
 
                 If gcd.CurrDrawing.iEntity[3] >= 0 Then
 
@@ -681,6 +663,10 @@ Public Sub GLArea1_MouseWheel()
     gcd.CurrDrawing.PanX += pixels(dx - px)
     gcd.CurrDrawing.PanY += pixels(dy - py)
 
+    clsEntities.CollectVisibleEntities
+
+    Debug "Mouse weel", Rnd(0, 1000)
+
     redraw
 
 End
@@ -694,6 +680,7 @@ End
 '' Regenera las listas de OpenGL
 Public Sub Regen()
 
+    'clsEntities.glGenDrawListLAyers2
     clsEntities.glGenDrawList
     clsEntities.glGenDrawListSel
     redraw
@@ -956,5 +943,12 @@ Public Sub lblCommand_KeyPress()
     KeysAccumulator &= Key.Text
 
     lblCommand.Text = ""
+
+End
+
+Public Sub tbLayerForm_Click()
+
+    fLayersOnScreen.Move(tbLayerForm.ScreenX, tbLayerForm.ScreenY + tbLayerForm.h)
+    fLayersOnScreen.Show()
 
 End
