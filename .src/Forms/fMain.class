@@ -23,7 +23,69 @@ Public flgShowInspector As Boolean = False
 Public flgSearchingEntity As Boolean = False  ' impide cuellos de botellla
 Public flgSearchingPOI As Boolean
 
-Public flgNewPosition As Boolean
+Public flgNewPosition As Boolean        ' seteada cuando hay un cambio en pan o zoom
+
+
+
+Public flgWheelCounter As Integer
+
+Public $hDrawTimer As New Timer As "DrawTimer"
+
+Public Sub DrawTimer_Timer()
+
+    Dim dx As Single, dy As Single
+    Dim EjeX As Single, ejeY As Single, ejeZ As Single
+
+    ' If mouDown Then
+    '     If paneando Then
+    '
+    '         With modGraphics
+    '             'ademas intento un zoom dinamico, si el mouse esta lejos del centro, atrae los graficos hacia el
+    '             GLCam.StrafeRight((mouDownX - MouseX) * 0.001 * modgraphics.maxmax)
+    '             GLCam.MoveUpward(-(mouDownY - Mousey) * 0.001 * modgraphics.maxmax)
+    '             'Debug .pan.x, .pan.y, .escala
+    '         End With
+    '     Else If rotando Then
+    '
+    '         'veo para donde mueve el mouse con respenco a la posicion 2D del CG
+    '
+    '         dy = -(mouDownX - MouseX) * 0.075 '* mouDownXCG
+    '         dx = -(mouDownY - MouseY) * 0.075 '* mouDownYCG
+    '
+    '         ' con esto la rotacion se hace de un eje a la vez
+    '         If Abs(dy) > Abs(dx) Then
+    '
+    '             GLCam.RotateY(dy)
+    '
+    '         Else
+    '
+    '             GLCam.RotateX(dx)
+    '
+    '         End If
+    '
+    '     End If
+    '
+    '     'modGraphics.dibujar_estructura3D
+    '
+    '     mouDownX = Mouse.x
+    '     mouDownY = Mouse.y
+    '
+    ' Else If mouWheel Then
+    '
+    '     GLCam.moveforward(mouDelta * modgraphics.maxmax / 20)
+    '
+    '     mouDelta = 0
+    '     mouWheel = False
+    '
+    ' End If
+
+    glarea1.Refresh
+    If flgNewPosition Then
+        clsEntities.CollectVisibleEntities
+        flgNewPosition = False
+    End If
+
+End Sub
 
 Public Sub Run() As Boolean
 
@@ -478,7 +540,7 @@ End
 Public Sub GLArea1_MouseMove()
 
     'Debug "Pan", gcd.CurrDrawing.PanX, gcd.CurrDrawing.Pany
-    Debug "MouseMove event", Rnd(0, 1000)
+    'Debug "MouseMove event", Rnd(0, 1000)
     CursorX = mouse.x
     CursorY = mouse.y
     'Me.flgSearchingEntity = True ' FIXME: poner en false despues de reparar
@@ -640,6 +702,8 @@ Public Sub GLArea1_MouseWheel()
 
     Dim px, py, dx, dy, factor As Float
     ' chequeamos si vale la pena seguir dibujando la grid, o sea, menos de 3 pixels
+    Inc flgWheelCounter
+    Debug "Mouse weel", flgWheelCounter
 
     If Pixels(puntos.GridSpacing) < 5 Then puntos.Gridactive = False Else puntos.Gridactive = True
 
@@ -663,17 +727,21 @@ Public Sub GLArea1_MouseWheel()
     gcd.CurrDrawing.PanX += pixels(dx - px)
     gcd.CurrDrawing.PanY += pixels(dy - py)
 
-    clsEntities.CollectVisibleEntities
 
-    Debug "Mouse weel", Rnd(0, 1000)
+    flgNewPosition = True
 
-    redraw
+    redraw 'glarea1.Refresh
+
+    ' despues de actualizar la pantalla, recolectamos las entidades visibles
+
+    Dec flgWheelCounter
 
 End
 
 Public Sub redraw()
 
-    glarea1.Refresh
+    $hDrawTimer.Trigger
+    Wait 0.001
 
 End
 
@@ -956,5 +1024,8 @@ End
 Public Sub tbnOrtho4_Click()
 
     Me.flgShowInspector = tbnOrtho4.Value
+    If Me.flgShowInspector = False Then
+        Try fInspector.Close
+    Endif
 
 End
