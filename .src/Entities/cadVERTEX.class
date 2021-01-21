@@ -22,9 +22,9 @@
 Create Static
 'Fast
 
-Public Const Gender As String = "Point"
+Public Const Gender As String = "Vertex"
 Public Const DrawingOrder As Integer = 1        ' 1 = draws first
-Public Const HelperTrabajo As String = ("a point")
+Public Const HelperTrabajo As String = ("a 3D point")
 Public Const ParamType As String = "P"                             ' that is Point, Point; could be Color Text, etc
 Public Const ParamHelper As String = "Point"
 Public Const GAMBASCADENTITY As String = "EntityBase"
@@ -47,6 +47,19 @@ Public Const JSON_Export As Boolean = False
 
 Public Const DXF_Reading As Boolean = True
 Public Const DXF_Export As Boolean = True
+
+' fParam helpers
+Public Const TotalParams As Integer = 10
+Public Const ipaWidthStart40 As Integer = 0
+Public Const ipaWidthEnd41 As Integer = 1
+Public Const ipaBulge42 As Integer = 2
+Public Const ipaFlags70 As Integer = 3
+Public Const ipaCurveDiection50 As Integer = 4
+Public Const ipaMeshIndex1_71 As Integer = 5
+Public Const ipaMeshIndex2_72 As Integer = 6
+Public Const ipaMeshIndex3_73 As Integer = 7
+Public Const ipaMeshIndex4_74 As Integer = 8
+Public Const ipaIdentifier91 As Integer = 9
 
 ' The entity handler receives a user action, and returns the number of expected parameter
 ' If definitive = true, means the parameter is set
@@ -86,8 +99,6 @@ Public Sub Translate(e As Entity, dX As Float, dY As Float, Optional OnlySelecte
 End
 
 Public Sub Rotate(e As Entity, radians As Float)
-
-    puntos.Rotate(e.p, radians)
 
 End
 
@@ -151,15 +162,7 @@ End
 ' True means all is good, False will instruct the clsEntityBuilder to delete it
 Public Sub Finish(oE As Entity) As Boolean
 
-    'Print "Finish en EntityBase"
-    'CreatePolygon(oe)
-    If oe.fParam.Count = 0 Then oe.fParam.Add(0)
-
     '  BuildPOI(oe)
-
-    ' busco el tipo de linea, si hace falta
-    If oE.LineTypeName = "Dashed" Then oE.LineType = 1
-    ' tareas finales de armado del objeto
 
     oE.psel.resize(oE.p.count / 2)
 
@@ -171,35 +174,13 @@ End
 
 Public Sub ExportDXFCol(e As Entity, ByRef cExport As Collection) As Boolean
 
-    cExport.Add("POINT", dxf.codEntity)
+    cExport.Add("VERTEX", dxf.codEntity)
     clsEntities.DXFExportCommonCol(e, cExport)
     cExport.Add("AcDbPoint", "100")
     cExport.Add(CStr(e.p[0]), dxf.codX0)
     cExport.Add(CStr(e.p[1]), dxf.codY0)
     cExport.Add("0", DXF.codZ0)
     cExport.Add(CStr(e.fParam[0]), "39")
-
-End
-
-Public Sub ExportDXF(e As Entity, hFile As File)
-
-    Print #hFIle, "  0"                       ' Entity type
-    Print #hFIle, "POINT"
-    clsEntities.DXFExportCommon(e, hFile)
-    Print #hFIle, "100"                     ' Subclass marker
-    Print #hFIle, "AcDbPoint"
-    Print #hFIle, " 10"                      ' X0
-    Print #hFIle, CStr(e.p[0])
-    Print #hFIle, " 20"                      ' Y0
-    Print #hFIle, CStr(e.p[1])
-    Print #hFIle, " 30"                      ' Z0
-    Print #hFIle, "0" 'CStr(e.p[2])
-    Print #hFIle, " 39"                      ' Thickness
-    If e.fParam.Count > 0 Then
-        Print #hFIle, CStr(e.fParam[0])
-    Else
-        Print #hFIle, "0"
-    End If
 
 End
 
@@ -220,14 +201,61 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
     Dim i As Integer
 
+    clsEntities.setEntity(e)
     For i = 0 To sClaves.Max
 
         If sClaves[i] = "10" Then e.P.Add(CFloat(sValues[i]))
         If sClaves[i] = "20" Then e.P.Add(CFloat(sValues[i]))
-        'If sClaves[i] = "30" Then e.P.Add(CFloat(sValues[i]))
-        If sClaves[i] = "39" Then e.fParam.Add(CFloat(sValues[i]))
+        If sClaves[i] = "30" Then e.P.Add(CFloat(sValues[i]))
+
+        ' 40 Starting width(Optional ; Default Is 0)
+        If sClaves[i] = "40" Then e.fParam.Add(CFloat(sValues[Me.ipaWidthStart40]))
+
+        ' 41 Ending width(Optional ; Default Is 0)
+        If sClaves[i] = "41" Then e.fParam[Me.ipaWidthEnd41] = CFloat(sValues[i])
+
+        ' 42 Bulge(Optional ; Default Is 0).The bulge Is The tangent Of one fourth the included angle For an arc segment, made negative If the arc goes clockwise From the start point To the endpoint.A bulge Of 0 indicates a straight segment, And a bulge Of 1 Is A semicircle
+
+        If sClaves[i] = "42" Then e.fParam[Me.ipaBulge42] = CFloat(sValues[i])
+
+        ' 70 Vertex flags:
+
+        ' 1 = Extra vertex created by curve - fitting
+        '
+        ' 2 = Curve - fit tangent defined For this vertex.A curve - fit tangent direction Of 0 may be omitted From DXF Output but Is Significant If this bit Is Set
+        '
+        ' 4 = Not used
+        '
+        ' 8 = Spline vertex created by spline - fitting
+        '
+        ' 16 = Spline frame control point
+        '
+        ' 32 = 3 D polyline vertex
+        '
+        ' 64 = 3 D polygon mesh
+        '
+        ' 128 = Polyface mesh vertex
+        If sClaves[i] = "70" Then e.fParam[Me.ipaFlags70] = CFloat(sValues[i])
+
+        ' 50 Curve fit tangent direction
+
+        If sClaves[i] = "50" Then e.fParam[Me.ipaCurveDiection50] = CFloat(sValues[i])
+
+        ' 71 Polyface mesh vertex index(Optional ; present only If nonzero)
+        If sClaves[i] = "71" Then e.fParam[Me.ipaMeshIndex1_71] = CFloat(sValues[i])
+
+        ' 72 Polyface mesh vertex index(Optional ; present only If nonzero)
+        If sClaves[i] = "72" Then e.fParam[Me.ipaMeshIndex2_72] = CFloat(sValues[i])
+        ' 73 Polyface mesh vertex index(Optional ; present only If nonzero)
+        If sClaves[i] = "73" Then e.fParam[Me.ipaMeshIndex1_73] = CFloat(sValues[i])        ' 74 Polyface mesh vertex index(Optional ; present only If nonzero)
+        If sClaves[i] = "74" Then e.fParam[Me.ipaMeshIndex1_74] = CFloat(sValues[i])
+        ' 91 Vertex identifier
+        If sClaves[i] = "91" Then e.fParam[Me.ipaIdentifier91] = CFloat(sValues[i])
 
     Next
+
+    If e.P.Count = 2 Then e.P.Add(0)            ' ensures a 3D point
+
     Return True
 
     ' catch

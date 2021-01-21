@@ -57,8 +57,8 @@ End
 
 Public Sub setEntity(e As Entity)
 
-    e.fParam.Resize(e.ClassHandler.TotalParams)
-    e.StringData.Resize(e.ClassHandler.sdaTotalParams) ' text, style
+    Try e.fParam.Resize(e.ClassHandler.TotalParams)
+    Try e.StringData.Resize(e.ClassHandler.sdaTotalParams) ' text, style
 
 End
 
@@ -517,6 +517,7 @@ End Function
 Public Function DeleteSelected() As Integer
 
     Dim i As Integer, c As Integer
+    Dim lay As Layer
 
     '  Purgue will also delete those with .ForDeletion = true
 
@@ -528,6 +529,16 @@ Public Function DeleteSelected() As Integer
         End If
 
     Next
+
+    '   we also need to regenerate the drawing list
+    For Each lay In gcd.CurrDrawing.arrLayers
+        If lay.Visible Then glGenDrawListLayers(lay)
+    Next
+
+    ' we also need too recalculate visible items
+    Me.CollectVisibleEntities()
+
+    ' TODO: put something in UNDO collection
 
     Return c
 
@@ -879,6 +890,7 @@ Public Function SelectionSquare(X1real As Float, Y1real As Float, X2real As Floa
 
 End
 
+'' Put all visible entity refs in arrVisibleEntities[]
 Public Function CollectVisibleEntities()
 
     Dim x0, y0, x1, y1 As Float
@@ -1066,7 +1078,6 @@ Public Sub BuildPoi(Optional entities As Entity[], OnlyVisibles As Boolean = Tru
         End If
     Next
 
-
 End
 'Return bound limits for all verices in the array of entities
 
@@ -1091,8 +1102,6 @@ Public Function ComputeLimits(Optional entities As Entity[], OnlyVisibles As Boo
             End If
 
         Endif
-
-
 
         If IsVisible Then
 
@@ -1182,6 +1191,7 @@ Public Function SelFull(i As Integer, X1real As Float, Y1real As Float, X2real A
 
                 puedo = True                     ' supongamos que puedo, por ahora
                 For ii = 0 To gcd.CurrDrawing.arrEntities[i].p.max Step 2
+                    If ii + 1 > gcd.CurrDrawing.arrEntities[i].p.max Then Break
                     If Not (gcd.CurrDrawing.arrEntities[i].p[ii] >= X1real And gcd.CurrDrawing.arrEntities[i].p[ii] <= X2real) And (gcd.CurrDrawing.arrEntities[i].p[ii + 1] >= Y1real And gcd.CurrDrawing.arrEntities[i].p[ii + 1] <= Y2real) Then
                         puedo = False
                     End If
@@ -1208,32 +1218,33 @@ End
 ' '' Determines if the entity
 ' '' by default, if ANY point is selected, it can.
 
-Fast Unsafe Public Function SelPartial(i As Integer, X1real As Float, Y1real As Float, X2real As Float, Y2real As Float) As Boolean
+Public Function SelPartial(i As Integer, X1real As Float, Y1real As Float, X2real As Float, Y2real As Float) As Boolean
 
-Dim ii As Integer, puedo As Boolean = False
+    Dim ii As Integer, puedo As Boolean = False
 
-Select Case gcd.CurrDrawing.arrEntities[i].Gender
+    Select Case gcd.CurrDrawing.arrEntities[i].Gender
 
-    Case Else
+        Case Else
 
-        ' Si tengo un bounding poligon, entonces verifico que alguna linea lo cruce
-        puedo = puntos.IsPoligonCrossingRect(gcd.CurrDrawing.arrEntities[i].Polygon, X1real, Y1real, X2real, Y2real)
+            ' Si tengo un bounding poligon, entonces verifico que alguna linea lo cruce
+            puedo = puntos.IsPoligonCrossingRect(gcd.CurrDrawing.arrEntities[i].Polygon, X1real, Y1real, X2real, Y2real)
 
-        For Ii = 0 To gcd.CurrDrawing.arrEntities[i].p.max Step 2
-            If (gcd.CurrDrawing.arrEntities[i].p[iI] >= X1real And gcd.CurrDrawing.arrEntities[i].p[Ii] <= X2real) And (gcd.CurrDrawing.arrEntities[i].p[iI + 1] >= Y1real And gcd.CurrDrawing.arrEntities[i].p[iI + 1] <= Y2real) Then
-                gcd.CurrDrawing.arrEntities[i].PSel[iI / 2] = True
-                puedo = True
+            For Ii = 0 To gcd.CurrDrawing.arrEntities[i].p.max Step 2
+                If ii + 1 > gcd.CurrDrawing.arrEntities[i].p.max Then Break
+                If (gcd.CurrDrawing.arrEntities[i].p[iI] >= X1real And gcd.CurrDrawing.arrEntities[i].p[Ii] <= X2real) And (gcd.CurrDrawing.arrEntities[i].p[iI + 1] >= Y1real And gcd.CurrDrawing.arrEntities[i].p[iI + 1] <= Y2real) Then
+                    gcd.CurrDrawing.arrEntities[i].PSel[iI / 2] = True
+                    puedo = True
+                End If
+            Next
+
+            If puedo Then
+
+                Return True
+            Else
+                Return False
             End If
-        Next
 
-        If puedo Then
-
-            Return True
-        Else
-            Return False
-        End If
-
-End Select
+    End Select
 
 End
 
@@ -1275,7 +1286,6 @@ Public Function DXFImportToEntity(c As Collection, e As Entity) As Boolean
 
     'GotEntity = True
 
-
     'Finally
 
     'If Not GotEntity Then Return False
@@ -1310,7 +1320,7 @@ Public Function DXFImportToEntity(c As Collection, e As Entity) As Boolean
 
     End If
 
-Catch
+    ' Catch
     'e.ClassHandler = cadDummy
     Return False
 

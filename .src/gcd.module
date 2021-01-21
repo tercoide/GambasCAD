@@ -428,21 +428,39 @@ Public Sub ImpEnty6(cEny As Collection, obx As Entity[])
 
     Dim e As Collection               ' Current Entity
     Dim entNueva As Entity
+    Dim flgIsPolyline As Boolean
+    Dim pBlockPolyline As Block
 
     For Each e In cEny                                              ' Para cada Coleccion de datos de vrx
         If e.Exist(dxf.codEntity) Then                                     ' es una entidad?
             entNueva = New Entity                                       ' entonces, creamos una nueva
 
-            If InStr("POINT ATTDEF ATTRIB LINE LWPOLYLINE CIRCLE ELLIPSE ARC TEXT MTEXT SPLINE SOLID LEADER INSERT DIMENSION DIMENSION_LINEAR DIMENSION_DIAMETER DIMENSION_RADIUS DIMENSION_ANG3PT DIMENSION_ALIGNED DIMENSION_ORDINATE LARGE_RADIAL_DIMENSION ARC_DIMENSION", UCase(e[dxf.codEntity])) = 0 Then Continue
+            If InStr("POLYLINE SEQEND VERTEX POINT ATTDEF ATTRIB LINE LWPOLYLINE CIRCLE ELLIPSE ARC TEXT MTEXT SPLINE SOLID LEADER INSERT DIMENSION DIMENSION_LINEAR DIMENSION_DIAMETER DIMENSION_RADIUS DIMENSION_ANG3PT DIMENSION_ALIGNED DIMENSION_ORDINATE LARGE_RADIAL_DIMENSION ARC_DIMENSION", UCase(e[dxf.codEntity])) = 0 Then Continue
             'If UCase(e[dxf.codEntity]) = "INSERT" Then Stop
 
             If clsEntities.DXFImportToEntity(e, entNueva) Then         ' si esta implementada, llenamos los datos
 
-                obx.Add(entNueva)
+                If flgIsPolyline Then
+                    pBlockPolyline.entities.Add(entNueva)
+                Else
+                    obx.Add(entNueva)
+                End If
+
+                If e[dxf.codEntity] = "POLYLINE" Then
+                    flgIsPolyline = True
+                    pBlockPolyline = New Block
+                    pBlockPolyline.entities = New Entity[]
+                    gcd.CurrDrawing.arrPolyLines.Add(pBlockPolyline)
+                    entNueva.pBlock = pBlockPolyline
+                End If
+                If e[dxf.codEntity] = "SEQEND" And flgIsPolyline = True Then
+                    flgIsPolyline = False
+                    pBlockPolyline = Null
+                End If
                 entNueva = Null                                           ' limpiamos
             Else                                                        ' no esta implementada
                 Print "Entidad no implementada o con errores:", e[dxf.codHandle], e[dxf.codEntity]
-                'Stop
+
             Endif
 
         Endif
@@ -707,7 +725,6 @@ Public Function UpdateGraphics(Optional handles As String[] = [], DoRegen As Boo
 
     gcd.ReadEntities            ' esto necesita que arrLayers y arrEntities esten cargados
     clsEntities.BuildPoi()
-
 
     If DoRegen Then fMain.Regen
 
