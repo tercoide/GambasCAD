@@ -1051,22 +1051,55 @@ End
 ' End
 
 'Return bound limits for all verices in the array of entities
+Public Sub BuildPoi(Optional entities As Entity[], OnlyVisibles As Boolean = True)
+
+    Dim e As Entity, i As Integer
+    Dim entGroup As Entity[]
+
+    If Not entities Then entGroup = gcd.CurrDrawing.arrEntities Else entGroup = Entities
+
+    If entGroup.Count = 0 Then Return
+
+    For Each e In entGroup
+        If (OnlyVisibles And e.pLayer.Visible) Or Not OnlyVisibles Then
+            e.ClassHandler.BuildPoi(e)
+        End If
+    Next
+
+
+End
+'Return bound limits for all verices in the array of entities
+
 Public Function ComputeLimits(Optional entities As Entity[], OnlyVisibles As Boolean = True) As Float[]
 
     Dim e As Entity, i As Integer
     Dim entGroup As Entity[]
     Dim Xmenor As Float = 1e10, Ymenor As Float = 1e10, Xmayor As Float = -1e10, Ymayor As Float = -1e10
     Dim newLimits As New Float[]
+    Dim IsVisible As Boolean
 
     If Not entities Then entGroup = gcd.CurrDrawing.arrEntities Else entGroup = Entities
 
-    For Each e In entGroup
+    If entGroup.Count = 0 Then Return Null
 
-        If (OnlyVisibles And e.pLayer.Visible) Or Not OnlyVisibles Then
+    For Each e In entGroup
+        If OnlyVisibles Then
+            If IsNull(e.pLayer) Then
+                IsVisible = True
+            Else
+                IsVisible = e.pLayer.Visible
+            End If
+
+        Endif
+
+
+
+        If IsVisible Then
 
             If e.Gender = "Insert" Then
-
+                If IsNull(e.pBlock) Then Continue
                 newLimits = ComputeLimits(e.pBlock.entities)
+                If IsNull(newLimits) Then Continue
                 puntos.Translate(newLimits, e.P[0], e.P[1])
                 puntos.Rotate(newLimits, e.fParam[cadInsert.ipaRotacion]) ' TODO: verificar orden de esta y la siguiente linea
                 puntos.Scale(newLimits, e.fParam[cadInsert.ipaEscX], e.fParam[cadInsert.ipaEscY])
@@ -1078,7 +1111,9 @@ Public Function ComputeLimits(Optional entities As Entity[], OnlyVisibles As Boo
 
             If e.Gender Like "DIM*" Then
 
+                If IsNull(e.pBlock) Then Continue
                 newLimits = ComputeLimits(e.pBlock.entities)
+                If IsNull(newLimits) Then Continue
                 'puntos.Translate(newLimits, e.P[0], e.P[1])
                 'puntos.Rotate(newLimits, e.fParam[cadInsert.ipaRotacion]) ' TODO: verificar orden de esta y la siguiente linea
                 'puntos.Scale(newLimits, e.fParam[cadInsert.ipaEscX], e.fParam[cadInsert.ipaEscY])
@@ -1104,6 +1139,8 @@ Public Function ComputeLimits(Optional entities As Entity[], OnlyVisibles As Boo
                 Next
             Else
                 For i = 0 To e.p.max Step 2
+
+                    If i > e.P.Max - 1 Then Break
                     'If e.p[i] > 0 Then Debug e.gender
 
                     If e.p[i] < Xmenor Then Xmenor = e.p[i]
@@ -1117,6 +1154,8 @@ Public Function ComputeLimits(Optional entities As Entity[], OnlyVisibles As Boo
                 Next
             End If
         End If
+
+        'If Xmayor > 100000 Then Stop
 
     Next
 
@@ -1227,12 +1266,19 @@ Public Function DXFImportToEntity(c As Collection, e As Entity) As Boolean
     Dim sValue As New String[]
     Dim lpValue, lpclave As String
     Dim i As Integer
+    Dim GotEntity As Boolean
 
     ' If Not c.Exist("entity") Then Return False
     ' If Not c "entity") Then Return False
 
     clsHandler = Object.New("cad" & c[dxf.codEntity])  ' obtenemos el tipo de entidad y buscamos su clase. Si no manjemos esa entidad, esto de error.
+
+    'GotEntity = True
+
+
     'Finally
+
+    'If Not GotEntity Then Return False
 
     For Each lpValue In c
         lpclave = c.Key
