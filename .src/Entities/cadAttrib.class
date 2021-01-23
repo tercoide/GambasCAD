@@ -46,11 +46,12 @@ Public StepsDone As Integer                 ' esto lo cambia cls ElementBuilder 
 Public Const DXF_Reading As Boolean = False
 Public Const DXF_Export As Boolean = False
 
-' fParam helpers
-Public Const TotalParams As Integer = 3
-Public Const iTextHeight As Integer = 1
-Public Const iTextAngle As Integer = 0
-Public Const iTextVisible As Integer = 2
+' fParam helpers <--- seteados por cadTExt
+
+' stringdata helpers <--- seteados por cadTExt
+
+Public Const sdaTag As Integer = 2
+Public Const sdaPromt As Integer = 3
 
 Public Sub Translate(e As Entity, dX As Float, dY As Float, Optional OnlySelected As Boolean = False)
 
@@ -76,9 +77,9 @@ Public Sub Draw(oE As Entity)
 
     oE.ColorToPaint = gcd.GetGBColor(oE.colour, oE.pLayer)
 
-    If (oe.fParam[Me.iTextVisible] And 1) = 1 Then Return ' es invisible
-
-    glPlus.DrawText(oE.stringdata[0], oE.p[0], oE.p[1], oE.fParam[0], oE.fParam[1], oE.ColorToPaint)
+    ' Debug oE.stringdata[0]
+    If (oe.fParam[cadText.ipaTextVisibility] And 1) = 1 Then Return ' es invisible
+    cadText.Draw(oe)
 
 End
 
@@ -203,7 +204,7 @@ Public Sub Finish(oE As Entity) As Boolean
     '  BuildPOI(oe)
 
     ' busco el tipo de linea, si hace falta
-    If oE.LineTypeName = "Dashed" Then oE.LineType = 1
+
     ' tareas finales de armado del objeto
     oE.ColorToPaint = gcd.GetGBColor(oE.colour, oE.pLayer)
 
@@ -218,19 +219,20 @@ End
 Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
 
     Dim i As Integer
+    Dim AfterSubclassmarker As Boolean
 
-    e.fParam.Resize(Me.TotalParams)
-    e.StringData.Add("")
+    cadText.ImportDXF(e, sClaves, sValues)
+
+    e.StringData.Add("")    ' tag
+    e.StringData.Add("")    ' promt
 
     For i = 0 To sClaves.Max
-
-        If sClaves[i] = "10" Then e.p.Add(CFloat(sValues[i]))         ' X1
-        If sClaves[i] = "20" Then e.P.Add(CFloat(sValues[i]))         ' Y1
-        If sClaves[i] = "40" Then e.fParam[Me.iTextHeight] = CFloat(sValues[i])         ' Altura
-        If sClaves[i] = "1" Or sClaves[i] = "3" Then e.StringData[0] &= sValues[i]                ' Texto
-        If sClaves[i] = "50" Then e.fParam[Me.iTextAngle] = CFloat(sValues[i])      ' rotacion
-        If sClaves[i] = "70" Then e.fParam[Me.iTextVisible] = CFloat(sValues[i])      ' FLAGS  1=invisible, 2=constante 4 = preguntar 8 = preseteado
-
+        If sClaves[i] = "100" And sValues[i] = "AcDbAttribute" Then AfterSubclassmarker = True
+        If AfterSubclassmarker Then ' lo siguientes codigos
+            If sClaves[i] = "3" Then e.stringdata[Me.sdaPromt] = sValues[i]
+            If sClaves[i] = "2" Then e.stringdata[Me.sdaTag] = sValues[i]
+            If sClaves[i] = "70" Then e.fParam[cadText.ipaTextVisibility] = CFloat(sValues[i])      ' FLAGS  1=invisible, 2=constante 4 = preguntar 8 = preseteado
+        End If
     Next
 
     Return True
