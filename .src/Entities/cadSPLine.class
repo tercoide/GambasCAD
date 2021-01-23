@@ -35,9 +35,7 @@ Public drawingPoints As New Float[]
 
 Public numDrawingPoints As Integer = 100
 
-' JSON and DXF Read/Export
-Public Const JSON_Reading As Boolean = True
-Public Const JSON_Export As Boolean = False
+' DXF Read/Export
 
 Public Const DXF_Reading As Boolean = True
 Public Const DXF_Export As Boolean = False
@@ -104,7 +102,7 @@ Public Sub Draw(oE As Entity)
 
     'oe.P.Clear
     'oe.P.Insert([10, 10, 70, 310, 210, 210, 210, 10])
-    oE.ColorToPaint = gcd.GetGBColor(oE.colour, oE.Layerid)
+    oE.ColorToPaint = gcd.GetGBColor(oE.colour, oE.pLayer)
     If oe.fParam.Count < Me.TotalParams Then oe.fParam.Resize(Me.TotalParams)
     oe.fParam[Me.ipaDegree] = 2
     ' La Spline de grado 2 es la que va a traves de Fit Points
@@ -165,7 +163,7 @@ Public Sub Finish(oE As Entity) As Boolean
 
     'Print "Finish en EntityBase"
     'CreatePolygon(oe)
-   '  BuildPOI(oe)
+    '  BuildPOI(oe)
 
     ' busco el tipo de linea, si hace falta
     If oE.LineTypeName = "Dashed" Then oE.LineType = 1
@@ -696,206 +694,6 @@ Public Function CalculateBezierPoint2D(t As Float, p0 As Float[], p1 As Float[],
 
 End
 
-' Importo los datos que puedo procesar de una coleccion y genero un Entity para ser agregado a un array
-Public Function ImportJsonCol(c As Collection, e As Entity) As Boolean
-
-    Dim i, iFinal As Integer
-    Dim fTangLargo As Float
-    Dim fControlPoints As New Float[]
-    Dim fFitPoint As New Float[]
-
-    e.fParam.Resize(Me.TotalParams)
-
-    If c.Exist("ctrl_pts") Then
-
-        e.fParam.Add(Me.TypeControls)
-        For i = 0 To c["ctrl_pts"].Max
-            e.P.Add(c["ctrl_pts"][i]["x"])
-            e.P.Add(c["ctrl_pts"][i]["y"])
-        Next
-    End If
-
-    If c.Exist("fit_pts") Then
-
-        e.fParam.Add(Me.TypeTangent)
-        For i = 0 To c["fit_pts"].Max
-            e.P.Add(c["fit_pts"][i][0])
-            e.P.Add(c["fit_pts"][i][1])
-        Next
-        ' fabrico control points ente fit_points
-
-        ' i = 2
-        ' Do
-        '
-        '   fControlPoints.Add((e.P[i] + e.P[i + 2]) / 2)
-        '   fControlPoints.Add((e.P[i + 1] + e.P[i + 3]) / 2)
-        '   fFitPoint.Add(e.P[i + 2])
-        '   fFitPoint.Add(e.P[i + 3])
-        '   e.P.insert(fControlPoints, i + 2)
-        '   e.P.Insert(fFitPoint, i + 4)
-        '   fControlPoints.Clear
-        '   fFitPoint.Clear
-        '   i = i + 6
-        ' Loop Until i > iFinal
-        '
-        '
-        If c.Exist("beg_tan_vec") Then
-            fTangLargo = puntos.distancia(e.P[0], e.P[1], e.P[2], e.P[3]) / 2
-            'fTangLargo = 1
-            e.P.Insert([e.P[0] + c["beg_tan_vec"][0] * fTangLargo, e.P[1] + c["beg_tan_vec"][1] * fTangLargo], 2)
-
-        Endif
-
-        If c.Exist("end_tan_vec") Then
-            fTangLargo = puntos.distancia(e.P[e.P.Max - 3], e.P[e.P.Max - 2], e.P[e.P.Max - 1], e.P[e.P.Max]) / 2
-            'fTangLargo = 1
-            e.P.Insert([e.P[e.P.Max - 1] - c["end_tan_vec"][0] * fTangLargo, e.P[e.P.Max] - c["end_tan_vec"][1] * fTangLargo], e.P.max - 1)
-
-        Endif
-
-    End If
-
-    ' puede habre tangentes
-
-    If e.P.Count = 0 Then e.P.Insert([0, 0, 0, 0, 0, 0, 0, 0])
-
-    Return True
-
-
-' catch
-
-    Return False
-
-End
-
-'      "entity": "SPLINE",
-'      "index": 3357,
-'      "type": 36,
-'      "handle": [0, 1249847],
-'      "size": 418,
-'      "bitsize": 3284,
-'      "ownerhandle": [12, 1, 2, 1249845],
-'      "_subclass": "AcDbEntity",
-'      "prev_entity": [4, 0, 0, 0],
-'      "next_entity": [6, 0, 0, 1249848],
-'      "layer": [5, 1, 16, 16],
-'      "preview_exists": 0,
-'      "entmode": 0,
-'      "nolinks": 0,
-'      "color": 256,
-'      "ltype_scale": 1.0,
-'      "ltype_flags": 0,
-'      "plotstyle_flags": 0,
-'      "invisible": 0,
-'      "linewt": 29,
-'      "_subclass": "AcDbSpline",
-'      "scenario": 1,
-'      "degree": 3,
-'      "rational": 0,
-'      "closed_b": 0,
-'      "periodic": 0,
-'      "knot_tol": 0.0000000001,
-'      "ctrl_tol": 0.0000000001,
-'      "weighted": 0,
-'      "knots": [
-'        0.00000000000000,
-'        0.00000000000000,
-'        0.00000000000000,
-'        0.00000000000000,
-'        0.11913126411571,
-'        0.23975678553509,
-'        0.49083550137789,
-'        1.04447328364244,
-'        1.44003107270299,
-'        1.55491017607702,
-'        1.92016945852300,
-'        2.22324540117473,
-'        2.48758013168516,
-'        2.82200084095037,
-'        3.00883554387170,
-'        3.16218973969312,
-'        3.16218973969312,
-'        3.16218973969312,
-'        3.16218973969312
-'      ],
-'      "ctrl_pts": [
-'        {
-'          "x": -0.21323049241494,
-'          "y": 0.84482240616663,
-'          "z": 0.0
-'        },
-'        {
-'          "x": -0.1847166715454,
-'          "y": 0.87190801033913,
-'          "z": 0.0
-'        },
-'        {
-'          "x": -0.1228526953775,
-'          "y": 0.922359536827,
-'          "z": 0.0
-'        },
-'        {
-'          "x": 0.02043360444333,
-'          "y": 1.00035857198183,
-'          "z": 0.0
-'        },
-'        {
-'          "x": 0.27257295630051,
-'          "y": 1.1752608208499,
-'          "z": 0.0
-'        },
-'        {
-'          "x": 0.61052372379078,
-'          "y": 1.38248143619054,
-'          "z": 0.0
-'        },
-'        {
-'          "x": 0.92880308857434,
-'          "y": 1.54637696665506,
-'          "z": 0.0
-'        },
-'        {
-'          "x": 1.21565315275478,
-'          "y": 1.6043944582336,
-'          "z": 0.0
-'        },
-'        {
-'          "x": 1.47769680033207,
-'          "y": 1.61054542981341,
-'          "z": 0.0
-'        },
-'        {
-'          "x": 1.78840999609696,
-'          "y": 1.61736294507911,
-'          "z": 0.0
-'        },
-'        {
-'          "x": 2.08859470791577,
-'          "y": 1.60619051383182,
-'          "z": 0.0
-'        },
-'        {
-'          "x": 2.35172325891301,
-'          "y": 1.59913454504708,
-'          "z": 0.0
-'        },
-'        {
-'          "x": 2.57162173748583,
-'          "y": 1.55677519634268,
-'          "z": 0.0
-'        },
-'        {
-'          "x": 2.68480471484867,
-'          "y": 1.53475995596965,
-'          "z": 0.0
-'        },
-'        {
-'          "x": 2.73031030857453,
-'          "y": 1.51193841889326,
-'          "z": 0.0
-'        }
-'      ]
-
 Public Sub ExportDXF(e As Entity, hFile As File)
 
     Dim i As Integer
@@ -1003,8 +801,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     ' End IfPtang
     Return True
 
-
-' catch
+    ' catch
 
     Return False
 

@@ -28,75 +28,75 @@ Public arrTijeras As New Integer[]
 Public eRecortar As Entity
 
 Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer = 0) As Boolean
-  ' Llamada por FCAD al inicio de la aplicacion de esta herramienta
+    ' Llamada por FCAD al inicio de la aplicacion de esta herramienta
 
-  Dim i As Integer
-  ' Aprovechamos para establecer los helpers (comentarios de ayuda en pantalla)
-  Me.PointsDone = 0
-  Me.PointsTotal = 2
+    Dim i As Integer
+    ' Aprovechamos para establecer los helpers (comentarios de ayuda en pantalla)
+    Me.PointsDone = 0
+    Me.PointsTotal = 2
 
-  clsDrawingAids.HelperTrabajo = ("Trim") & " "
-  gcd.clsJob.EntityChecking = True
+    clsDrawingAids.HelperTrabajo = ("Trim") & " "
+    gcd.clsJob.EntityChecking = True
 
-  ' chequeamos si hubo seleccion previa
-  Me.SelectionCount = clsEntities.GetSelectionCount()
+    ' chequeamos si hubo seleccion previa
+    Me.SelectionCount = clsEntities.GetSelectionCount()
 
-  If Me.SelectionCount = 0 Then                                     ' we have no elements in the selection
-    arrTijeras.Clear
-    clsDrawingAids.Helper.texto = clsDrawingAids.HelperTrabajo & ": " & ("Select cutting edges")
+    If Me.SelectionCount = 0 Then                                     ' we have no elements in the selection
+        arrTijeras.Clear
+        clsDrawingAids.Helper.texto = clsDrawingAids.HelperTrabajo & ": " & ("Select cutting edges")
 
-    gcd.clsJobPrevious = Me
-    gcd.clsJob = clsDefaultJob
+        gcd.clsJobPrevious = Me
+        gcd.clsJob = clsDefaultJob
 
-  Else                                                               ' TENEMOS QUE PEDIR MAS ENTIDADES PARA CORTAR
+    Else                                                               ' TENEMOS QUE PEDIR MAS ENTIDADES PARA CORTAR
 
-    ' recolecto las tijeras
-    For i = 0 To gcd.CurrDrawing.arrEntities.Max
-      If gcd.CurrDrawing.arrEntities[i].selected Then arrTijeras.Add(i)
-    Next
+        ' recolecto las tijeras
+        For i = 0 To gcd.CurrDrawing.arrEntities.Max
+            If gcd.CurrDrawing.arrEntities[i].selected Then arrTijeras.Add(i)
+        Next
 
-    '
-    clsDrawingAids.Helper.texto = clsDrawingAids.HelperTrabajo & ": " & ("entities to cut")
-    'clsDrawingAids.HelperTrabajo = clsDrawingAids.HelperTrabajo & Str(Me.SelectionCount) & (" elements")
+        '
+        clsDrawingAids.Helper.texto = clsDrawingAids.HelperTrabajo & ": " & ("entities to cut")
+        'clsDrawingAids.HelperTrabajo = clsDrawingAids.HelperTrabajo & Str(Me.SelectionCount) & (" elements")
 
-  Endif
+    Endif
 
-  gcd.ToolActive = True
+    gcd.ToolActive = True
 
 End
 
 Public Function MouseDown(mouseX As Integer, mouseY As Integer)
 
-  Dim i As Integer, eTijera As Entity, v1, v2, flxIntersec As New Float[]
+    Dim i As Integer, eTijera As Entity, v1, v2, flxIntersec As New Float[]
 
-  Me.SelEndXr = fMain.Xreal(mouseX)
-  Me.SelEndyr = fMain.Yreal(mouseY)
-  If Mouse.Left Then
+    Me.SelEndXr = fMain.Xreal(mouseX)
+    Me.SelEndyr = fMain.Yreal(mouseY)
+    If Mouse.Left Then
 
-    If gcd.CurrDrawing.iEntity[3] >= 0 Then
+        If gcd.CurrDrawing.iEntity[3] >= 0 Then
 
-      DoTrim
+            DoTrim
 
+        End If
     End If
-  End If
 
 End
 
 '' Esta sub recorta una linea con otras cosas
 Public Sub DoTrim()
 
-  Me.eRecortar = gcd.CurrDrawing.arrEntities[gcd.CurrDrawing.iEntity[3]]
-  Select Case eRecortar.Gender
-    Case "Line"
-      DoTrimLine
-    Case "LWPolyline"
-      DoTrimPline
-    Case "Circle"
-      DoTrimCircle
-    Case "Arc", "Ellipse"
-      DoTrimArc
+    Me.eRecortar = gcd.CurrDrawing.arrEntities[gcd.CurrDrawing.iEntity[3]]
+    Select Case eRecortar.Gender
+        Case "Line"
+            DoTrimLine
+        Case "LWPolyline"
+            DoTrimPline
+        Case "Circle"
+            DoTrimCircle
+        Case "Arc", "Ellipse"
+            DoTrimArc
 
-  End Select
+    End Select
 
 End
 
@@ -106,736 +106,736 @@ End
 
 Public Function MouseUp(mouseX As Integer, mouseY As Integer) ' called by FCAD-> DrawingArea_MouseUp
 
-  If Mouse.Left Then
+    If Mouse.Left Then
 
-    Me.SelEndX = mouseX
-    Me.SelEndy = mouseY
+        Me.SelEndX = mouseX
+        Me.SelEndy = mouseY
 
-    If Me.Active Then
-      Dim Crossing As Boolean = False
-      ' corrijo para start<end
-      Me.Active = False
-      If Me.SelStartX > Me.SelEndX Then
-        crossing = True
-        Swap Me.SelStartX, Me.SelEndX
-      Else
-        crossing = False
-      End If
-      If Me.SelStartY < Me.SelEndy Then Swap Me.SelStartY, Me.SelEndy                     ' this is FLIPPED
+        If Me.Active Then
+            Dim Crossing As Boolean = False
+            ' corrijo para start<end
+            Me.Active = False
+            If Me.SelStartX > Me.SelEndX Then
+                crossing = True
+                Swap Me.SelStartX, Me.SelEndX
+            Else
+                crossing = False
+            End If
+            If Me.SelStartY < Me.SelEndy Then Swap Me.SelStartY, Me.SelEndy                     ' this is FLIPPED
 
-      ' Paso a coordenadas reales
-      Me.SelStartXr = fMain.Xreal(Me.SelStartX)
-      Me.SelStartYr = fMain.Yreal(Me.SelStartY)
-      Me.SelEndXr = fMain.Xreal(Me.SelEndX)
-      Me.SelEndyr = fMain.Yreal(Me.SelEndy)
+            ' Paso a coordenadas reales
+            Me.SelStartXr = fMain.Xreal(Me.SelStartX)
+            Me.SelStartYr = fMain.Yreal(Me.SelStartY)
+            Me.SelEndXr = fMain.Xreal(Me.SelEndX)
+            Me.SelEndyr = fMain.Yreal(Me.SelEndy)
 
-      ' veo si el rectangulo es suficientemente grande como para representar una seleccion por rectangulo
-      If (Me.SelEndX - Me.SelStartX + (-Me.SelEndy + Me.SelStartY)) > 10 Then
+            ' veo si el rectangulo es suficientemente grande como para representar una seleccion por rectangulo
+            If (Me.SelEndX - Me.SelStartX + (-Me.SelEndy + Me.SelStartY)) > 10 Then
 
-        Me.selectionCount = clsEntities.SelectionSquare(Me.SelStartXr, Me.SelStartYr, Me.SelEndXr, Me.SelEndyr,, crossing)
-        fMain.regen
+                Me.selectionCount = clsEntities.SelectionSquare(Me.SelStartXr, Me.SelStartYr, Me.SelEndXr, Me.SelEndyr,, crossing)
+                fMain.regen
 
-      End If
+            End If
 
-      clsDrawingAids.HelperTrabajo = ("Selected") & " " & Str$(Me.selectionCount) & " " & ("elements")
+            clsDrawingAids.HelperTrabajo = ("Selected") & " " & Str$(Me.selectionCount) & " " & ("elements")
 
-      '     'aprovecho para ver si hay algo util en la seleccion
-      '
-      ' Select Case Me.Mode
-      '
-      '     Case 0 ' Move, all vertices must be selected
-      '        clsDrawingAids.HelperTrabajo = ("Selected ") & Str$(clsEntities.DeSelection("todo", "mover")) & (" elements")
-      '
-      '     Case 1 ' Stretch
-      '         clsDrawingAids.HelperTrabajo = ("Selected ") & Str$(clsEntities.DeSelection("todo", "estirar")) & (" elements")
-      '
-      ' End Select
+            '     'aprovecho para ver si hay algo util en la seleccion
+            '
+            ' Select Case Me.Mode
+            '
+            '     Case 0 ' Move, all vertices must be selected
+            '        clsDrawingAids.HelperTrabajo = ("Selected ") & Str$(clsEntities.DeSelection("todo", "mover")) & (" elements")
+            '
+            '     Case 1 ' Stretch
+            '         clsDrawingAids.HelperTrabajo = ("Selected ") & Str$(clsEntities.DeSelection("todo", "estirar")) & (" elements")
+            '
+            ' End Select
+        Else
+
+        End If
+
     Else
 
-    End If
+        Me.Finish
 
-  Else
-
-    Me.Finish
-
-  Endif
+    Endif
 
 End
 
 '' Esta sub recorta una linea con otras cosas
 Public Sub DoTrimLine()
 
-  Dim i, iii As Integer, v1, v2, flxIntersecMin, flxIntersec As New Float[], dIntersect, dIntersectMin As Float = 1e20
-  Dim flxObjeto, flxTijera As Float[]
-  Dim s1 As Integer
-  Dim Xcorte As Float
-  Dim eTijera, eNewPart As Entity
+    Dim i, iii As Integer, v1, v2, flxIntersecMin, flxIntersec As New Float[], dIntersect, dIntersectMin As Float = 1e20
+    Dim flxObjeto, flxTijera As Float[]
+    Dim s1 As Integer
+    Dim Xcorte As Float
+    Dim eTijera, eNewPart As Entity
 
-  Dim C1x, C1y, C2x, C2y As Float ' candidatos al recorte, C1 es el que esta mas cerca de P01 y C2 de P23
-  Dim Ycorte As Float
+    Dim C1x, C1y, C2x, C2y As Float ' candidatos al recorte, C1 es el que esta mas cerca de P01 y C2 de P23
+    Dim Ycorte As Float
 
-  Xcorte = Me.SelEndXr
-  Ycorte = Me.SelEndyr
+    Xcorte = Me.SelEndXr
+    Ycorte = Me.SelEndyr
 
-  ' debo encontrar los puntos de corte mas cercanos a cada lado del punto que esta sobre la entidad a recortar
-  C1x = eRecortar.p[0]
-  C1y = eRecortar.p[1]        ' inicialmente estan en los limites
-  C2x = eRecortar.p[2]
-  C2y = eRecortar.p[3]
+    ' debo encontrar los puntos de corte mas cercanos a cada lado del punto que esta sobre la entidad a recortar
+    C1x = eRecortar.p[0]
+    C1y = eRecortar.p[1]        ' inicialmente estan en los limites
+    C2x = eRecortar.p[2]
+    C2y = eRecortar.p[3]
 
-  For iii = 0 To Me.arrTijeras.Max
-    eTijera = gcd.CurrDrawing.arrEntities[iii]
-    Select Case eTijera.Gender
-      Case "Line"
-        If puntos.doIntersect(eRecortar.p[0], eRecortar.p[1], eRecortar.p[2], eRecortar.p[3], eTijera.p[0], eTijera.p[1], eTijera.p[2], eTijera.p[3]) Then
+    For iii = 0 To Me.arrTijeras.Max
+        eTijera = gcd.CurrDrawing.arrEntities[iii]
+        Select Case eTijera.Gender
+            Case "Line"
+                If puntos.doIntersect(eRecortar.p[0], eRecortar.p[1], eRecortar.p[2], eRecortar.p[3], eTijera.p[0], eTijera.p[1], eTijera.p[2], eTijera.p[3]) Then
 
-          ' obtengo el punto de interseccion
-          flxIntersec = puntos.lineLineIntersection([eRecortar.p[0], eRecortar.p[1]], [eRecortar.p[2], eRecortar.p[3]], [eTijera.p[0], eTijera.p[1]], [eTijera.p[2], eTijera.p[3]])
+                    ' obtengo el punto de interseccion
+                    flxIntersec = puntos.lineLineIntersection([eRecortar.p[0], eRecortar.p[1]], [eRecortar.p[2], eRecortar.p[3]], [eTijera.p[0], eTijera.p[1]], [eTijera.p[2], eTijera.p[3]])
 
-          ' ahora veo cual es el lado a recortar
-          ' necesito encontrar los vectores, si van en direccion contraria, es el punto a recortar
-          '       P1------X--------------|----------------P2
-          '            click           tijera
+                    ' ahora veo cual es el lado a recortar
+                    ' necesito encontrar los vectores, si van en direccion contraria, es el punto a recortar
+                    '       P1------X--------------|----------------P2
+                    '            click           tijera
 
-          If puntos.distancia(eRecortar.p[0], eRecortar.p[1], Xcorte, Ycorte) > puntos.distancia(eRecortar.p[0], eRecortar.p[1], flxIntersec[0], flxIntersec[1]) Then
+                    If puntos.distancia(eRecortar.p[0], eRecortar.p[1], Xcorte, Ycorte) > puntos.distancia(eRecortar.p[0], eRecortar.p[1], flxIntersec[0], flxIntersec[1]) Then
 
-            ' el punto encontrado esta a la izq del click, entonces lo asignamos a C1, pero solo si es mas cercano
-            If puntos.distancia(Xcorte, Ycorte, flxIntersec[0], flxIntersec[1]) < puntos.distancia(C1x, C1y, Xcorte, Ycorte) Then
-              C1x = flxIntersec[0]
-              C1y = flxIntersec[1]
-            End If
+                        ' el punto encontrado esta a la izq del click, entonces lo asignamos a C1, pero solo si es mas cercano
+                        If puntos.distancia(Xcorte, Ycorte, flxIntersec[0], flxIntersec[1]) < puntos.distancia(C1x, C1y, Xcorte, Ycorte) Then
+                            C1x = flxIntersec[0]
+                            C1y = flxIntersec[1]
+                        End If
 
-          Endif
+                    Endif
 
-          ' lo mismo para P23
-          If puntos.distancia(eRecortar.p[2], eRecortar.p[3], Xcorte, Ycorte) > puntos.distancia(eRecortar.p[2], eRecortar.p[3], flxIntersec[0], flxIntersec[1]) Then
+                    ' lo mismo para P23
+                    If puntos.distancia(eRecortar.p[2], eRecortar.p[3], Xcorte, Ycorte) > puntos.distancia(eRecortar.p[2], eRecortar.p[3], flxIntersec[0], flxIntersec[1]) Then
 
-            ' el punto encontrado esta a la derecha del click, entonces lo asignamos a C2, pero solo si es mas cercano
-            If puntos.distancia(Xcorte, Ycorte, flxIntersec[0], flxIntersec[1]) < puntos.distancia(C2x, C2y, Xcorte, Ycorte) Then
-              C2x = flxIntersec[0]
-              C2y = flxIntersec[1]
-            End If
+                        ' el punto encontrado esta a la derecha del click, entonces lo asignamos a C2, pero solo si es mas cercano
+                        If puntos.distancia(Xcorte, Ycorte, flxIntersec[0], flxIntersec[1]) < puntos.distancia(C2x, C2y, Xcorte, Ycorte) Then
+                            C2x = flxIntersec[0]
+                            C2y = flxIntersec[1]
+                        End If
 
-          Endif
+                    Endif
 
-        Endif
-      Case "LWPolyline"
+                Endif
+            Case "LWPolyline"
 
-        For i = 0 To eTijera.p.count - 4 Step 2         ' Idem linea, pero  para todos los tramos de la polilinea
+                For i = 0 To eTijera.p.count - 4 Step 2         ' Idem linea, pero  para todos los tramos de la polilinea
 
-          If puntos.doIntersect(eRecortar.p[0], eRecortar.p[1], eRecortar.p[2], eRecortar.p[3], eTijera.p[i + 0], eTijera.p[i + 1], eTijera.p[i + 2], eTijera.p[i + 3]) Then
+                    If puntos.doIntersect(eRecortar.p[0], eRecortar.p[1], eRecortar.p[2], eRecortar.p[3], eTijera.p[i + 0], eTijera.p[i + 1], eTijera.p[i + 2], eTijera.p[i + 3]) Then
 
-            ' obtengo el punto de interseccion
-            flxIntersec = puntos.lineLineIntersection([eRecortar.p[0], eRecortar.p[1]], [eRecortar.p[2], eRecortar.p[3]], [eTijera.p[i + 0], eTijera.p[i + 1]], [eTijera.p[i + 2], eTijera.p[i + 3]])
+                        ' obtengo el punto de interseccion
+                        flxIntersec = puntos.lineLineIntersection([eRecortar.p[0], eRecortar.p[1]], [eRecortar.p[2], eRecortar.p[3]], [eTijera.p[i + 0], eTijera.p[i + 1]], [eTijera.p[i + 2], eTijera.p[i + 3]])
 
-            If puntos.distancia(eRecortar.p[0], eRecortar.p[1], Xcorte, Ycorte) > puntos.distancia(eRecortar.p[0], eRecortar.p[1], flxIntersec[0], flxIntersec[1]) Then
+                        If puntos.distancia(eRecortar.p[0], eRecortar.p[1], Xcorte, Ycorte) > puntos.distancia(eRecortar.p[0], eRecortar.p[1], flxIntersec[0], flxIntersec[1]) Then
 
-              ' el punto encontrado esta a la izq del click, entonces lo asignamos a C1, pero solo si es mas cercano
-              If puntos.distancia(Xcorte, Ycorte, flxIntersec[0], flxIntersec[1]) < puntos.distancia(C1x, C1y, Xcorte, Ycorte) Then
-                C1x = flxIntersec[0]
-                C1y = flxIntersec[1]
-              End If
+                            ' el punto encontrado esta a la izq del click, entonces lo asignamos a C1, pero solo si es mas cercano
+                            If puntos.distancia(Xcorte, Ycorte, flxIntersec[0], flxIntersec[1]) < puntos.distancia(C1x, C1y, Xcorte, Ycorte) Then
+                                C1x = flxIntersec[0]
+                                C1y = flxIntersec[1]
+                            End If
 
-            Endif
+                        Endif
 
-            ' lo mismo para P23
-            If puntos.distancia(eRecortar.p[2], eRecortar.p[3], Xcorte, Ycorte) > puntos.distancia(eRecortar.p[2], eRecortar.p[3], flxIntersec[0], flxIntersec[1]) Then
+                        ' lo mismo para P23
+                        If puntos.distancia(eRecortar.p[2], eRecortar.p[3], Xcorte, Ycorte) > puntos.distancia(eRecortar.p[2], eRecortar.p[3], flxIntersec[0], flxIntersec[1]) Then
 
-              ' el punto encontrado esta a la derecha del click, entonces lo asignamos a C2, pero solo si es mas cercano
-              If puntos.distancia(Xcorte, Ycorte, flxIntersec[0], flxIntersec[1]) < puntos.distancia(C2x, C2y, Xcorte, Ycorte) Then
-                C2x = flxIntersec[0]
-                C2y = flxIntersec[1]
-              End If
+                            ' el punto encontrado esta a la derecha del click, entonces lo asignamos a C2, pero solo si es mas cercano
+                            If puntos.distancia(Xcorte, Ycorte, flxIntersec[0], flxIntersec[1]) < puntos.distancia(C2x, C2y, Xcorte, Ycorte) Then
+                                C2x = flxIntersec[0]
+                                C2y = flxIntersec[1]
+                            End If
 
-            Endif
+                        Endif
 
-          Endif
+                    Endif
 
-        Next
+                Next
 
-      Case "Text", "MText"
+            Case "Text", "MText"
 
-        For i = 0 To eTijera.Polygon.count - 4 Step 2         ' Idem linea, pero  para todos los tramos de la polilinea
+                For i = 0 To eTijera.Polygon.count - 4 Step 2         ' Idem linea, pero  para todos los tramos de la polilinea
 
-          If puntos.doIntersect(eRecortar.p[0], eRecortar.p[1], eRecortar.p[2], eRecortar.p[3], eTijera.polygon[i + 0], eTijera.polygon[i + 1], eTijera.polygon[i + 2], eTijera.polygon[i + 3]) Then
+                    If puntos.doIntersect(eRecortar.p[0], eRecortar.p[1], eRecortar.p[2], eRecortar.p[3], eTijera.polygon[i + 0], eTijera.polygon[i + 1], eTijera.polygon[i + 2], eTijera.polygon[i + 3]) Then
 
-            ' obtengo el punto de interseccion
-            flxIntersec = puntos.lineLineIntersection([eRecortar.p[0], eRecortar.p[1]], [eRecortar.p[2], eRecortar.p[3]], [eTijera.polygon[i + 0], eTijera.polygon[i + 1]], [eTijera.polygon[i + 2], eTijera.polygon[i + 3]])
+                        ' obtengo el punto de interseccion
+                        flxIntersec = puntos.lineLineIntersection([eRecortar.p[0], eRecortar.p[1]], [eRecortar.p[2], eRecortar.p[3]], [eTijera.polygon[i + 0], eTijera.polygon[i + 1]], [eTijera.polygon[i + 2], eTijera.polygon[i + 3]])
 
-            If puntos.distancia(eRecortar.p[0], eRecortar.p[1], Xcorte, Ycorte) > puntos.distancia(eRecortar.p[0], eRecortar.p[1], flxIntersec[0], flxIntersec[1]) Then
+                        If puntos.distancia(eRecortar.p[0], eRecortar.p[1], Xcorte, Ycorte) > puntos.distancia(eRecortar.p[0], eRecortar.p[1], flxIntersec[0], flxIntersec[1]) Then
 
-              ' el punto encontrado esta a la izq del click, entonces lo asignamos a C1, pero solo si es mas cercano
-              If puntos.distancia(Xcorte, Ycorte, flxIntersec[0], flxIntersec[1]) < puntos.distancia(C1x, C1y, Xcorte, Ycorte) Then
-                C1x = flxIntersec[0]
-                C1y = flxIntersec[1]
-              End If
+                            ' el punto encontrado esta a la izq del click, entonces lo asignamos a C1, pero solo si es mas cercano
+                            If puntos.distancia(Xcorte, Ycorte, flxIntersec[0], flxIntersec[1]) < puntos.distancia(C1x, C1y, Xcorte, Ycorte) Then
+                                C1x = flxIntersec[0]
+                                C1y = flxIntersec[1]
+                            End If
 
-            Endif
+                        Endif
 
-            ' lo mismo para P23
-            If puntos.distancia(eRecortar.p[2], eRecortar.p[3], Xcorte, Ycorte) > puntos.distancia(eRecortar.p[2], eRecortar.p[3], flxIntersec[0], flxIntersec[1]) Then
+                        ' lo mismo para P23
+                        If puntos.distancia(eRecortar.p[2], eRecortar.p[3], Xcorte, Ycorte) > puntos.distancia(eRecortar.p[2], eRecortar.p[3], flxIntersec[0], flxIntersec[1]) Then
 
-              ' el punto encontrado esta a la derecha del click, entonces lo asignamos a C2, pero solo si es mas cercano
-              If puntos.distancia(Xcorte, Ycorte, flxIntersec[0], flxIntersec[1]) < puntos.distancia(C2x, C2y, Xcorte, Ycorte) Then
-                C2x = flxIntersec[0]
-                C2y = flxIntersec[1]
-              End If
+                            ' el punto encontrado esta a la derecha del click, entonces lo asignamos a C2, pero solo si es mas cercano
+                            If puntos.distancia(Xcorte, Ycorte, flxIntersec[0], flxIntersec[1]) < puntos.distancia(C2x, C2y, Xcorte, Ycorte) Then
+                                C2x = flxIntersec[0]
+                                C2y = flxIntersec[1]
+                            End If
 
-            Endif
+                        Endif
 
-          Endif
+                    Endif
 
-        Next
-      Case "Arc", "Ellipse", "Circle"
+                Next
+            Case "Arc", "Ellipse", "Circle"
 
-        For i = 0 To eTijera.polyline.count - 4 Step 2         ' Idem linea, pero  para todos los tramos de la polilinea
+                For i = 0 To eTijera.polyline.count - 4 Step 2         ' Idem linea, pero  para todos los tramos de la polilinea
 
-          If puntos.doIntersect(eRecortar.p[0], eRecortar.p[1], eRecortar.p[2], eRecortar.p[3], eTijera.polyline[i + 0], eTijera.polyline[i + 1], eTijera.polyline[i + 2], eTijera.polyline[i + 3]) Then
+                    If puntos.doIntersect(eRecortar.p[0], eRecortar.p[1], eRecortar.p[2], eRecortar.p[3], eTijera.polyline[i + 0], eTijera.polyline[i + 1], eTijera.polyline[i + 2], eTijera.polyline[i + 3]) Then
 
-            ' obtengo el punto de interseccion
-            flxIntersec = puntos.lineLineIntersection([eRecortar.p[0], eRecortar.p[1]], [eRecortar.p[2], eRecortar.p[3]], [eTijera.polyline[i + 0], eTijera.polyline[i + 1]], [eTijera.polyline[i + 2], eTijera.polyline[i + 3]])
+                        ' obtengo el punto de interseccion
+                        flxIntersec = puntos.lineLineIntersection([eRecortar.p[0], eRecortar.p[1]], [eRecortar.p[2], eRecortar.p[3]], [eTijera.polyline[i + 0], eTijera.polyline[i + 1]], [eTijera.polyline[i + 2], eTijera.polyline[i + 3]])
 
-            If puntos.distancia(eRecortar.p[0], eRecortar.p[1], Xcorte, Ycorte) > puntos.distancia(eRecortar.p[0], eRecortar.p[1], flxIntersec[0], flxIntersec[1]) Then
+                        If puntos.distancia(eRecortar.p[0], eRecortar.p[1], Xcorte, Ycorte) > puntos.distancia(eRecortar.p[0], eRecortar.p[1], flxIntersec[0], flxIntersec[1]) Then
 
-              ' el punto encontrado esta a la izq del click, entonces lo asignamos a C1, pero solo si es mas cercano
-              If puntos.distancia(Xcorte, Ycorte, flxIntersec[0], flxIntersec[1]) < puntos.distancia(C1x, C1y, Xcorte, Ycorte) Then
-                C1x = flxIntersec[0]
-                C1y = flxIntersec[1]
-              End If
+                            ' el punto encontrado esta a la izq del click, entonces lo asignamos a C1, pero solo si es mas cercano
+                            If puntos.distancia(Xcorte, Ycorte, flxIntersec[0], flxIntersec[1]) < puntos.distancia(C1x, C1y, Xcorte, Ycorte) Then
+                                C1x = flxIntersec[0]
+                                C1y = flxIntersec[1]
+                            End If
 
-            Endif
+                        Endif
 
-            ' lo mismo para P23
-            If puntos.distancia(eRecortar.p[2], eRecortar.p[3], Xcorte, Ycorte) > puntos.distancia(eRecortar.p[2], eRecortar.p[3], flxIntersec[0], flxIntersec[1]) Then
+                        ' lo mismo para P23
+                        If puntos.distancia(eRecortar.p[2], eRecortar.p[3], Xcorte, Ycorte) > puntos.distancia(eRecortar.p[2], eRecortar.p[3], flxIntersec[0], flxIntersec[1]) Then
 
-              ' el punto encontrado esta a la derecha del click, entonces lo asignamos a C2, pero solo si es mas cercano
-              If puntos.distancia(Xcorte, Ycorte, flxIntersec[0], flxIntersec[1]) < puntos.distancia(C2x, C2y, Xcorte, Ycorte) Then
-                C2x = flxIntersec[0]
-                C2y = flxIntersec[1]
-              End If
+                            ' el punto encontrado esta a la derecha del click, entonces lo asignamos a C2, pero solo si es mas cercano
+                            If puntos.distancia(Xcorte, Ycorte, flxIntersec[0], flxIntersec[1]) < puntos.distancia(C2x, C2y, Xcorte, Ycorte) Then
+                                C2x = flxIntersec[0]
+                                C2y = flxIntersec[1]
+                            End If
 
-            Endif
+                        Endif
 
-          Endif
+                    Endif
 
-        Next
-    End Select
-  Next
-  ' termine la busqueda de puntos de recorte
-  'ahora recorto la entidad
-  ' primer o determino si debo partir la entidad o si solo se recorta
-  If (eRecortar.p[0] = C1x) And (eRecortar.p[1] = C1y) And (eRecortar.p[2] = C2x) And (eRecortar.p[3] = C2y) Then
-    ' este entidad no sera recortada
+                Next
+        End Select
+    Next
+    ' termine la busqueda de puntos de recorte
+    'ahora recorto la entidad
+    ' primer o determino si debo partir la entidad o si solo se recorta
+    If (eRecortar.p[0] = C1x) And (eRecortar.p[1] = C1y) And (eRecortar.p[2] = C2x) And (eRecortar.p[3] = C2y) Then
+        ' este entidad no sera recortada
 
-  Else If (eRecortar.p[0] = C1x) And (eRecortar.p[1] = C1y) Then ' elimino el tramo P01 - C2
+    Else If (eRecortar.p[0] = C1x) And (eRecortar.p[1] = C1y) Then ' elimino el tramo P01 - C2
 
-    eRecortar.p[0] = C2x
-    eRecortar.p[1] = C2y
+        eRecortar.p[0] = C2x
+        eRecortar.p[1] = C2y
 
-  Else If (eRecortar.p[2] = C2x) And (eRecortar.p[3] = C2y) Then ' elimino el tramo p23 - C1
+    Else If (eRecortar.p[2] = C2x) And (eRecortar.p[3] = C2y) Then ' elimino el tramo p23 - C1
 
-    eRecortar.p[2] = C1x
-    eRecortar.p[3] = C1y
+        eRecortar.p[2] = C1x
+        eRecortar.p[3] = C1y
 
-  Else ' se parte en dos la entidad
+    Else ' se parte en dos la entidad
 
-    eNewPart = clsEntities.ClonEntity(eRecortar)          ' primero la clono
-    eNewPart.p[0] = C2x
-    eNewPart.p[1] = C2y
+        eNewPart = clsEntities.ClonEntity(eRecortar)          ' primero la clono
+        eNewPart.p[0] = C2x
+        eNewPart.p[1] = C2y
 
-    ' tareas finales en las entidades
-    eNewPart.ClassHandler.finish(eNewPart)
-    gcd.CurrDrawing.arrEntities.Add(eNewPart)                ' la agrego al dibujo
+        ' tareas finales en las entidades
+        eNewPart.ClassHandler.finish(eNewPart)
+        gcd.CurrDrawing.arrEntities.Add(eNewPart)                ' la agrego al dibujo
 
-    eRecortar.p[2] = C1x
-    eRecortar.p[3] = C1y
-    eRecortar.ClassHandler.finish(eRecortar)                ' para regenerar los POI
+        eRecortar.p[2] = C1x
+        eRecortar.p[3] = C1y
+        eRecortar.ClassHandler.finish(eRecortar)                ' para regenerar los POI
 
-  End If
-  gcd.Regen
+    End If
+    gcd.Regen
 
 End
 
 '' Esta sub recorta una polilinea con otras cosas
 Public Sub DoTrimPline()
 
-  Dim i, iii As Integer, v1, v2, flxIntersecMin, flxIntersec As New Float[], dIntersect, dIntersectMin As Float = 1e20
-  Dim flxObjeto, flxTijera As Float[]
-  Dim s1 As Integer
-  Dim Xcorte As Float
-  Dim eTijera, eNewPart As Entity
+    Dim i, iii As Integer, v1, v2, flxIntersecMin, flxIntersec As New Float[], dIntersect, dIntersectMin As Float = 1e20
+    Dim flxObjeto, flxTijera As Float[]
+    Dim s1 As Integer
+    Dim Xcorte As Float
+    Dim eTijera, eNewPart As Entity
 
-  Dim C1x, C1y, C2x, C2y As Float ' candidatos al recorte, C1 es el que esta mas cerca de P01 y C2 de P23
-  Dim TramoC1, TramoC2 As Integer ' tramos donde estan los puntos para recortar
-  Dim T1x, T1y, T2x, T2y As Float ' puntos del tramo en cuestion
-  Dim Ycorte As Float
-  Dim TramoCorte, t, tramo As Integer
+    Dim C1x, C1y, C2x, C2y As Float ' candidatos al recorte, C1 es el que esta mas cerca de P01 y C2 de P23
+    Dim TramoC1, TramoC2 As Integer ' tramos donde estan los puntos para recortar
+    Dim T1x, T1y, T2x, T2y As Float ' puntos del tramo en cuestion
+    Dim Ycorte As Float
+    Dim TramoCorte, t, tramo As Integer
 
-  Xcorte = Me.SelEndXr
-  Ycorte = Me.SelEndyr
+    Xcorte = Me.SelEndXr
+    Ycorte = Me.SelEndyr
 
-  ' necesito encontrar el tramo donde esta el punto
-  TramoCorte = puntos.inPolySegment(eRecortar.p, Xcorte, Ycorte, gcd.Metros(16))
+    ' necesito encontrar el tramo donde esta el punto
+    TramoCorte = puntos.inPolySegment(eRecortar.p, Xcorte, Ycorte, gcd.Metros(16))
 
-  ' debo encontrar los puntos de corte mas cercanos a cada lado del punto que esta sobre la entidad a recortar
-  C1x = eRecortar.p[0]
-  C1y = eRecortar.p[1]        ' inicialmente estan en los limites
-  C2x = eRecortar.p[eRecortar.p.Max - 1]
-  C2y = eRecortar.p[eRecortar.p.Max]
+    ' debo encontrar los puntos de corte mas cercanos a cada lado del punto que esta sobre la entidad a recortar
+    C1x = eRecortar.p[0]
+    C1y = eRecortar.p[1]        ' inicialmente estan en los limites
+    C2x = eRecortar.p[eRecortar.p.Max - 1]
+    C2y = eRecortar.p[eRecortar.p.Max]
 
-  TramoC1 = 0                         ' y los tramos en el primero y el ultimo
-  TramoC2 = (eRecortar.p.Count - 2) / 2 + 1
+    TramoC1 = 0                         ' y los tramos en el primero y el ultimo
+    TramoC2 = (eRecortar.p.Count - 2) / 2 + 1
 
-  For t = 0 To eRecortar.p.count - 4 Step 2         ' Idem linea, pero  para todos los tramos de la polilinea
-    Tramo = t / 2 + 1
-    T1x = eRecortar.p[t + 0]
-    T1y = eRecortar.p[t + 1]
-    T2x = eRecortar.p[t + 2]
-    T2y = eRecortar.p[t + 3]
+    For t = 0 To eRecortar.p.count - 4 Step 2         ' Idem linea, pero  para todos los tramos de la polilinea
+        Tramo = t / 2 + 1
+        T1x = eRecortar.p[t + 0]
+        T1y = eRecortar.p[t + 1]
+        T2x = eRecortar.p[t + 2]
+        T2y = eRecortar.p[t + 3]
 
-    For iii = 0 To Me.arrTijeras.Max
-      eTijera = gcd.CurrDrawing.arrEntities[arrTijeras[iii]]
-      Select Case eTijera.Gender
-        Case "Line"
-          If puntos.doIntersect(T1x, T1y, T2x, T2y, eTijera.p[0], eTijera.p[1], eTijera.p[2], eTijera.p[3]) Then
+        For iii = 0 To Me.arrTijeras.Max
+            eTijera = gcd.CurrDrawing.arrEntities[arrTijeras[iii]]
+            Select Case eTijera.Gender
+                Case "Line"
+                    If puntos.doIntersect(T1x, T1y, T2x, T2y, eTijera.p[0], eTijera.p[1], eTijera.p[2], eTijera.p[3]) Then
 
-            ' obtengo el punto de interseccion
-            flxIntersec = puntos.lineLineIntersection([T1x, T1y], [T2x, T2y], [eTijera.p[0], eTijera.p[1]], [eTijera.p[2], eTijera.p[3]])
+                        ' obtengo el punto de interseccion
+                        flxIntersec = puntos.lineLineIntersection([T1x, T1y], [T2x, T2y], [eTijera.p[0], eTijera.p[1]], [eTijera.p[2], eTijera.p[3]])
 
-            ' veo si este tramo es mas cercano al del punto de corte
-            If tramo <= TramoCorte And tramo >= TramoC1 Then
+                        ' veo si este tramo es mas cercano al del punto de corte
+                        If tramo <= TramoCorte And tramo >= TramoC1 Then
 
-              If puntos.distancia(T1x, T1y, Xcorte, Ycorte) > puntos.distancia(T1x, T1y, flxIntersec[0], flxIntersec[1]) Then
-                TramoC1 = tramo
-                ' el punto encontrado esta a la izq del click, entonces lo asignamos a C1, pero solo si es mas cercano
-                If puntos.distancia(Xcorte, Ycorte, flxIntersec[0], flxIntersec[1]) < puntos.distancia(C1x, C1y, Xcorte, Ycorte) Then
-                  C1x = flxIntersec[0]
-                  C1y = flxIntersec[1]
-                End If
+                            If puntos.distancia(T1x, T1y, Xcorte, Ycorte) > puntos.distancia(T1x, T1y, flxIntersec[0], flxIntersec[1]) Then
+                                TramoC1 = tramo
+                                ' el punto encontrado esta a la izq del click, entonces lo asignamos a C1, pero solo si es mas cercano
+                                If puntos.distancia(Xcorte, Ycorte, flxIntersec[0], flxIntersec[1]) < puntos.distancia(C1x, C1y, Xcorte, Ycorte) Then
+                                    C1x = flxIntersec[0]
+                                    C1y = flxIntersec[1]
+                                End If
 
-              Endif
-            End If
+                            Endif
+                        End If
 
-            ' veo si este tramo es mas cercano al del punto de corte, pasando el mismo
-            If tramo >= TramoCorte And tramo <= TramoC2 Then
+                        ' veo si este tramo es mas cercano al del punto de corte, pasando el mismo
+                        If tramo >= TramoCorte And tramo <= TramoC2 Then
 
-              ' lo mismo para P23
-              If puntos.distancia(T2x, T2y, Xcorte, Ycorte) > puntos.distancia(T2x, T2y, flxIntersec[0], flxIntersec[1]) Then
-                TramoC2 = tramo
-                ' el punto encontrado esta a la derecha del click, entonces lo asignamos a C2, pero solo si es mas cercano
-                If puntos.distancia(Xcorte, Ycorte, flxIntersec[0], flxIntersec[1]) < puntos.distancia(C2x, C2y, Xcorte, Ycorte) Then
-                  C2x = flxIntersec[0]
-                  C2y = flxIntersec[1]
-                End If
+                            ' lo mismo para P23
+                            If puntos.distancia(T2x, T2y, Xcorte, Ycorte) > puntos.distancia(T2x, T2y, flxIntersec[0], flxIntersec[1]) Then
+                                TramoC2 = tramo
+                                ' el punto encontrado esta a la derecha del click, entonces lo asignamos a C2, pero solo si es mas cercano
+                                If puntos.distancia(Xcorte, Ycorte, flxIntersec[0], flxIntersec[1]) < puntos.distancia(C2x, C2y, Xcorte, Ycorte) Then
+                                    C2x = flxIntersec[0]
+                                    C2y = flxIntersec[1]
+                                End If
 
-              Endif
-            End If
+                            Endif
+                        End If
 
-          Endif
-        Case "LWPolyline"
+                    Endif
+                Case "LWPolyline"
 
-          For i = 0 To eTijera.p.count - 4 Step 2         ' Idem linea, pero  para todos los tramos de la polilinea
+                    For i = 0 To eTijera.p.count - 4 Step 2         ' Idem linea, pero  para todos los tramos de la polilinea
 
-            If puntos.doIntersect(T1x, T1y, T2x, T2y, eTijera.p[i + 0], eTijera.p[i + 1], eTijera.p[i + 2], eTijera.p[i + 3]) Then
+                        If puntos.doIntersect(T1x, T1y, T2x, T2y, eTijera.p[i + 0], eTijera.p[i + 1], eTijera.p[i + 2], eTijera.p[i + 3]) Then
 
-              ' obtengo el punto de interseccion
-              flxIntersec = puntos.lineLineIntersection([T1x, T1y], [T2x, T2y], [eTijera.p[i + 0], eTijera.p[i + 1]], [eTijera.p[i + 2], eTijera.p[i + 3]])
+                            ' obtengo el punto de interseccion
+                            flxIntersec = puntos.lineLineIntersection([T1x, T1y], [T2x, T2y], [eTijera.p[i + 0], eTijera.p[i + 1]], [eTijera.p[i + 2], eTijera.p[i + 3]])
 
-              If tramo <= TramoCorte And tramo >= TramoC1 Then
+                            If tramo <= TramoCorte And tramo >= TramoC1 Then
 
-                If puntos.distancia(T1x, T1y, Xcorte, Ycorte) > puntos.distancia(T1x, T1y, flxIntersec[0], flxIntersec[1]) Then
-                  TramoC1 = tramo
-                  ' el punto encontrado esta a la izq del click, entonces lo asignamos a C1, pero solo si es mas cercano
-                  If puntos.distancia(Xcorte, Ycorte, flxIntersec[0], flxIntersec[1]) < puntos.distancia(C1x, C1y, Xcorte, Ycorte) Then
-                    C1x = flxIntersec[0]
-                    C1y = flxIntersec[1]
-                  End If
+                                If puntos.distancia(T1x, T1y, Xcorte, Ycorte) > puntos.distancia(T1x, T1y, flxIntersec[0], flxIntersec[1]) Then
+                                    TramoC1 = tramo
+                                    ' el punto encontrado esta a la izq del click, entonces lo asignamos a C1, pero solo si es mas cercano
+                                    If puntos.distancia(Xcorte, Ycorte, flxIntersec[0], flxIntersec[1]) < puntos.distancia(C1x, C1y, Xcorte, Ycorte) Then
+                                        C1x = flxIntersec[0]
+                                        C1y = flxIntersec[1]
+                                    End If
 
-                Endif
-              End If
-              ' lo mismo para P23
-              If tramo >= TramoCorte And tramo <= TramoC2 Then
+                                Endif
+                            End If
+                            ' lo mismo para P23
+                            If tramo >= TramoCorte And tramo <= TramoC2 Then
 
-                If puntos.distancia(T2x, T2y, Xcorte, Ycorte) > puntos.distancia(T2x, T2y, flxIntersec[0], flxIntersec[1]) Then
-                  TramoC2 = tramo
-                  ' el punto encontrado esta a la derecha del click, entonces lo asignamos a C2, pero solo si es mas cercano
-                  If puntos.distancia(Xcorte, Ycorte, flxIntersec[0], flxIntersec[1]) < puntos.distancia(C2x, C2y, Xcorte, Ycorte) Then
-                    C2x = flxIntersec[0]
-                    C2y = flxIntersec[1]
-                  End If
+                                If puntos.distancia(T2x, T2y, Xcorte, Ycorte) > puntos.distancia(T2x, T2y, flxIntersec[0], flxIntersec[1]) Then
+                                    TramoC2 = tramo
+                                    ' el punto encontrado esta a la derecha del click, entonces lo asignamos a C2, pero solo si es mas cercano
+                                    If puntos.distancia(Xcorte, Ycorte, flxIntersec[0], flxIntersec[1]) < puntos.distancia(C2x, C2y, Xcorte, Ycorte) Then
+                                        C2x = flxIntersec[0]
+                                        C2y = flxIntersec[1]
+                                    End If
 
-                Endif
-              Endif
-            Endif
+                                Endif
+                            Endif
+                        Endif
 
-          Next
+                    Next
 
-        Case "Text", "MText"
+                Case "Text", "MText"
 
-          For i = 0 To eTijera.Polygon.count - 4 Step 2         ' Idem linea, pero  para todos los tramos de la polilinea
+                    For i = 0 To eTijera.Polygon.count - 4 Step 2         ' Idem linea, pero  para todos los tramos de la polilinea
 
-            If puntos.doIntersect(T1x, T1y, T2x, T2y, eTijera.polygon[i + 0], eTijera.polygon[i + 1], eTijera.polygon[i + 2], eTijera.polygon[i + 3]) Then
+                        If puntos.doIntersect(T1x, T1y, T2x, T2y, eTijera.polygon[i + 0], eTijera.polygon[i + 1], eTijera.polygon[i + 2], eTijera.polygon[i + 3]) Then
 
-              ' obtengo el punto de interseccion
-              flxIntersec = puntos.lineLineIntersection([T1x, T1y], [T2x, T2y], [eTijera.polygon[i + 0], eTijera.polygon[i + 1]], [eTijera.polygon[i + 2], eTijera.polygon[i + 3]])
-              If tramo <= TramoCorte And tramo >= TramoC1 Then
+                            ' obtengo el punto de interseccion
+                            flxIntersec = puntos.lineLineIntersection([T1x, T1y], [T2x, T2y], [eTijera.polygon[i + 0], eTijera.polygon[i + 1]], [eTijera.polygon[i + 2], eTijera.polygon[i + 3]])
+                            If tramo <= TramoCorte And tramo >= TramoC1 Then
 
-                If puntos.distancia(T1x, T1y, Xcorte, Ycorte) > puntos.distancia(T1x, T1y, flxIntersec[0], flxIntersec[1]) Then
-                  TramoC1 = tramo
-                  ' el punto encontrado esta a la izq del click, entonces lo asignamos a C1, pero solo si es mas cercano
-                  If puntos.distancia(Xcorte, Ycorte, flxIntersec[0], flxIntersec[1]) < puntos.distancia(C1x, C1y, Xcorte, Ycorte) Then
-                    C1x = flxIntersec[0]
-                    C1y = flxIntersec[1]
-                  End If
+                                If puntos.distancia(T1x, T1y, Xcorte, Ycorte) > puntos.distancia(T1x, T1y, flxIntersec[0], flxIntersec[1]) Then
+                                    TramoC1 = tramo
+                                    ' el punto encontrado esta a la izq del click, entonces lo asignamos a C1, pero solo si es mas cercano
+                                    If puntos.distancia(Xcorte, Ycorte, flxIntersec[0], flxIntersec[1]) < puntos.distancia(C1x, C1y, Xcorte, Ycorte) Then
+                                        C1x = flxIntersec[0]
+                                        C1y = flxIntersec[1]
+                                    End If
 
-                Endif
-              End If
-              ' lo mismo para P23
-              If tramo >= TramoCorte And tramo <= TramoC2 Then
+                                Endif
+                            End If
+                            ' lo mismo para P23
+                            If tramo >= TramoCorte And tramo <= TramoC2 Then
 
-                If puntos.distancia(T2x, T2y, Xcorte, Ycorte) > puntos.distancia(T2x, T2y, flxIntersec[0], flxIntersec[1]) Then
-                  TramoC2 = tramo
-                  ' el punto encontrado esta a la derecha del click, entonces lo asignamos a C2, pero solo si es mas cercano
-                  If puntos.distancia(Xcorte, Ycorte, flxIntersec[0], flxIntersec[1]) < puntos.distancia(C2x, C2y, Xcorte, Ycorte) Then
-                    C2x = flxIntersec[0]
-                    C2y = flxIntersec[1]
-                  End If
+                                If puntos.distancia(T2x, T2y, Xcorte, Ycorte) > puntos.distancia(T2x, T2y, flxIntersec[0], flxIntersec[1]) Then
+                                    TramoC2 = tramo
+                                    ' el punto encontrado esta a la derecha del click, entonces lo asignamos a C2, pero solo si es mas cercano
+                                    If puntos.distancia(Xcorte, Ycorte, flxIntersec[0], flxIntersec[1]) < puntos.distancia(C2x, C2y, Xcorte, Ycorte) Then
+                                        C2x = flxIntersec[0]
+                                        C2y = flxIntersec[1]
+                                    End If
 
-                Endif
-              End If
-            Endif
+                                Endif
+                            End If
+                        Endif
 
-          Next
-        Case "Arc", "Ellipse", "Circle"
+                    Next
+                Case "Arc", "Ellipse", "Circle"
 
-          For i = 0 To eTijera.polyline.count - 4 Step 2         ' Idem linea, pero  para todos los tramos de la polilinea
+                    For i = 0 To eTijera.polyline.count - 4 Step 2         ' Idem linea, pero  para todos los tramos de la polilinea
 
-            If puntos.doIntersect(T1x, T1y, T2x, T2y, eTijera.polyline[i + 0], eTijera.polyline[i + 1], eTijera.polyline[i + 2], eTijera.polyline[i + 3]) Then
+                        If puntos.doIntersect(T1x, T1y, T2x, T2y, eTijera.polyline[i + 0], eTijera.polyline[i + 1], eTijera.polyline[i + 2], eTijera.polyline[i + 3]) Then
 
-              ' obtengo el punto de interseccion
-              flxIntersec = puntos.lineLineIntersection([T1x, T1y], [T2x, T2y], [eTijera.polyline[i + 0], eTijera.polyline[i + 1]], [eTijera.polyline[i + 2], eTijera.polyline[i + 3]])
-              If tramo <= TramoCorte And tramo >= TramoC1 Then
+                            ' obtengo el punto de interseccion
+                            flxIntersec = puntos.lineLineIntersection([T1x, T1y], [T2x, T2y], [eTijera.polyline[i + 0], eTijera.polyline[i + 1]], [eTijera.polyline[i + 2], eTijera.polyline[i + 3]])
+                            If tramo <= TramoCorte And tramo >= TramoC1 Then
 
-                If puntos.distancia(T1x, T1y, Xcorte, Ycorte) > puntos.distancia(T1x, T1y, flxIntersec[0], flxIntersec[1]) Then
-                  TramoC1 = tramo
-                  ' el punto encontrado esta a la izq del click, entonces lo asignamos a C1, pero solo si es mas cercano
-                  If puntos.distancia(Xcorte, Ycorte, flxIntersec[0], flxIntersec[1]) < puntos.distancia(C1x, C1y, Xcorte, Ycorte) Then
-                    C1x = flxIntersec[0]
-                    C1y = flxIntersec[1]
-                  End If
+                                If puntos.distancia(T1x, T1y, Xcorte, Ycorte) > puntos.distancia(T1x, T1y, flxIntersec[0], flxIntersec[1]) Then
+                                    TramoC1 = tramo
+                                    ' el punto encontrado esta a la izq del click, entonces lo asignamos a C1, pero solo si es mas cercano
+                                    If puntos.distancia(Xcorte, Ycorte, flxIntersec[0], flxIntersec[1]) < puntos.distancia(C1x, C1y, Xcorte, Ycorte) Then
+                                        C1x = flxIntersec[0]
+                                        C1y = flxIntersec[1]
+                                    End If
 
-                Endif
-              End If
-              ' lo mismo para P23
-              If tramo >= TramoCorte And tramo <= TramoC2 Then
+                                Endif
+                            End If
+                            ' lo mismo para P23
+                            If tramo >= TramoCorte And tramo <= TramoC2 Then
 
-                If puntos.distancia(T2x, T2y, Xcorte, Ycorte) > puntos.distancia(T2x, T2y, flxIntersec[0], flxIntersec[1]) Then
-                  TramoC2 = tramo
-                  ' el punto encontrado esta a la derecha del click, entonces lo asignamos a C2, pero solo si es mas cercano
-                  If puntos.distancia(Xcorte, Ycorte, flxIntersec[0], flxIntersec[1]) < puntos.distancia(C2x, C2y, Xcorte, Ycorte) Then
-                    C2x = flxIntersec[0]
-                    C2y = flxIntersec[1]
-                  End If
+                                If puntos.distancia(T2x, T2y, Xcorte, Ycorte) > puntos.distancia(T2x, T2y, flxIntersec[0], flxIntersec[1]) Then
+                                    TramoC2 = tramo
+                                    ' el punto encontrado esta a la derecha del click, entonces lo asignamos a C2, pero solo si es mas cercano
+                                    If puntos.distancia(Xcorte, Ycorte, flxIntersec[0], flxIntersec[1]) < puntos.distancia(C2x, C2y, Xcorte, Ycorte) Then
+                                        C2x = flxIntersec[0]
+                                        C2y = flxIntersec[1]
+                                    End If
 
-                Endif
-              End If
-            Endif
+                                Endif
+                            End If
+                        Endif
 
-          Next
-      End Select
+                    Next
+            End Select
+        Next
     Next
-  Next
-  ' termine la busqueda de puntos de recorte
-  'ahora recorto la entidad
-  ' primer o determino si debo partir la entidad o si solo se recorta
-  If (TramoC1 = 0) And (TramoC2 = (eRecortar.p.Count - 2) / 2 + 1) Then
-    ' este entidad no sera recortada
+    ' termine la busqueda de puntos de recorte
+    'ahora recorto la entidad
+    ' primer o determino si debo partir la entidad o si solo se recorta
+    If (TramoC1 = 0) And (TramoC2 = (eRecortar.p.Count - 2) / 2 + 1) Then
+        ' este entidad no sera recortada
 
-  Else If (TramoC1 >= 1) And (TramoC2 = (eRecortar.p.Count - 2) / 2 + 1) Then
-    ' elimino el tramo inicial al corte
+    Else If (TramoC1 >= 1) And (TramoC2 = (eRecortar.p.Count - 2) / 2 + 1) Then
+        ' elimino el tramo inicial al corte
 
-    eRecortar.P[(TramoC1) * 2] = C1x
-    eRecortar.P[(TramoC1) * 2 + 1] = C1y
-    ' elimino el resto
-    eRecortar.P.Remove((TramoC1) * 2 + 2, eRecortar.P.Max - ((TramoC1) * 2 + 1))
+        eRecortar.P[(TramoC1) * 2] = C1x
+        eRecortar.P[(TramoC1) * 2 + 1] = C1y
+        ' elimino el resto
+        eRecortar.P.Remove((TramoC1) * 2 + 2, eRecortar.P.Max - ((TramoC1) * 2 + 1))
 
-  Else If (TramoC1 = 0) And (TramoC2 <= (eRecortar.p.Count - 2) / 2) Then
-    ' elimino el tramo del corte al final
+    Else If (TramoC1 = 0) And (TramoC2 <= (eRecortar.p.Count - 2) / 2) Then
+        ' elimino el tramo del corte al final
 
-    eRecortar.P[(TramoC2 - 1) * 2] = C2x
-    eRecortar.P[(TramoC2 - 1) * 2 + 1] = C2y
-    ' elimino el resto
-    eRecortar.P.Remove(0, (TramoC2 - 1) * 2)
+        eRecortar.P[(TramoC2 - 1) * 2] = C2x
+        eRecortar.P[(TramoC2 - 1) * 2 + 1] = C2y
+        ' elimino el resto
+        eRecortar.P.Remove(0, (TramoC2 - 1) * 2)
 
-  Else ' se parte en dos la entidad
+    Else ' se parte en dos la entidad
 
-    eNewPart = clsEntities.ClonEntity(eRecortar)          ' primero la clono
+        eNewPart = clsEntities.ClonEntity(eRecortar)          ' primero la clono
 
-    eNewPart.P[(TramoC2 - 1) * 2] = C2x
-    eNewPart.P[(TramoC2 - 1) * 2 + 1] = C2y
-    ' elimino el resto
-    eNewPart.P.Remove(0, (TramoC2 - 1) * 2)
+        eNewPart.P[(TramoC2 - 1) * 2] = C2x
+        eNewPart.P[(TramoC2 - 1) * 2 + 1] = C2y
+        ' elimino el resto
+        eNewPart.P.Remove(0, (TramoC2 - 1) * 2)
 
-    ' tareas finales en las entidades
+        ' tareas finales en las entidades
 
-    gcd.CurrDrawing.arrEntities.Add(eNewPart)                ' la agrego al dibujo
+        gcd.CurrDrawing.arrEntities.Add(eNewPart)                ' la agrego al dibujo
 
-    eRecortar.P[(TramoC1) * 2] = C1x
-    eRecortar.P[(TramoC1) * 2 + 1] = C1y
-    ' elimino el resto
-    eRecortar.P.Remove((TramoC1) * 2 + 2, eRecortar.P.Max - ((TramoC1) * 2 + 1))
+        eRecortar.P[(TramoC1) * 2] = C1x
+        eRecortar.P[(TramoC1) * 2 + 1] = C1y
+        ' elimino el resto
+        eRecortar.P.Remove((TramoC1) * 2 + 2, eRecortar.P.Max - ((TramoC1) * 2 + 1))
 
-  End If
+    End If
 
-  gcd.Regen
+    gcd.Regen
 
 End
 
 '' Esta sub recorta una cosa con otras cosas
 Public Sub DoTrimCircle()
 
-  Dim i, iii As Integer, v1, v2, flxIntersecMin, flxIntersec As New Float[], dIntersect, dIntersectMin As Float = 1e20
-  Dim flxObjeto, flxTijera As Float[]
-  Dim s1 As Integer
-  Dim Xcorte As Float
-  Dim eTijera, eNewPart As Entity
+    Dim i, iii As Integer, v1, v2, flxIntersecMin, flxIntersec As New Float[], dIntersect, dIntersectMin As Float = 1e20
+    Dim flxObjeto, flxTijera As Float[]
+    Dim s1 As Integer
+    Dim Xcorte As Float
+    Dim eTijera, eNewPart As Entity
 
-  Dim C1, C2 As Float ' candidatos al recorte, C1 es el que esta mas cerca de 0 y C2 de 360
-  Dim TramoC1, TramoC2 As Integer ' tramos donde estan los puntos para recortar
-  Dim T1x, T1y, T2x, T2y As Float ' puntos del tramo en cuestion
-  Dim Ycorte, theta, angle_increment As Float
-  Dim TramoCorte, t, tramo As Integer
-  Dim AngCorte As Float
+    Dim C1, C2 As Float ' candidatos al recorte, C1 es el que esta mas cerca de 0 y C2 de 360
+    Dim TramoC1, TramoC2 As Integer ' tramos donde estan los puntos para recortar
+    Dim T1x, T1y, T2x, T2y As Float ' puntos del tramo en cuestion
+    Dim Ycorte, theta, angle_increment As Float
+    Dim TramoCorte, t, tramo As Integer
+    Dim AngCorte As Float
 
-  Xcorte = Me.SelEndXr    ' el lugar donde e user hizo click en la entidad a cortar
-  Ycorte = Me.SelEndyr
-  AngCorte = Ang(Xcorte - eRecortar.p[0], Ycorte - eRecortar.p[1])
-  If AngCorte < 0 Then AngCorte += 2 * Pi
+    Xcorte = Me.SelEndXr    ' el lugar donde e user hizo click en la entidad a cortar
+    Ycorte = Me.SelEndyr
+    AngCorte = Ang(Xcorte - eRecortar.p[0], Ycorte - eRecortar.p[1])
+    If AngCorte < 0 Then AngCorte += 2 * Pi
 
-  ' debo encontrar los puntos de corte mas cercanos a cada lado del punto que esta sobre la entidad a recortar
-  ' es este caso son angulos
+    ' debo encontrar los puntos de corte mas cercanos a cada lado del punto que esta sobre la entidad a recortar
+    ' es este caso son angulos
 
-  C1 = 0        ' inicialmente estan en los limites
-  C2 = 2 * Pi
+    C1 = 0        ' inicialmente estan en los limites
+    C2 = 2 * Pi
 
-  angle_increment = Pi * 2 / 360
-  For theta = (0 + angle_increment) To (2 * Pi) Step angle_increment
-    ' el punto considerando 0,0 al centro
-    T1x = eRecortar.p[0] + eRecortar.fParam[0] * Cos(theta - angle_increment)
-    T1y = eRecortar.p[1] + eRecortar.fParam[0] * Sin(theta - angle_increment)
+    angle_increment = Pi * 2 / 360
+    For theta = (0 + angle_increment) To (2 * Pi) Step angle_increment
+        ' el punto considerando 0,0 al centro
+        T1x = eRecortar.p[0] + eRecortar.fParam[0] * Cos(theta - angle_increment)
+        T1y = eRecortar.p[1] + eRecortar.fParam[0] * Sin(theta - angle_increment)
 
-    T2x = eRecortar.p[0] + eRecortar.fParam[0] * Cos(theta)
-    T2y = eRecortar.p[1] + eRecortar.fParam[0] * Sin(theta)
+        T2x = eRecortar.p[0] + eRecortar.fParam[0] * Cos(theta)
+        T2y = eRecortar.p[1] + eRecortar.fParam[0] * Sin(theta)
 
-    For iii = 0 To Me.arrTijeras.Max
-      eTijera = gcd.CurrDrawing.arrEntities[arrTijeras[iii]]
+        For iii = 0 To Me.arrTijeras.Max
+            eTijera = gcd.CurrDrawing.arrEntities[arrTijeras[iii]]
 
-      Select Case eTijera.Gender
-        Case "Line"
-          If puntos.doIntersect(T1x, T1y, T2x, T2y, eTijera.p[0], eTijera.p[1], eTijera.p[2], eTijera.p[3]) Then
+            Select Case eTijera.Gender
+                Case "Line"
+                    If puntos.doIntersect(T1x, T1y, T2x, T2y, eTijera.p[0], eTijera.p[1], eTijera.p[2], eTijera.p[3]) Then
 
-            If theta > C1 And theta <= AngCorte Then C1 = theta
-            If theta < C2 And theta > AngCorte Then C2 = theta
+                        If theta > C1 And theta <= AngCorte Then C1 = theta
+                        If theta < C2 And theta > AngCorte Then C2 = theta
 
-          Endif
-        Case "PLine"
+                    Endif
+                Case "PLine"
 
-          For i = 0 To eTijera.p.count - 4 Step 2         ' Idem linea, pero  para todos los tramos de la polilinea
+                    For i = 0 To eTijera.p.count - 4 Step 2         ' Idem linea, pero  para todos los tramos de la polilinea
 
-            If puntos.doIntersect(T1x, T1y, T2x, T2y, eTijera.p[i + 0], eTijera.p[i + 1], eTijera.p[i + 2], eTijera.p[i + 3]) Then
+                        If puntos.doIntersect(T1x, T1y, T2x, T2y, eTijera.p[i + 0], eTijera.p[i + 1], eTijera.p[i + 2], eTijera.p[i + 3]) Then
 
-              If theta > C1 And theta <= AngCorte Then C1 = theta
-              If theta < C2 And theta > AngCorte Then C2 = theta
+                            If theta > C1 And theta <= AngCorte Then C1 = theta
+                            If theta < C2 And theta > AngCorte Then C2 = theta
 
-            Endif
+                        Endif
 
-          Next
+                    Next
 
-        Case "Text", "MText"
+                Case "Text", "MText"
 
-          For i = 0 To eTijera.Polygon.count - 4 Step 2         ' Idem linea, pero  para todos los tramos de la polilinea
+                    For i = 0 To eTijera.Polygon.count - 4 Step 2         ' Idem linea, pero  para todos los tramos de la polilinea
 
-            If puntos.doIntersect(T1x, T1y, T2x, T2y, eTijera.polygon[i + 0], eTijera.polygon[i + 1], eTijera.polygon[i + 2], eTijera.polygon[i + 3]) Then
+                        If puntos.doIntersect(T1x, T1y, T2x, T2y, eTijera.polygon[i + 0], eTijera.polygon[i + 1], eTijera.polygon[i + 2], eTijera.polygon[i + 3]) Then
 
-              If theta > C1 And theta <= AngCorte Then C1 = theta
-              If theta < C2 And theta > AngCorte Then C2 = theta
-            Endif
+                            If theta > C1 And theta <= AngCorte Then C1 = theta
+                            If theta < C2 And theta > AngCorte Then C2 = theta
+                        Endif
 
-          Next
-        Case "Arc", "Ellipse", "Circle"
+                    Next
+                Case "Arc", "Ellipse", "Circle"
 
-          For i = 0 To eTijera.polyline.count - 4 Step 2         ' Idem linea, pero  para todos los tramos de la polilinea
+                    For i = 0 To eTijera.polyline.count - 4 Step 2         ' Idem linea, pero  para todos los tramos de la polilinea
 
-            If puntos.doIntersect(T1x, T1y, T2x, T2y, eTijera.polyline[i + 0], eTijera.polyline[i + 1], eTijera.polyline[i + 2], eTijera.polyline[i + 3]) Then
+                        If puntos.doIntersect(T1x, T1y, T2x, T2y, eTijera.polyline[i + 0], eTijera.polyline[i + 1], eTijera.polyline[i + 2], eTijera.polyline[i + 3]) Then
 
-              If theta > C1 And theta <= AngCorte Then C1 = theta
-              If theta < C2 And theta > AngCorte Then C2 = theta
+                            If theta > C1 And theta <= AngCorte Then C1 = theta
+                            If theta < C2 And theta > AngCorte Then C2 = theta
 
-            Endif
+                        Endif
 
-          Next
-      End Select
+                    Next
+            End Select
+        Next
     Next
-  Next
-  ' termine la busqueda de puntos de recorte
-  'ahora recorto la entidad
-  ' primer o determino si debo partir la entidad o si solo se recorta
-  If (0 = C1) And (2 * Pi = C2) Then
-    ' este entidad no sera recortada
+    ' termine la busqueda de puntos de recorte
+    'ahora recorto la entidad
+    ' primer o determino si debo partir la entidad o si solo se recorta
+    If (0 = C1) And (2 * Pi = C2) Then
+        ' este entidad no sera recortada
 
-  Else ' se transforma la etidad en un arco
+    Else ' se transforma la etidad en un arco
 
-    ' tareas finales en las entidades
-    eRecortar.Gender = "Arc"
-    eRecortar.ClassHandler = cadArc
-    eRecortar.fParam.Add(C2 * 180 / Pi)
-    eRecortar.fParam.Add(C1 * 180 / Pi)
-    eRecortar.fParam.Add(1)
+        ' tareas finales en las entidades
+        eRecortar.Gender = "Arc"
+        eRecortar.ClassHandler = cadArc
+        eRecortar.fParam.Add(C2 * 180 / Pi)
+        eRecortar.fParam.Add(C1 * 180 / Pi)
+        eRecortar.fParam.Add(1)
 
-  End If
-  gcd.Regen
+    End If
+    gcd.Regen
 
 End
 
 '' Esta sub recorta una cosa con otras cosas
 Public Sub DoTrimArc()
 
-  Dim i, iii As Integer, v1, v2, flxIntersecMin, flxIntersec As New Float[], dIntersect, dIntersectMin As Float = 1e20
-  Dim flxObjeto, flxTijera As Float[]
-  Dim s1 As Integer
-  Dim Xcorte As Float
-  Dim eTijera, eNewPart As Entity
+    Dim i, iii As Integer, v1, v2, flxIntersecMin, flxIntersec As New Float[], dIntersect, dIntersectMin As Float = 1e20
+    Dim flxObjeto, flxTijera As Float[]
+    Dim s1 As Integer
+    Dim Xcorte As Float
+    Dim eTijera, eNewPart As Entity
 
-  Dim C1, C2 As Float ' candidatos al recorte, C1 es el que esta mas cerca de 0 y C2 de 360
-  Dim TramoC1, TramoC2 As Integer ' tramos donde estan los puntos para recortar
-  Dim T1x, T1y, T2x, T2y As Float ' puntos del tramo en cuestion
-  Dim Ycorte, theta, angle_increment As Float
-  Dim TramoCorte, t, tramo As Integer
-  Dim AngCorte As Float
-  Dim major, minor, angle As Float
+    Dim C1, C2 As Float ' candidatos al recorte, C1 es el que esta mas cerca de 0 y C2 de 360
+    Dim TramoC1, TramoC2 As Integer ' tramos donde estan los puntos para recortar
+    Dim T1x, T1y, T2x, T2y As Float ' puntos del tramo en cuestion
+    Dim Ycorte, theta, angle_increment As Float
+    Dim TramoCorte, t, tramo As Integer
+    Dim AngCorte As Float
+    Dim major, minor, angle As Float
 
-  Xcorte = Me.SelEndXr    ' el lugar donde e user hizo click en la entidad a cortar
-  Ycorte = Me.SelEndyr
-  AngCorte = Ang(Xcorte - eRecortar.p[0], Ycorte - eRecortar.p[1])
-  If AngCorte < 0 Then AngCorte += 2 * Pi
+    Xcorte = Me.SelEndXr    ' el lugar donde e user hizo click en la entidad a cortar
+    Ycorte = Me.SelEndyr
+    AngCorte = Ang(Xcorte - eRecortar.p[0], Ycorte - eRecortar.p[1])
+    If AngCorte < 0 Then AngCorte += 2 * Pi
 
-  ' debo encontrar los puntos de corte mas cercanos a cada lado del punto que esta sobre la entidad a recortar
-  ' es este caso son angulos
+    ' debo encontrar los puntos de corte mas cercanos a cada lado del punto que esta sobre la entidad a recortar
+    ' es este caso son angulos
 
-  C1 = eRecortar.fParam[1] / 180 * Pi       ' inicialmente estan en los limites
-  C2 = eRecortar.fParam[2] / 180 * Pi       ' estos paramertros estaban en GRADOS
+    C1 = eRecortar.fParam[1] / 180 * Pi       ' inicialmente estan en los limites
+    C2 = eRecortar.fParam[2] / 180 * Pi       ' estos paramertros estaban en GRADOS
 
-  angle_increment = Pi * 2 / 360
+    angle_increment = Pi * 2 / 360
 
-  If eRecortar.Gender = "Ellipse" Then ' aditional data
-    major = Sqr((eRecortar.p[2] - eRecortar.p[0]) ^ 2 + (eRecortar.p[3] - eRecortar.p[1]) ^ 2)
-    angle = Ang(eRecortar.p[2] - eRecortar.p[0], eRecortar.p[3] - eRecortar.p[1])          ' Los coordenadas del eje mayor son relativas al centro
-    Minor = major * eRecortar.fParam[0]
-    If major = 0 Then major = 1
-  End If
-
-  For theta = eRecortar.fParam[1] / 180 * Pi + angle_increment To eRecortar.fParam[2] / 180 * Pi Step angle_increment
-
-    If eRecortar.Gender = "Ellipse" Then
-      ' el punto considerando 0,0 al centro
-
-      T1x = eRecortar.p[0] + major * Cos(theta - angle_increment) * Cos(angle) - minor * Sin(theta - angle_increment) * Sin(angle)
-      T1y = eRecortar.p[1] + major * Cos(theta - angle_increment) * Sin(angle) + minor * Sin(theta - angle_increment) * Cos(angle)
-
-      T2x = eRecortar.p[0] + major * Cos(theta) * Cos(angle) - minor * Sin(theta) * Sin(angle)
-      T2y = eRecortar.p[1] + major * Cos(theta) * Sin(angle) + minor * Sin(theta) * Cos(angle)
-
-    Else
-      ' el punto considerando 0,0 al centro
-      T1x = eRecortar.p[0] + eRecortar.fParam[0] * Cos(theta - angle_increment)
-      T1y = eRecortar.p[1] + eRecortar.fParam[0] * Sin(theta - angle_increment)
-
-      T2x = eRecortar.p[0] + eRecortar.fParam[0] * Cos(theta)
-      T2y = eRecortar.p[1] + eRecortar.fParam[0] * Sin(theta)
-
+    If eRecortar.Gender = "Ellipse" Then ' aditional data
+        major = Sqr((eRecortar.p[2] - eRecortar.p[0]) ^ 2 + (eRecortar.p[3] - eRecortar.p[1]) ^ 2)
+        angle = Ang(eRecortar.p[2] - eRecortar.p[0], eRecortar.p[3] - eRecortar.p[1])          ' Los coordenadas del eje mayor son relativas al centro
+        Minor = major * eRecortar.fParam[0]
+        If major = 0 Then major = 1
     End If
 
-    For iii = 0 To Me.arrTijeras.Max
-      eTijera = gcd.CurrDrawing.arrEntities[arrTijeras[iii]]
+    For theta = eRecortar.fParam[1] / 180 * Pi + angle_increment To eRecortar.fParam[2] / 180 * Pi Step angle_increment
 
-      Select Case eTijera.Gender
-        Case "Line"
-          If puntos.doIntersect(T1x, T1y, T2x, T2y, eTijera.p[0], eTijera.p[1], eTijera.p[2], eTijera.p[3]) Then
+        If eRecortar.Gender = "Ellipse" Then
+            ' el punto considerando 0,0 al centro
 
-            If theta > C1 And theta <= AngCorte Then C1 = theta
-            If theta < C2 And theta > AngCorte Then C2 = theta
+            T1x = eRecortar.p[0] + major * Cos(theta - angle_increment) * Cos(angle) - minor * Sin(theta - angle_increment) * Sin(angle)
+            T1y = eRecortar.p[1] + major * Cos(theta - angle_increment) * Sin(angle) + minor * Sin(theta - angle_increment) * Cos(angle)
 
-          Endif
-        Case "LWPolyline"
+            T2x = eRecortar.p[0] + major * Cos(theta) * Cos(angle) - minor * Sin(theta) * Sin(angle)
+            T2y = eRecortar.p[1] + major * Cos(theta) * Sin(angle) + minor * Sin(theta) * Cos(angle)
 
-          For i = 0 To eTijera.p.count - 4 Step 2         ' Idem linea, pero  para todos los tramos de la polilinea
+        Else
+            ' el punto considerando 0,0 al centro
+            T1x = eRecortar.p[0] + eRecortar.fParam[0] * Cos(theta - angle_increment)
+            T1y = eRecortar.p[1] + eRecortar.fParam[0] * Sin(theta - angle_increment)
 
-            If puntos.doIntersect(T1x, T1y, T2x, T2y, eTijera.p[i + 0], eTijera.p[i + 1], eTijera.p[i + 2], eTijera.p[i + 3]) Then
+            T2x = eRecortar.p[0] + eRecortar.fParam[0] * Cos(theta)
+            T2y = eRecortar.p[1] + eRecortar.fParam[0] * Sin(theta)
 
-              If theta > C1 And theta <= AngCorte Then C1 = theta
-              If theta < C2 And theta > AngCorte Then C2 = theta
+        End If
 
-            Endif
+        For iii = 0 To Me.arrTijeras.Max
+            eTijera = gcd.CurrDrawing.arrEntities[arrTijeras[iii]]
 
-          Next
+            Select Case eTijera.Gender
+                Case "Line"
+                    If puntos.doIntersect(T1x, T1y, T2x, T2y, eTijera.p[0], eTijera.p[1], eTijera.p[2], eTijera.p[3]) Then
 
-        Case "Text", "MText"
+                        If theta > C1 And theta <= AngCorte Then C1 = theta
+                        If theta < C2 And theta > AngCorte Then C2 = theta
 
-          For i = 0 To eTijera.Polygon.count - 4 Step 2         ' Idem linea, pero  para todos los tramos de la polilinea
+                    Endif
+                Case "LWPolyline"
 
-            If puntos.doIntersect(T1x, T1y, T2x, T2y, eTijera.polygon[i + 0], eTijera.polygon[i + 1], eTijera.polygon[i + 2], eTijera.polygon[i + 3]) Then
+                    For i = 0 To eTijera.p.count - 4 Step 2         ' Idem linea, pero  para todos los tramos de la polilinea
 
-              If theta > C1 And theta <= AngCorte Then C1 = theta
-              If theta < C2 And theta > AngCorte Then C2 = theta
-            Endif
+                        If puntos.doIntersect(T1x, T1y, T2x, T2y, eTijera.p[i + 0], eTijera.p[i + 1], eTijera.p[i + 2], eTijera.p[i + 3]) Then
 
-          Next
-        Case "Arc", "Ellipse", "Circle"
+                            If theta > C1 And theta <= AngCorte Then C1 = theta
+                            If theta < C2 And theta > AngCorte Then C2 = theta
 
-          For i = 0 To eTijera.polyline.count - 4 Step 2         ' Idem linea, pero  para todos los tramos de la polilinea
+                        Endif
 
-            If puntos.doIntersect(T1x, T1y, T2x, T2y, eTijera.polyline[i + 0], eTijera.polyline[i + 1], eTijera.polyline[i + 2], eTijera.polyline[i + 3]) Then
+                    Next
 
-              If theta > C1 And theta <= AngCorte Then C1 = theta
-              If theta < C2 And theta > AngCorte Then C2 = theta
+                Case "Text", "MText"
 
-            Endif
+                    For i = 0 To eTijera.Polygon.count - 4 Step 2         ' Idem linea, pero  para todos los tramos de la polilinea
 
-          Next
-      End Select
+                        If puntos.doIntersect(T1x, T1y, T2x, T2y, eTijera.polygon[i + 0], eTijera.polygon[i + 1], eTijera.polygon[i + 2], eTijera.polygon[i + 3]) Then
+
+                            If theta > C1 And theta <= AngCorte Then C1 = theta
+                            If theta < C2 And theta > AngCorte Then C2 = theta
+                        Endif
+
+                    Next
+                Case "Arc", "Ellipse", "Circle"
+
+                    For i = 0 To eTijera.polyline.count - 4 Step 2         ' Idem linea, pero  para todos los tramos de la polilinea
+
+                        If puntos.doIntersect(T1x, T1y, T2x, T2y, eTijera.polyline[i + 0], eTijera.polyline[i + 1], eTijera.polyline[i + 2], eTijera.polyline[i + 3]) Then
+
+                            If theta > C1 And theta <= AngCorte Then C1 = theta
+                            If theta < C2 And theta > AngCorte Then C2 = theta
+
+                        Endif
+
+                    Next
+            End Select
+        Next
     Next
-  Next
-  ' termine la busqueda de puntos de recorte
-  ' ahora recorto la entidad
-  ' primer o determino si debo partir la entidad o si solo se recorta
+    ' termine la busqueda de puntos de recorte
+    ' ahora recorto la entidad
+    ' primer o determino si debo partir la entidad o si solo se recorta
 
-  ' vuelvo a GRADOS
-  c1 *= 180 / Pi
-  c2 *= 180 / Pi
-  AngCorte *= 180 / Pi
+    ' vuelvo a GRADOS
+    c1 *= 180 / Pi
+    c2 *= 180 / Pi
+    AngCorte *= 180 / Pi
 
-  If (eRecortar.fParam[1] = C1) And (eRecortar.fParam[2] = C2) Then
-    ' esta entidad no sera recortada
+    If (eRecortar.fParam[1] = C1) And (eRecortar.fParam[2] = C2) Then
+        ' esta entidad no sera recortada
 
-  Else If (eRecortar.fParam[1] = C1) And (AngCorte < C2) Then ' elimino el tramo P01 - C2
+    Else If (eRecortar.fParam[1] = C1) And (AngCorte < C2) Then ' elimino el tramo P01 - C2
 
-    eRecortar.fParam[1] = C2
+        eRecortar.fParam[1] = C2
 
-  Else If (eRecortar.fParam[2] = C2) And (AngCorte > C1) Then ' elimino el tramo p23 - C1
+    Else If (eRecortar.fParam[2] = C2) And (AngCorte > C1) Then ' elimino el tramo p23 - C1
 
-    eRecortar.fParam[2] = C1
+        eRecortar.fParam[2] = C1
 
-  Else ' se parte en dos la entidad
+    Else ' se parte en dos la entidad
 
-    eNewPart = clsEntities.ClonEntity(eRecortar)          ' primero la clono
+        eNewPart = clsEntities.ClonEntity(eRecortar)          ' primero la clono
 
-    eNewPart.fParam[1] = C2
+        eNewPart.fParam[1] = C2
 
-    gcd.CurrDrawing.arrEntities.Add(eNewPart)                ' la agrego al dibujo
+        gcd.CurrDrawing.arrEntities.Add(eNewPart)                ' la agrego al dibujo
 
-    eRecortar.fParam[2] = C1
+        eRecortar.fParam[2] = C1
 
-  End If
-  gcd.Regen
+    End If
+    gcd.Regen
 
 End

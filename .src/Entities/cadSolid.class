@@ -41,9 +41,7 @@ Public Visible As Boolean = True            ' si esta entidad puede ser mostrada
 Public Finished As Boolean = False          ' colocar en true cuando se llegue a completar
 Public StepsDone As Integer                 ' esto lo cambia cls ElementBuilder durante la construccion
 
-' JSON and DXF Read/Export
-Public Const JSON_Reading As Boolean = True
-Public Const JSON_Export As Boolean = False
+' DXF Read/Export
 
 Public Const DXF_Reading As Boolean = True
 Public Const DXF_Export As Boolean = True
@@ -51,7 +49,6 @@ Public Const DXF_Export As Boolean = True
 ' The entity handler receives a user action, and returns the number of expected parameter
 ' If definitive = true, means the parameter is set
 Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
-
 
     If vParam[0] <> "point" Then Return False
 
@@ -86,10 +83,7 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
 
     Endif
 
-
 End
-
-
 
 Public Sub Translate(e As Entity, dX As Float, dY As Float, Optional OnlySelected As Boolean = False)
 
@@ -136,7 +130,7 @@ Public Sub Draw(oE As Entity)
 
     If Not oE.Visible Then Return
 
-    oE.ColorToPaint = gcd.GetGBColor(oE.colour, oE.Layerid)
+    oE.ColorToPaint = gcd.GetGBColor(oE.colour, oE.pLayer)
 
     If Not oe.Finished Then
         If Me.StepsDone < 1 Then
@@ -225,7 +219,7 @@ Public Sub Finish(oE As Entity) As Boolean
 
     'Print "Finish en EntityBase"
     'CreatePolygon(oe)
-   '  BuildPOI(oe)
+    '  BuildPOI(oe)
     oE.Polygon = oE.P
 
     ' busco el tipo de linea, si hace falta
@@ -240,62 +234,6 @@ Public Sub Finish(oE As Entity) As Boolean
 
 End
 
-' Importo los datos que puedo procesar de una coleccion y genero un Entity para ser agregado a un array
-Public Function ImportJsonCol(c As Collection, e As Entity) As Boolean
-
-    e.ClassHandler = Me
-    e.P.Add(c["corner1"][0])
-    e.P.Add(c["corner1"][1])
-    e.P.Add(c["corner2"][0])
-    e.P.Add(c["corner2"][1])
-    e.P.Add(c["corner3"][0])
-    e.P.Add(c["corner3"][1])
-    e.P.Add(c["corner4"][0])
-    e.P.Add(c["corner4"][1])
-
-    Return True
-
-
-' catch
-
-    Return False
-
-End
-
-' "entity": "SOLID",
-' "index": 14873,
-' "type": 31,
-' "handle": [0, 1412074],
-' "size": 123,
-' "bitsize": 914,
-' "eed": [
-'   {
-'     "size": 25,
-'     "handle": [5, 18],
-'     "code": 10,
-'     "value": [0.0, 0.0, 0.0]
-'   }
-' ],
-' "ownerhandle": [12, 3, 112165, 1299909],
-' "_subclass": "AcDbEntity",
-' "layer": [5, 2, 16840, 16840],
-' "preview_exists": 0,
-' "entmode": 0,
-' "nolinks": 1,
-' "color": 5,
-' "ltype_scale": 1.0,
-' "ltype_flags": 0,
-' "plotstyle_flags": 0,
-' "invisible": 0,
-' "linewt": 29,
-' "_subclass": "AcDbTrace",
-' "thickness": 0.000000,
-' "elevation": 0.00000000000068,
-' "corner1": [3031.97616104186818, 1631.40569016283212],
-' "corner2": [3031.97616104186818, 1631.80569016283198],
-' "corner3": [3031.97696102900818, 1631.40569016283212],
-' "corner4": [3031.97696102900818, 1631.40569016283212],
-' "extrusion": [0.0, 0.0, 1.0]
 Public Sub ExportDXFCol(e As Entity, ByRef cExport As Collection) As Boolean
 
     cExport.Add("SOLID", dxf.codEntity)
@@ -351,8 +289,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
     Return True
 
-
-' catch
+    ' catch
 
     Return False
 

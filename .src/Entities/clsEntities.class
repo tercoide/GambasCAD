@@ -124,21 +124,6 @@ Public Sub _new()
 
 End
 
-'' Busca un numero de bloque que no haya sido usado
-'' Looks for a free block number
-Public Sub GetFreeBlockNumber() As Integer
-
-    Dim i, n As Integer = 1
-
-    For i = 0 To gcd.CurrDrawing.arrEntities.Max
-
-        If gcd.CurrDrawing.arrEntities[i].BlockNumber > n Then n = gcd.CurrDrawing.arrEntities[i].BlockNumber + 1
-
-    Next
-    Return n
-
-End
-
 Public Sub FillEntity(o As Entity)
 
     '  ' lets add the points, if number of points is not determined (like a poli-line) at least we need one
@@ -784,9 +769,9 @@ Public Sub CopyElemData(origen As Entity, destino As Entity)
     Next
     destino.Gender = origen.Gender
     destino.ClassHandler = origen.ClassHandler
-    destino.layerID = origen.LayerID
+    destino.pLayer = origen.pLayer
 
-    destino.Block = origen.Block
+    destino.pBlock = origen.pBlock
 
     destino.Group = origen.Group
     destino.colour = origen.colour
@@ -1242,6 +1227,7 @@ Public Function SelPartial(i As Integer, X1real As Float, Y1real As Float, X2rea
 
             For Ii = 0 To gcd.CurrDrawing.arrEntities[i].p.max Step 2
                 If ii + 1 > gcd.CurrDrawing.arrEntities[i].p.max Then Break
+                If ii / 2 > gcd.CurrDrawing.arrEntities[i].Psel.Max Then Break
                 If (gcd.CurrDrawing.arrEntities[i].p[iI] >= X1real And gcd.CurrDrawing.arrEntities[i].p[Ii] <= X2real) And (gcd.CurrDrawing.arrEntities[i].p[iI + 1] >= Y1real And gcd.CurrDrawing.arrEntities[i].p[iI + 1] <= Y2real) Then
                     gcd.CurrDrawing.arrEntities[i].PSel[iI / 2] = True
                     puedo = True
@@ -1314,7 +1300,7 @@ Public Function DXFImportToEntity(c As Collection, e As Entity) As Boolean
 
     If clsHandler.ImportDXF(e, sClave, sValue) Then      ' le pedimos a la clase que arme un objeto Entity para agregar al Drawing actual
         ' llenamos Common data:
-        e.layerID = c[dxf.codLayer]
+        e.pLayer = gcd.GetLayer(c[dxf.codLayer])
         e.Handle = c[dxf.codHandle]
 
         Try e.colour = c[dxf.codColor]            ' no es obligatorio
@@ -1355,7 +1341,7 @@ Public Sub DXFExportCommonCol(e As Entity, ByRef cExported As Collection)
 
     cExported.add(e.Handle, dxf.codHandle)
     cExported.Add("AcDbEntity", "100")
-    cExported.Add(gcd.CurrDrawing.cLayers[e.LayerId][dxf.codName], dxf.codLayer)
+    cExported.Add(gcd.CurrDrawing.cLayers[e.pLayer][dxf.codName], dxf.codLayer)
     cExported.Add(e.LineType, dxf.codLType)
     cExported.Add(e.colour, dxf.codColor)
     cExported.Add(CStr(e.LineWidth), dxf.codLWht)
@@ -1369,7 +1355,7 @@ Public Sub DXFExportCommon(e As Entity, hFile As File)
     Print #hFIle, "100"
     Print #hFIle, "AcDbEntity"
     Print #hFIle, "  8"                       ' Layer
-    Print #hFIle, gcd.CurrDrawing.layers[e.LayerId].name
+    Print #hFIle, gcd.CurrDrawing.layers[e.pLayer].name
     Print #hFIle, "  6"                       ' Linetype name (present if not BYLAYER). The special name BYBLOCK indicates a floating linetype (optional)
     Print #hFIle, e.LineType
     Print #hFIle, " 62"                      ' Color number (present if not BYLAYER); zero indicates the BYBLOCK (floating) color; 256 indicates BYLAYER;
@@ -1388,12 +1374,11 @@ Public Function AddLine(obxContainer As Entity[], Points As Float[], Optional co
     oEntity.ClassHandler = cadLine
     oEntity.Gender = oEntity.ClassHandler.gender
     oEntity.P.insert(points)                    ' recibimos los dos vertices de la linea x1,y1,x2,y2
-    oEntity.layerid = Layer
+    oEntity.pLayer = Layer
     oEntity.colour = colour
     oEntity.LineWidth = 1 'LineWidth               ' datos CAD
     oEntity.linetypename = linetype
-    oEntity.Block = Block
-    If oEntity.Block <> "" Then oEntity.visible = False
+
     obxContainer.Add(oEntity)
     oEntity.ClassHandler.finish(oEntity)
     oEntity = Null                  ' free entity
@@ -1408,12 +1393,11 @@ Public Function AddPoint(obxContainer As Entity[], Points As Float[], Optional c
     oEntity.ClassHandler = cadPoint
     oEntity.Gender = oEntity.ClassHandler.gender
     oEntity.P.insert(points)                    ' recibimos los dos vertices de la linea x1,y1,x2,y2
-    oEntity.layerid = Layer
+    oEntity.pLayer = Layer
     oEntity.colour = colour
     oEntity.LineWidth = 1 'LineWidth               ' datos CAD
     oEntity.linetypename = linetype
-    oEntity.Block = Block
-    If oEntity.Block <> "" Then oEntity.visible = False
+
     obxContainer.Add(oEntity)
     oEntity.ClassHandler.finish(oEntity)
     oEntity = Null                  ' free entity
@@ -1430,11 +1414,10 @@ Public Function AddPolyLine(obxContainer As Entity[], Points As Float[], Optiona
     oEntity.Gender = oEntity.ClassHandler.gender
     oEntity.P.insert(points)                    ' recibimos los dos vertices de la linea x1,y1,x2,y2
     oEntity.fParam.Add(iClosed)                 ' cerrada o abierta
-    oentity.layerid = Layer
+    oentity.pLayer = Layer
     oEntity.colour = colour
     oEntity.LineWidth = 1 ' LineWidth               ' datos CAD
-    oEntity.Block = Block
-    If oEntity.Block <> "" Then oEntity.visible = False
+
     obxContainer.Add(oEntity)
     oEntity.ClassHandler.finish(oEntity)
     oEntity = Null                  ' free entity
@@ -1451,11 +1434,10 @@ Public Function AddSolid(obxContainer As Entity[], Points As Float[], Optional c
     oEntity.Gender = oEntity.ClassHandler.gender
     oEntity.P.insert(points)                    ' recibimos los dos vertices de la linea x1,y1,x2,y2
 
-    oentity.layerid = Layer
+    oentity.pLayer = Layer
     oEntity.colour = colour
     oEntity.LineWidth = LineWidth               ' datos CAD
-    oEntity.Block = Block
-    If oEntity.Block <> "" Then oEntity.visible = False
+
     obxContainer.Add(oEntity)
     oEntity.ClassHandler.finish(oEntity)
     oEntity = Null                  ' free entity
@@ -1471,11 +1453,10 @@ Public Function AddSPLine(obxContainer As Entity[], Points As Float[], Optional 
     oEntity.Gender = oEntity.ClassHandler.gender
     oEntity.P.insert(points)                    ' recibimos los dos vertices de la linea x1,y1,x2,y2
     oEntity.fParam.Add(iClosed)                 ' cerrada o abierta
-    oentity.layerid = Layer
+    oentity.pLayer = Layer
     oEntity.colour = colour
     oEntity.LineWidth = LineWidth               ' datos CAD
-    oEntity.Block = Block
-    If oEntity.Block <> "" Then oEntity.visible = False
+
     obxContainer.Add(oEntity)
     oEntity.ClassHandler.finish(oEntity)
     oEntity = Null                  ' free entity
@@ -1491,11 +1472,10 @@ Public Function AddCircle(obxContainer As Entity[], Points As Float[], radious A
     oEntity.Gender = oEntity.ClassHandler.gender
     oEntity.P.insert(points)                    ' centro x1,y1
     oEntity.fParam.Add(radious)                 ' radio
-    oentity.layerid = Layer
+    oentity.pLayer = Layer
     oEntity.colour = colour
     oEntity.LineWidth = LineWidth               ' datos CAD
-    oEntity.Block = Block
-    If oEntity.Block <> "" Then oEntity.visible = False
+
     obxContainer.Add(oEntity)
     oEntity.ClassHandler.finish(oEntity)
     oEntity = Null                  ' free entity
@@ -1513,11 +1493,10 @@ Public Function AddArc(obxContainer As Entity[], Points As Float[], r As Float, 
     oEntity.fParam.Add(r)                      ' radio
     oEntity.fParam.Add(angle1)                   ' angulo
     oEntity.fParam.Add(angle2)                   ' angulo
-    oentity.layerid = Layer
+    oentity.pLayer = Layer
     oEntity.colour = colour
     oEntity.LineWidth = LineWidth               ' datos CAD
-    oEntity.Block = Block
-    If oEntity.Block <> "" Then oEntity.visible = False
+
     obxContainer.Add(oEntity)
     oEntity.ClassHandler.finish(oEntity)
     oEntity = Null                  ' free entity
@@ -1537,11 +1516,10 @@ Public Function AddEllipse(obxContainer As Entity[], Points As Float[], r As Flo
     oEntity.fParam.Add(r)                      ' ratio minor/major
     oEntity.fParam.Add(angle1 * 180 / Pi)     ' start angle
     oEntity.fParam.Add(angle2 * 180 / Pi)      ' end angle
-    oentity.layerid = Layer
+    oentity.pLayer = Layer
     oEntity.colour = colour
     oEntity.LineWidth = LineWidth               ' datos CAD
-    oEntity.Block = Block
-    If oEntity.Block <> "" Then oEntity.visible = False
+
     obxContainer.Add(oEntity)
     oEntity.ClassHandler.finish(oEntity)
     oEntity = Null                  ' free entity
@@ -1558,11 +1536,10 @@ Public Function AddText(obxContainer As Entity[], Points As Float[], angle As Fl
     oEntity.fParam.Add(angle)                   ' grados
     oEntity.fParam.Add(height)                  ' alto letras
     oEntity.stringdata.Add(_text)                  ' el texto
-    oentity.layerid = Layer
+    oentity.pLayer = Layer
     oEntity.colour = colour
     oEntity.LineWidth = LineWidth               ' datos CAD
-    oEntity.Block = Block
-    If oEntity.Block <> "" Then oEntity.visible = False
+
     obxContainer.Add(oEntity)
     oEntity.ClassHandler.finish(oEntity)
     oEntity = Null                  ' free entity
@@ -1580,11 +1557,10 @@ Public Function AddMText(obxContainer As Entity[], Points As Float[], angle As F
     oEntity.fParam[cadMText.ipaTextAngle] = angle                  ' GRADOS
     oEntity.fParam[cadMText.ipaTextHeight] = height                  ' alto letras
     oEntity.stringdata[cadMText.sdaText] = _text                  ' el texto
-    oentity.layerid = Layer
+    oentity.pLayer = Layer
     oEntity.colour = colour
     oEntity.LineWidth = LineWidth               ' datos CAD
-    oEntity.Block = Block
-    If oEntity.Block <> "" Then oEntity.visible = False
+
     obxContainer.Add(oEntity)
     oEntity.ClassHandler.finish(oEntity)
     oEntity = Null                  ' free entity
@@ -1610,9 +1586,9 @@ Public Function AddInsert(obxContainer As Entity[], Points As Float[], scaleX As
     oEntity.fParam.Add(scaleX)
     oEntity.fParam.Add(scaleY)
     oEntity.fParam.Add(angulo)                  ' GRADOS
-    oentity.layerid = Layer
+    oentity.pLayer = Layer
     oEntity.colour = colour
-    oEntity.Block = Block
+
     obxContainer.Add(oEntity)
     oEntity.ClassHandler.finish(oEntity)
 

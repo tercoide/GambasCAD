@@ -32,137 +32,137 @@ Public dY As Float
 ' estirarlas y dibujarlas individualemnte. Dificilmente haya muchas entidades a estirar.
 
 Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer = 0) As Boolean
-  ' Llamada por FCAD al inicio de la aplicacion de esta herramienta
+    ' Llamada por FCAD al inicio de la aplicacion de esta herramienta
 
-  ' Aprovechamos para establecer los helpers (comentarios de ayuda en pantalla)
-  Me.PointsDone = 0
-  Me.PointsTotal = 2
+    ' Aprovechamos para establecer los helpers (comentarios de ayuda en pantalla)
+    Me.PointsDone = 0
+    Me.PointsTotal = 2
 
-  clsDrawingAids.HelperTrabajo = ("Stretch ")
+    clsDrawingAids.HelperTrabajo = ("Stretch ")
 
-  ' chequeamos si hubo seleccion previa
-  Me.SelectionCount = clsEntities.GetSelectionCount()
+    ' chequeamos si hubo seleccion previa
+    Me.SelectionCount = clsEntities.GetSelectionCount()
 
-  If Me.SelectionCount = 0 Then                                     ' we have no elements in the selection
+    If Me.SelectionCount = 0 Then                                     ' we have no elements in the selection
 
-    clsDrawingAids.Helper.texto = clsDrawingAids.HelperTrabajo & ": " & ("Select entities")
+        clsDrawingAids.Helper.texto = clsDrawingAids.HelperTrabajo & ": " & ("Select entities")
 
-    gcd.clsJobPrevious = Me
-    gcd.clsJob = clsDefaultJob
-    gcd.clsJob.Start(1) ' Stretch mode
+        gcd.clsJobPrevious = Me
+        gcd.clsJob = clsDefaultJob
+        gcd.clsJob.Start(1) ' Stretch mode
 
-  Else                                                                    ' need the first point
+    Else                                                                    ' need the first point
 
-    clsDrawingAids.Helper.texto = clsDrawingAids.HelperTrabajo & ": " & ("Base point")
-    clsDrawingAids.HelperTrabajo = clsDrawingAids.HelperTrabajo & Str(Me.SelectionCount) & " " & ("elements")
+        clsDrawingAids.Helper.texto = clsDrawingAids.HelperTrabajo & ": " & ("Base point")
+        clsDrawingAids.HelperTrabajo = clsDrawingAids.HelperTrabajo & Str(Me.SelectionCount) & " " & ("elements")
 
-  Endif
-  Me.Active = True
-  gcd.ToolActive = True
+    Endif
+    Me.Active = True
+    gcd.ToolActive = True
 
 End
 
 Public Function MouseUp(mouseX As Integer, mouseY As Integer) ' called by FCAD-> DrawingArea_MouseUp
 
-  Inc Me.PointsDone
+    Inc Me.PointsDone
 
-  If Me.PointsDone = 1 Then ' acabo de marcar el punto base
+    If Me.PointsDone = 1 Then ' acabo de marcar el punto base
 
-    ' ya tengo cosas seleccionadas
-    clsDrawingAids.Helper.texto = ("Final point")
+        ' ya tengo cosas seleccionadas
+        clsDrawingAids.Helper.texto = ("Final point")
 
-    ' punto real base
-    Me.SelStartXr = puntos.Near(fMain.Xreal(mousex))
-    Me.SelStartYr = puntos.Near(fMain.Yreal(mouseY))
-    dX = Me.SelStartXr
-    dY = Me.SelStartYr
-    ' prevenir acciones tontas como hacer click en otro elemento antes de terminar con el actual
-    ' TODO: reparar -> gcd.CurrDrawing.DesHabilitarBotones
-  Else If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
-    ' permitir otros trabajos
-    ' TODO: reparar -> gcd.CurrDrawing.HabilitarBotones
+        ' punto real base
+        Me.SelStartXr = puntos.Near(fMain.Xreal(mousex))
+        Me.SelStartYr = puntos.Near(fMain.Yreal(mouseY))
+        dX = Me.SelStartXr
+        dY = Me.SelStartYr
+        ' prevenir acciones tontas como hacer click en otro elemento antes de terminar con el actual
+        ' TODO: reparar -> gcd.CurrDrawing.DesHabilitarBotones
+    Else If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
+        ' permitir otros trabajos
+        ' TODO: reparar -> gcd.CurrDrawing.HabilitarBotones
 
-    ' we have the point set from MouseMove
+        ' we have the point set from MouseMove
 
-    Me.Finish()
+        Me.Finish()
 
-  Endif
+    Endif
 
 End
 
 Public Function MouseMove(mouseX As Integer, mouseY As Integer) ' called by FCAD-> DrawingArea_MouseMove
 
-  If Me.PointsDone = 1 Then
-    ' we compare Real values from the starting point to the location
-    ' represente by the mouse now, taking account that the drawing
-    ' could have being moved by the mouse wheel
+    If Me.PointsDone = 1 Then
+        ' we compare Real values from the starting point to the location
+        ' represente by the mouse now, taking account that the drawing
+        ' could have being moved by the mouse wheel
 
-    ' new Real position is
-    Me.SelEndXr = puntos.Near(fMain.Xreal(mouseX))
-    Me.SelEndyr = puntos.Near(fMain.Yreal(mouseY))
+        ' new Real position is
+        Me.SelEndXr = puntos.Near(fMain.Xreal(mouseX))
+        Me.SelEndyr = puntos.Near(fMain.Yreal(mouseY))
 
-    If gcd.Orthogonal Then
+        If gcd.Orthogonal Then
 
-      If Abs(Me.SelEndXr - Me.SelStartXr) > Abs(Me.SelEndyr - Me.SelStartYr) Then ' X prevails
+            If Abs(Me.SelEndXr - Me.SelStartXr) > Abs(Me.SelEndyr - Me.SelStartYr) Then ' X prevails
 
-        Me.SelEndyr = Me.SelStartYr
+                Me.SelEndyr = Me.SelStartYr
 
-      Else
+            Else
 
-        Me.SelEndXr = Me.SelStartXr
+                Me.SelEndXr = Me.SelStartXr
 
-      Endif
+            Endif
+
+        End If
+
+        clsEntities.Move(Me.SelEndXr - dX, Me.SelEndyr - dY, True, True)
+        dX = Me.SelEndXr
+        dY = Me.SelEndYr
 
     End If
-
-    clsEntities.Move(Me.SelEndXr - dX, Me.SelEndyr - dY, True, True)
-    dX = Me.SelEndXr
-    dY = Me.SelEndYr
-
-  End If
-  fMain.redraw
+    fMain.redraw
 
 End
 
 Public Sub Draw()               ' called by gcd.CurrDrawing.drwArea_Draw
 
-  Dim i As Integer
+    Dim i As Integer
 
-  For i = 0 To gcd.CurrDrawing.arrSelecIndex.Max
+    For i = 0 To gcd.CurrDrawing.arrSelecIndex.Max
 
-    gcd.CurrDrawing.arrEntities[gcd.CurrDrawing.arrSelecIndex[i]].ClassHandler.Draw(gcd.CurrDrawing.arrEntities[gcd.CurrDrawing.arrSelecIndex[i]])
+        gcd.CurrDrawing.arrEntities[gcd.CurrDrawing.arrSelecIndex[i]].ClassHandler.Draw(gcd.CurrDrawing.arrEntities[gcd.CurrDrawing.arrSelecIndex[i]])
 
-  Next
+    Next
 
-  gl.PushMatrix
-  gl.Translatef(Me.glTranslate[0], Me.glTranslate[1], Me.glTranslate[2])
-  gl.Rotatef(Me.glAngle, Me.glRotate[0], Me.glRotate[1], Me.glRotate[2])
-  gl.Scalef(Me.glScale[0], Me.glScale[1], Me.glScale[2])
-  gl.CallList(gcd.CurrDrawing.GlListSelectedEntities)                      ' si GL no tiene contexto, la lista no se genera. Es necesario que la instancia de FCAD este cargada.
-  gl.PopMatrix
+    gl.PushMatrix
+    gl.Translatef(Me.glTranslate[0], Me.glTranslate[1], Me.glTranslate[2])
+    gl.Rotatef(Me.glAngle, Me.glRotate[0], Me.glRotate[1], Me.glRotate[2])
+    gl.Scalef(Me.glScale[0], Me.glScale[1], Me.glScale[2])
+    gl.CallList(gcd.CurrDrawing.GlListSelectedEntities)                      ' si GL no tiene contexto, la lista no se genera. Es necesario que la instancia de FCAD este cargada.
+    gl.PopMatrix
 
 End
 
 Public Sub Finish()
 
-  If Me.PointsDone = Me.PointsTotal Then
+    If Me.PointsDone = Me.PointsTotal Then
 
-    ' job finished correctly
+        ' job finished correctly
 
-    ' and now we move
-    'clsEntities.Move(Me.SelEndXr - Me.SelStartXr, Me.SelEndyr - Me.SelStartYr, True, True)
+        ' and now we move
+        'clsEntities.Move(Me.SelEndXr - Me.SelStartXr, Me.SelEndyr - Me.SelStartYr, True, True)
 
-    clsEntities.Finish
+        clsEntities.Finish
 
-  Endif
+    Endif
 
-  gcd.clsJobPrevious = Me
-  gcd.clsJob = clsDefaultJob
-  clsDrawingAids.CleanTexts
-  clsEntities.DeSelection()
-  gcd.DrawOriginals = False
-  fMain.regen
-  Me.Active = False
-  gcd.ToolActive = False
+    gcd.clsJobPrevious = Me
+    gcd.clsJob = clsDefaultJob
+    clsDrawingAids.CleanTexts
+    clsEntities.DeSelection()
+    gcd.DrawOriginals = False
+    fMain.regen
+    Me.Active = False
+    gcd.ToolActive = False
 
 End

@@ -146,7 +146,7 @@ Public Sub UpdateLayersCombo()
     For Each aLayer In CurrDrawing.arrLayers
         m2 = New Menu(mLayer)
         m2.Text = aLayer.Name
-        m2.Picture = paintPlus.picCirculito(8, aLayer.Colour, Color.ButtonForeground)
+        m2.Picture = paintPlus.picCirculito(8, GetGBColor(aLayer.Colour), Color.ButtonForeground)
         m2.Action = "layer_change_" & aLayer.Name
     Next
     ' fMain.mbtLayers.Menu = sName
@@ -468,62 +468,6 @@ Public Sub ImpEnty6(cEny As Collection, obx As Entity[])
 
 End
 
-'' Aplica los cambios en los Layers a las entidades
-'' Si mode = 1, primero recontruye el layerID (para ser usado luego de abrir un archivo)
-
-Public Function ApplyLayerProperties(Optional mode As Integer = 0)
-
-    Dim e As Entity, cLayer As Collection
-    'Dim LayerName As String
-
-    Print "Aplicando propiedades del Layers"
-
-    For Each e In gcd.CurrDrawing.arrEntities
-
-        If mode = 1 Then
-            ' reconstruyo el ID del layer en la entidad, para ello busco en la lista cual coincide con su nombre
-            For Each cLayer In gcd.CurrDrawing.cLayers
-                If e.layer = cLayer["name"] Then
-                    e.layerID = cLayer["id"]
-                    Break
-                Endif
-            Next
-
-        Endif
-
-        ' nombre, el que pudo haber cambiado (exepto el "0")
-        e.layer = gcd.CurrDrawing.cLayers[e.layerID]["name"]
-
-        ' visibiliad
-        If gcd.CurrDrawing.cLayers[e.layerID]["show"] Then e.visible = True Else e.visible = False
-
-    Next
-
-End
-
-'' Aplica los cambios en los Layers a las entidades
-'' Si mode = 1, primero recontruye el layerID (para ser usado luego de abrir un archivo)
-Public Function ApplyLayerPropertieToEntity(e As Entity)
-
-    Dim cLayer As Collection
-    'Dim LayerName As String
-
-    ' reconstruyo el ID del layer en la entidad, para ello busco en la lista cual coincide con su nombre
-    For Each cLayer In gcd.CurrDrawing.cLayers
-        If e.layer = cLayer["name"] Then
-            e.layerID = cLayer["id"]
-            Break
-        Endif
-    Next
-
-    ' nombre, el que pudo haber cambiado (exepto el "0")
-    e.layer = gcd.CurrDrawing.cLayers[e.layerID]["name"]
-
-    ' visibiliad
-    If gcd.CurrDrawing.cLayers[e.layerID]["show"] Then e.visible = True Else e.visible = False
-
-End
-
 Public Function GetLayer(LayerName As String) As Layer
 
     Dim Lay As Layer
@@ -553,7 +497,7 @@ Public Sub ReadLayers()
         hLay = New Layer
         hLay.Name = cLay[dxf.codName]
         hLay.Visible = CInt(cLay[dxf.codColor]) >= 0
-        hLay.Colour = gcd.gColor[Abs(CInt(cLay[dxf.codColor]))]
+        hLay.Colour = Abs(CInt(cLay[dxf.codColor]))
         hLay.handle = cLay[dxf.codHandle]
         CurrDrawing.arrLayers.Add(hLay)
     Next
@@ -572,7 +516,7 @@ Public Sub ReadEntities()
     Next
 
     For Each e In CurrDrawing.arrEntities
-        e.pLayer = CurrDrawing.arrLayers[gcd.FindLaIndex(e.LayerId)]
+        'e.pLayer = CurrDrawing.arrLayers[gcd.FindLaIndex(e.pLayer)]
         e.pLayer.Entities.Add(e)
     Next
 
@@ -624,28 +568,23 @@ Public Sub ReadLTypes()
 
 End
 
-Public Function GetGBColor(CADcolor As Integer, layerID As String) As Integer
+Public Function GetGBColor(CADcolor As Integer, Optional pLayer As Layer) As Integer
 
     ' FIXME: reparar post layers
     'Return gcd.flgWhiteAndBlack
-    Dim iColor As Integer
-
-    iColor = Abs(CInt(gcd.CurrDrawing.cLayers[layerID][dxf.codColor]))
-
-    If Not gcd.CurrDrawing.cLayers.Exist(layerID) Then Return gcd.flgWhiteAndBlack
-
+    If IsNull(pLayer) Then Return gColor[CADcolor]
     ' color
     If CADcolor = 256 Then          ' buscar color del layer
 
-        Return gColor[iColor]
+        Return gColor[player.Colour]
 
     Else If CADcolor = 257 Then     ' buscar color del objeto
 
-        Return gColor[iColor]
+        Return gColor[pLayer.Colour]
 
     Else If CADcolor = 0 Then
         ' buscar color del bloque
-        Return gColor[iColor]
+        Return gColor[pLayer.Colour]
     Else
 
         Return gColor[CADcolor]
