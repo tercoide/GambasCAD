@@ -331,7 +331,7 @@ Public Sub DrawPoiSymbolsAll()
 
         If gcd.CurrDrawing.arrEntities[i].Selected Then
 
-            If (gcd.CurrDrawing.arrEntities[i].iInsert < 0) Or (gcd.CurrDrawing.arrEntities[i].Gender = "Insert") Then
+            If (gcd.CurrDrawing.arrEntities[i].Gender = "Insert") Then
                 DrawPoiSymbols(gcd.CurrDrawing.arrEntities[i])
                 Inc total
             End If
@@ -388,24 +388,24 @@ End
 Public Sub ClonElements(Optional selected As Boolean = True, SkipParts As Boolean = True)
 
     ' creo copias de cada elemento seleccionado
-    Dim m, i As Integer
+    Dim i As Integer
+    Dim iIndex As Integer
 
-    m = gcd.CurrDrawing.arrEntities.Max
-    For i = 0 To m
-        If gcd.CurrDrawing.arrEntities[i].Selected Then
+    For i = 0 To gcd.CurrDrawing.arrSelecIndex.Max
+        iIndex = gcd.CurrDrawing.arrSelecIndex[i]
 
-            If SkipParts Then
-                If (gcd.CurrDrawing.arrEntities[i].iInsert < 0) Or (gcd.CurrDrawing.arrEntities[i].iInsert = i) Then
-                    gcd.CurrDrawing.arrEntities.Add(ClonEntity(gcd.CurrDrawing.arrEntities[i]))
-                    gcd.CurrDrawing.arrEntities.Last.ClassHandler.finish(gcd.CurrDrawing.arrEntities.Last)
-                End If
-            Else
-                gcd.CurrDrawing.arrEntities.Add(ClonEntity(gcd.CurrDrawing.arrEntities[i]))
-                gcd.CurrDrawing.arrEntities.Last.ClassHandler.finish(gcd.CurrDrawing.arrEntities.Last)
+        ' If SkipParts Then
+        '     If (gcd.CurrDrawing.arrEntities[i].iInsert < 0) Or (gcd.CurrDrawing.arrEntities[i].iInsert = i) Then
+        '         gcd.CurrDrawing.arrEntities.Add(ClonEntity(gcd.CurrDrawing.arrEntities[i]))
+        '         gcd.CurrDrawing.arrEntities.Last.ClassHandler.finish(gcd.CurrDrawing.arrEntities.Last)
+        '     End If
+        ' Else
+        gcd.CurrDrawing.arrEntities.Add(ClonEntity(gcd.CurrDrawing.arrEntities[iIndex]))
+        gcd.CurrDrawing.arrEntities.Last.ClassHandler.finish(gcd.CurrDrawing.arrEntities.Last)
+        gcd.CurrDrawing.arrLayers[gcd.CurrDrawing.arrEntities.Last.pLayer].Entities.Add(gcd.CurrDrawing.arrEntities.Last)
+        ' Endif
 
-            Endif
-
-        End If
+        'End If
     Next
 
 End
@@ -653,47 +653,47 @@ Public Sub SelectElem(iEntity As Integer, Optional AndItsPoints As Boolean = Tru
 
     Dim i, ii As Integer
 
-    If gcd.CurrDrawing.arrEntities[iEntity].Gender = "Insert" Then          ' es un inserto
-        If gcd.CurrDrawing.arrEntities[iEntity].iInsert >= 0 Then             ' esta dentro de otro insert?
-            If Not gcd.CurrDrawing.arrEntities[iEntity].selected Then               ' si estaba seleccionada
-                SelectElem(gcd.CurrDrawing.arrEntities[iEntity].iInsert, AndItsPoints)  ' llamo recursivamente
-            End If
-        Else                                                                ' no, deselecciono hasta encontrar un -1
-            gcd.CurrDrawing.arrEntities[iEntity].selected = True
-            For i = iEntity + 1 To gcd.CurrDrawing.arrEntities.max              ' y sus entidades
+    ' If gcd.CurrDrawing.arrEntities[iEntity].Gender = "Insert" Then          ' es un inserto
+    '     If gcd.CurrDrawing.arrEntities[iEntity].iInsert >= 0 Then             ' esta dentro de otro insert?
+    '         If Not gcd.CurrDrawing.arrEntities[iEntity].selected Then               ' si estaba seleccionada
+    '             SelectElem(gcd.CurrDrawing.arrEntities[iEntity].iInsert, AndItsPoints)  ' llamo recursivamente
+    '         End If
+    '     Else                                                                ' no, deselecciono hasta encontrar un -1
+    '         gcd.CurrDrawing.arrEntities[iEntity].selected = True
+    '         For i = iEntity + 1 To gcd.CurrDrawing.arrEntities.max              ' y sus entidades
+    '
+    '             If gcd.CurrDrawing.arrEntities[i].iInsert = -1 Then Break
+    '
+    '             gcd.CurrDrawing.arrEntities[i].selected = True
+    '
+    '             If AndItsPoints Then
+    '                 For ii = 0 To gcd.CurrDrawing.arrEntities[i].Psel.Max
+    '                     gcd.CurrDrawing.arrEntities[i].Psel[ii] = True                                      ' y sus puntos
+    '                 Next
+    '
+    '             End If
+    '
+    '         Next
+    '     End If
+    ' Else                                                          ' no es un inserto, pero es parte de uno?
+    '
+    '     If gcd.CurrDrawing.arrEntities[iEntity].iInsert >= 0 Then     ' si, llamo recursivamente
+    '         If Not gcd.CurrDrawing.arrEntities[iEntity].selected Then       ' pero solo si estaba seleccionada
+    '             SelectElem(gcd.CurrDrawing.arrEntities[iEntity].iInsert, AndItsPoints)
+    '             Return
+    '         End If
+    '     Else                                                        ' no, simplemente deselecciono esta entidad
 
-                If gcd.CurrDrawing.arrEntities[i].iInsert = -1 Then Break
+    gcd.CurrDrawing.arrEntities[iEntity].selected = True
+    If AndItsPoints Then
+        For i = 0 To gcd.CurrDrawing.arrEntities[iEntity].Psel.Max
+            gcd.CurrDrawing.arrEntities[iEntity].Psel[i] = True
+        Next
 
-                gcd.CurrDrawing.arrEntities[i].selected = True
+    End If
+    'End If
 
-                If AndItsPoints Then
-                    For ii = 0 To gcd.CurrDrawing.arrEntities[i].Psel.Max
-                        gcd.CurrDrawing.arrEntities[i].Psel[ii] = True                                      ' y sus puntos
-                    Next
-
-                End If
-
-            Next
-        End If
-    Else                                                          ' no es un inserto, pero es parte de uno?
-
-        If gcd.CurrDrawing.arrEntities[iEntity].iInsert >= 0 Then     ' si, llamo recursivamente
-            If Not gcd.CurrDrawing.arrEntities[iEntity].selected Then       ' pero solo si estaba seleccionada
-                SelectElem(gcd.CurrDrawing.arrEntities[iEntity].iInsert, AndItsPoints)
-                Return
-            End If
-        Else                                                        ' no, simplemente deselecciono esta entidad
-
-            gcd.CurrDrawing.arrEntities[iEntity].selected = True
-            If AndItsPoints Then
-                For i = 0 To gcd.CurrDrawing.arrEntities[iEntity].Psel.Max
-                    gcd.CurrDrawing.arrEntities[iEntity].Psel[i] = True
-                Next
-
-            End If
-        End If
-
-    Endif
+    ' Endif
 
 End
 
@@ -703,47 +703,47 @@ Public Sub DeSelectElem(iEntity As Integer, Optional AndItsPoints As Boolean = T
 
     Dim i, ii As Integer
 
-    If gcd.CurrDrawing.arrEntities[iEntity].Gender = "Insert" Then          ' es un inserto
-        If gcd.CurrDrawing.arrEntities[iEntity].iInsert >= 0 Then             ' esta dentro de otro insert?
-            If gcd.CurrDrawing.arrEntities[iEntity].selected Then               ' si estaba seleccionada
-                DeSelectElem(gcd.CurrDrawing.arrEntities[iEntity].iInsert, AndItsPoints)  ' llamo recursivamente
-            End If
-        Else                                                                ' no, deselecciono hasta encontrar un -1
-            gcd.CurrDrawing.arrEntities[iEntity].selected = False
-            For i = iEntity + 1 To gcd.CurrDrawing.arrEntities.max              ' y sus entidades
+    ' If gcd.CurrDrawing.arrEntities[iEntity].Gender = "Insert" Then          ' es un inserto
+    '     If gcd.CurrDrawing.arrEntities[iEntity].iInsert >= 0 Then             ' esta dentro de otro insert?
+    '         If gcd.CurrDrawing.arrEntities[iEntity].selected Then               ' si estaba seleccionada
+    '             DeSelectElem(gcd.CurrDrawing.arrEntities[iEntity].iInsert, AndItsPoints)  ' llamo recursivamente
+    '         End If
+    '     Else                                                                ' no, deselecciono hasta encontrar un -1
+    '         gcd.CurrDrawing.arrEntities[iEntity].selected = False
+    '         For i = iEntity + 1 To gcd.CurrDrawing.arrEntities.max              ' y sus entidades
+    '
+    '             If gcd.CurrDrawing.arrEntities[i].iInsert = -1 Then Break
+    '
+    '             gcd.CurrDrawing.arrEntities[i].selected = False
+    '
+    '             If AndItsPoints Then
+    '                 For ii = 0 To gcd.CurrDrawing.arrEntities[i].Psel.Max
+    '                     gcd.CurrDrawing.arrEntities[i].Psel[ii] = False                                      ' y sus puntos
+    '                 Next
+    '
+    '             End If
+    '
+    '         Next
+    '     End If
+    ' Else                                                          ' no es un inserto, pero es parte de uno?
+    '
+    '     If gcd.CurrDrawing.arrEntities[iEntity].iInsert >= 0 Then     ' si, llamo recursivamente
+    '         If gcd.CurrDrawing.arrEntities[iEntity].selected Then       ' pero solo si estaba seleccionada
+    '             DeSelectElem(gcd.CurrDrawing.arrEntities[iEntity].iInsert, AndItsPoints)
+    '             Return
+    '         End If
+    '     Else                                                        ' no, simplemente deselecciono esta entidad
 
-                If gcd.CurrDrawing.arrEntities[i].iInsert = -1 Then Break
+    gcd.CurrDrawing.arrEntities[iEntity].selected = False
+    If AndItsPoints Then
+        For i = 0 To gcd.CurrDrawing.arrEntities[iEntity].Psel.Max
+            gcd.CurrDrawing.arrEntities[iEntity].Psel[i] = False
+        Next
 
-                gcd.CurrDrawing.arrEntities[i].selected = False
+    End If
+    ' End If
 
-                If AndItsPoints Then
-                    For ii = 0 To gcd.CurrDrawing.arrEntities[i].Psel.Max
-                        gcd.CurrDrawing.arrEntities[i].Psel[ii] = False                                      ' y sus puntos
-                    Next
-
-                End If
-
-            Next
-        End If
-    Else                                                          ' no es un inserto, pero es parte de uno?
-
-        If gcd.CurrDrawing.arrEntities[iEntity].iInsert >= 0 Then     ' si, llamo recursivamente
-            If gcd.CurrDrawing.arrEntities[iEntity].selected Then       ' pero solo si estaba seleccionada
-                DeSelectElem(gcd.CurrDrawing.arrEntities[iEntity].iInsert, AndItsPoints)
-                Return
-            End If
-        Else                                                        ' no, simplemente deselecciono esta entidad
-
-            gcd.CurrDrawing.arrEntities[iEntity].selected = False
-            If AndItsPoints Then
-                For i = 0 To gcd.CurrDrawing.arrEntities[iEntity].Psel.Max
-                    gcd.CurrDrawing.arrEntities[iEntity].Psel[i] = False
-                Next
-
-            End If
-        End If
-
-    Endif
+    ' Endif
 
 End
 
@@ -1245,25 +1245,25 @@ Public Function SelPartial(i As Integer, X1real As Float, Y1real As Float, X2rea
 
 End
 
-Public Function GetParentBlock(iEntity As Integer) As Integer
-
-    Dim iParent As Integer
-
-    iParent = iEntity
-    Do
-
-        If gcd.CurrDrawing.arrEntities[iParent].iInsert >= 0 Then
-            If iParent = gcd.CurrDrawing.arrEntities[iParent].iInsert Then Break
-            iParent = gcd.CurrDrawing.arrEntities[iParent].iInsert
-        Else
-            Break
-        End If
-
-    Loop
-
-    Return iParent
-
-End
+' Public Function GetParentBlock(iEntity As Integer) As Integer
+'
+'     Dim iParent As Integer
+'
+'     iParent = iEntity
+'     Do
+'
+'         If gcd.CurrDrawing.arrEntities[iParent].iInsert >= 0 Then
+'             If iParent = gcd.CurrDrawing.arrEntities[iParent].iInsert Then Break
+'             iParent = gcd.CurrDrawing.arrEntities[iParent].iInsert
+'         Else
+'             Break
+'         End If
+'
+'     Loop
+'
+'     Return iParent
+'
+' End
 
 '' Imports data from a collection to an entity. True if the entity is handled by GauchoCAD at this version,
 '' False if entity couldn't be created for some reason.
@@ -1341,7 +1341,7 @@ Public Sub DXFExportCommonCol(e As Entity, ByRef cExported As Collection)
 
     cExported.add(e.Handle, dxf.codHandle)
     cExported.Add("AcDbEntity", "100")
-    cExported.Add(gcd.CurrDrawing.cLayers[e.pLayer][dxf.codName], dxf.codLayer)
+    cExported.Add(e.pLayer.Name, dxf.codLayer)
     cExported.Add(e.LineType, dxf.codLType)
     cExported.Add(e.colour, dxf.codColor)
     cExported.Add(CStr(e.LineWidth), dxf.codLWht)
@@ -1366,7 +1366,7 @@ Public Sub DXFExportCommon(e As Entity, hFile As File)
 End
 ' importing
 
-Public Function AddLine(obxContainer As Entity[], Points As Float[], Optional colour As Integer = 0, Optional LineWidth As Float = 1, Optional Linetype As String, Optional Layer As String, Optional Block As String) As Boolean
+Public Function AddLine(obxContainer As Entity[], Points As Float[], Optional colour As Integer = 0, LineWidth As Float = 1, Linetype As String, pLayer As Layer, Block As String) As Boolean
 
     ' points are in x,y,x,y,x,y....
     Dim oEntity As New Entity
@@ -1374,7 +1374,7 @@ Public Function AddLine(obxContainer As Entity[], Points As Float[], Optional co
     oEntity.ClassHandler = cadLine
     oEntity.Gender = oEntity.ClassHandler.gender
     oEntity.P.insert(points)                    ' recibimos los dos vertices de la linea x1,y1,x2,y2
-    oEntity.pLayer = Layer
+    oEntity.pLayer = pLayer
     oEntity.colour = colour
     oEntity.LineWidth = 1 'LineWidth               ' datos CAD
 
@@ -1384,7 +1384,7 @@ Public Function AddLine(obxContainer As Entity[], Points As Float[], Optional co
 
 End
 
-Public Function AddPoint(obxContainer As Entity[], Points As Float[], Optional colour As Integer = 0, Optional LineWidth As Float = 1, Optional Linetype As String, Optional Layer As String, Optional Block As String) As Boolean
+Public Function AddPoint(obxContainer As Entity[], Points As Float[], Optional colour As Integer = 0, LineWidth As Float = 1, Linetype As String, pLayer As Layer, Block As String) As Boolean
 
     ' points are in x,y,x,y,x,y....
     Dim oEntity As New Entity
@@ -1392,7 +1392,7 @@ Public Function AddPoint(obxContainer As Entity[], Points As Float[], Optional c
     oEntity.ClassHandler = cadPoint
     oEntity.Gender = oEntity.ClassHandler.gender
     oEntity.P.insert(points)                    ' recibimos los dos vertices de la linea x1,y1,x2,y2
-    oEntity.pLayer = Layer
+    oEntity.pLayer = pLayer
     oEntity.colour = colour
     oEntity.LineWidth = 1 'LineWidth               ' datos CAD
 
@@ -1402,7 +1402,7 @@ Public Function AddPoint(obxContainer As Entity[], Points As Float[], Optional c
 
 End
 
-Public Function AddPolyLine(obxContainer As Entity[], Points As Float[], Optional iClosed As Integer = 0, Optional colour As Integer = 0, Optional LineWidth As Float = 1, Optional Linetye As String, Optional Layer As String, Optional Block As String) As Boolean
+Public Function AddPolyLine(obxContainer As Entity[], Points As Float[], Optional iClosed As Integer = 0, Optional colour As Integer = 0, LineWidth As Float = 1, Optional Linetye As String, pLayer As Layer, Block As String) As Boolean
 
     ' points are in x,y,x,y,x,y....
 
@@ -1412,7 +1412,7 @@ Public Function AddPolyLine(obxContainer As Entity[], Points As Float[], Optiona
     oEntity.Gender = oEntity.ClassHandler.gender
     oEntity.P.insert(points)                    ' recibimos los dos vertices de la linea x1,y1,x2,y2
     oEntity.fParam.Add(iClosed)                 ' cerrada o abierta
-    oentity.pLayer = Layer
+    oEntity.pLayer = pLayer
     oEntity.colour = colour
     oEntity.LineWidth = 1 ' LineWidth               ' datos CAD
 
@@ -1422,7 +1422,7 @@ Public Function AddPolyLine(obxContainer As Entity[], Points As Float[], Optiona
 
 End
 
-Public Function AddSolid(obxContainer As Entity[], Points As Float[], Optional colour As Integer = 0, Optional LineWidth As Float = 1, Optional Linetye As String, Optional Layer As String, Optional Block As String) As Boolean
+Public Function AddSolid(obxContainer As Entity[], Points As Float[], Optional colour As Integer = 0, LineWidth As Float = 1, Optional Linetye As String, pLayer As Layer, Block As String) As Boolean
 
     ' points are in x,y,x,y,x,y....
     ' points are in x,y,x,y,x,y....
@@ -1432,7 +1432,7 @@ Public Function AddSolid(obxContainer As Entity[], Points As Float[], Optional c
     oEntity.Gender = oEntity.ClassHandler.gender
     oEntity.P.insert(points)                    ' recibimos los dos vertices de la linea x1,y1,x2,y2
 
-    oentity.pLayer = Layer
+    oEntity.pLayer = pLayer
     oEntity.colour = colour
     oEntity.LineWidth = LineWidth               ' datos CAD
 
@@ -1442,7 +1442,7 @@ Public Function AddSolid(obxContainer As Entity[], Points As Float[], Optional c
 
 End
 
-Public Function AddSPLine(obxContainer As Entity[], Points As Float[], Optional iClosed As Integer = 0, Optional colour As Integer = 0, Optional LineWidth As Float = 1, Optional Linetye As String, Optional Layer As String, Optional Block As String) As Boolean
+Public Function AddSPLine(obxContainer As Entity[], Points As Float[], Optional iClosed As Integer = 0, Optional colour As Integer = 0, LineWidth As Float = 1, Optional Linetye As String, pLayer As Layer, Block As String) As Boolean
 
     ' points are in x,y,x,y,x,y....
     Dim oEntity As New Entity
@@ -1451,7 +1451,7 @@ Public Function AddSPLine(obxContainer As Entity[], Points As Float[], Optional 
     oEntity.Gender = oEntity.ClassHandler.gender
     oEntity.P.insert(points)                    ' recibimos los dos vertices de la linea x1,y1,x2,y2
     oEntity.fParam.Add(iClosed)                 ' cerrada o abierta
-    oentity.pLayer = Layer
+    oEntity.pLayer = pLayer
     oEntity.colour = colour
     oEntity.LineWidth = LineWidth               ' datos CAD
 
@@ -1461,7 +1461,7 @@ Public Function AddSPLine(obxContainer As Entity[], Points As Float[], Optional 
 
 End
 
-Public Function AddCircle(obxContainer As Entity[], Points As Float[], radious As Float, Optional colour As Integer = 0, Optional LineWidth As Float = 1, Optional Linetye As String, Optional Layer As String, Optional Block As String) As Boolean
+Public Function AddCircle(obxContainer As Entity[], Points As Float[], radious As Float, Optional colour As Integer = 0, LineWidth As Float = 1, Optional Linetye As String, pLayer As Layer, Block As String) As Boolean
 
     ' points are in x,y,x,y,x,y....
     Dim oEntity As New Entity
@@ -1470,7 +1470,7 @@ Public Function AddCircle(obxContainer As Entity[], Points As Float[], radious A
     oEntity.Gender = oEntity.ClassHandler.gender
     oEntity.P.insert(points)                    ' centro x1,y1
     oEntity.fParam.Add(radious)                 ' radio
-    oentity.pLayer = Layer
+    oEntity.pLayer = pLayer
     oEntity.colour = colour
     oEntity.LineWidth = LineWidth               ' datos CAD
 
@@ -1480,7 +1480,7 @@ Public Function AddCircle(obxContainer As Entity[], Points As Float[], radious A
 
 End
 
-Public Function AddArc(obxContainer As Entity[], Points As Float[], r As Float, angle1 As Float, angle2 As Float, Optional colour As Integer = 0, Optional LineWidth As Float = 1, Optional Linetye As String, Optional Layer As String, Optional Block As String) As Boolean
+Public Function AddArc(obxContainer As Entity[], Points As Float[], r As Float, angle1 As Float, angle2 As Float, Optional colour As Integer = 0, LineWidth As Float = 1, Optional Linetye As String, pLayer As Layer, Block As String) As Boolean
 
     ' points are in x,y,x,y,x,y....
     Dim oEntity As New Entity
@@ -1491,7 +1491,7 @@ Public Function AddArc(obxContainer As Entity[], Points As Float[], r As Float, 
     oEntity.fParam.Add(r)                      ' radio
     oEntity.fParam.Add(angle1)                   ' angulo
     oEntity.fParam.Add(angle2)                   ' angulo
-    oentity.pLayer = Layer
+    oEntity.pLayer = pLayer
     oEntity.colour = colour
     oEntity.LineWidth = LineWidth               ' datos CAD
 
@@ -1501,7 +1501,7 @@ Public Function AddArc(obxContainer As Entity[], Points As Float[], r As Float, 
 
 End
 
-Public Function AddEllipse(obxContainer As Entity[], Points As Float[], r As Float, angle1 As Float, angle2 As Float, Optional colour As Integer = 0, Optional LineWidth As Float = 1, Optional Linetye As String, Optional Layer As String, Optional Block As String) As Boolean
+Public Function AddEllipse(obxContainer As Entity[], Points As Float[], r As Float, angle1 As Float, angle2 As Float, Optional colour As Integer = 0, LineWidth As Float = 1, Optional Linetye As String, pLayer As Layer, Block As String) As Boolean
 
     ' points are in x,y,x,y,x,y....
     Dim oEntity As New Entity
@@ -1514,7 +1514,7 @@ Public Function AddEllipse(obxContainer As Entity[], Points As Float[], r As Flo
     oEntity.fParam.Add(r)                      ' ratio minor/major
     oEntity.fParam.Add(angle1 * 180 / Pi)     ' start angle
     oEntity.fParam.Add(angle2 * 180 / Pi)      ' end angle
-    oentity.pLayer = Layer
+    oEntity.pLayer = pLayer
     oEntity.colour = colour
     oEntity.LineWidth = LineWidth               ' datos CAD
 
@@ -1524,7 +1524,7 @@ Public Function AddEllipse(obxContainer As Entity[], Points As Float[], r As Flo
 
 End
 
-Public Function AddText(obxContainer As Entity[], Points As Float[], angle As Float, height As Float, _Text As String, Optional colour As Integer = Color.Blue, Optional LineWidth As Float = 1, Optional Linetye As String, Optional Layer As String, Optional Block As String) As Boolean
+Public Function AddText(obxContainer As Entity[], Points As Float[], angle As Float, height As Float, _Text As String, Optional colour As Integer = Color.Blue, LineWidth As Float = 1, Optional Linetye As String, pLayer As Layer, Block As String) As Boolean
 
     Dim oEntity As New Entity
 
@@ -1534,7 +1534,7 @@ Public Function AddText(obxContainer As Entity[], Points As Float[], angle As Fl
     oEntity.fParam.Add(angle)                   ' grados
     oEntity.fParam.Add(height)                  ' alto letras
     oEntity.stringdata.Add(_text)                  ' el texto
-    oentity.pLayer = Layer
+    oEntity.pLayer = pLayer
     oEntity.colour = colour
     oEntity.LineWidth = LineWidth               ' datos CAD
 
@@ -1544,7 +1544,7 @@ Public Function AddText(obxContainer As Entity[], Points As Float[], angle As Fl
 
 End
 
-Public Function AddMText(obxContainer As Entity[], Points As Float[], angle As Float, height As Float, _Text As String, Optional colour As Integer = Color.Blue, Optional LineWidth As Float = 1, Optional Linetye As String, Optional Layer As String, Optional Block As String) As Boolean
+Public Function AddMText(obxContainer As Entity[], Points As Float[], angle As Float, height As Float, _Text As String, Optional colour As Integer = Color.Blue, LineWidth As Float = 1, Optional Linetye As String, pLayer As Layer, Block As String) As Boolean
 
     Dim oEntity As New Entity
 
@@ -1555,7 +1555,7 @@ Public Function AddMText(obxContainer As Entity[], Points As Float[], angle As F
     oEntity.fParam[cadMText.ipaTextAngle] = angle                  ' GRADOS
     oEntity.fParam[cadMText.ipaTextHeight] = height                  ' alto letras
     oEntity.stringdata[cadMText.sdaText] = _text                  ' el texto
-    oentity.pLayer = Layer
+    oEntity.pLayer = pLayer
     oEntity.colour = colour
     oEntity.LineWidth = LineWidth               ' datos CAD
 
@@ -1565,7 +1565,7 @@ Public Function AddMText(obxContainer As Entity[], Points As Float[], angle As F
 
 End
 
-Public Function AddCurve(obxContainer As Entity[], Points As Float[], Optional colour As Integer = 0, Optional LineWidth As Float = 1, Optional Linetye As String, Optional Layer As String, Optional Block As String) As Boolean
+Public Function AddCurve(obxContainer As Entity[], Points As Float[], Optional colour As Integer = 0, LineWidth As Float = 1, Optional Linetye As String, pLayer As Layer, Block As String) As Boolean
 
     ' points are in x,y,x,y,x,y....
     Dim oEntity As New Entity
@@ -1574,7 +1574,7 @@ Public Function AddCurve(obxContainer As Entity[], Points As Float[], Optional c
 
 End
 
-Public Function AddInsert(obxContainer As Entity[], Points As Float[], scaleX As Float, scaleY As Float, angulo As Float, Optional colour As Integer = Color.Blue, Optional Linetye As String, Optional Layer As String, Optional Block As String) As Boolean
+Public Function AddInsert(obxContainer As Entity[], Points As Float[], scaleX As Float, scaleY As Float, angulo As Float, Optional colour As Integer = Color.Blue, Optional Linetye As String, pLayer As Layer, Block As String) As Boolean
 
     Dim oEntity As New Entity
 
@@ -1584,7 +1584,7 @@ Public Function AddInsert(obxContainer As Entity[], Points As Float[], scaleX As
     oEntity.fParam.Add(scaleX)
     oEntity.fParam.Add(scaleY)
     oEntity.fParam.Add(angulo)                  ' GRADOS
-    oentity.pLayer = Layer
+    oEntity.pLayer = pLayer
     oEntity.colour = colour
 
     obxContainer.Add(oEntity)
