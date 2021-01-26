@@ -596,6 +596,7 @@ Public Function SaveFile(sName As String, cData As Collection) As Integer
     If Save3Tables(cData["TABLES"]) Then Return False
     If Save4Blocks(cData["BLOCKS"]) Then Return False
     If Save5Entities(cData["ENTITIES"]) Then Return False
+    If Save5EntitiesDirect(gcd.CurrDrawing.arrEntities) Then Return False
     If Save6Objects(cData["OBJECTS"]) Then Return False
     If Save7ThumbNail(cData["THUMBNAILIMAGE"]) Then Return False
     hFile.Close
@@ -777,6 +778,42 @@ Private Function Save5Entities(cEntys As Collection) As Integer
 
     ' here go all entities
     For Each cEnty In cEntys
+        For Each sValues In cEnty
+            lpclave = cEnty.Key
+            I = InStr(lpclave, "_")
+            If i > 0 Then lpclave = Left(lpclave, i - 1)
+            Print #hFile, lpclave
+            Print #hFIle, sValues
+        Next
+    Next
+    ' end section code
+    Print #hFIle, "  0"
+    Print #hFIle, "ENDSEC"
+
+End
+
+Private Function Save5EntitiesDirect(eEntys As Entity[]) As Integer
+
+    Dim cEnty As Collection
+    Dim eEnty As Entity
+    Dim sValues, lpclave As String
+    Dim i As Integer
+
+    Print #hFIle, "  0"
+    Print #hFIle, "SECTION"
+    Print #hFIle, "  2"
+    Print #hFIle, "ENTITIES"
+
+    ' here go all entities
+    For Each eEnty In eEntys
+        cEnty = New Collection
+        clsEntities.DXFExportCommonCol(eEnty, cEnty)
+        ' If eEnty.ClassHandler.DXF_Export Then
+        eEnty.ClassHandler.ExportDXFCol(eEnty, cEnty)
+        ' Else
+        '     cEnty = New Collection
+        '     cadDummy.ExportDXFCol(eEnty, cEnty)
+        ' End If
         For Each sValues In cEnty
             lpclave = cEnty.Key
             I = InStr(lpclave, "_")
