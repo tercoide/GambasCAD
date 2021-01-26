@@ -428,17 +428,17 @@ Public Sub ImpEnty6(cEny As Collection, obx As Entity[])
 
     Dim e As Collection               ' Current Entity
     Dim entNueva As Entity
-    Dim flgIsPolyline As Boolean
+    Dim flgIsPolyline, IsDummy As Boolean
     Dim pBlockPolyline As Block
 
     For Each e In cEny                                              ' Para cada Coleccion de datos de vrx
         If e.Exist(dxf.codEntity) Then                                     ' es una entidad?
             entNueva = New Entity                                       ' entonces, creamos una nueva
 
-            If InStr("POLYLINE SEQEND VERTEX POINT ATTDEF ATTRIB LINE LWPOLYLINE CIRCLE ELLIPSE ARC TEXT MTEXT SPLINE SOLID LEADER INSERT DIMENSION DIMENSION_LINEAR DIMENSION_DIAMETER DIMENSION_RADIUS DIMENSION_ANG3PT DIMENSION_ALIGNED DIMENSION_ORDINATE LARGE_RADIAL_DIMENSION ARC_DIMENSION", UCase(e[dxf.codEntity])) = 0 Then Continue
+            If InStr("POLYLINE SEQEND VERTEX POINT ATTDEF ATTRIB LINE LWPOLYLINE CIRCLE ELLIPSE ARC TEXT MTEXT SPLINE SOLID LEADER INSERT DIMENSION DIMENSION_LINEAR DIMENSION_DIAMETER DIMENSION_RADIUS DIMENSION_ANG3PT DIMENSION_ALIGNED DIMENSION_ORDINATE LARGE_RADIAL_DIMENSION ARC_DIMENSION", UCase(e[dxf.codEntity])) = 0 Then IsDummy = True Else IsDummy = False
             'If UCase(e[dxf.codEntity]) = "INSERT" Then Stop
 
-            If clsEntities.DXFImportToEntity(e, entNueva) Then         ' si esta implementada, llenamos los datos
+            If clsEntities.DXFImportToEntity(e, entNueva, IsDummy) Then         ' si esta implementada, llenamos los datos
 
                 If flgIsPolyline Then
                     pBlockPolyline.entities.Add(entNueva)
@@ -705,7 +705,6 @@ Public Sub UpdateModel()
         dxfExporting = False               ' Supongo que la clase todvia no esta lista
 
         ' ' la primera verificacion que hago es ver si la entidad es de un insert, entonces no se guarda
-        ' If ent.iInsert >= 0 Then Continue  '<-- DEPRECADO
 
         ' Esto puede fallar en caso q no este lista, por eso el Try
         Try dxfExporting = ent.ClassHandler.DXF_Export
@@ -715,7 +714,9 @@ Public Sub UpdateModel()
             ' Verifico si la entidad ya existe en cModel, o fue creada por el usuario graficamente
             If CurrDrawing.cEntities.Exist(ent.Handle) Then
 
-                ' Ya existe
+                ' Ya existe, la vacio
+                cNewEntity = New Collection
+                CurrDrawing.cEntities.Add(cNewEntity, ent.Handle)
 
                 ent.ClassHandler.ExportDXFCol(ent, CurrDrawing.cEntities[ent.Handle])
 
@@ -728,8 +729,6 @@ Public Sub UpdateModel()
                 ent.Handle = sNewHandle
 
                 ent.ClassHandler.ExportDXFCol(ent, CurrDrawing.cEntities[sNewHandle])
-
-                'CurrDrawing.cModel["AuxHeader"]["HANDSEED"] = iHandle + 1
 
             End If
         End If

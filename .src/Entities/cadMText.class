@@ -542,6 +542,8 @@ End
 ' "unknown_b0": 0
 Public Sub ExportDXFCol(e As Entity, ByRef cExport As Collection) As Boolean
 
+    Dim i As Integer, sText As String
+
     clsEntities.setEntity(e)
 
     cExport.Add("MTEXT", dxf.codEntity)
@@ -557,7 +559,27 @@ Public Sub ExportDXFCol(e As Entity, ByRef cExport As Collection) As Boolean
     cExport.Add(e.fParam[Me.ipaAttchmPoint], "71")            ' attchm point
     cExport.Add(e.fParam[Me.ipaDrawingDirec], "72")           ' drawing direction
 
-    cExport.Add(e.stringdata[Me.sdaText], "1")                ' Text
+    If e.StringData[0].Len > 250 Then
+        cExport.Add(Left(e.stringdata[Me.sdaText], 250), "1")                ' Texti = 250
+        i = 251         ' next offset
+        Do
+
+            If e.StringData[0].Len - i > 250 Then
+                sText = Mid(e.StringData[0], i, 250)
+                cExport.Add(sText, "3")                ' Texti += 250
+                i += 250
+            Else
+                sText = Mid(e.StringData[0], i)
+                cExport.Add(sText, "3")                ' Texti += 250
+                Break
+
+            End If
+
+        Loop
+    Else
+        cExport.Add(e.stringdata[Me.sdaText], "1")                ' Text
+    Endif
+
     cExport.Add(e.StringData[Me.sdaStyle], "7")               ' text style
 
     cExport.Add("0", "210")                                   ' extrusion direction
