@@ -9,7 +9,16 @@ Public Struct settingST
 End Struct
 
 Public Setting As New SettingST
-Public Params As New Settings(User.Home &/ ".m-designer/m-designer.conf", "Parameters")
+Public Params As Settings
+
+'Dirs
+Public dirDwgIn As String = User.Home &/ ".config/m-designer/DwgIn"
+Public dirDxfIn As String = User.Home &/ ".config/m-designer/DxfIn"
+Public dirDwgOut As String = User.Home &/ ".config/m-designer/DwgOut"
+Public dirDxfOut As String = User.Home &/ ".config/m-designer/DxfOut"
+Public dirTemplates As String = User.Home &/ ".config/m-designer/templates"
+Public dirBlocks As String      ' path to Blocks
+
 
 Public Sub main()
 
@@ -28,6 +37,41 @@ Public Sub main()
 End
 
 Public Sub Initialize()
+
+    Dim aFile As String
+    ' Dirs
+    If Not IsDir(User.Home &/ ".config/m-designer") Then            ' first timer
+        Mkdir User.Home &/ ".config/m-designer"
+        Mkdir dirDwgIn       ' DWG to be converted by ODA
+        Mkdir dirDxfIn       ' where ODA puts the converted DWG into DXF
+        Mkdir dirDxfOut      ' drawings saved into DXF prior to be converted back to DWG
+        Mkdir dirDwgOut     ' where ODA puts the converted DXF into DWG, prior to final destination
+        Mkdir dirTemplates
+
+
+        For Each aFile In Dir(Application.Path &/ "minimal")
+            Copy Application.Path &/ "minimal/" &/ afile To dirTemplates &/ aFile
+        Next
+
+    Else                    ' empty temporary files in case there are any
+
+        For Each aFile In Dir(dirDwgIn)
+            Kill dirDwgIn &/ aFile
+        Next
+        For Each aFile In Dir(dirDxfIn)
+            Kill dirDxfIn &/ aFile
+        Next
+        For Each aFile In Dir(dirDwgOut)
+            Kill dirDwgOut &/ aFile
+        Next
+        For Each aFile In Dir(dirDxfOut)
+            Kill dirDxfOut &/ aFile
+        Next
+
+
+    End If
+
+    Params = New Settings(User.Home &/ ".config/m-designer/m-designer.conf", "Parameters")
 
     Select Params["/DrawingArea/DarkMode", True]
 
@@ -51,6 +95,8 @@ End
 
 Public Sub Terminate()
 
+
+    Params["/Test/Test2"] = True
     Params.Save
 
 End

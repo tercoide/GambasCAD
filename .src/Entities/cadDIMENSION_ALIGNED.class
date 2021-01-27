@@ -65,6 +65,26 @@ Private pointTextMidPoint As New Punto2d
 Private pointBaselinePoint As New Punto2d
 Private pointDefPoint0 As New Punto2d
 
+
+Public Sub ExportDXFCol(e As Entity, ByRef cExport As Collection) As Boolean
+
+    cadDimension.ExportDXFCol(e, cExport)
+
+    ' sobreescribo el nombre de la entidad
+
+    cExport.Add("AcDbAlignedDimension", "100")
+    ' ===========================================================================
+    cExport.Add(CStr(e.p[4]), dxf.codX3)                ' first def point
+    cExport.Add(CStr(e.p[5]), dxf.codY3)
+    cExport.Add("0", dxf.codz0)
+
+    cExport.Add(CStr(e.p[6]), "14")                ' text att point
+    cExport.Add(CStr(e.p[7]), "24")
+    cExport.Add("0", "34")
+
+
+End
+
 Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
 
     Dim i As Integer
@@ -123,6 +143,7 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
     If Me.StepsDone = 0 Then
         Me.DimType = gcd.dimAligned
 
+        eBuild.iParam.Resize(cadDimension.iTotalParams)
         eBuild.fParam.Resize(cadDimension.TotalParams)
         eBuild.StringData.Resize(cadDimension.sdaTotalParams) ' text, style
         eBuild.pStyle = gcd.CurrDrawing.CurrDimStyle
@@ -297,7 +318,7 @@ Public Sub ReBuildBlock(ELEM As Entity) As Block
 
     ' el texto
     eText.StringData[cadMText.sdaText] = "\\A1;" & Format(d, Me.DimFormat)
-    
+
     elem.fParam[cadDimension.ipaRealMeasure] = d
 
     flxTextExt = glPlus.MTextExtends(eText.StringData[0], 0, 0, eText.fParam[1])
