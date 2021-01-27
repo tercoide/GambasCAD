@@ -71,7 +71,7 @@ Public Const ipaEscZ As Integer = 2
 Public Const ipaRotacion As Integer = 3
 Public Const ipaVertJustif As Integer = 4
 Public Const ipaRelativeFactor As Integer = 5
-Public Const ipaHorizontal As Integer = 6
+Public Const ipaHorizAngle As Integer = 6
 Public Const ipaExtension As Integer = 7
 
 ' stringdata helpers
@@ -91,42 +91,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
         If sClaves[i] = "10" Then e.p.Add(CFloat(sValues[i]))         ' X0
         If sClaves[i] = "20" Then e.P.Add(CFloat(sValues[i]))         ' Y0
 
-        '     If sClaves[i] = "70" Then ' Dimension type:
-        '         DimTypeSet = True
-        '         ' Values 0 - 6 are integer values that represent the dimension type.Values 32, 64, And 128 are bit values, which are added To the integer values(value 32 Is Always set In R13 And later releases)
-        '
-        '         ' debo cambiar el handler y enviar al que corresponda
-        '         Select Case CInt(sValues[i]) And 31  'Xor 128 Xor 64 Xor 32
-        '             Case 0 '= Rotated, horizontal, Or vertical
-        '
-        '                 e.ClassHandler = cadDIMENSION_LINEAR
-        '
-        '             Case 1 '= Aligned
-        '
-        '                 e.ClassHandler = cadDIMENSION_ALIGNED
-        '
-        '             Case 2 '= Angular
-        '
-        '                 e.ClassHandler = cadDIMENSION_ANG3PT
-        '
-        '             Case 3 '= Diameter
-        '
-        '                 e.ClassHandler = cadDIMENSION_DIAMETER
-        '
-        '             Case 4 ' = Radius
-        '
-        '                 e.ClassHandler = cadDIMENSION_RADIUS
-        '
-        '             Case 5 ' = Angular 3 - point
-        '
-        '                 e.ClassHandler = cadDIMENSION_ANG3PT
-        '
-        '             Case 6 ' = Ordinate
-        '
-        '                 e.ClassHandler = cadDIMENSION_ORDINATE
-        '
-        '         End Select
-        '     End If
+
         '
     Next
     '
@@ -315,7 +280,12 @@ Public Sub ReBuildBlock(ELEM As Entity) As Block
 
     ' ' la sexta es el texto
     If (eLineaPpal.fParam[2] - eLineaPpal.fParam[1]) < 0 Then eLineaPpal.fParam[2] += 360
-    eText.StringData[0] = "L " & Format((eLineaPpal.fParam[2] - eLineaPpal.fParam[1]) / 360 * 2 * puntos.distancia(elem.P[0], elem.P[1], elem.P[4], elem.P[5]) * Pi, Me.DimFormatAng)
+
+    elem.fParam[cadDimension.ipaRealMeasure] = (eLineaPpal.fParam[2] - eLineaPpal.fParam[1]) / 360 * 2 * puntos.distancia(elem.P[0], elem.P[1], elem.P[4], elem.P[5]) * Pi
+
+    eText.StringData[0] = "L " & Format(elem.fParam[cadDimension.ipaRealMeasure], Me.DimFormatAng)
+
+
     fRotXY = puntos.RotateFromPointWithAngle(elem.P[0], elem.P[1], (eLineaPpal.fParam[2] - eLineaPpal.fParam[1]) / 180 * Pi / 2, elem.P[2], elem.P[3])
     '
     flxTextExt = glPlus.MTextExtends(eText.StringData[cadMText.sdaText], 0, 0, eText.fParam[1])

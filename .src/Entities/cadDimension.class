@@ -50,15 +50,27 @@ Public extension As Float
 Public iBloque As Integer
 
 ' fParam helpers
-Public Const TotalParams As Integer = 8
+Public Const TotalParams As Integer = 10
+
 Public Const ipaEscX As Integer = 0
-Public Const ipaEscY As Integer = 1
+Public Const ipaEscY As Integer = 1         ' usados por cadInsert para dibujar el bloque
 Public Const ipaEscZ As Integer = 2
 Public Const ipaRotacion As Integer = 3
+
 Public Const ipaVertJustif As Integer = 4
 Public Const ipaRelativeFactor As Integer = 5
-Public Const ipaHorizontal As Integer = 6
+Public Const ipaHorizAngle As Integer = 6
 Public Const ipaExtension As Integer = 7
+Public Const ipaObliqueExtension As Integer = 8
+Public Const ipaRealMeasure As Integer = 9
+
+
+' fParam helpers
+Public Const iTotalParams As Integer = 2
+
+Public Const iiiDimType As Integer = 0
+Public Const iiiAtatchPoint As Integer = 1
+
 
 ' stringdata helpers
 Public Const sdaTotalParams As Integer = 2
@@ -121,14 +133,15 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
         If sClaves[i] = "21" Then e.P.Add(CFloat(sValues[i]))         ' Y1
 
         If sClaves[i] = "3" Then e.pStyle = gcd.FindStyle(sValues[i])
-        'If sClaves[i] = "3" Then e.pStyle = clsEntities.FindStyle(sValues[i])
 
         If sClaves[i] = "70" Then ' Dimension type:
+
+            e.iParam[Me.iiiDimType] = CInt(sValues[i])
             DimTypeSet = True
             ' Values 0 - 6 are integer values that represent the dimension type.Values 32, 64, And 128 are bit values, which are added To the integer values(value 32 Is Always set In R13 And later releases)
 
             ' debo cambiar el handler y enviar al que corresponda
-            Select Case CInt(sValues[i]) And 31  'Xor 128 Xor 64 Xor 32
+            Select Case e.iParam[Me.iiiDimType] And 31  'Xor 128 Xor 64 Xor 32
                 Case 0 '= Rotated, horizontal, Or vertical
 
                     e.ClassHandler = cadDIMENSION_LINEAR
@@ -157,10 +170,13 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
                     e.ClassHandler = cadDIMENSION_ORDINATE
 
-                    If CInt(sValues[i]) And 64 = 64 Then e.fParam[Me.ipaHorizontal] = 1 ' horiz ordinate
+                    If CInt(sValues[i]) And 64 = 64 Then e.fParam[Me.ipaHorizAngle] = 1 ' horiz ordinate
 
             End Select
+
         End If
+        If sClaves[i] = "71" Then e.iParam[Me.iiiAtatchPoint] = CInt(sValues[i])
+
 
     Next
 
@@ -179,5 +195,26 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     '' catch
 
     Return False
+
+End
+
+Public Sub ExportDXFCol(e As Entity, ByRef cExport As Collection, DimType As Integer) As Boolean
+
+    cExport.Add("DIMENSION", dxf.codEntity)
+    clsEntities.DXFExportCommonCol(e, cExport)
+    cExport.Add("AcDbDimension", "100")
+    cExport.Add(E.pBlock.name, "2")
+    cExport.Add(CStr(e.p[0]), dxf.codX0)
+    cExport.Add(CStr(e.p[1]), dxf.codY0)
+    cExport.Add("0", dxf.codz0)
+    cExport.Add(CStr(e.p[2]), dxf.codX1)
+    cExport.Add(CStr(e.p[3]), dxf.codY1)
+    cExport.Add("0", dxf.codz0)
+
+    cExport.Add(CStr(e.iParam[Me.iiiDimType]), "70")
+    cExport.Add(CStr(e.iParam[Me.iiiAtatchPoint]), "71")
+
+
+    cExport.Add(CStr(e.fParam[0]), dxf.codRadius)
 
 End
