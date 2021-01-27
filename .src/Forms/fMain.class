@@ -145,10 +145,31 @@ Public Function Action_Activate(sAction As String) As Boolean
     Dim iColor As Integer
     Dim imgCirculito As Image
     Dim clsJob As String
+    Dim d As ClsDrawing
 
     Try Print Last.name
 
     Select Case LCase(sAction)
+
+        Case Like "windowchange_*"
+
+            Dim sWName As String
+
+            sWName = Mid(sAction, 14)
+
+            For Each d In gcd.Drawings
+                If sWName = d.FileName Then
+                    gcd.CurrDrawing = d
+                    gcd.UpdateLayersCombo
+                    gcd.UpdateLineWtCombo
+                    gcd.UpdateLineTypeCombo
+                    Me.redraw
+                    Me.Text = f
+
+                    FillWindowMenu
+                    Break
+                Endif
+            Next
 
         Case "file_quit"
 
@@ -178,6 +199,8 @@ Public Function Action_Activate(sAction As String) As Boolean
             gcd.UpdateGraphics
 
             Me.Text = f
+
+            FillWindowMenu
 
             ' Print Last.name
         Case "file_open"
@@ -259,6 +282,8 @@ Public Function Action_Activate(sAction As String) As Boolean
                     End Select
                 Endif
             Endif
+
+            FillWindowMenu
 
         Case "file_save"
 
@@ -1182,5 +1207,21 @@ Public Sub grdLayers_Click()
             fLayersOnScreen.Show()
         End If
     End If
+
+End
+
+Public Sub FillWindowMenu()
+
+    Dim d As ClsDrawing
+    Dim mItem As Menu
+
+    mnuWindow.Children.Clear
+
+    For Each d In gcd.Drawings
+        mItem = New Menu(mnuWindow)
+        mItem.Text = d.FileName
+        If d = gcd.CurrDrawing Then mItem.Checked = True Else mItem.Checked = False
+        mItem.Action = "windowchange_" & d.FileName
+    Next
 
 End

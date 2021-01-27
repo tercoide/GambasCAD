@@ -37,7 +37,6 @@ Public StepsDone As Integer                 ' esto lo cambia cls ElementBuilder 
 
 Public TotalDimensions As Integer           ' the total dimensions present in this drawing
 
-
 Public extension As Float
 Public iBloque As Integer
 
@@ -60,14 +59,49 @@ Public DimTextHeight As Float       '
 Public DimSeparation As Float = 0.5      ' la separacion entre el punto que define la cota y el inicio de la linea q marca inicio y fin
 Public DimExtension As Float = 0.5       ' la continuacion de esas lineas
 
+Private pointDefPoint1 As New Punto2d
+Private pointDefPoint2 As New Punto2d
+Private pointTextMidPoint As New Punto2d
+Private pointBaselinePoint As New Punto2d
+Private pointDefPoint0 As New Punto2d
 
 Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
 
     Dim i As Integer
+    Dim AfterSubclassmarker As Boolean
+    ' revisamos lo que viene del importador comun
+    pointDefPoint0.x = e.P[0]
+    pointDefPoint0.y = e.P[1]
+
+    pointTextMidPoint.x = e.P[2]
+    pointTextMidPoint.y = e.P[3]
 
     For i = 0 To sClaves.Max
+        If sClaves[i] = "100" And sValues[i] = "AcDbRadialDimension" Then AfterSubclassmarker = True
+        If AfterSubclassmarker Then ' lo siguientes codigos
+
+            If sClaves[i] = "15" Then pointDefPoint1.x = CFloat(sValues[i])
+            If sClaves[i] = "25" Then pointDefPoint1.y = CFloat(sValues[i])
+
+        End If
 
     Next
+
+    ' ahora recosntruyo el bloque segun mis propios metodos
+    e.P[0] = pointDefPoint0.x
+    e.P[1] = pointDefPoint0.y
+
+    e.P[2] = pointDefPoint1.x
+    e.P[3] = pointDefPoint1.y
+
+    e.P.Add(pointTextMidPoint.x)
+    e.P.Add(pointTextMidPoint.y)
+
+    Me.DimArrowSize = CFloat(gcd.CurrDrawing.cModel["TABLES"]["DIMSTYLE"][e.pStyle]["41"])
+    Me.DimArrowWidth = Me.DimArrowSize / 3
+    Me.DimTextHeight = CFloat(gcd.CurrDrawing.cModel["TABLES"]["DIMSTYLE"][e.pStyle]["140"])
+
+    e.pBlock = Me.ReBuildBlock(e)
 
     Return True
 
@@ -139,7 +173,7 @@ End
 
 Public Sub Draw(Optional e As Entity)
 
-    cadInsert.Draw(e, False)
+    cadInsert.Draw(e)
 
 End
 
@@ -232,7 +266,7 @@ Public Sub ReBuildBlock(ELEM As Entity) As Block
     eLineaPpal.P[3] = 0           ' Y1
 
     ' el texto
-    eText.StringData[cadMText.sdaText] = "R " & Format(d, Me.DimFormat)
+    eText.StringData[cadMText.sdaText] = "\\A1;" & "R " & Format(d, Me.DimFormat)
 
     flxTextExt = glPlus.MTextExtends(eText.StringData[0], 0, 0, eText.fParam[1])
 

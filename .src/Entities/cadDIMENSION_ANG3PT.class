@@ -69,7 +69,7 @@ Public Const ipaEscZ As Integer = 2
 Public Const ipaRotacion As Integer = 3
 Public Const ipaVertJustif As Integer = 4
 Public Const ipaRelativeFactor As Integer = 5
-Public Const ipaObliqueAngle As Integer = 6
+Public Const ipaHorizontal As Integer = 6
 Public Const ipaExtension As Integer = 7
 
 ' stringdata helpers
@@ -77,15 +77,60 @@ Public Const sdaTotalParams As Integer = 2
 Public Const sdaText As Integer = 0
 Public Const sdaStyle As Integer = 1
 
-
+Private pointDefPoint1 As New Punto2d
+Private pointDefPoint2 As New Punto2d
+Private pointTextMidPoint As New Punto2d
+Private pointCenter As New Punto2d
+Private pointDefPoint0 As New Punto2d
 
 Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
 
     Dim i As Integer
+    Dim AfterSubclassmarker As Boolean
+    ' revisamos lo que viene del importador comun
+    pointDefPoint0.x = e.P[0]
+    pointDefPoint0.y = e.P[1]
+
+    pointTextMidPoint.x = e.P[2]
+    pointTextMidPoint.y = e.P[3]
 
     For i = 0 To sClaves.Max
+        If sClaves[i] = "100" And sValues[i] = "AcDb3PointAngularDimension" Then AfterSubclassmarker = True
+        If AfterSubclassmarker Then ' lo siguientes codigos
+
+            If sClaves[i] = "13" Then pointDefPoint1.x = CFloat(sValues[i])
+            If sClaves[i] = "23" Then pointDefPoint1.y = CFloat(sValues[i])
+
+            If sClaves[i] = "14" Then pointDefPoint2.x = CFloat(sValues[i])
+            If sClaves[i] = "24" Then pointDefPoint2.y = CFloat(sValues[i])
+
+            If sClaves[i] = "15" Then pointCenter.x = CFloat(sValues[i])
+            If sClaves[i] = "25" Then pointCenter.y = CFloat(sValues[i])
+
+        End If
 
     Next
+
+    ' ahora recosntruyo el bloque segun mis propios metodos
+    e.P[0] = pointCenter.x
+    e.P[1] = pointCenter.y
+
+    e.P[2] = pointDefPoint2.x
+    e.P[3] = pointDefPoint2.y
+
+    e.P.Add(pointDefPoint1.x)
+    e.P.Add(pointDefPoint1.y)
+
+    e.P.Add(pointTextMidPoint.x)
+    e.P.Add(pointTextMidPoint.y)
+
+    e.fParam[cadDimension.ipaExtension] = -puntos.distancia(pointDefPoint0.x, pointDefPoint0.y, pointCenter.x, pointCenter.y)
+
+    Me.DimArrowSize = CFloat(gcd.CurrDrawing.cModel["TABLES"]["DIMSTYLE"][e.pStyle]["41"])
+    Me.DimArrowWidth = Me.DimArrowSize / 3
+    Me.DimTextHeight = CFloat(gcd.CurrDrawing.cModel["TABLES"]["DIMSTYLE"][e.pStyle]["140"])
+
+    e.pBlock = Me.ReBuildBlock(e)
 
     Return True
 
@@ -163,7 +208,7 @@ End
 
 Public Sub Draw(Optional e As Entity)
 
-    cadInsert.Draw(e, False)
+    cadInsert.Draw(e) ', False)
 
 End
 

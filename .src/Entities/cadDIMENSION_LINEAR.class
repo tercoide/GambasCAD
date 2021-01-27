@@ -59,31 +59,56 @@ Public iBloque As Integer
 Public Const DXF_Reading As Boolean = True
 Public Const DXF_Export As Boolean = False
 
-' fParam helpers
-Public Const TotalParams As Integer = 8
-Public Const ipaEscX As Integer = 0
-Public Const ipaEscY As Integer = 1
-Public Const ipaEscZ As Integer = 2
-Public Const ipaRotacion As Integer = 3
-Public Const ipaVertJustif As Integer = 4
-Public Const ipaRelativeFactor As Integer = 5
-Public Const ipaObliqueAngle As Integer = 6
-Public Const ipaExtension As Integer = 7
-
-' stringdata helpers
-Public Const sdaTotalParams As Integer = 2
-Public Const sdaText As Integer = 0
-Public Const sdaStyle As Integer = 1
-
-
+Private pointDefPoint1 As New Punto2d
+Private pointDefPoint2 As New Punto2d
+Private pointTextMidPoint As New Punto2d
+Private pointBaselinePoint As New Punto2d
+Private pointDefPoint0 As New Punto2d
 
 Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
 
     Dim i As Integer
+    Dim AfterSubclassmarker As Boolean
+    ' revisamos lo que viene del importador comun
+    pointDefPoint0.x = e.P[0]
+    pointDefPoint0.y = e.P[1]
+
+    pointTextMidPoint.x = e.P[2]
+    pointTextMidPoint.y = e.P[3]
 
     For i = 0 To sClaves.Max
+        If sClaves[i] = "100" And sValues[i] = "AcDbAlignedDimension" Then AfterSubclassmarker = True
+        If AfterSubclassmarker Then ' lo siguientes codigos
+            If sClaves[i] = "12" Then pointBaselinePoint.x = CFloat(sValues[i])
+            If sClaves[i] = "22" Then pointBaselinePoint.y = CFloat(sValues[i])
+
+            If sClaves[i] = "13" Then pointDefPoint1.x = CFloat(sValues[i])
+            If sClaves[i] = "23" Then pointDefPoint1.y = CFloat(sValues[i])
+
+            If sClaves[i] = "14" Then pointDefPoint2.x = CFloat(sValues[i])
+            If sClaves[i] = "24" Then pointDefPoint2.y = CFloat(sValues[i])
+
+        End If
 
     Next
+
+    ' ahora recosntruyo el bloque segun mis propios metodos
+    e.P[0] = pointDefPoint1.x
+    e.P[1] = pointDefPoint1.y
+
+    e.P[2] = pointDefPoint2.x
+    e.P[3] = pointDefPoint2.y
+
+    e.P.Add(pointTextMidPoint.x)
+    e.P.Add(pointTextMidPoint.y)
+
+    e.fParam[cadDimension.ipaExtension] = -puntos.distancia(pointDefPoint0.x, pointDefPoint0.y, pointDefPoint2.x, pointDefPoint2.y)
+
+    Try Me.DimArrowSize = CFloat(gcd.CurrDrawing.cModel["TABLES"]["DIMSTYLE"][e.pStyle]["41"])
+    Me.DimArrowWidth = Me.DimArrowSize / 3
+    Try Me.DimTextHeight = CFloat(gcd.CurrDrawing.cModel["TABLES"]["DIMSTYLE"][e.pStyle]["140"])
+
+    e.pBlock = Me.ReBuildBlock(e)
 
     Return True
 
@@ -155,7 +180,7 @@ End
 
 Public Sub Draw(Optional e As Entity)
 
-    cadInsert.Draw(e, False)
+    cadInsert.Draw(e) ', False)
 
 End
 
@@ -227,6 +252,7 @@ Public Sub ReBuildBlock(ELEM As Entity) As Block
     ' texto
     clsEntities.AddMText(newBlock.entities, [0, 0, 0, 0], 0, Me.DimTextHeight, "0.00", elem.colour, elem.LineWidth, elem.LineType, elem.pLayer)
     eText = newBlock.entities.Last
+    eText.fParam[cadMText.ipaAttchmPoint] = 8
 
     ' -> el bloque
 
@@ -266,7 +292,7 @@ Public Sub ReBuildBlock(ELEM As Entity) As Block
     'eExtension2.P[3] = 0           ' Y1
 
     ' el texto
-    eText.StringData[cadMText.sdaText] = Format(d, Me.DimFormat)
+    eText.StringData[cadMText.sdaText] = "\\A1;" & Format(d, Me.DimFormat)
 
     flxTextExt = glPlus.MTextExtends(eText.StringData[0], 0, 0, eText.fParam[1])
 
@@ -304,7 +330,7 @@ Public Sub ReBuildBlock(ELEM As Entity) As Block
 
     End If
 
-    extension = elem.fParam[Me.ipaExtension]
+    extension = elem.fParam[cadDimension.ipaExtension]
     ' linea principal
     eLineaPpal.P[1] = extension           ' Y0
     eLineaPpal.P[3] = extension           ' Y1
