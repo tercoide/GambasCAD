@@ -104,10 +104,6 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
     e.fParam[cadDimension.ipaExtension] = -puntos.distancia(pointDefPoint0.x, pointDefPoint0.y, pointDefPoint2.x, pointDefPoint2.y)
 
-    Try Me.DimArrowSize = CFloat(gcd.CurrDrawing.cModel["TABLES"]["DIMSTYLE"][e.pStyle]["41"])
-    Me.DimArrowWidth = Me.DimArrowSize / 3
-    Try Me.DimTextHeight = CFloat(gcd.CurrDrawing.cModel["TABLES"]["DIMSTYLE"][e.pStyle]["140"])
-
     e.pBlock = Me.ReBuildBlock(e)
 
     Return True
@@ -126,7 +122,10 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
 
     If Me.StepsDone = 0 Then
         Me.DimType = gcd.dimAligned
-        clsEntities.setEntity(eBuild)
+
+        eBuild.fParam.Resize(cadDimension.TotalParams)
+        eBuild.StringData.Resize(cadDimension.sdaTotalParams) ' text, style
+        eBuild.pStyle = gcd.CurrDrawing.CurrDimStyle
 
         Try eBuild.P[0] = vParam[1]
         Try eBuild.P[1] = vParam[2]
@@ -144,7 +143,7 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
         If vParam[0] = "point" Then  ' vino como un punto, entonces la calculo de otra manera
 
             ' return the angle from horizontal to us
-            eBuild.fParam[Me.ipaExtension] = -puntos.PointToLineDistance([vParam[1], vParam[2]], [eBuild.p[0], eBuild.p[1], eBuild.p[2], eBuild.p[3]]) ' / puntos.distancia(eBuild.p[0], eBuild.p[1], eBuild.p[2], eBuild.p[3]
+            eBuild.fParam[cadDimension.ipaExtension] = -puntos.PointToLineDistance([vParam[1], vParam[2]], [eBuild.p[0], eBuild.p[1], eBuild.p[2], eBuild.p[3]]) ' / puntos.distancia(eBuild.p[0], eBuild.p[1], eBuild.p[2], eBuild.p[3]
 
         Else If vParam[0] = "float" Then  ' vino como un punto, entonces la calculo de otra manera
             eBuild.fParam[Me.ipaExtension] = vParam[1]
@@ -218,6 +217,10 @@ Public Sub ReBuildBlock(ELEM As Entity) As Block
     Dim eDot2 As Entity
     Dim eText As Entity
     Dim ePoint2 As Entity
+
+    Me.DimArrowSize = elem.pStyle.fArrowSize_41
+    Me.DimArrowWidth = Me.DimArrowSize / 3
+    Me.DimTextHeight = elem.pStyle.fTxtHeight_140
 
     ' linea principal
     clsEntities.AddLine(newBlock.entities, [0, 0, 0, 0], elem.colour, elem.LineWidth, elem.LineType, elem.pLayer)
