@@ -19,6 +19,9 @@ Public dirDxfOut As String = User.Home &/ ".config/m-designer/DxfOut"
 Public dirTemplates As String = User.Home &/ ".config/m-designer/templates"
 Public dirBlocks As String      ' path to Blocks
 
+' file conversion
+Public convLibreDWG As Boolean
+Public convODA As Boolean
 
 Public Sub main()
 
@@ -39,6 +42,8 @@ End
 Public Sub Initialize()
 
     Dim aFile As String
+    Dim convLibreDWG As Boolean
+
     ' Dirs
     If Not IsDir(User.Home &/ ".config/m-designer") Then            ' first timer
         Mkdir User.Home &/ ".config/m-designer"
@@ -47,8 +52,7 @@ Public Sub Initialize()
         Mkdir dirDxfOut      ' drawings saved into DXF prior to be converted back to DWG
         Mkdir dirDwgOut     ' where ODA puts the converted DXF into DWG, prior to final destination
         Mkdir dirTemplates
-
-
+        ' Copio lo templates
         For Each aFile In Dir(Application.Path &/ "minimal")
             Copy Application.Path &/ "minimal/" &/ afile To dirTemplates &/ aFile
         Next
@@ -68,8 +72,14 @@ Public Sub Initialize()
             Kill dirDxfOut &/ aFile
         Next
 
-
     End If
+
+    ' External programs availability
+    ' libredwg
+    If Exist("/usr/local/lib/libredwg.so") Then convLibreDWG = True
+
+    ' ODA
+    If Exist("/usr/bin/ODAFileConverter") Then convODA = True
 
     Params = New Settings(User.Home &/ ".config/m-designer/m-designer.conf", "Parameters")
 
@@ -91,12 +101,42 @@ Public Sub Initialize()
 
     End Select
 
+    If Params["/FileConversion"] = "ODA" Then
+        If convODA Then
+            'nothing
+        Else If convLibreDWG Then
+
+            Params["/FileConversion"] = "LibreDWG"
+        Else
+            ' none available
+            Params["/FileConversion"] = ""
+
+        Endif
+    Else If Params["/FileConversion"] = "LibreDWG" Then
+        If convLibreDWG Then
+            'nothing
+        Else If convODA Then
+
+            Params["/FileConversion"] = "ODA"
+        Else
+            ' none available
+            Params["/FileConversion"] = ""
+
+        Endif
+    Else    ' none selected
+        If convODA Then
+
+            Params["/FileConversion"] = "ODA"
+        Else If convLibreDWG Then
+
+            Params["/FileConversion"] = "LibreDWG"
+        Endif
+    Endif
+
 End
 
 Public Sub Terminate()
 
-
-    Params["/Test/Test2"] = True
     Params.Save
 
 End

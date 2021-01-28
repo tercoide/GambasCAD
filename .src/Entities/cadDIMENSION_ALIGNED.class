@@ -59,12 +59,10 @@ Public DimExtension As Float = 0.5       ' la continuacion de esas lineas
 Public Const DXF_Reading As Boolean = True
 Public Const DXF_Export As Boolean = False
 
+Private pointDefPoint0 As New Punto2d
 Private pointDefPoint1 As New Punto2d
 Private pointDefPoint2 As New Punto2d
 Private pointTextMidPoint As New Punto2d
-Private pointBaselinePoint As New Punto2d
-Private pointDefPoint0 As New Punto2d
-
 
 Public Sub ExportDXFCol(e As Entity, ByRef cExport As Collection) As Boolean
 
@@ -82,7 +80,6 @@ Public Sub ExportDXFCol(e As Entity, ByRef cExport As Collection) As Boolean
     cExport.Add(CStr(e.p[7]), "24")
     cExport.Add("0", "34")
 
-
 End
 
 Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
@@ -99,8 +96,8 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     For i = 0 To sClaves.Max
         If sClaves[i] = "100" And sValues[i] = "AcDbAlignedDimension" Then AfterSubclassmarker = True
         If AfterSubclassmarker Then ' lo siguientes codigos
-            If sClaves[i] = "12" Then pointBaselinePoint.x = CFloat(sValues[i])
-            If sClaves[i] = "22" Then pointBaselinePoint.y = CFloat(sValues[i])
+            ' If sClaves[i] = "12" Then pointBaselinePoint.x = CFloat(sValues[i])
+            ' If sClaves[i] = "22" Then pointBaselinePoint.y = CFloat(sValues[i])
 
             If sClaves[i] = "13" Then pointDefPoint1.x = CFloat(sValues[i])
             If sClaves[i] = "23" Then pointDefPoint1.y = CFloat(sValues[i])
@@ -277,7 +274,7 @@ Public Sub ReBuildBlock(ELEM As Entity) As Block
 
     clsEntities.AddMText(newBlock.entities, [0, 0, 0, 0], 0, Me.DimTextHeight, "0.00", elem.colour, elem.LineWidth, elem.LineType, elem.pLayer)
     eText = newBlock.entities.Last
-    eText.fParam[cadMText.ipaAttchmPoint] = 8
+    eText.fParam[cadMText.ipaAttchmPoint] = elem.iParam[cadDimension.iiiAtatchPoint]
 
     ' -> el bloque
 
@@ -288,10 +285,10 @@ Public Sub ReBuildBlock(ELEM As Entity) As Block
     elem.Visible = True
 
     ' el largo de la linea principal viene dado por la distancia entre ambos puntos
-    d = puntos.distancia(elem.P[0], elem.P[1], elem.P[2], elem.P[3])
+    d = puntos.distancia(pointDefPoint1.x, pointDefPoint1.y, pointDefPoint2.x, pointDefPoint2.y)
 
     ' con este click calculo el angulo
-    elem.fParam[cadInsert.ipaRotacion] = Ang(elem.p[2] - elem.P[0], elem.p[3] - elem.P[1]) * 180 / Pi
+    elem.fParam[cadInsert.ipaRotacion] = Ang(pointDefPoint2.x - pointDefPoint1.x, pointDefPoint2.y - pointDefPoint1.y) * 180 / Pi
 
     ' la primer entidad del bloque es la linea principal
     eLineaPpal.P[0] = 0           ' X0
