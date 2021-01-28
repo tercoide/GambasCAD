@@ -1248,11 +1248,9 @@ Public Sub ToggleButton2_Click()
         ToggleButton2.Parent.h = CInt(ToggleButton2.tag)
     End If
 
-
 End
 
 Public Sub ToggleButton1_Click()
-
 
     If Not ToggleButton1.Value Then
         ToggleButton1.Tag = CStr(ToggleButton1.Parent.h)
@@ -1262,11 +1260,9 @@ Public Sub ToggleButton1_Click()
         ToggleButton1.Parent.h = CInt(ToggleButton1.tag)
     End If
 
-
 End
 
 Public Sub ToggleButton3_Click()
-
 
     If Not ToggleButton3.Value Then
         ToggleButton3.Tag = CStr(ToggleButton3.Parent.h)
@@ -1276,12 +1272,9 @@ Public Sub ToggleButton3_Click()
         ToggleButton3.Parent.h = CInt(ToggleButton3.tag)
     End If
 
-
 End
 
 Public Sub Panel10_MouseDown()
-
-
 
 End
 
@@ -1299,18 +1292,65 @@ End
 
 Public Sub ListView1_Click()
 
-
-
 End
 
 Public Sub DirView1_Click()
 
     Dim sFilename As String
     Dim imgPreview As Image
+    Dim cModelPreview As Collection
+    Dim entyBlock As New Entity[]
+    Dim flxLimits As New Float[]
+    Dim entScale As Float
+    Dim aLayer As New Layer
+    Dim entidad As Entity
+
+    aLayer.Visible = True
+    aLayer.Colour = gcd.flgWhiteAndBlack
 
     ListView1.Clear
     For Each sFilename In Dir(DirView1.Current, "*.dxf")
-        imgPreview = New Image(80, 80, Color.Red)
+        imgPreview = New Image(80, 80, Color.Black)
+        cModelPreview = New Collection
+        entyBlock.Clear
+        entyBlock = New Entity[]
+        Dxf.LoadFile(DirView1.Current &/ sFilename, cModelPreview)         ' cargo la entidad
+        gcd.ImpEnty6(cModelPreview["ENTITIES"], entyBlock)
+        For Each entidad In entyBlock
+            entidad.pLayer = aLayer
+        Next
+        clsEntities.BuildPoi(entyBlock)
+        If entyBlock.Count > 0 Then
+            flxLimits = clsEntities.ComputeLimits(entyBlock)                    ' computo el tamaño de la entidad, y luego determino la escala
+
+            If Abs(flxLimits[2] - flxLimits[0]) > Abs(flxLimits[3] - flxLimits[1]) Then
+
+                entScale = imgPreview.w / Abs(flxLimits[2] - flxLimits[0]) '/ 1.5
+                'entScale = Abs(flxLimits[2] - flxLimits[0]) / imgPreview.h '/ 1.5
+
+            Else
+
+                entScale = imgPreview.h / Abs(flxLimits[3] - flxLimits[1]) '/ 1.5
+                'entScale = Abs(flxLimits[3] - flxLimits[1]) / imgPreview.w '/ 1.5
+
+            Endif
+
+            Paint.Begin(imgPreview)
+            Paint.Scale(entScale, -entScale)
+
+            Paint.Translate(imgPreview.w / 2 - (flxLimits[2] + flxLimits[0]) / 2 / entScale, imgPreview.h / 2 + (flxLimits[3] + flxLimits[1]) / 2 / entScale)
+            Paint.Translate(0, -flxLimits[3])
+
+            For Each entidad In entyBlock
+                entidad.ColorToPaint = gcd.flgWhiteAndBlack
+                entidad.LineWidth = 1 / entscale '* imgPreview.w / 10
+
+                entidad.LineType = 0
+                entidad.ClassHandler.draw2(entidad)
+            Next
+            Paint.End
+
+        End If
 
         ListView1.Add(Left$(sFilename, -4), Left$(sFilename, -4), imgPreview.Picture)
     Next
