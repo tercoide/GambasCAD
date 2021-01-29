@@ -594,8 +594,9 @@ Public Function SaveFile(sName As String, cData As Collection) As Integer
     If Save1HeadersAndVars(cData["HEADER"]) Then Return False
     If Save2Classes(cData["CLASSES"]) Then Return False
     If Save3Tables(cData["TABLES"]) Then Return False
-    If Save4Blocks(cData["BLOCKS"]) Then Return False
-    If Save5Entities(cData["ENTITIES"]) Then Return False
+    If Save4BlocksDirect(gcd.CurrDrawing.arrBlocks) Then Return False
+    'If Save4Blocks(cData["BLOCKS"]) Then Return False
+    'If Save5Entities(cData["ENTITIES"]) Then Return False
     If Save5EntitiesDirect(gcd.CurrDrawing.arrEntities) Then Return False
     If Save6Objects(cData["OBJECTS"]) Then Return False
     If Save7ThumbNail(cData["THUMBNAILIMAGE"]) Then Return False
@@ -765,6 +766,70 @@ Private Function Save4Blocks(cBlocks As Collection) As Integer
 
 End
 
+Private Function Save4BlocksDirect(eBlocks As Block[]) As Integer
+
+    Dim i As Integer
+    Dim iii As Integer
+    Dim eBlock As Block, cEnty As Collection, eEnty As Entity
+    Dim sValues, lpclave As String
+
+    Print #hFIle, "  0"
+    Print #hFIle, "SECTION"
+    Print #hFIle, "2"
+    Print #hFIle, "BLOCKS"
+    For Each eBlock In eBlocks
+        Print #hFIle, "  0"
+        Print #hFIle, "BLOCK"
+        Print #hFIle, "  5"         ' handle
+        Print #hFIle, eBlock.handle          ' valor de la handle
+        Print #hFIle, "  330"
+        Print #hFIle, "0"
+        Print #hFIle, "  100"
+        Print #hFIle, "AcDbEntity"
+        Print #hFIle, " 8"          ' layer name
+        Print #hFIle, eBlock.layer
+        Print #hFIle, "100"
+        Print #hFIle, "AcDbBlockBegin"
+        Print #hFIle, "  2"
+        Print #hFIle, eBlock.name
+        Print #hFIle, "  70"
+        Print #hFIle, "0"       ' block flags
+        If eBlock.entities.Count > 0 Then
+
+            For Each eEnty In eBlock.entities
+                cEnty = New Collection
+                clsEntities.DXFExportCommonCol(eEnty, cEnty)
+                eEnty.ClassHandler.ExportDXFCol(eEnty, cEnty)
+                For Each sValues In cEnty
+                    lpclave = cEnty.Key
+                    I = InStr(lpclave, "_")
+                    If i > 0 Then lpclave = Left(lpclave, i - 1)
+                    Print #hFile, lpclave
+                    Print #hFIle, sValues
+                Next
+            Next
+
+        Endif
+        ' asi no haya entidades, guardo una entodad ENDBLK
+        Print #hFIle, "  0"
+        Print #hFIle, "BLOCK"
+        Print #hFIle, "  5"         ' handle
+        Print #hFIle, eBlock.handle          ' valor de la handle
+        Print #hFIle, "  330"
+        Print #hFIle, "0"
+        Print #hFIle, "  100"
+        Print #hFIle, "AcDbEntity"
+        Print #hFIle, " 8"          ' layer name
+        Print #hFIle, eBlock.layer
+        Print #hFIle, "100"
+        Print #hFIle, "AcDbBlockBegin"
+
+    Next
+    Print #hFIle, "  0"
+    Print #hFIle, "ENDSEC"
+
+End
+
 Private Function Save5Entities(cEntys As Collection) As Integer
 
     Dim cEnty As Collection
@@ -808,12 +873,7 @@ Private Function Save5EntitiesDirect(eEntys As Entity[]) As Integer
     For Each eEnty In eEntys
         cEnty = New Collection
         clsEntities.DXFExportCommonCol(eEnty, cEnty)
-        ' If eEnty.ClassHandler.DXF_Export Then
         eEnty.ClassHandler.ExportDXFCol(eEnty, cEnty)
-        ' Else
-        '     cEnty = New Collection
-        '     cadDummy.ExportDXFCol(eEnty, cEnty)
-        ' End If
         For Each sValues In cEnty
             lpclave = cEnty.Key
             I = InStr(lpclave, "_")

@@ -883,17 +883,45 @@ End
 Public Function ODA_DXFtoDWG(sDxfFile As String) As String
 
     Dim str, filebase, tmpdxf, tmpdir, tmpdirdwg As String
-    ' elimino el archivo temporal que hubiese creado
-    filebase = utils.FileFromPath(sDxfFile)
-    tmpdir = utils.TempDir()
-    tmpdxf = tmpdir &/ utils.FileFromPath(sDxfFile)
-    Copy sDxfFile To tmpdxf
-    'Stop
-    Mkdir tmpdir &/ "dwg"
-    tmpdirdwg = tmpdir &/ "dwg"
+    Dim Steps As Integer
 
-    Shell "ODAFileConverter '" & tmpdir & "' '" & tmpdirdwg & "' 'ACAD2010' 'DWG' 0 0" Wait To str
+    filebase = utils.FileFromPath(sDxfFile) ' deberia estar en main.dirDxfIn
 
-    Return tmpdirdwg &/ utils.FileWithoutExtension(filebase) & ".dwg"
+    steps = 0 ' elimino el archivo temporal que hubiese creado
+    If Exist(main.dirDxfOut &/ filebase) Then Kill main.dirDxfOut &/ filebase
+
+    Steps = 1 ' hago una copia previa a la conversion
+    Copy sDxfFile To main.dirDxfOut &/ filebase
+
+    Steps = 2 ' Calling the converter
+    Shell "ODAFileConverter '" & main.dirDxfOut & "' '" & main.dirDwgOut & "' 'ACAD2010' 'DWG' 0 0" Wait To str
+
+    steps = 3
+    ' vacio el directorio de entrada
+    Kill main.dirDxfOut &/ filebase
+
+    Return main.dirDwgOut &/ utils.FileWithoutExtension(filebase) & ".dwg"
+
+Catch
+
+    Select Case Steps
+        Case 0
+            ' esto puede fallar por acceso denegado
+            Print ("Acces denied to temp file")
+            Return Null
+        Case 1
+            ' esto puede fallar por file corrupt
+            Print ("File corrupt")
+            Return Null
+        Case 2
+            ' esto puede fallar por diversas cuestiones
+            Print ("Conversion failed")
+            Return Null
+        Case 3
+            ' esto puede fallar por diversas cuestiones
+            Print ("Could't empty temp dir")
+            Return Null
+
+    End Select
 
 End
