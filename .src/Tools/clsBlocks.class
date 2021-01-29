@@ -33,16 +33,15 @@ Public Function Start(Optional sfilename As Variant, Optional _mode As Integer =
     Dim f As String
     Dim iREt As Integer
 
-
     eBlock.name = ""
     Me.EntityChecking = True
     cModelPreview = New Collection
 
     eBlock.entities = New Entity[]
 
-
     Dxf.LoadFile(sFilename, cModelPreview)         ' cargo la entidad
     gcd.ImpEnty6(cModelPreview["ENTITIES"], eBlock.entities)
+    eBlock.name = Utils.FileWithoutExtension(Utils.FileFromPath(sFilename))
 
     'If iret = 0 Then Me.Finish
 
@@ -53,17 +52,27 @@ End
 Public Sub Draw()
 
     Dim ET As Entity, i As Integer
+    Dim fBlockDegRotation As Float
+    Dim Mirrored As Integer
 
     If eBlock.entities.Count = 0 Then Return
 
+    fMain.fBlockDegRotation = CFloat(fMain.txtRotation.Text)
+    Try fMain.fBlockScaleX = CFloat(fMain.txtScalex.Text)
+    If fMain.fBlockScaleX = 0 Then fMain.fBlockScaleX = 1
+
+    Try fMain.fBlockScaleY = CFloat(fMain.txtScaleY.Text)
+    If fMain.fBlockScaleY = 0 Then fMain.fBlockScaleY = 1
+
+    If fMain.tbnMirrored.value Then Mirrored = -1 Else Mirrored = 1
+
     gl.PushMatrix
     gl.Translatef(fBlock.x, fBlock.y, 0)
-    ' gl.Rotatef(FBlock.degRotation, 0, 0, 1)
-    ' gl.Scalef(FBlock.scaleX, fBlock.scaleY, 1)
+    gl.Rotatef(fMain.fBlockDegRotation, 0, 0, 1)
+    gl.Scalef(fMain.fBlockScaleX * Mirrored, fMain.fBlockScaleY, 1)
 
     For Each ET In eBlock.entities
         'et.visible = True
-
 
         et.pLayer = gcd.CurrDrawing.CurrLayer
         et.colour = gcd.CurrDrawing.CurrColor
@@ -108,43 +117,28 @@ Public Function MouseUp(mouseX As Integer, mouseY As Integer) ' called by FCAD->
 
     ' busco el bloque
 
-    For i = 0 To gcd.CurrDrawing.arrBlocks.Max
-
-        If gcd.CurrDrawing.arrBlocks[i].name = FBlock.BlockName Then Break
-
-    Next
-
-    If i = gcd.CurrDrawing.arrBlocks.Count Then ' armo el bloque
+    If IsNull(clsEntities.FIndBlock(eBlock.name)) Then ' must add
 
         gcd.CurrDrawing.arrBlocks.Add(eBlock)
-        eBlock.name = FBlock.BlockName
-        For ie = 0 To FBlock.entyBlock.Max
-            eBlock.entities.Add(clsEntities.ClonEntity(FBlock.entyBlock[ie]))
-        Next
-
     End If
-
     ' ahora creo el insert
 
     gcd.CurrDrawing.arrEntities.Add(entInsert)
-    entInsert.Block = eBlock.name
+    entInsert.pBlock = eBlock
     entInsert.ClassHandler = cadInsert
-    entInsert.Layer = fMain.CurrentLayer
+    entInsert.pLayer = gcd.CurrDrawing.CurrLayer
     entInsert.Gender = cadInsert.Gender
     entInsert.P.Add(fBlock.x)
     entInsert.P.Add(fBlock.y)
 
-    entInsert.fParam.Add(FBlock.scaleX)
-    entInsert.fParam.Add(FBlock.scaleY)
-    entInsert.fParam.Add(FBlock.degRotation)
+    entInsert.fParam.Add(fMain.FBlockscaleX)
+    entInsert.fParam.Add(fMain.FBlockscaleY)
+    entInsert.fParam.Add(1)
+
+    entInsert.fParam.Add(fMain.FBlockdegRotation)
     entInsert.ClassHandler.Finish(entInsert)
 
     EntityBuilder.LastEntity = entInsert                                       ' save it to repeat on rigth click
-
-    ' limpio el selector de bloques
-
-    FBlock.entyBlock.Clear
-    FBlock.Name = ""
 
     gcd.clsJobPrevious = Me
     gcd.clsJob = clsDefaultJob
