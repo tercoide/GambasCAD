@@ -149,7 +149,7 @@ Public Function Action_Activate(sAction As String) As Boolean
     Dim fx As String[]
     Dim fbas As String
     Dim t As String
-    Dim iColor As Integer
+    Dim iColor, i As Integer
     Dim imgCirculito As Image
     Dim clsJob As String
     Dim d As ClsDrawing
@@ -157,6 +157,26 @@ Public Function Action_Activate(sAction As String) As Boolean
     Try Print Last.name
 
     Select Case LCase(sAction)
+
+        Case "window_close"
+            For i = 0 To gcd.Drawings.Count
+                If gcd.Drawings[i] = gcd.CurrDrawing Then
+                    gcd.Drawings.Remove(i)
+                    If gcd.Drawings.Count > 0 Then
+                        gcd.CurrDrawing = gcd.Drawings[0]
+                        Redraw
+                    Else
+
+                        Action_Activate("file_new")
+                    Endif
+                    Break
+                End If
+
+            Next
+
+        Case "window_closeall"
+            gcd.Drawings.Clear
+            Action_Activate("file_new")
 
         Case Like "windowchange_*"
 
@@ -197,8 +217,6 @@ Public Function Action_Activate(sAction As String) As Boolean
             gcd.CurrDrawing.cLayers = gcd.CurrDrawing.cModel["TABLES"]["LAYER"]
             gcd.CurrDrawing.cLtypes = gcd.CurrDrawing.cModel["TABLES"]["LTYPE"]
             gcd.CurrDrawing.HandSeed = gcd.iHeader("$HANDSEED")
-            gcd.UpdateGraphics
-
             gcd.ReadLTypes
             gcd.ReadLayers
             gcd.ReadStyles
@@ -243,7 +261,6 @@ Public Function Action_Activate(sAction As String) As Boolean
                             gcd.CurrDrawing.cLayers = gcd.CurrDrawing.cModel["TABLES"]["LAYER"]
                             gcd.CurrDrawing.cLtypes = gcd.CurrDrawing.cModel["TABLES"]["LTYPE"]
                             gcd.CurrDrawing.HandSeed = gcd.iHeader("$HANDSEED")
-
                             gcd.ReadVars
                             gcd.ReadLTypes
                             gcd.ReadLayers
@@ -1236,6 +1253,18 @@ Public Sub FillWindowMenu()
         If d = gcd.CurrDrawing Then mItem.Checked = True Else mItem.Checked = False
         mItem.Action = "windowchange_" & d.FileName
     Next
+
+    mItem = New Menu(mnuWindow)
+    mItem.Text = "" ' separador
+
+    ' y ahora agrego dos
+    mItem = New Menu(mnuWindow)
+    mItem.Text = ("Close")
+    mItem.Action = "window_close"
+
+    mItem = New Menu(mnuWindow)
+    mItem.Text = ("Close all")
+    mItem.Action = "window_closeall"
 
 End
 

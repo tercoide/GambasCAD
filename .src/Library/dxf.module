@@ -18,6 +18,8 @@ Private iLastHandle As Integer
 ' Codigos del DXF
 Public Const codEntity As String = "0"
 Public Const codHandle As String = "5"
+Public Const codHandleOwner As String = "330"
+
 Public Const codColor As String = "62"
 Public Const codLType As String = "6"
 Public Const codLayer As String = "8"
@@ -669,6 +671,7 @@ Private Function Save3Tables(cTables As Collection) As Integer
     For Each cTable In cTables
         sTableName = cTables.Key
         If sTableName = "__AuxData__" Then Continue
+
         Print #hFIle, "  0"
         Print #hFIle, "TABLE"
         Print #hFIle, "  2"
@@ -691,22 +694,27 @@ Private Function Save3Tables(cTables As Collection) As Integer
             Print #hFIle, "  71"
             Print #hFIle, CStr(cTable.Count)
         End If
+        If sTableName = "BLOCK_RECORD" Then
+            save31BlockRecord(gcd.CurrDrawing.arrBlocks)
 
-        If cTable.Count > 0 Then
-            For Each cTableEntry In cTable
-                Print #hFIle, "  0"
-                Print #hFIle, sTableName
-                ' Print #hFIle, "  2"
-                ' Print #hFIle, cTable.Key
-                For Each sValues In cTableEntry
-                    lpclave = cTableEntry.Key
-                    I = InStr(lpclave, "_")
-                    If i > 0 Then lpclave = Left(lpclave, i - 1)
-                    Print #hFile, lpclave
-                    Print #hFIle, sValues
+        Else
+
+            If cTable.Count > 0 Then
+                For Each cTableEntry In cTable
+                    Print #hFIle, "  0"
+                    Print #hFIle, sTableName
+                    ' Print #hFIle, "  2"
+                    ' Print #hFIle, cTable.Key
+                    For Each sValues In cTableEntry
+                        lpclave = cTableEntry.Key
+                        I = InStr(lpclave, "_")
+                        If i > 0 Then lpclave = Left(lpclave, i - 1)
+                        Print #hFile, lpclave
+                        Print #hFIle, sValues
+                    Next
                 Next
-            Next
-        Endif
+            Endif
+        End If
         Print #hFIle, "  0"
         Print #hFIle, "ENDTAB"
     Next
@@ -783,7 +791,7 @@ Private Function Save4BlocksDirect(eBlocks As Block[]) As Integer
         Print #hFIle, "  5"         ' handle
         Print #hFIle, eBlock.handle          ' valor de la handle
         Print #hFIle, "  330"
-        Print #hFIle, "0"
+        Print #hFIle, eBlock.HandleOwner
         Print #hFIle, "  100"
         Print #hFIle, "AcDbEntity"
         Print #hFIle, " 8"          ' layer name
@@ -793,7 +801,16 @@ Private Function Save4BlocksDirect(eBlocks As Block[]) As Integer
         Print #hFIle, "  2"
         Print #hFIle, eBlock.name
         Print #hFIle, "  70"
-        Print #hFIle, "0"       ' block flags
+        Print #hFIle, eBlock.Flags
+        Print #hFIle, codX0
+        Print #hFIle, eBlock.x0
+        Print #hFIle, cody0
+        Print #hFIle, eBlock.y0
+        Print #hFIle, codz0
+        Print #hFIle, eBlock.z0
+        Print #hFIle, "  3"
+        Print #hFIle, eBlock.name
+
         If eBlock.entities.Count > 0 Then
 
             For Each eEnty In eBlock.entities
@@ -810,19 +827,39 @@ Private Function Save4BlocksDirect(eBlocks As Block[]) As Integer
             Next
 
         Endif
-        ' asi no haya entidades, guardo una entodad ENDBLK
+
+    Next
+    Print #hFIle, "  0"
+    Print #hFIle, "ENDSEC"
+
+End
+
+Private Function save31BlockRecord(eBlocks As Block[]) As Integer
+
+    Dim i As Integer
+    Dim iii As Integer
+    Dim eBlock As Block, cEnty As Collection, eEnty As Entity
+    Dim sValues, lpclave As String
+
+    For Each eBlock In eBlocks
         Print #hFIle, "  0"
-        Print #hFIle, "BLOCK"
+        Print #hFIle, "BLOCK_RECORD"
         Print #hFIle, "  5"         ' handle
         Print #hFIle, eBlock.handle          ' valor de la handle
-        Print #hFIle, "  330"
-        Print #hFIle, "0"
+        Print #hFIle, codHandleOwner
+        Print #hFIle, eBlock.HandleOwnerParent
         Print #hFIle, "  100"
-        Print #hFIle, "AcDbEntity"
-        Print #hFIle, " 8"          ' layer name
-        Print #hFIle, eBlock.layer
-        Print #hFIle, "100"
-        Print #hFIle, "AcDbBlockBegin"
+        Print #hFIle, "AcDbSymbolTableRecord"
+        Print #hFIle, " 100"
+        Print #hFIle, "AcDbBlockTableRecord"
+        Print #hFIle, "  2"
+        Print #hFIle, eBlock.name
+        Print #hFIle, "  70"
+        Print #hFIle, eBlock.InsertUnits
+        Print #hFIle, " 280"
+        Print #hFIle, eBlock.Explotability
+        Print #hFIle, " 281"
+        Print #hFIle, eBlock.Scalability
 
     Next
     Print #hFIle, "  0"

@@ -433,13 +433,28 @@ Public Sub ImportBlocksFromDXF(colData As Collection) ', obxEntities As Entity[]
     Dim i As Integer
 
     If Not colData.Exist("BLOCKS") Then Return
-    For Each colBlk In colData["BLOCKS"]
+    For Each colBlk In colData["TABLES"]["BLOCK_RECORD"]
         Dim newBlock As New Block
         newBlock.entities = New Entity[]
         newBlock.name = colBlk[dxf.codName]
-        newBlock.handle = colBlk[dxf.codHandle]
-        newBlock.layer = colBlk[dxf.codLayer]
+        newBlock.HandleOwnerParent = colBlk[dxf.codHandleOwner]
+        newBlock.InsertUnits = colBlk["70"]
+        newBlock.Explotability = colBlk["280"]
+        newBlock.Scalability = colBlk["281"]
         gcd.CurrDrawing.arrBlocks.Add(newBlock)
+
+    Next
+
+    For Each colBlk In colData["BLOCKS"]
+        newBlock = clsEntities.FIndBlock(colBlk[dxf.codName])
+        newBlock.name = colBlk[dxf.codName]
+        newBlock.handle = colBlk[dxf.codHandle]
+        newBlock.HandleOwner = colBlk[dxf.codHandleOwner]
+        newBlock.layer = colBlk[dxf.codLayer]
+        newBlock.x0 = colBlk[dxf.codX0]
+        newBlock.y0 = colBlk[dxf.codY0]
+        newBlock.z0 = colBlk[dxf.codZ0]
+        newBlock.flags = colBlk["70"]
 
     Next
     For Each colBlk In colData["BLOCKS"]
@@ -472,7 +487,7 @@ Public Sub ImpEnty6(cEny As Collection, obx As Entity[])
         If e.Exist(dxf.codEntity) Then                                     ' es una entidad?
             entNueva = New Entity                                       ' entonces, creamos una nueva
 
-            If InStr("POLYLINE SEQEND VERTEX POINT ATTDEF ATTRIB LINE LWPOLYLINE CIRCLE ELLIPSE ARC TEXT MTEXT  SOLID LEADER INSERT DIMENSION DIMENSION_LINEAR DIMENSION_DIAMETER DIMENSION_RADIUS DIMENSION_ANG3PT DIMENSION_ALIGNED DIMENSION_ORDINATE LARGE_RADIAL_DIMENSION ARC_DIMENSION", UCase(e[dxf.codEntity])) = 0 Then IsDummy = True Else IsDummy = False
+            If InStr("POLYLINE ENDBLK SEQEND VERTEX POINT ATTDEF ATTRIB LINE LWPOLYLINE CIRCLE ELLIPSE ARC TEXT MTEXT  SOLID LEADER INSERT DIMENSION DIMENSION_LINEAR DIMENSION_DIAMETER DIMENSION_RADIUS DIMENSION_ANG3PT DIMENSION_ALIGNED DIMENSION_ORDINATE LARGE_RADIAL_DIMENSION ARC_DIMENSION", UCase(e[dxf.codEntity])) = 0 Then IsDummy = True Else IsDummy = False
             'If UCase(e[dxf.codEntity]) = "INSERT" Then Stop
 
             If clsEntities.DXFImportToEntity(e, entNueva, IsDummy) Then         ' si esta implementada, llenamos los datos
