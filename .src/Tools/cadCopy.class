@@ -30,6 +30,8 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
     ' Llamada por FCAD al inicio de la aplicacion de esta herramienta
 
     ' Aprovechamos para establecer los helpers (comentarios de ayuda en pantalla)
+    Dim i As Integer
+
     Me.PointsDone = 0
     Me.PointsTotal = 2
 
@@ -49,6 +51,13 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
 
         clsDrawingAids.Helper.texto = clsDrawingAids.HelperTrabajo & ": " & ("Base point")
         clsDrawingAids.HelperTrabajo = clsDrawingAids.HelperTrabajo & Str(Me.SelectionCount) & " " & ("elements")
+
+        ' UNDO STUFF
+        gcd.CurrDrawing.uUndo.OpenUndoStage("Copy entities", Undo.TypeCreate)
+        For i = 0 To gcd.CurrDrawing.arrSelecIndex.Max
+            gcd.CurrDrawing.uUndo.AddUndoItem(gcd.CurrDrawing.arrSelecIndex[i], clsEntities.ClonEntity(gcd.CurrDrawing.arrEntities[gcd.CurrDrawing.arrSelecIndex[i]], False))
+
+        Next
 
     Endif
 
@@ -81,6 +90,9 @@ Public Function MouseUp(mouseX As Integer, mouseY As Integer) ' called by FCAD->
         ' and now we move
         clsEntities.Move(Me.SelEndXr - Me.SelStartXr, Me.SelEndyr - Me.SelStartYr, True)
         clsEntities.Finish()
+
+        ' UNDO STUFF
+        gcd.CurrDrawing.uUndo.CloseUndoStage()
 
         Me.Finish
 
