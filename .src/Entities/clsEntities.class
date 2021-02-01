@@ -386,7 +386,7 @@ Public Sub Finish(Optional selected As Boolean = True)
 
 End
 
-Public Sub ClonElements(Optional selected As Boolean = True, SkipParts As Boolean = True)
+Public Sub ClonElements(Optional selected As Boolean = True)
 
     ' creo copias de cada elemento seleccionado
     Dim i As Integer
@@ -411,16 +411,16 @@ Public Sub ClonElements(Optional selected As Boolean = True, SkipParts As Boolea
 
 End
 
-Public Sub ClonEntity(e As Entity) As Entity
+Public Sub ClonEntity(e As Entity, Optional GetNewHandle As Boolean = True) As Entity
     ' clona una entidad
     ' copia todos sus elementos
     ' llama a las rutinas de reconstruccion del contorno y de los POI
 
     Dim o As New Entity
 
-    CopyElemData(e, o)                              ' copy important values
-    'o.ClassHandler.Finish(o, -1)                       ' do all good stuff, -1 means self check
-
+    CopyElemData(e, o)                              ' copy all values
+    o.ClassHandler.BuildPoi(o)
+    If GetNewHandle Then o.Handle = gcd.NewHandle()
     Return o
 
 End
@@ -752,33 +752,37 @@ Public Sub CopyElemData(origen As Entity, destino As Entity)
 
     ' when adding stuff to the elements, it must be added here
     Dim i As Integer
-
+    ' arrays
     destino.p.resize(origen.p.count)
     destino.fparam.resize(origen.fparam.count)
-
+    destino.iparam.resize(origen.iparam.count)
     destino.psel.resize(origen.psel.count)
     destino.StringData.resize(origen.StringData.count)
     For i = 0 To origen.p.Max
         destino.P[i] = origen.P[i]
     Next
-
     For i = 0 To origen.fparam.Max
         destino.fparam[i] = origen.fparam[i]
+    Next
+    For i = 0 To origen.iparam.Max
+        destino.iparam[i] = origen.iparam[i]
     Next
     For i = 0 To origen.StringData.Max
         destino.StringData[i] = origen.StringData[i]
     Next
+
     destino.Gender = origen.Gender
     destino.ClassHandler = origen.ClassHandler
     destino.pLayer = origen.pLayer
-
     destino.pBlock = origen.pBlock
-
     destino.Group = origen.Group
     destino.colour = origen.colour
     destino.ColorToPaint = origen.ColorToPaint
     destino.LineType = origen.LineType
     destino.LineWidth = origen.LineWidth
+    destino.Handle = origen.Handle
+    destino.HandleOwner = origen.HandleOwner
+    destino.pStyle = origen.pStyle
 
 End
 
@@ -1319,14 +1323,15 @@ Public Function DXFImportToEntity(c As Collection, e As Entity, Optional IsDummy
     e.ClassHandler = clsHandler
     e.Gender = clsHandler.Gender
 
-    If clsHandler.ImportDXF(e, sClave, sValue) Then      ' le pedimos a la clase que arme un objeto Entity para agregar al Drawing actual
-        ' llenamos Common data:
-        e.pLayer = gcd.GetLayer(c[dxf.codLayer])
-        e.Handle = c[dxf.codHandle]
-        e.HandleOwner = c[dxf.codHandleOwner]
-        Try e.colour = c[dxf.codColor]            ' no es obligatorio
-        Try e.LineWidth = c[dxf.codLWht] / 100    ' por eso el try
-        If e.LineWidth < 1 Then e.LineWidth = 1
+    ' llenamos Common data:
+    e.pLayer = gcd.GetLayer(c[dxf.codLayer])
+    e.Handle = c[dxf.codHandle]
+    e.HandleOwner = c[dxf.codHandleOwner]
+    Try e.colour = c[dxf.codColor]            ' no es obligatorio
+    Try e.LineWidth = c[dxf.codLWht] / 100    ' por eso el try
+    If e.LineWidth < 1 Then e.LineWidth = 1
+    If c.Exist(dxf.codLType) Then e.LineType = gcd.CurrDrawing.arrLTYpes[gcd.FindLtIndex(c[dxf.codLType])] Else e.LineType = gcd.CurrDrawing.arrLTYpes.First
+    If clsHandler.ImportDXF(e, sClave, sValue) Then
 
         e.ClassHandler.Finish(e)
 
@@ -1363,9 +1368,9 @@ Public Sub DXFExportCommonCol(e As Entity, ByRef cExported As Collection)
     cExported.Add(UCase(e.Gender), dxf.codEntity)
     cExported.add(e.Handle, dxf.codHandle)
     cExported.add(e.HandleOwner, dxf.codHandleOwner)
-    cExported.Add("AcDbEntity", "100")
+    cExported.Add("AcDbEntity", "100_1")
     cExported.Add(e.pLayer.Name, dxf.codLayer)
-    cExported.Add(e.LineType, dxf.codLType)
+    Try cExported.Add(e.LineType.Name, dxf.codLType)
     cExported.Add(e.colour, dxf.codColor)
     cExported.Add(CStr(e.LineWidth), dxf.codLWht)
 
