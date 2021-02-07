@@ -21,30 +21,29 @@
 ' Boston, MA  02110-1301  USA
 'Create Static
 Create Static
+Inherits CadInsert
 
 Public Const Gender As String = "Dimension"
-Public Const DrawingOrder As Integer = 100 ' 1 a 32.724 esto debe Drawse primero y ser sobreescrito por el resto
-Public Const PointsToDraw As Integer = 1             ' minimal point requered for drawing something usefull
-Public Const HelperTrabajo As String = ("Insert an acotation")
-Public ParamType As String = "TPP"                             ' that is Point, Point, Float; could be Color Text, etc
-Public ParamHelper As String = "Start point;End point"
-Public Const USEWITH As String = ""
-Public Const OrthogonalIgnored As Boolean = False
-Public Const OrthogonalForced As Boolean = False
-Public Const ParamDefault As String = " "
-Public Const StretchAble As Boolean = True           ' Si lo puedo deformar
-Public Selected As Boolean
 
-Public DrawAble As Boolean = False          ' True si durante la construccion ya tiene suficientes elementos para poder hacer una representacion digna
-Public Visible As Boolean = True            ' si esta entidad puede ser mostrada independientmente
-Public Finished As Boolean = False          ' colocar en true cuando se llegue a completar
-Public StepsDone As Integer                 ' esto lo cambia cls ElementBuilder durante la construccion
+Public Const USEWITH As String = "EntityBuilder"
 
 Public TextEntry As String
-
 Public elem As Entity
-
 Public XYreal As Float[]
+
+' dimstyle: Todas las variables numericas Float estaran multiplicadas por DimScale
+Public DimType As Integer = 0            ' = fParam[0] and &X1111
+Public DimAtatchPoint As Integer = 2     ' = fParam[1]
+Public DimScale As Integer = 1           ' = fParam[2]
+Public DimFormat As String = "0.00"      '
+Public DimFormatAng As String = "0.0"    '
+Public DimArrowSize As Float = 0.3       ' el largo de la flecha
+Public DimArrowWidth As Float = 0.1      ' ancho de la flecha
+Public DimTickSize As Float = 0.3        ' el tamaño de la diagonal
+Public DimArrowOrThick As Boolean = True ' flecha (True) o diagonal (False)
+Public DimTextHeight As Float = 0.3      '
+Public DimSeparation As Float = 0.5      ' la separacion entre el punto que define la cota y el inicio de la linea q marca inicio y fin
+Public DimExtension As Float = 0.5       ' la continuacion de esas lineas
 
 Public extension As Float
 Public iBloque As Integer
@@ -56,7 +55,6 @@ Public Const ipaEscX As Integer = 0
 Public Const ipaEscY As Integer = 1         ' usados por cadInsert para dibujar el bloque
 Public Const ipaEscZ As Integer = 2
 Public Const ipaRotacion As Integer = 3
-
 Public Const ipaVertJustif As Integer = 4
 Public Const ipaRelativeFactor As Integer = 5
 Public Const ipaHorizAngle As Integer = 6
@@ -65,44 +63,24 @@ Public Const ipaObliqueExtension As Integer = 8
 Public Const ipaRealMeasure As Integer = 9
 
 ' fParam helpers
-Public Const iTotalParams As Integer = 2
+Public Const iTotalParams As Integer = 3
 
 Public Const iiiDimType As Integer = 0
 Public Const iiiAtatchPoint As Integer = 1
+Public Const iiiMode As Integer = 2     ' 0 = linear -1 = horiz -2 = vertical , otro = 1000 * angulo en grados de la dimension alineada
 
 ' stringdata helpers
 Public Const sdaTotalParams As Integer = 2
 Public Const sdaTextOverride As Integer = 0
 Public Const sdaUNUSED As Integer = 1
 
-' Para mejor generalidad y para compatibilidad futura usaremos los P[] asi con los CODE del DXF
-' P[] = DXF CODE
-' 0 = 10
-' 1 = 20
-' 2 = 30    Definition points
-' 3 = 11
-' 4 = 12
-' ......
-' 20 = 36
+Public pointDefPoint1 As New Punto2d
+Public pointDefPoint2 As New Punto2d
+Public pointTextMidPoint As New Punto2d
+Public pointBaselinePoint As New Punto2d
+Public pointDefPoint0 As New Punto2d
 
-' 21 = 210
-' 22 = 220	Extrusion direction(Optional ; Default = 0, 0, 1)
-' 23 = 230
-
-' fParam[] = DXF CODE
-' se usara asi
-' 0 =  70, Dimension type:  Values 0 - 6 are integer values that represent the dimension type.Values 32, 64, And 128 are bit values, which are added To the integer values(value 32 Is Always set In R13 And later releases)
-'       0 = Rotated; 1 = Aligned; 2 = Angular; 3 = Diameter; 4 = Radius; 5 = Angular3point; 6 = Ordinate
-'       32 = Indicates that the block reference(group code 2) Is Referenced by this dimension only
-'       64 = Ordinate type.This Is A bit value(bit 7)used only With integer value 6. If set, ordinate Is X - type; If Not set, ordinate Is Y - type
-'       128 = This Is A bit value(bit 8)added To the other group 70 values If the dimension text has been positioned at a user - defined location rather than at the Default location
-'
-' 1 =  71 Attachment point:
-'       1 = Top left ; 2 = Top center; 3 = Top right; 4 = Middle left; 5 = Middle center; 6 = Middle right; 7 = Bottom left; 8 = Bottom center; 9 = Bottom right
-
-' 3 = DimStyle
-
-'' Mode = DimType ver gcd.DimXXXX constants
+' ESTA CLASE SE USA SOLAMENTE PARA IMPORT/EXPORT DXF
 
 Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
 
@@ -123,18 +101,13 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
         End If
 
         If sClaves[i] = "10" Then e.p.Add(CFloat(sValues[i]))         ' X0  first definition point
-
         If sClaves[i] = "20" Then e.P.Add(CFloat(sValues[i]))         ' Y0
-
         If sClaves[i] = "11" Then e.p.Add(CFloat(sValues[i]))         ' X1  midpoint of text
-
         If sClaves[i] = "21" Then e.P.Add(CFloat(sValues[i]))         ' Y1
-
         If sClaves[i] = "3" Then e.pStyle = gcd.FindStyle(sValues[i])
-
-        If sClaves[i] = "42" Then
-            If sValues[i] Like "15.04*" Then Stop
-        End If
+        ' If sClaves[i] = "42" Then
+        '     If sValues[i] Like "15.04*" Then Stop
+        ' End If
 
         If sClaves[i] = "70" Then ' Dimension type:
 

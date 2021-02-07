@@ -20,6 +20,7 @@
 ' Foundation, Inc., 51 Franklin St, Fifth Floor,
 ' Boston, MA  02110-1301  USA
 Create Static
+Inherits Caddimension
 
 Public Const Gender As String = "Dimension_Diameter"
 Public Const DrawingOrder As Integer = 100 ' 1 a 32.724 esto debe Drawse primero y ser sobreescrito por el resto
@@ -27,91 +28,38 @@ Public Const PointsToDraw As Integer = 1             ' minimal point requered fo
 Public Const HelperTrabajo As String = ("Insert a linear acotation")
 Public ParamType As String = "PP"                             ' that is Point, Point, Float; could be Color Text, etc
 Public ParamHelper As String = "Start point;End point"
-Public Const USEWITH As String = "EntityBuilder"
-Public Const OrthogonalIgnored As Boolean = False
-Public Const OrthogonalForced As Boolean = False
-Public Const ParamDefault As String = " "
-Public Const StretchAble As Boolean = True           ' Si lo puedo deformar
-
-Public StepsDone As Integer                 ' esto lo cambia cls ElementBuilder durante la construccion
-
-Public TotalDimensions As Integer           ' the total dimensions present in this drawing
-
-' dimstyle: Todas las variables numericas Float estaran multiplicadas por DimScale
-Public DimType As Integer = 0            ' = fParam[0] and &X1111
-Public DimAtatchPoint As Integer = 2     ' = fParam[1]
-Public DimScale As Integer = 1           ' = fParam[2]
-Public DimFormat As String = "0.00"      '
-Public DimFormatAng As String = "0.0"    '
-Public DimArrowSize As Float = 0.3       ' el largo de la flecha
-Public DimArrowWidth As Float = 0.1      ' ancho de la flecha
-Public DimTickSize As Float = 0.3        ' el tamaño de la diagonal
-Public DimArrowOrThick As Boolean = True ' flecha (True) o diagonal (False)
-Public DimTextHeight As Float = 0.3      '
-Public DimSeparation As Float = 0.5      ' la separacion entre el punto que define la cota y el inicio de la linea q marca inicio y fin
-Public DimExtension As Float = 0.5       ' la continuacion de esas lineas
-
-Public extension As Float
-Public iBloque As Integer
-
-' DXF Read/Export
-
-Public Const DXF_Reading As Boolean = True
-Public Const DXF_Export As Boolean = False
-
-' fParam helpers
-Public Const TotalParams As Integer = 8
-Public Const ipaEscX As Integer = 0
-Public Const ipaEscY As Integer = 1
-Public Const ipaEscZ As Integer = 2
-Public Const ipaRotacion As Integer = 3
-Public Const ipaVertJustif As Integer = 4
-Public Const ipaRelativeFactor As Integer = 5
-Public Const ipaHorizAngle As Integer = 6
-Public Const ipaExtension As Integer = 7
-
-' stringdata helpers
-Public Const sdaTotalParams As Integer = 2
-Public Const sdaText As Integer = 0
-Public Const sdaStyle As Integer = 1
-
-Private pointDefPoint1 As New Punto2d
-Private pointDefPoint2 As New Punto2d
-Private pointTextMidPoint As New Punto2d
-Private pointBaselinePoint As New Punto2d
-Private pointDefPoint0 As New Punto2d
 
 Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
 
     Dim i As Integer
     Dim AfterSubclassmarker As Boolean
     ' revisamos lo que viene del importador comun
-    pointDefPoint0.x = e.P[0]
-    pointDefPoint0.y = e.P[1]
+    Me.pointDefPoint0.x = e.P[0]
+    Me.pointDefPoint0.y = e.P[1]
 
-    pointTextMidPoint.x = e.P[2]
-    pointTextMidPoint.y = e.P[3]
+    Me.pointTextMidPoint.x = e.P[2]
+    Me.pointTextMidPoint.y = e.P[3]
 
     For i = 0 To sClaves.Max
         If sClaves[i] = "100" And sValues[i] = "AcDbDiametricDimension" Then AfterSubclassmarker = True
         If AfterSubclassmarker Then ' lo siguientes codigos
 
-            If sClaves[i] = "15" Then pointDefPoint1.x = CFloat(sValues[i])
-            If sClaves[i] = "25" Then pointDefPoint1.y = CFloat(sValues[i])
+            If sClaves[i] = "15" Then Me.pointDefPoint1.x = CFloat(sValues[i])
+            If sClaves[i] = "25" Then Me.pointDefPoint1.y = CFloat(sValues[i])
 
         End If
 
     Next
 
     ' ahora recosntruyo el bloque segun mis propios metodos
-    e.P[0] = pointDefPoint0.x
-    e.P[1] = pointDefPoint0.y
+    e.P[0] = Me.pointDefPoint0.x
+    e.P[1] = Me.pointDefPoint0.y
 
-    e.P[2] = pointDefPoint1.x
-    e.P[3] = pointDefPoint1.y
+    e.P[2] = Me.pointDefPoint1.x
+    e.P[3] = Me.pointDefPoint1.y
 
-    e.P.Add(pointTextMidPoint.x)
-    e.P.Add(pointTextMidPoint.y)
+    e.P.Add(Me.pointTextMidPoint.x)
+    e.P.Add(Me.pointTextMidPoint.y)
 
     Me.DimArrowSize = e.pStyle.fArrowSize_41
     Me.DimArrowWidth = Me.DimArrowSize / 3
@@ -151,44 +99,6 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
         If definitive Then Return True
 
     Endif
-
-End
-
-Public Sub Translate(e As Entity, dX As Float, dY As Float, Optional OnlySelected As Boolean = False)
-
-    cadInsert.Translate(e, dx, dy, OnlySelected)
-
-End
-
-Public Sub Rotate(e As Entity, radians As Float)
-
-    cadInsert.Rotate(e, radians)
-
-End
-
-Public Sub Scale(e As Entity, sX As Float, sY As Float)
-
-    cadInsert.Scale(e, sx, sy)
-
-End
-
-Public Sub Draw(Optional e As Entity)
-
-    cadInsert.Draw(e)
-
-End
-
-'' A fat version of the entity
-Public Sub DrawRemark(oE As Entity)
-
-    cadInsert.DrawRemark(oe)
-
-End
-
-'' A fat version of the entity
-Public Sub DrawSelected(oE As Entity)
-
-    cadInsert.DrawSelected(oe)
 
 End
 
@@ -302,54 +212,18 @@ Public Sub ReBuildBlock(ELEM As Entity) As Block
     End If
 
     ' linea principal
-    eLineaPpal.P[1] = extension           ' Y0
-    eLineaPpal.P[3] = extension           ' Y1
+    eLineaPpal.P[1] = Me.extension           ' Y0
+    eLineaPpal.P[3] = Me.extension           ' Y1
 
     ' texto
-    eText.P[1] = Me.DimArrowWidth + extension
+    eText.P[1] = Me.DimArrowWidth + Me.extension
 
-    eOblique2.P[1] = extension           ' X0
-    eOblique2.P[3] = extension + Me.DimArrowWidth
-    eOblique2.P[5] = extension - Me.DimArrowWidth
-    eOblique2.P[7] = extension           ' X0
+    eOblique2.P[1] = Me.extension           ' X0
+    eOblique2.P[3] = Me.extension + Me.DimArrowWidth
+    eOblique2.P[5] = Me.extension - Me.DimArrowWidth
+    eOblique2.P[7] = Me.extension           ' X0
 
     ' End If
     Return newBlock
-
-End
-
-Public Function Draw2(oE As Entity)
-
-    cadInsert.Draw2(oe)
-
-End
-
-Public Sub CreatePolygon(oE As Entity)
-
-    cadInsert.CreatePolygon(oe)
-
-End
-
-Public Function BuildPOI(oE As Entity, Optional arrIndex As Integer = -1) As Integer
-
-    cadInsert.BuildPOI(oe, arrIndex)
-
-End
-
-' This function will return False if the element couldn't be created for some reason: bad or incomple user input
-' True means all is good, False will instruct the clsEntityBuilder to delete it
-Public Sub Finish(oE As Entity) As Boolean
-
-    ' primero agregamos la entidad al array
-    '  BuildPOI(oe)
-
-    ' busco el tipo de linea, si hace falta
-
-    oE.psel.resize(oE.p.count / 2)
-
-    oE.DrawAble = True
-    oE.Selected = False
-    oE.Finished = True
-    'cadInsert.Finish(oe)
 
 End
