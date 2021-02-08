@@ -1,6 +1,6 @@
 ' Gambas class file
 
-' GauchoCAD
+' m-designer
 ' A simple CAD made in Gambas
 '
 ' Copyright (C) Ing Martin P Cristia
@@ -34,24 +34,24 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
     Dim i As Integer
     Dim AfterSubclassmarker As Boolean
-    ' revisamos lo que viene del importador comun
-    Me.pointDefPoint0.x = e.P[0]
-    Me.pointDefPoint0.y = e.P[1]
-
-    Me.pointTextMidPoint.x = e.P[2]
-    Me.pointTextMidPoint.y = e.P[3]
+    ' ' revisamos lo que viene del importador comun
+    ' Me.pointDefPoint0.x = e.P[0]
+    ' Me.pointDefPoint0.y = e.P[1]
+    '
+    ' Me.pointTextMidPoint.x = e.P[2]
+    ' Me.pointTextMidPoint.y = e.P[3]
 
     For i = 0 To sClaves.Max
         If sClaves[i] = "100" And sValues[i] = "AcDbAlignedDimension" Then AfterSubclassmarker = True
         If AfterSubclassmarker Then ' lo siguientes codigos
-            If sClaves[i] = "12" Then Me.pointBaselinePoint.x = CFloat(sValues[i])
-            If sClaves[i] = "22" Then Me.pointBaselinePoint.y = CFloat(sValues[i])
+            If sClaves[i] = "12" Then e.P[4] = CFloat(sValues[i])
+            If sClaves[i] = "22" Then e.P[5] = CFloat(sValues[i])
 
-            If sClaves[i] = "13" Then Me.pointDefPoint1.x = CFloat(sValues[i])
-            If sClaves[i] = "23" Then Me.pointDefPoint1.y = CFloat(sValues[i])
+            If sClaves[i] = "13" Then e.P[6] = CFloat(sValues[i])
+            If sClaves[i] = "23" Then e.P[7] = CFloat(sValues[i])
 
-            If sClaves[i] = "14" Then Me.pointDefPoint2.x = CFloat(sValues[i])
-            If sClaves[i] = "24" Then Me.pointDefPoint2.y = CFloat(sValues[i])
+            If sClaves[i] = "14" Then e.P[8] = CFloat(sValues[i])
+            If sClaves[i] = "24" Then e.P[9] = CFloat(sValues[i])
 
             ' este parametro determina el angulo de la dimension, y no los puntos
             If sClaves[i] = "50" Then e.iParam[cadDimension.iiiMode] = 1000 * CFloat(sValues[i])
@@ -62,15 +62,15 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
     Next
 
-    ' ahora recosntruyo el bloque segun mis propios metodos
-    e.P[0] = Me.pointDefPoint1.x
-    e.P[1] = Me.pointDefPoint1.y
-
-    e.P[2] = Me.pointDefPoint2.x
-    e.P[3] = Me.pointDefPoint2.y
-
-    e.P.Add(Me.pointTextMidPoint.x)
-    e.P.Add(Me.pointTextMidPoint.y)
+    ' ' ahora recosntruyo el bloque segun mis propios metodos
+    ' e.P[0] = Me.pointDefPoint1.x
+    ' e.P[1] = Me.pointDefPoint1.y
+    '
+    ' e.P[2] = Me.pointDefPoint2.x
+    ' e.P[3] = Me.pointDefPoint2.y
+    '
+    ' e.P.Add(Me.pointTextMidPoint.x)
+    ' e.P.Add(Me.pointTextMidPoint.y)
 
     e.fParam[cadDimension.ipaExtension] = -puntos.distancia(Me.pointDefPoint0.x, Me.pointDefPoint0.y, Me.pointDefPoint2.x, Me.pointDefPoint2.y)
 
@@ -191,12 +191,12 @@ Public Sub ReBuildBlock(ELEM As Entity) As Block
 
     elem.Visible = True
 
-    ' ahora recosntruyo el bloque segun mis propios metodos
-    elem.P[0] = Me.pointDefPoint1.x
-    elem.P[1] = Me.pointDefPoint1.y
-
-    elem.P[2] = Me.pointDefPoint2.x
-    elem.P[3] = Me.pointDefPoint2.y
+    ' ' ahora recosntruyo el bloque segun mis propios metodos
+    ' elem.P[0] = Me.pointDefPoint1.x
+    ' elem.P[1] = Me.pointDefPoint1.y
+    '
+    ' elem.P[2] = Me.pointDefPoint2.x
+    ' elem.P[3] = Me.pointDefPoint2.y
 
     'e.P.Add(pointTextMidPoint.x)
     'e.P.Add(pointTextMidPoint.y)
@@ -207,10 +207,10 @@ Public Sub ReBuildBlock(ELEM As Entity) As Block
     ' el largo de la linea principal viene dado por la distancia entre ambos puntos
     ' pero como es una dimension alineada, se multiplica por la diferencia de angulos
     ' entre P1-P2 y el angulo de la dimension a medir
-    a1 = Ang(elem.p[2] - elem.P[0], elem.p[3] - elem.P[1]) * 180 / Pi
+    a1 = Ang(elem.p[8] - elem.P[6], elem.p[9] - elem.P[7]) * 180 / Pi
     a1 -= elem.fParam[cadInsert.ipaRotacion]  ' esto viene en grados *1000
     a1 = Abs(a1) / 180 * Pi
-    d = Cos(a1) * puntos.distancia(elem.P[0], elem.P[1], elem.P[2], elem.P[3])
+    d = Cos(a1) * puntos.distancia(elem.P[6], elem.P[7], elem.P[8], elem.P[8])
 
     ' la primer entidad del bloque es la linea principal
     eLineaPpal.P[0] = 0           ' X0
@@ -244,7 +244,7 @@ Public Sub ReBuildBlock(ELEM As Entity) As Block
     ' el texto
     eText.StringData[cadMText.sdaText] = "\\A1;" & sDim
 
-    flxTextExt = glPlus.MTextExtends(eText.StringData[0], 0, 0, eText.fParam[1])
+    flxTextExt = glPlus.MTextExtends(sDim, 0, 0, eText.fParam[1])
 
     ' la cuarta y quinta son las flechas , tengo que verificar si entran, o el texto
     If flxTextExt[2] * 1.1 > d Then                      ' no entra
@@ -280,7 +280,7 @@ Public Sub ReBuildBlock(ELEM As Entity) As Block
 
     End If
 
-    Me.extension = elem.fParam[cadDimension.ipaExtension]
+    Me.extension = puntos.distancia(elem.P[0], elem.P[1], elem.P[8], elem.P[9]) ' fParam[cadDimension.ipaExtension]
     ' linea principal
     eLineaPpal.P[1] = Me.extension           ' Y0
     eLineaPpal.P[3] = Me.extension           ' Y1
