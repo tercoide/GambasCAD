@@ -97,25 +97,38 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
 
     If Me.StepsDone = 0 Then
         Me.DimType = gcd.dimAligned
-
-        Try Me.pointDefPoint1.x = vParam[1]
-        Try Me.pointDefPoint1.y = vParam[2]
-        Me.pointDefPoint2.x = Me.pointDefPoint1.x
-        Me.pointDefPoint2.y = Me.pointDefPoint1.y
+        ' supongo que marca el punto de derecha a izq
+        ' el primero es P3 o P67
+        Try eBuild.p[6] = vParam[1]
+        Try eBuild.p[7] = vParam[2]
+        eBuild.p[8] = eBuild.P[6]
+        eBuild.p[9] = eBuild.P[7]
+        eBuild.p[0] = eBuild.p[8]
+        eBuild.p[1] = eBuild.P[9]
+        ' Me.pointDefPoint2.x = Me.pointDefPoint1.x
+        ' Me.pointDefPoint2.y = Me.pointDefPoint1.y
         If definitive Then Return True
     Else If Me.StepsDone = 1 Then
         eBuild.DrawAble = True
         eBuild.Finished = True
-        Try Me.pointDefPoint2.x = vParam[1]
-        Try Me.pointDefPoint2.y = vParam[2]
+        Try eBuild.p[8] = vParam[1]
+        Try eBuild.p[9] = vParam[2]
+        eBuild.p[0] = eBuild.p[8]
+        eBuild.p[1] = eBuild.P[9]
+
+        ' Try Me.pointDefPoint2.x = vParam[1]
+        ' Try Me.pointDefPoint2.y = vParam[2]
         eBuild.pBlock = ReBuildBlock(eBuild)
         If definitive Then Return True
     Else If Me.StepsDone = 2 Then   ' el tercer punto sera la posicion del texto
 
         ' return the angle from horizontal to us
-        eBuild.fParam[Me.ipaExtension] = -puntos.PointToLineDistance([vParam[1], vParam[2]], [eBuild.p[0], eBuild.p[1], eBuild.p[2], eBuild.p[3]]) ' / puntos.distancia(eBuild.p[0], eBuild.p[1], eBuild.p[2], eBuild.p[3]
-        Try Me.pointDefPoint0.x = vParam[1]
-        Try Me.pointDefPoint0.y = vParam[2]
+        eBuild.fParam[Me.ipaExtension] = -puntos.PointToLineDistance([vParam[1], vParam[2]], [eBuild.p[6], eBuild.p[7], eBuild.p[8], eBuild.p[9]]) ' / puntos.distancia(eBuild.p[0], eBuild.p[1], eBuild.p[2], eBuild.p[3]
+        'Try eBuild.p[6] = vParam[1]
+        'Try eBuild.p[7] = vParam[2]
+
+        ' Try Me.pointDefPoint0.x = vParam[1]
+        ' Try Me.pointDefPoint0.y = vParam[2]
         eBuild.pBlock = ReBuildBlock(eBuild)
         If definitive Then
             'Stop
@@ -147,6 +160,8 @@ Public Sub ReBuildBlock(ELEM As Entity) As Block
     Dim eDot2 As Entity
     Dim eText As Entity
     Dim ePoint2 As Entity
+
+    newBlock.AbsoluteCoords = True
 
     ' linea principal
     clsEntities.AddLine(newBlock.entities, [0, 0, 0, 0], elem.colour, elem.LineWidth, elem.LineType.Index, elem.pLayer)
@@ -279,8 +294,9 @@ Public Sub ReBuildBlock(ELEM As Entity) As Block
         eText.P[1] = Me.DimArrowWidth
 
     End If
-
-    Me.extension = puntos.distancia(elem.P[0], elem.P[1], elem.P[8], elem.P[9]) ' fParam[cadDimension.ipaExtension]
+    elem.fParam[Me.ipaExtension] = -puntos.PointToLineDistance([elem.P[0], elem.P[1]], [elem.p[6], elem.p[7], elem.p[8], elem.p[9]]) ' / puntos.distancia(eBuild.p[0],
+    Me.extension = puntos.distancia(elem.P[0], elem.P[1], elem.P[8], elem.P[9])
+    Me.extension = elem.fParam[cadDimension.ipaExtension]
     ' linea principal
     eLineaPpal.P[1] = Me.extension           ' Y0
     eLineaPpal.P[3] = Me.extension           ' Y1

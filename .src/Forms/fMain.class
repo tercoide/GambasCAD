@@ -328,10 +328,10 @@ Public Function Action_Activate(sAction As String) As Boolean
         Case "file_save"
 
             f = gcd.CurrDrawing.FileName
-            '   t = "/tmp/tmp.json"
+
             fbas = File.Dir(f) &/ File.BaseName(f)
             fBak = "'" & fbas & ".bak'"
-            If File.Ext(f) = "dwg" Or gcd.CurrDrawing.RequiresFileRename Then
+            If gcd.CurrDrawing.RequiresFileRename Then
                 Me.Action_Activate("file_saveas")
                 Return
             Else
@@ -340,7 +340,17 @@ Public Function Action_Activate(sAction As String) As Boolean
                     Shell "mv '" & f & "' '" & fbas & ".bak'" Wait
                 End If
 
-                Dxf.SaveFile(f, gcd.CurrDrawing.cModel)
+                If File.Ext(f) = "dxf" Then
+                    Dxf.SaveFile(f, gcd.CurrDrawing.cModel)
+                Else If File.Ext(f) = "dwg" Then
+                    ' guardamos la version DXF en el dir adecuado, con el nombre elegido
+                    't = main.dirDxfOut &/ Utils.FileWithoutExtension(Utils.FileFromPath(f)) & ".dxf"
+                    t = Temp & ".dxf"
+                    Dxf.SaveFile(t, gcd.CurrDrawing.cModel)
+                    t = gcd.oda_dxftodwg(t)
+                    Move t To f
+
+                End If
 
             Endif
 
@@ -350,32 +360,32 @@ Public Function Action_Activate(sAction As String) As Boolean
             fbas = File.Dir(f) &/ File.BaseName(f)
             fBak = "'" & fbas & ".bak'"
 
+            Dialog.AutoExt = True
             Dialog.Filter = ["*.dxf", "DXF Drawing exchange 2010", "*.dwg", "DWG AutoCAD Drawing file 2010"]
-            Dialog.SaveFile()
-            If Dialog.Path Then
-                f = Dialog.Path
-                If Exist(f) Then
-                    If Message.Question(("The file exist"), ("Replace"), ("Cancel")) = 2 Then
-                        f = ""
-                    Endif
+            If Dialog.SaveFile() Then Return ' cancel saving
+
+            f = Dialog.Path
+
+            If Exist(f) Then
+                If Message.Question(("The file exist"), ("Replace"), ("Cancel")) = 2 Then
+                    f = ""
                 Endif
-            Else
-                f = ""
             Endif
 
             If f = "" Then
                 Print "Cancel"
             Else
 
-                If LCase(File.Ext(f)) <> "dxf" Then f &= ".dxf"
-
+                'If LCase(File.Ext(f)) <> "dxf" Then f &= ".dxf"
                 If Exist(f) Then
                     If Exist(fBak) Then Shell "rm " & fBak Wait
                     Shell "mv '" & f & "' '" & fbas & ".bak'" Wait
                 End If
 
-                Dxf.SaveFile(f, gcd.CurrDrawing.cModel)
                 gcd.CurrDrawing.FileName = f
+                gcd.CurrDrawing.RequiresFileRename = False
+                Action_Activate("file_save")
+
                 Me.Text = f
 
             Endif
@@ -1499,5 +1509,12 @@ End
 Public Sub ListView1_Drop()
 
     Stop
+
+End
+
+Public Sub tmrAutosave_Timer()
+
+    ' el autosave funciona solo si guarde antes, o sea si el dibujo tiene nombre
+    If Not gcd.CurrDrawing.RequiresFileRename Then Action_Activate("saveas")
 
 End
