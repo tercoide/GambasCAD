@@ -38,9 +38,9 @@ Public NumericTolerance As Float = 1e-7
 '' Returns n 2D trianlges x0,y0,x1,y1,x2,y2 , x0,y0,x1,y1,x2,y2 and so on
 Public Function PolygonTriangulation(fPolygon As Float[]) As Float[]
 
-    Dim UsedTracts As New Boolean[]
+    'Dim UsedTracts As New Boolean[]
     Dim Wasted As New Float[]
-    Dim ExtraTract2 As New Integer[]
+    'Dim ExtraTract2 As New Integer[]
     Dim fPoly As New Float[]
     Dim Triangles As New Float[]
     Dim TriangleTest As New Float[]
@@ -208,6 +208,14 @@ Public Function InBetween(x As Float, x1 As Float, x2 As Float) As Boolean
 
 End
 
+Public Function InBetweenNotEqual(x As Float, x1 As Float, x2 As Float) As Boolean
+    ' determine if a number is between the other two
+    ' this is valid for negative values
+
+    If (x1 < X And x2 > X) Or (x1 > X And x2 < X) Then Return True Else Return False
+
+End
+
 '' Devuelve el segmento en el que esta el punto, considerando la tolerancia numerica
 '' o -1 si no estan en ningun segmento. Si el punto esta en un vertice, devuelve el primer segmento.
 Public Function inPolySegment(poligon As Float[], px As Float, py As Float, Optional Tolerance As Float = 0) As Integer
@@ -340,34 +348,34 @@ End
 '' InsideTriangle decides If a point P Is Inside Of the triangle
 ''  defined by A, B, C.
 
-Public Function InsideTriangle(AA As Float[], BB As Float[], CC As Float[], P As Float[]) As Boolean
-
-    Dim ax, ay, bx, by, cx, cy, apx, apy, bpx, bpy, cpx, cpy, cCROSSap, bCROSScp, aCROSSbp As Float
-
-    ax = CC[0] - BB[0]
-    ay = CC[1] - BB[1]
-    bx = AA[0] - CC[0]
-    by = AA[1] - CC[1]
-    cx = BB[0] - AA[0]
-    cy = BB[1] - AA[1]
-    apx = P[0] - AA[0]
-    apy = P[1] - AA[1]
-    bpx = P[0] - BB[0]
-    bpy = P[1] - BB[1]
-    cpx = P[0] - CC[0]
-    cpy = P[1] - CC[1]
-    aCROSSbp = ax * bpy - ay * bpx
-    cCROSSap = cx * apy - cy * apx
-    bCROSScp = bx * cpy - by * cpx
-
-    ' vemos el caso especial doonde coincide
-    If cpx = 0 And cpy = 0 Then Return False
-    If bpx = 0 And bpy = 0 Then Return False
-    If apx = 0 And apy = 0 Then Return False
-
-    Return ((aCROSSbp >= 0.0) And (bCROSScp >= 0.0) And (cCROSSap >= 0.0))
-
-End
+' Public Function InsideTriangle(AA As Float[], BB As Float[], CC As Float[], P As Float[]) As Boolean
+'
+'     Dim ax, ay, bx, by, cx, cy, apx, apy, bpx, bpy, cpx, cpy, cCROSSap, bCROSScp, aCROSSbp As Float
+'
+'     ax = CC[0] - BB[0]
+'     ay = CC[1] - BB[1]
+'     bx = AA[0] - CC[0]
+'     by = AA[1] - CC[1]
+'     cx = BB[0] - AA[0]
+'     cy = BB[1] - AA[1]
+'     apx = P[0] - AA[0]
+'     apy = P[1] - AA[1]
+'     bpx = P[0] - BB[0]
+'     bpy = P[1] - BB[1]
+'     cpx = P[0] - CC[0]
+'     cpy = P[1] - CC[1]
+'     aCROSSbp = ax * bpy - ay * bpx
+'     cCROSSap = cx * apy - cy * apx
+'     bCROSScp = bx * cpy - by * cpx
+'
+'     ' vemos el caso especial doonde coincide
+'     If cpx = 0 And cpy = 0 Then Return False
+'     If bpx = 0 And bpy = 0 Then Return False
+'     If apx = 0 And apy = 0 Then Return False
+'
+'     Return ((aCROSSbp >= 0.0) And (bCROSScp >= 0.0) And (cCROSSap >= 0.0))
+'
+' End
 
 ' Returns True If the point p lies
 ' inside the polygon[] With n vertices
@@ -496,7 +504,7 @@ Public Function lineLineIntersection(A As Float[], B As Float[], C As Float[], D
         '
         '         / / The lines are parallel.This Is Simplified
         '         / / by returning a pair Of FLT_MAX
-        Return A
+        Return Null
         '
     Else
         '
@@ -521,12 +529,23 @@ Public Function lineLineIntersection2(Ax As Float, Ay As Float, Bx As Float, By 
     Dim c2 As Float = a2 * (Cx) + b2 * (Cy)
     '
     Dim determinant As Float = a1 * b2 - a2 * b1
+
+    ' veo el caso particular q coincidan los extremos
+
+    If ax = cx And ay = cy Then Return [ax, ay]
+    If ax = dx And ay = dy Then Return [ax, ay]
+
+    If bx = cx And by = cy Then Return [bx, by]
+    If bx = dx And by = dy Then Return [bx, by]
+
+
+
     '
     If (determinant = 0) Then
         '
         '         / / The lines are parallel.This Is Simplified
         '         / / by returning a pair Of FLT_MAX
-        Return [Ax, Ay]
+        Return Null
         '
     Else
         '
@@ -762,6 +781,70 @@ Public Function IsPoligonInsideRect(poligon As Float[], x0 As Float, y0 As Float
     Return True
 
 End
+
+
+Public Function IsPoligonSelfIntersecting(poligon As Float[]) As Boolean
+
+    ' para que esta funcion sea util, no debe tener en cuenta los puntos en comun de los segentos, sino
+    ' dara falsos positivos
+    Dim i, ii As Integer
+    Dim TestX0, TestX1, TestY0, TestY1 As Float
+    Dim CrossPoint As New Float[]
+
+    If poligon.count < 8 Then Return False
+    For i = 0 To poligon.Max - 1 Step 2
+        If i = poligon.Max - 1 Then
+            TestX0 = poligon[poligon.Max - 1]
+            TestY0 = poligon[poligon.Max]
+            TestX1 = poligon[0]
+            TestY1 = poligon[1]
+
+        Else
+            TestX0 = poligon[i]
+            TestY0 = poligon[i + 1]
+            TestX1 = poligon[i + 2]
+            TestY1 = poligon[i + 3]
+        End If
+        For ii = 0 To poligon.Max - 2 Step 2
+            If i = ii Then Continue ' es el mismo segmento
+            CrossPoint = lineLineIntersection2(TestX0, TestY0, TestX1, TestY1, poligon[ii], poligon[ii + 1], poligon[ii + 2], poligon[ii + 3])
+            If CrossPoint Then ' tenemos una interseccion, pero vamos a considerar valida si no coincide con los extremos
+                'If Not (CrossPoint[0] = poligon[ii] And CrossPoint[1] = poligon[ii + 1]) Or (CrossPoint[0] = poligon[ii + 2] And CrossPoint[1] = poligon[ii + 3]) Then
+                ' debo testear que la interseccion este dentro del tramo
+                If InBetweenNotEqual(CrossPoint[0], poligon[ii], poligon[ii + 2]) And InBetweenNotEqual(CrossPoint[1], poligon[ii + 1], poligon[ii + 3]) Then
+                    If InBetweenNotEqual(CrossPoint[0], TestX0, TestX1) And InBetweenNotEqual(CrossPoint[1], TestY0, TestY1) Then
+
+
+
+                        Return True
+                    End If
+                End If
+
+            Endif
+        Next
+
+        CrossPoint = lineLineIntersection2(TestX0, TestY0, TestX1, TestY1, poligon[poligon.Max - 1], poligon[poligon.Max], poligon[0], poligon[1])
+        If CrossPoint Then ' tenemos una interseccion, pero vamos a considerar valida si no coincide con los extremos
+            'If Not (CrossPoint[0] = poligon[poligon.Max - 1] And CrossPoint[1] = poligon[poligon.Max]) Then Return True
+
+            'If Not (CrossPoint[0] = poligon[0] And CrossPoint[1] = poligon[1]) Then Return True
+
+            If InBetweenNotEqual(CrossPoint[0], poligon[poligon.Max - 1], poligon[0]) And InBetweenNotEqual(CrossPoint[1], poligon[poligon.Max], poligon[1]) Then
+                If InBetweenNotEqual(CrossPoint[0], TestX0, TestX1) And InBetweenNotEqual(CrossPoint[1], TestY0, TestY1) Then
+
+
+
+                    Return True
+                End If
+            End If
+        Endif
+
+    Next
+
+    Return False
+
+End
+
 
 '' Devuelve True si el poligono cruza la linea x0,y0 - x1,y1
 Public Function IsPoligonCrossingLine(poligon As Float[], x0 As Float, y0 As Float, x1 As Float, y1 As Float, Optional StartIndex As Integer = 0, TotalElements As Integer = 0) As Boolean
