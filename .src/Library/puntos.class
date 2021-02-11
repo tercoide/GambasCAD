@@ -31,9 +31,114 @@
 
 Create Static
 Create Private
-Fast Unsafe
+' Fast Unsafe
 Public HookSize As Integer = 16                       ' for use with poi
 Public NumericTolerance As Float = 1e-7
+
+'' Returns n 2D trianlges x0,y0,x1,y1,x2,y2 , x0,y0,x1,y1,x2,y2 and so on
+Public Function PolygonTriangulation(fPolygon As Float[]) As Float[]
+
+    Dim UsedTracts As New Boolean[]
+    Dim Wasted As New Float[]
+    Dim ExtraTract2 As New Integer[]
+    Dim fPoly As New Float[]
+    Dim Triangles As New Float[]
+    Dim TriangleTest As New Float[]
+    Dim i, iTramo, iCompare As Integer
+    Dim EsUtil, EsPrimero As Boolean
+
+    fPoly.Insert(fPolygon.Copy())
+
+    'chequeos iniciales
+    'If fPoly.Count < 5 Then Return Null     ' hay menos de 3 puntos
+    If fPoly.Count <= 6 Then Return fPoly ' si hay 3 puntos, devulvo el trianglo mismo
+
+    iTramo = 0  ' empiezo por el primer tramo
+    Do
+        EsUtil = False
+        EsPrimero = False
+        ' ' vamos por tramos
+        TriangleTest.clear
+
+        ' tramo a resolver i a i+1
+        TriangleTest.Insert(fPoly.Copy(iTramo * 2, 4))
+
+        ' primero chequeo si el tramos i+1 a i+2 es util
+        TriangleTest.Insert(fPoly.Copy(iTramo * 2 + 4, 2))
+
+        ' para que este triangulo sea util, ningun punto del poligono debe estar dentro de el
+        EsUtil = True
+        For i = 0 To fPoly.Count / 2 - 1
+            If i <> iTramo And i <> iTramo + 1 And i <> iTramo + 2 Then
+                If Me.IsPointInTri(fPoly.Copy(iTramo * 2, 2), fPoly.Copy(iTramo * 2 + 2, 2), fPoly.Copy(iTramo * 2 + 4, 2), fPoly.Copy(i * 2, 2)) Then
+                    'If isInside(TriangleTest, fPoly[i * 2], fPoly[i * 2 + 1]) Then
+
+                    EsUtil = False
+                    Break
+                End If
+            Endif
+        Next
+
+        If EsUtil Then
+            Triangles.Insert(fPoly.Copy(iTramo * 2, 2))
+            Triangles.Insert(fPoly.Copy(iTramo * 2 + 2, 2))
+            Triangles.Insert(fPoly.Copy(iTramo * 2 + 4, 2))
+            wasted.Insert(fPoly.Extract(iTramo * 2 + 2, 2))
+            iTramo = 0
+            Continue
+        Endif
+        ' No es util, vamos por el otro lado del tramo pivot
+
+        TriangleTest.clear
+
+        ' tramo a resolver i a i+1
+        TriangleTest.Insert(fPoly.Copy(iTramo * 2, 4))
+
+        ' chequeo si el tramos i a i-1 es util
+        If iTramo = 0 Then 'caso especial
+            ' primero chequeo si el tramos i+1 a i+2 es util
+
+            EsPrimero = True
+            iCompare = fPoly.Count / 2 - 1
+
+        Else
+
+            iCompare = iTramo - 1
+        End If
+        TriangleTest.Insert(fPoly.Copy(iCompare * 2, 2))
+
+        ' para que este triangulo sea util, ningun punto del poligono debe estar dentro de el
+        EsUtil = True
+        For i = 0 To fPoly.Count / 2 - 1
+            If i <> iTramo And i <> iTramo + 1 And i <> iCompare Then
+                If Me.IsPointInTri(fPoly.Copy(iTramo * 2, 2), fPoly.Copy(iTramo * 2 + 2, 2), fPoly.Copy(iCompare * 2, 2), fPoly.Copy(i * 2, 2)) Then
+                    'If isInside(TriangleTest, fPoly[i * 2], fPoly[i * 2 + 1]) Then
+
+                    EsUtil = False
+                    Break
+                End If
+            Endif
+        Next
+
+        If EsUtil Then
+            Triangles.Insert(fPoly.Copy(iTramo * 2, 2))
+            Triangles.Insert(fPoly.Copy(iTramo * 2 + 2, 2))
+            Triangles.Insert(fPoly.Copy(iCompare * 2, 2))
+            wasted.Insert(fPoly.Extract(iTramo * 2, 2))
+            iTramo = 0
+            Continue
+        Endif
+
+        ' pruebo con otro tramo
+        Inc iTramo
+        'If Not EsUtil Then Break
+
+    Loop Until fPoly.Count = 6 ' 3 vertices
+
+    Triangles.Insert(fPoly.Copy())
+    Return Triangles
+
+End
 
 '' Returns the index in the array of pairs that is near the given point using HookSize parameter
 Public Function FindPOI(xr As Float, yr As Float, arr As Float[], hook As Float) As Float[]
@@ -212,6 +317,55 @@ Public Function onSegment(px As Float, py As Float, qx As Float, qy As Float, rx
     Endif
 
     Return False
+
+End
+
+Public Function Sign(p1 As Float[], p2 As Float[], p3 As Float[]) As Float
+
+    Return (p1[0] - p3[0]) * (p2[1] - p3[1]) - (p2[0] - p3[0]) * (p1[1] - p3[1])
+
+End
+
+Public Function IsPointInTri(v1 As Float[], v2 As Float[], v3 As Float[], pt As Float[]) As Boolean
+
+    Dim b1, b2, b3 As Boolean
+
+    b1 = Sign(pt, v1, v2) < 0.0
+    b2 = Sign(pt, v2, v3) < 0.0
+    b3 = Sign(pt, v3, v1) < 0.0
+
+    Return ((b1 = b2) And (b2 = b3))
+
+End
+'' InsideTriangle decides If a point P Is Inside Of the triangle
+''  defined by A, B, C.
+
+Public Function InsideTriangle(AA As Float[], BB As Float[], CC As Float[], P As Float[]) As Boolean
+
+    Dim ax, ay, bx, by, cx, cy, apx, apy, bpx, bpy, cpx, cpy, cCROSSap, bCROSScp, aCROSSbp As Float
+
+    ax = CC[0] - BB[0]
+    ay = CC[1] - BB[1]
+    bx = AA[0] - CC[0]
+    by = AA[1] - CC[1]
+    cx = BB[0] - AA[0]
+    cy = BB[1] - AA[1]
+    apx = P[0] - AA[0]
+    apy = P[1] - AA[1]
+    bpx = P[0] - BB[0]
+    bpy = P[1] - BB[1]
+    cpx = P[0] - CC[0]
+    cpy = P[1] - CC[1]
+    aCROSSbp = ax * bpy - ay * bpx
+    cCROSSap = cx * apy - cy * apx
+    bCROSScp = bx * cpy - by * cpx
+
+    ' vemos el caso especial doonde coincide
+    If cpx = 0 And cpy = 0 Then Return False
+    If bpx = 0 And bpy = 0 Then Return False
+    If apx = 0 And apy = 0 Then Return False
+
+    Return ((aCROSSbp >= 0.0) And (bCROSScp >= 0.0) And (cCROSSap >= 0.0))
 
 End
 
