@@ -136,6 +136,9 @@ Public Sub Run() As Boolean
 
     Action_Activate("file_new")
 
+    tmrAutosave.Delay = main.Params["/AutoSaveDelayMin", 15] * 1000 * 60
+    tmrAutosave.Enabled = True
+
     Me.Show()
     gcd.DrawingReady = True
 
@@ -146,7 +149,7 @@ Public Function Action_Activate(sAction As String) As Boolean
     ' El string de la acción es una propiedad de cada botón o menú
     ' El código que se ejecuta lo hace dentro de la rutina llamada, nunca dentro de este mismo evento.
 
-    Dim NewDrawing As ClsDrawing
+    Dim NewDrawing As Drawing
     Dim f, fDxf, fBak As String
     Dim fMinimal As String = "./minimal/minimal-2010.dxf"
     Dim fx As String[]
@@ -155,7 +158,7 @@ Public Function Action_Activate(sAction As String) As Boolean
     Dim iColor, i As Integer
     Dim imgCirculito As Image
     Dim clsJob As String
-    Dim d As ClsDrawing
+    Dim d As Drawing
     Dim sActionParams As String[]
 
     Try Print Last.name
@@ -216,7 +219,7 @@ Public Function Action_Activate(sAction As String) As Boolean
 
         Case "file_new"
 
-            NewDrawing = New ClsDrawing
+            NewDrawing = New Drawing
             gcd.Drawings.Add(NewDrawing)
             gcd.CurrDrawing = gcd.Drawings.Last
             gcd.CurrDrawing.FileName = main.dirTemplates &/ "drawing1.dxf"
@@ -252,7 +255,7 @@ Public Function Action_Activate(sAction As String) As Boolean
                     Select Lower(File.Ext(f))
                         Case "dwg"
 
-                            NewDrawing = New ClsDrawing
+                            NewDrawing = New Drawing
                             gcd.Drawings.Add(NewDrawing)
                             gcd.CurrDrawing = gcd.Drawings.Last
                             gcd.CurrDrawing.FileName = f
@@ -290,7 +293,7 @@ Public Function Action_Activate(sAction As String) As Boolean
                             fMain.Mouse = Mouse.Arrow
                         Case "dxf"
 
-                            NewDrawing = New ClsDrawing
+                            NewDrawing = New Drawing
                             gcd.Drawings.Add(NewDrawing)
                             gcd.CurrDrawing = gcd.Drawings.Last
                             dxf.LoadFile(fMinimal, gcd.CurrDrawing.cModel)
@@ -348,7 +351,9 @@ Public Function Action_Activate(sAction As String) As Boolean
                     t = Temp & ".dxf"
                     Dxf.SaveFile(t, gcd.CurrDrawing.cModel)
                     t = gcd.oda_dxftodwg(t)
-                    Move t To f
+                    ' como el proceso de grabado pudo resultar en error, chequeo la existencia primero
+
+                    If Exist(t) Then Move t To f
 
                 End If
 
@@ -609,9 +614,9 @@ Public Sub GLArea1_draw()
     ' el orden del dibujo es importante en paint, porque una cosa tapa a la otra; en openGL aparentemente es al reves, lo primero se dibuja primero
 
     ' Primero la grid
-    ' clsDrawingAids.DrawGrid
+    ' DrawingAids.DrawGrid
 
-    If gcd.DrawBounds Then clsDrawingAids.DrawPolygons
+    If gcd.DrawBounds Then DrawingAids.DrawPolygons
 
     ' entidad resaltada
     If gcd.CurrDrawing.iEntity[3] >= 0 And gcd.CurrDrawing.iEntity[3] < gcd.CurrDrawing.arrEntities.Count Then
@@ -624,9 +629,9 @@ Public Sub GLArea1_draw()
         'End If
 
     End If
-    clsDrawingAids.DrawCoordenadas
+    DrawingAids.DrawCoordenadas
 
-    clsDrawingAids.DibujaHelper
+    DrawingAids.DibujaHelper
 
     gcd.clsJob.Draw()
 
@@ -835,9 +840,9 @@ Public Sub GLArea1_MouseMove()
 
             gcd.CurrDrawing.flgShowPOIinfo = True
 
-            clsDrawingAids.Helper.dX = 15
-            clsDrawingAids.Helper.dY = 15
-            clsDrawingAids.Helper.fColor = Color.DarkBlue
+            DrawingAids.Helper.dX = 15
+            DrawingAids.Helper.dY = 15
+            DrawingAids.Helper.fColor = Color.DarkBlue
             gcd.clsJob.MouseMove(mouse.x, mouse.y) ' dispatch event to the Job
 
     End Select
@@ -1197,12 +1202,12 @@ Public Sub Form_KeyPress()
 
             Else
                 KeysAccumulator &= Key.Text
-                clsDrawingAids.ErrorMessage = ""
+                DrawingAids.ErrorMessage = ""
             Endif
 
     End Select
 
-    clsDrawingAids.DibujaHelper
+    DrawingAids.DibujaHelper
 
 End
 
@@ -1307,7 +1312,7 @@ End
 
 Public Sub FillWindowMenu()
 
-    Dim d As ClsDrawing
+    Dim d As Drawing
     Dim mItem As Menu
 
     mnuWindow.Children.Clear
@@ -1515,6 +1520,16 @@ End
 Public Sub tmrAutosave_Timer()
 
     ' el autosave funciona solo si guarde antes, o sea si el dibujo tiene nombre
-    If Not gcd.CurrDrawing.RequiresFileRename Then Action_Activate("saveas")
+    ' ademas se guarda solo en formato dxf, para acelerar el proceso
+
+    If Not gcd.CurrDrawing.RequiresFileRename Then
+        If gcd.CurrDrawing.RequiresSaving Then
+            If Dxf.SaveFile(gcd.CurrDrawing.FileName & ".Autosave", gcd.CurrDrawing.cModel) < 0 Then
+                Print "Autosave error"
+            Else
+                Print ("Autosaved to ") & gcd.CurrDrawing.FileName & ".Autosave"
+            Endif
+        End If
+    End If
 
 End
