@@ -33,7 +33,10 @@ Public SelEndy As Integer
 Public SelStartXr As Float                          ' same but in real space, METERS not pixel
 Public SelStartYr As Float
 Public SelEndXr As Float
-Public SelEndyr As Float                            ' in the Real space, Y becomes Z axis
+Public SelEndyr As Float
+
+Public LastX As Float               ' change in MouseMove/MouseUp
+Public LastY As Float                         ' in the Real space, Y becomes Z axis
 
 Public SelectionCount As Integer
 
@@ -64,15 +67,21 @@ Public Sub _new()
 
 End
 
-Public Function MouseDown(mouseX As Integer, mouseY As Integer) ' called by FCAD-> DrawingArea_MouseDown
+Public Function NewParameter(vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
+
+    ' dummy
 
 End
 
-Public Function MouseUp(mouseX As Integer, mouseY As Integer) ' called by FCAD-> DrawingArea_MouseUp
+Public Function MouseDown(mouseX As Integer, mouseY As Integer) ' dummy
 
 End
 
-Public Function MouseMove(mouseX As Integer, mouseY As Integer) ' called by FCAD-> DrawingArea_MouseMove
+Public Function MouseUp(mouseX As Integer, mouseY As Integer) ' dummy
+
+End
+
+Public Function MouseMove(mouseX As Integer, mouseY As Integer) ' dummy
 
 End
 
@@ -89,6 +98,95 @@ Public Sub Draw()               ' called by gcd.CurrDrawing.drwArea_Draw
 End
 
 Public Function KeyText(EnteredText As String)
+    ' Lets see what are we expecting
+
+    Dim Xt, yt As Float, sText, ErrTxt As String, Relative As Boolean
+    Dim bResult As Boolean
+
+    Select Case NextParamType
+
+        Case "P", "+"
+            errtxt = ", expected a valid point like 12.4,9.5  or @12.34,10.5"
+            ' lets filter
+            EnteredText = Trim$(UCase$(EnteredText))
+            ' So we expect a position x,y , but in some cases it can be
+            ' C = close
+            ' U = undo, delete last segment
+            ' and others
+
+            If Left(EnteredText, 1) = "C" Then          ' close the element
+                ' got othe first point and exit
+                If gcd.clsJob.NewParameter(["close"]) Then Me.Finish
+
+            Else If Left(EnteredText, 1) = "U" Then     ' undo last command and go
+
+                If gcd.clsJob.NewParameter(["undo"]) Then Me.Finish
+
+            Else                                        ' an X,Y or @X,Y
+
+                If InStr(EnteredText, "@") > 0 Then    ' may be a point
+                    Relative = True
+                    EnteredText = Replace(EnteredText, "@", "")
+                Endif
+                Xt = CFloat(Split(EnteredText, ",")[0])
+                yt = CFloat(Split(EnteredText, ",")[1])
+
+                If Relative Then
+                    xt += Me.LastX
+                    yt += Me.LastY
+
+                Endif
+                Me.LastX = xt
+                Me.LastY = yt
+
+                If gcd.clsJob.NewParameter(["point", xt, yt], True) Then
+                    ' last point
+                    gcd.CurrDrawing.LastPoint.Clear
+                    gcd.CurrDrawing.LastPoint.Insert([xt, yt])
+
+                End If
+
+            End If
+
+            ' Case "T"
+            '     errtxt = ", expected text, not a point"
+            '     ' its a valid input?
+            '     If EnteredText = "" Then
+            '
+            '         sText = ParamDefault[clsjob.StepsDone]
+            '
+            '     Else
+            '
+            '         sText = EnteredText
+            '
+            '     End If
+            '
+            '     If elem.ClassHandler.NewParameter(elem, ["text", sText], True) Then AdvanceStep
+            '
+            ' Case "F", "M", "A", "L", "R"                ' Float, Mixed, Angle, Longitud
+            '     errtxt = "enter a valid text size"
+            '
+            '     If EnteredText = "" Then
+            '         Try bResult = elem.ClassHandler.NewParameter(elem, ["float", ParamDefault[elem.ClassHandler.StepsDone]], True)
+            '
+            '     Else
+            '
+            '         bResult = elem.ClassHandler.NewParameter(elem, ["float", CFloat(EnteredText)], True)
+            '
+            '     Endif
+            '
+            '     If bResult Then AdvanceStep
+            '
+            ' Case "C"                                ' color
+            '     If Dialog.SelectColor() Then
+            '         elem.fParam[iFloat] = CFloat(Dialog.Color)
+            '         Inc iFloat
+            '         AdvanceStep
+            '
+            '     Endif
+            '     Key.Cod
+
+    End Select
 
 End
 
