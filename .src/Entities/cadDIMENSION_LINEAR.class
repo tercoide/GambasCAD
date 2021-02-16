@@ -35,23 +35,23 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     Dim i As Integer
     Dim AfterSubclassmarker As Boolean
     ' ' revisamos lo que viene del importador comun
-    ' Me.pointDefPoint0.x = e.P[0]
-    ' Me.pointDefPoint0.y = e.P[1]
+    e.P[4] = e.P[0]
+    e.P[5] = e.P[1]
     '
-    ' Me.pointTextMidPoint.x = e.P[2]
-    ' Me.pointTextMidPoint.y = e.P[3]
+    e.P[6] = e.P[2]
+    e.P[7] = e.P[3]
 
     For i = 0 To sClaves.Max
         If sClaves[i] = "100" And sValues[i] = "AcDbAlignedDimension" Then AfterSubclassmarker = True
-        If AfterSubclassmarker Then ' lo siguientes codigos
-            If sClaves[i] = "12" Then e.P[4] = CFloat(sValues[i])
-            If sClaves[i] = "22" Then e.P[5] = CFloat(sValues[i])
+        If AfterSubclassmarker Then ' los siguientes codigos
+            If sClaves[i] = "12" Then e.P[8] = CFloat(sValues[i])
+            If sClaves[i] = "22" Then e.P[9] = CFloat(sValues[i])
 
-            If sClaves[i] = "13" Then e.P[6] = CFloat(sValues[i])
-            If sClaves[i] = "23" Then e.P[7] = CFloat(sValues[i])
+            If sClaves[i] = "13" Then e.P[0] = CFloat(sValues[i])
+            If sClaves[i] = "23" Then e.P[1] = CFloat(sValues[i])
 
-            If sClaves[i] = "14" Then e.P[8] = CFloat(sValues[i])
-            If sClaves[i] = "24" Then e.P[9] = CFloat(sValues[i])
+            If sClaves[i] = "14" Then e.P[2] = CFloat(sValues[i])
+            If sClaves[i] = "24" Then e.P[3] = CFloat(sValues[i])
 
             ' este parametro determina el angulo de la dimension, y no los puntos
             If sClaves[i] = "50" Then e.iParam[cadDimension.iiiMode] = 1000 * CFloat(sValues[i])
@@ -62,15 +62,13 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
     Next
 
-    ' ' ahora recosntruyo el bloque segun mis propios metodos
-    ' e.P[0] = Me.pointDefPoint1.x
-    ' e.P[1] = Me.pointDefPoint1.y
-    '
-    ' e.P[2] = Me.pointDefPoint2.x
-    ' e.P[3] = Me.pointDefPoint2.y
-    '
-    ' e.P.Add(Me.pointTextMidPoint.x)
-    ' e.P.Add(Me.pointTextMidPoint.y)
+    ' Equivalencias
+    ' DXF       Entity P[]
+    ' 10-20     4-5
+    ' 11-21     6-7
+    ' 12-22     no se usa
+    ' 13-23     0-1
+    ' 14-24     2-3
 
     e.fParam[cadDimension.ipaExtension] = -puntos.distancia(Me.pointDefPoint0.x, Me.pointDefPoint0.y, Me.pointDefPoint2.x, Me.pointDefPoint2.y)
 
@@ -99,22 +97,22 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
         Me.DimType = gcd.dimAligned
         ' supongo que marca el punto de derecha a izq
         ' el primero es P3 o P67
-        Try eBuild.p[6] = vParam[1]
-        Try eBuild.p[7] = vParam[2]
-        eBuild.p[8] = eBuild.P[6]
-        eBuild.p[9] = eBuild.P[7]
-        eBuild.p[0] = eBuild.p[8]
-        eBuild.p[1] = eBuild.P[9]
+        Try eBuild.p[0] = vParam[1]
+        Try eBuild.p[1] = vParam[2]
+        eBuild.p[2] = eBuild.P[0]
+        eBuild.p[3] = eBuild.P[1]
+        eBuild.p[4] = eBuild.p[2]
+        eBuild.p[5] = eBuild.P[3]
         ' Me.pointDefPoint2.x = Me.pointDefPoint1.x
         ' Me.pointDefPoint2.y = Me.pointDefPoint1.y
         If definitive Then Return True
     Else If Me.StepsDone = 1 Then
         eBuild.DrawAble = True
         eBuild.Finished = True
-        Try eBuild.p[8] = vParam[1]
-        Try eBuild.p[9] = vParam[2]
-        eBuild.p[0] = eBuild.p[8]
-        eBuild.p[1] = eBuild.P[9]
+        Try eBuild.p[2] = vParam[1]
+        Try eBuild.p[3] = vParam[2]
+        eBuild.p[4] = eBuild.p[2]
+        eBuild.p[5] = eBuild.P[3]
 
         ' Try Me.pointDefPoint2.x = vParam[1]
         ' Try Me.pointDefPoint2.y = vParam[2]
@@ -123,9 +121,9 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
     Else If Me.StepsDone = 2 Then   ' el tercer punto sera la posicion del texto
 
         ' return the angle from horizontal to us
-        eBuild.fParam[Me.ipaExtension] = -puntos.PointToLineDistance([vParam[1], vParam[2]], [eBuild.p[6], eBuild.p[7], eBuild.p[8], eBuild.p[9]]) ' / puntos.distancia(eBuild.p[0], eBuild.p[1], eBuild.p[2], eBuild.p[3]
-        'Try eBuild.p[6] = vParam[1]
-        'Try eBuild.p[7] = vParam[2]
+        eBuild.fParam[Me.ipaExtension] = -puntos.PointToLineDistance([vParam[1], vParam[2]], [eBuild.p[0], eBuild.p[1], eBuild.p[2], eBuild.p[3]]) ' / puntos.distancia(eBuild.p[0], eBuild.p[1], eBuild.p[2], eBuild.p[3]
+        Try eBuild.p[4] = vParam[1]
+        Try eBuild.p[5] = vParam[2]
 
         ' Try Me.pointDefPoint0.x = vParam[1]
         ' Try Me.pointDefPoint0.y = vParam[2]
@@ -161,7 +159,7 @@ Public Sub ReBuildBlock(ELEM As Entity) As Block
     Dim eText As Entity
     Dim ePoint2 As Entity
 
-    newBlock.AbsoluteCoords = True
+    'newBlock.AbsoluteCoords = True
 
     ' linea principal
     clsEntities.AddLine(newBlock.entities, [0, 0, 0, 0], elem.colour, elem.LineWidth, elem.LineType.Index, elem.pLayer)
@@ -222,10 +220,10 @@ Public Sub ReBuildBlock(ELEM As Entity) As Block
     ' el largo de la linea principal viene dado por la distancia entre ambos puntos
     ' pero como es una dimension alineada, se multiplica por la diferencia de angulos
     ' entre P1-P2 y el angulo de la dimension a medir
-    a1 = Ang(elem.p[8] - elem.P[6], elem.p[9] - elem.P[7]) * 180 / Pi
+    a1 = Ang(elem.p[2] - elem.P[0], elem.p[3] - elem.P[1]) * 180 / Pi
     a1 -= elem.fParam[cadInsert.ipaRotacion]  ' esto viene en grados *1000
     a1 = Abs(a1) / 180 * Pi
-    d = Cos(a1) * puntos.distancia(elem.P[6], elem.P[7], elem.P[8], elem.P[8])
+    d = Cos(a1) * puntos.distancia(elem.P[0], elem.P[1], elem.P[2], elem.P[3])
 
     ' la primer entidad del bloque es la linea principal
     eLineaPpal.P[0] = 0           ' X0
@@ -294,8 +292,8 @@ Public Sub ReBuildBlock(ELEM As Entity) As Block
         eText.P[1] = Me.DimArrowWidth
 
     End If
-    elem.fParam[Me.ipaExtension] = -puntos.PointToLineDistance([elem.P[0], elem.P[1]], [elem.p[6], elem.p[7], elem.p[8], elem.p[9]]) ' / puntos.distancia(eBuild.p[0],
-    Me.extension = puntos.distancia(elem.P[0], elem.P[1], elem.P[8], elem.P[9])
+    elem.fParam[Me.ipaExtension] = -puntos.PointToLineDistance([elem.P[4], elem.P[5]], [elem.p[0], elem.p[1], elem.p[2], elem.p[3]]) ' / puntos.distancia(eBuild.p[0],
+    Me.extension = puntos.distancia(elem.P[2], elem.P[3], elem.P[4], elem.P[5])
     Me.extension = elem.fParam[cadDimension.ipaExtension]
     ' linea principal
     eLineaPpal.P[1] = Me.extension           ' Y0
