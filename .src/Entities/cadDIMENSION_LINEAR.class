@@ -145,8 +145,26 @@ Public Sub ReBuildBlock(ELEM As Entity) As Block
     Dim f1, f2 As New Float[]
     Dim a1 As Float
     Dim sDim As String
+    Dim invertida As Integer = 1
 
     newBlock.entities = New Entity[]
+
+    ' verifico el armado
+    If elem.P[2] < elem.P[0] Then
+        ' Swap elem.P[2], elem.P[0]
+        ' Swap elem.p[3], elem.P[1]
+        invertida = -1
+
+    Endif
+
+    If elem.P[2] = elem.P[0] Then
+        If elem.P[1] > elem.P[3] Then
+            ' Swap elem.P[2], elem.P[0]
+            ' Swap elem.p[3], elem.P[1]
+            invertida = -1
+
+        End If
+    Endif
 
     ' para definir este bloque necesito 6 entidades
     Dim eLineaPpal As Entity
@@ -214,14 +232,31 @@ Public Sub ReBuildBlock(ELEM As Entity) As Block
     a1 = Abs(a1) / 180 * Pi
     d = Cos(a1) * puntos.distancia(elem.P[0], elem.P[1], elem.P[2], elem.P[3])
 
+    ' verifico el armado
+    If elem.P[2] < elem.P[0] Then
+        ' Swap elem.P[2], elem.P[0]
+        ' Swap elem.p[3], elem.P[1]
+        invertida = -1
+
+    Endif
+
+    If elem.P[2] = elem.P[0] Then
+        If elem.P[1] > elem.P[3] Then
+            ' Swap elem.P[2], elem.P[0]
+            ' Swap elem.p[3], elem.P[1]
+            invertida = -1
+
+        End If
+    Endif
+
     ' la primer entidad del bloque es la linea principal
     eLineaPpal.P[0] = 0           ' X0
     eLineaPpal.P[1] = 0           ' Y0
 
-    eLineaPpal.P[2] = d           ' X1
+    eLineaPpal.P[2] = d '* invertida           ' X1
     eLineaPpal.P[3] = 0           ' Y1
 
-    ePoint2.P[0] = d
+    ePoint2.P[0] = d '* invertida
 
     ' la segunda es la primer linea de demarcacion (sin cambios)
     ' eExtension1.P[0] = 0           ' X0
@@ -231,10 +266,10 @@ Public Sub ReBuildBlock(ELEM As Entity) As Block
     ' eExtension1.P[3] = 0           ' Y1
 
     ' la tercera es la segunda linea de demarcacion
-    eExtension2.P[0] = d           ' X0
+    eExtension2.P[0] = d '* invertida           ' X0
     'eExtension2.P[1] = 0           ' Y0
 
-    eExtension2.P[2] = d           ' X1
+    eExtension2.P[2] = d '* invertida          ' X1
     'eExtension2.P[3] = 0           ' Y1
 
     elem.fParam[cadDimension.ipaRealMeasure] = Abs(d)
@@ -249,35 +284,35 @@ Public Sub ReBuildBlock(ELEM As Entity) As Block
     flxTextExt = glPlus.MTextExtends(sDim, 0, 0, eText.fParam[1])
 
     ' la cuarta y quinta son las flechas , tengo que verificar si entran, o el texto
-    If flxTextExt[2] * 1.1 > d Then                      ' no entra
+    If flxTextExt[2] * 1.1 > Abs(d) Then                      ' no entra
 
-        eOblique1.P[0] = d           ' X0
-        eOblique1.P[2] = Me.DimArrowSize + d           ' X0
-        eOblique1.P[4] = Me.DimArrowSize + d           ' X0
-        eOblique1.P[6] = d           ' X0
+        eOblique1.P[0] = d '* invertida           ' X0
+        eOblique1.P[2] = (Me.DimArrowSize + d) '* invertida            ' X0
+        eOblique1.P[4] = (Me.DimArrowSize + d) '* invertida           ' X0
+        eOblique1.P[6] = d '* invertida    ' X0
 
         eOblique2.P[0] = 0           ' X0
-        eOblique2.P[2] = -Me.DimArrowSize
-        eOblique2.P[4] = -Me.DimArrowSize
+        eOblique2.P[2] = -Me.DimArrowSize '* invertida
+        eOblique2.P[4] = -Me.DimArrowSize '* invertida
         eOblique2.P[6] = 0           ' X0
 
         ' el texto va afuera
-        eText.P[0] = d + Me.DimArrowSize / 2
+        eText.P[0] = (d + Me.DimArrowSize / 2) '* invertida
         eText.P[1] = Me.DimArrowWidth
 
     Else                                                                ' entra
-        eOblique1.P[0] = 0           ' X0
-        eOblique1.P[2] = Me.DimArrowSize
-        eOblique1.P[4] = Me.DimArrowSize
-        eOblique1.P[6] = 0           ' X0
+        eOblique1.P[0] = 0 * invertida ' X0
+        eOblique1.P[2] = Me.DimArrowSize * invertida
+        eOblique1.P[4] = Me.DimArrowSize * invertida
+        eOblique1.P[6] = 0 * invertida ' X0
 
-        eOblique2.P[0] = d           ' X0
-        eOblique2.P[2] = -Me.DimArrowSize + d           ' X0
-        eOblique2.P[4] = -Me.DimArrowSize + d           ' X0
-        eOblique2.P[6] = d           ' X0
+        eOblique2.P[0] = d '* invertida ' X0
+        eOblique2.P[2] = -Me.DimArrowSize * invertida + d            ' X0
+        eOblique2.P[4] = -Me.DimArrowSize * invertida + d            ' X0
+        eOblique2.P[6] = d '* invertida            ' X0
 
         ' el texto va adentro
-        eText.P[0] = d / 2 - flxTextExt[2] / 2
+        eText.P[0] = (d / 2 - flxTextExt[2] / 2) '* invertida
         eText.P[1] = Me.DimArrowWidth
 
     End If
@@ -315,6 +350,12 @@ Public Sub ReBuildBlock(ELEM As Entity) As Block
     eOblique2.P[7] = Me.extension           ' X0
 
     ' End If
+
+    ' ' Traslado todo
+    ' For Each e As Entity In newBlock.entities
+    '     e.classhandler.translate(dX, dY)
+    ' Next
+
     Return newBlock
 
 End
