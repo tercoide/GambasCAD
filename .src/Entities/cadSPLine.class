@@ -53,6 +53,14 @@ Public Const ipaFlag As Integer = 7
 Public Const ipaTang1 As Integer = 8
 Public Const ipaTang2 As Integer = 9
 
+
+' nuevas mar/21
+Public g_num_cvs As Integer = 7
+Public g_degree As Integer = 3
+Public g_order As Integer = g_degree + 1
+Public g_num_knots As Integer = g_num_cvs + g_order
+Public LOD = 20
+
 Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
 
     If eBuild.fParam.Count = 0 Then clsEntities.setEntity(eBuild)
@@ -808,7 +816,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
         If sClaves[i] = "23" Then Ptang2.Add(CFloat(sValues[i]))
 
     Next
-
+    Gsl.
     ' con todos los datos recabados, armo el array
 
     If Ptang1.Count > 0 Then
@@ -835,5 +843,56 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     ' catch
 
     Return False
+
+End
+
+
+
+Private Function CoxDeBoor(u As Float, i As Float, k As Float, Knots As Float[]) As Float
+
+    If (k = 1) Then
+
+        If((Knots[i] <= u) And (u <= Knots[i + 1]) Then
+        Return 1.0
+    Else
+        Return 0.0
+    End If
+
+    Dim Den1 As Float = Knots[i + k - 1] - Knots[i]
+    Dim Den2 As Float = Knots[i + k] - Knots[i + 1]
+    Dim Eq1, Eq2 As Float
+    If (Den1 > 0) Then
+        Eq1 = ((u - Knots[i]) / Den1) * CoxDeBoor(u, i, k - 1, Knots)
+    End If
+    If (Den2 > 0) Then
+        Eq2 = (Knots[i + k] - u) / Den2 * CoxDeBoor(u, i + 1, k - 1, Knots)
+    End If
+    Return Eq1 + Eq2
+
+End
+
+' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -GetOutpoint()
+
+Public Sub GetOutpoint(t As Float, OutPoint As Float[])
+
+    ' sum the effect Of all CV 's on the curve at this point to
+    ' get the evaluated curve point
+    Dim i As Integer
+    Dim fVal As Float
+
+    For i = 0 To i = g_num_cvs - 1
+
+        ' calculate the effect Of this point On the curve
+
+        fVal = CoxDeBoor(t, i, g_order, g_Knots)
+
+        If (fVal > 0.001) Then
+
+            ' sum effect Of CV On this part Of the curve
+            OutPoint[0] += fVal * g_Points[i][0];
+            OutPoint[1] += fVal * g_Points[i][1];
+            OutPoint[2] += fVal * g_Points[i][2];
+        End If
+    Next
 
 End
