@@ -65,34 +65,71 @@ Public Knots As New Float[]
 
 Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
 
-    If eBuild.fParam.Count = 0 Then clsEntities.setEntity(eBuild)
+    Dim fKnots As New Float[]
 
+    Dim i As Integer
+
+    If eBuild.fParam.Count = 0 Then
+
+        clsEntities.setEntity(eBuild)
+
+
+    Endif
     eBuild.fParam[Me.ipaDegree] = 2
+
 
     If vParam[0] = "point" Then
         eBuild.DrawAble = True
 
         eBuild.P[eBuild.P.Max - 1] = vParam[1]
         eBuild.P[eBuild.P.Max] = vParam[2]
-
+        GoSub DoKnots
         If definitive Then
 
             eBuild.P.Insert(eBuild.P.Copy(eBuild.P.Max - 1, 2))
+            GoSub DoKnots
             Return True
         End If
     Else If vParam[0] = "close" Then
         If eBuild.P.Count > 4 Then eBuild.P.Remove(eBuild.P.Max - 1, 2)
-        eBuild.fParam[0] = 1
+
         Return True
 
     Else If vParam[0] = "undo" Then
-        If eBuild.P.Count > 4 Then eBuild.P.Remove(eBuild.P.Max - 1, 2)
-        eBuild.fParam[0] = 0
+        If eBuild.P.Count > 4 Then
+            eBuild.P.Remove(eBuild.P.Max - 1, 2)
+            GoSub DoKnots
+        End If
+
         Return True
 
     Endif
 
+DoKnots:
+
+    fKnots.Clear
+
+    fKnots.Add(0)
+    fKnots.Add(0)
+    fKnots.Add(0)
+
+    If eBuild.P.Count / 2 > 3 Then
+        For i = 1 To eBuild.P.count / 2 - 3
+            fKnots.Add(i / ((eBuild.P.count / 2 - 2)))
+        Next
+    End If
+    fKnots.Add(1)
+    fKnots.Add(1)
+    fKnots.Add(1)
+
+    eBuild.fParam.Remove(Me.TotalParams, eBuild.fParam.Count - Me.TotalParams)
+    eBuild.fParam.Insert(fKnots.Copy(), Me.TotalParams)
+
+    Return
+
+
 End
+
 
 Public Sub Translate(e As Entity, dX As Float, dY As Float, Optional OnlySelected As Boolean = False)
 
@@ -919,6 +956,13 @@ Public Sub Draw(oE As Entity)
     Dim OutPoint As New Float[]
     Dim i As Integer
     Dim t As Float
+
+    If oe.P.Count = 2 Then Return
+
+    If oe.P.Count = 4 Then
+        cadLine.Draw(oe)
+        Return
+    End If
 
     g_degree = oe.fParam[Me.ipaDegree] ' 2 o 3
     g_order = g_degree + 1
