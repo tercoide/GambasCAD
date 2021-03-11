@@ -74,8 +74,19 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
         clsEntities.setEntity(eBuild)
 
 
+
     Endif
-    eBuild.fParam[Me.ipaDegree] = 2
+    eBuild.fParam[Me.ipaFlag] = 8
+    ' 70' Spline flag(bit coded):
+    ' 1 = Closed spline
+    ' 2 = Periodic spline
+    ' 4 = Rational spline
+    ' 8 = Planar
+    ' 16 = Linear(planar bit Is Also set)
+    eBuild.fParam[Me.ipaDegree] = 2 'quadrtic; 3 = cubic
+    eBuild.fParam[Me.ipaKnotTolerance] = 0.0000001
+    eBuild.fParam[Me.ipaControlTolerance] = 0.0000001
+    eBuild.fParam[Me.ipaFitTolerance] = 0.0000000001
 
 
     If vParam[0] = "point" Then
@@ -124,6 +135,8 @@ DoKnots:
 
     eBuild.fParam.Remove(Me.TotalParams, eBuild.fParam.Count - Me.TotalParams)
     eBuild.fParam.Insert(fKnots.Copy(), Me.TotalParams)
+
+    eBuild.fParam[Me.ipaTotalKnots] = fKnots.Count
 
     Return
 
@@ -818,6 +831,38 @@ End
 '     Next
 '
 ' End
+
+Public Sub ExportDXFCol(e As Entity, ByRef cExport As Collection) As Boolean
+
+    Dim i As Integer
+
+    cExport.Add("SPLINE", dxf.codEntity)
+    clsEntities.DXFExportCommonCol(e, cExport)
+    cExport.Add("AcDbSpline", "100")
+    cExport.Add(CStr(e.fParam[Me.ipaFlag]), "70")
+    ' 70' Spline flag(bit coded):
+    ' 1 = Closed spline
+    ' 2 = Periodic spline
+    ' 4 = Rational spline
+    ' 8 = Planar
+    ' 16 = Linear(planar bit Is Also set)
+    cExport.Add(CStr(e.fParam[Me.ipaDegree]), "71")                 ' 2 = quadrtic; 3 = cubic
+    cExport.Add(CStr(e.fParam[Me.ipaTotalKnots]), "72")
+    cExport.Add(CStr(e.fParam[Me.ipaTotalControlPoints]), "73")
+    cExport.Add(CStr(e.fParam[Me.ipaTotalFitPoints]), "74")
+    cExport.Add(CStr(e.fParam[Me.ipaKnotTolerance]), "42")          ' 0.0000001
+    cExport.Add(CStr(e.fParam[Me.ipaControlTolerance]), "43")       ' 0.0000001
+    cExport.Add(CStr(e.fParam[Me.ipaFitTolerance]), "44")           ' 0.0000000001
+    For i = 1 To e.fParam[Me.ipaTotalKnots]
+        cExport.Add(CStr(e.fParam[Me.TotalParams + i - 1]), "40" & "_" & CStr(i))
+    Next
+    For i = 0 To e.p.Max Step 2
+        cExport.Add(CStr(e.p[i]), dxf.codX0 & "_" & CStr(i / 2))
+        cExport.Add(CStr(e.p[i + 1]), dxf.codY0 & "_" & CStr(i / 2))
+        cExport.Add("0", dxf.codZ0 & "_" & CStr(i / 2))
+    Next
+
+End
 
 Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
 
