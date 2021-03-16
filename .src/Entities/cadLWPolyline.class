@@ -52,14 +52,20 @@ Public Const DXF_Reading As Boolean = True
 Public Const DXF_Export As Boolean = True
 
 ' fParam helpers
-Public Const TotalParams As Integer = 1
+Public Const TotalParams As Integer = 4
 Public Const ipaPolylineClosed As Integer = 0
+Public Const ipaBulged As Integer = 1
+Public Const ipaReserved2 As Integer = 2
+Public Const ipaBulges As Integer = 3  ' en adelante
+
 
 ' The entity handler receives a user action, and returns the number of expected parameter
 ' If definitive = true, means the parameter is set
 Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
 
-    If eBuild.fParam.Count = 0 Then eBuild.fParam.Add(0)
+    If eBuild.fParam.Count = 0 Then
+        clsEntities.setEntity(eBuild)
+    End If
 
     If vParam[0] = "point" Then
         eBuild.DrawAble = True
@@ -135,7 +141,82 @@ Public Sub Draw(oE As Entity)
 
     If oe.fParam.Count = 0 Then oe.fParam.Add(0)
 
-    GLplus.PolyLines(oE.p, oE.ColorToPaint, oE.LineWidth, oe.linetype.Index, oe.fParam[Me.ipaPolylineClosed])
+
+    ' version con bulges
+    Dim ang1, mx, my, B, bx, by, Lt As Float
+    Dim i As Integer
+    Dim fArcParams As Float[]
+
+    If oe.fParam[Me.ipaBulged] = True Then
+
+        For i = 0 To oe.P.Count / 2 - 2
+            If Abs(oe.fParam[Me.ipaBulges + i]) > 0.001 Then
+                ang1 = Ang(oe.P[(i + 1) * 2] - oe.P[i * 2], oe.P[(i + 1) * 2 + 1] - oe.P[i * 2 + 1])    ' angulo del tramo
+                Lt = puntos.distancia(oe.P[i * 2], oe.P[i * 2 + 1], oe.P[(i + 1) * 2], oe.P[(i + 1) * 2 + 1])
+                If Lt = 0 Then Continue
+                mx = (oe.P[(i + 1) * 2] + oe.P[i * 2]) / 2          ' punto medio del tramo
+                my = (oe.P[(i + 1) * 2 + 1] + oe.P[i * 2 + 1]) / 2
+                B = oe.fParam[Me.ipaBulges + i] * Lt / 2
+                bx = mx + B * Sin(ang1)                             ' Tercer punto del Bulge
+                by = my - B * Cos(ang1)
+
+                gl.PointSize(2)
+                gl.Begin(gl.POINTS)
+                gl.Vertex2f(oe.P[i * 2], oe.P[i * 2 + 1])
+                'gl.Vertex2f(bx, by)
+                gl.Vertex2f(oe.P[(i + 1) * 2], oe.P[(i + 1) * 2 + 1])
+
+                ' aqui podria usar una rutina de arco entre 3 puntos
+                fArcParams = puntos.Arc3Point(oe.P[i * 2], oe.P[i * 2 + 1], bx, by, oe.P[(i + 1) * 2], oe.P[(i + 1) * 2 + 1])
+                ' traslado el centro
+
+                gl.Vertex2f(fArcParams[0], fArcParams[1])
+                gl.End
+                gl.Translatef(fArcParams[0], fArcParams[1], 0)
+
+                ' verifico Start_Angle y End_Angle
+                If fArcParams[3] > 0 And fArcParams[4] > 0 Then
+
+
+                Else If fArcParams[3] > 0 And fArcParams[4] < 0 Then
+                    
+                    Swap fArcParams[3], fArcParams[4]
+                    ' fArcParams[4] += 2 * Pi
+                    '
+                    ' fArcParams[3] = 0
+                    ' fArcParams[4] = 0
+
+
+                Else If fArcParams[3] < 0 And fArcParams[4] < 0 Then
+                    fArcParams[3] += 2 * Pi
+                    fArcParams[4] += 2 * Pi
+
+                Else If fArcParams[3] < 0 And fArcParams[4] > 0 Then
+                    fArcParams[3] += 2 * Pi
+
+
+                Endif
+
+                If fArcParams[3] > fArcParams[4] Then Swap fArcParams[3], fArcParams[4]
+
+
+                Debug fArcParams[3], fArcParams[4]
+                'If fArcParams[3] > fArcParams[4] Then Stop
+                glPlus.Arc(fArcParams[2], fArcParams[3], fArcParams[4] - fArcParams[3], oE.ColorToPaint, oE.LineWidth, oe.linetype.Index)
+                gl.Translatef(-fArcParams[0], -fArcParams[1], 0)
+                fArcParams = Null
+
+            Else    ' dibujo la linea normalmente
+
+                glPlus.Lines([oe.P[i * 2], oe.P[i * 2 + 1], oe.P[(i + 1) * 2], oe.P[(i + 1) * 2 + 1]], oE.ColorToPaint, oE.LineWidth, oe.linetype.Index)
+            End If
+
+        Next
+    Else
+
+        GLplus.PolyLines(oE.p, oE.ColorToPaint, oE.LineWidth, oe.linetype.Index, oe.fParam[Me.ipaPolylineClosed])
+
+    End If
 
 End
 
@@ -262,16 +343,29 @@ End
 Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
 
     Dim i As Integer
+    Dim FirstBulge As Boolean
+
+    clsEntities.setEntity(e)
 
     For i = 0 To sClaves.Max
 
         'If sClaves[i] = "90" Then mPolyLine.vertexcount = Val(sValues[i])
-        If sClaves[i] = "70" Then e.fParam.Add(CInt(sValues[i]))       ' 0 = abierta, 1 = cerrada
+        If sClaves[i] = "70" Then e.fParam[Me.ipaPolylineClosed] = CInt(sValues[i])       ' 0 = abierta, 1 = cerrada
         If sClaves[i] = "10" Then e.p.Add(CFloat(sValues[i]))
         If sClaves[i] = "20" Then e.p.Add(CFloat(sValues[i]))
 
+        If sClaves[i] = "42" Then
+            If Not FirstBulge Then
+                e.fParam[Me.ipaBulged] = True
+                e.fParam[Me.ipaBulges] = CFloat(sValues[i])
+                FirstBulge = True
+
+            Else
+                e.fParam.Add(CFloat(sValues[i])) ' bulges, one per trame
+            Endif
+        End If
     Next
-    If e.fParam.Count = 0 Then e.fParam.Add(0)
+
     If e.fParam[0] = 1 And e.p.Count > 0 Then ' agrego el primer punto de nuevo
         e.p.Add(e.p[0])
         e.p.Add(e.p[1])
