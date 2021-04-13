@@ -150,6 +150,9 @@ Public Sub Draw(oE As Entity)
     If oe.fParam[Me.ipaBulged] = True Then
 
         For i = 0 To oe.P.Count / 2 - 2
+
+            ' no todos los tramos pueden tener bulges
+
             If Abs(oe.fParam[Me.ipaBulges + i]) > 0.001 Then
                 ang1 = Ang(oe.P[(i + 1) * 2] - oe.P[i * 2], oe.P[(i + 1) * 2 + 1] - oe.P[i * 2 + 1])    ' angulo del tramo
                 Lt = puntos.distancia(oe.P[i * 2], oe.P[i * 2 + 1], oe.P[(i + 1) * 2], oe.P[(i + 1) * 2 + 1])
@@ -346,6 +349,8 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
     Dim i As Integer
     Dim FirstBulge As Boolean
+    Dim NewTrame As Boolean
+    Dim BulgeAdded As Boolean
 
     clsEntities.setEntity(e)
 
@@ -353,8 +358,20 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
         'If sClaves[i] = "90" Then mPolyLine.vertexcount = Val(sValues[i])
         If sClaves[i] = "70" Then e.fParam[Me.ipaPolylineClosed] = CInt(sValues[i])       ' 0 = abierta, 1 = cerrada
-        If sClaves[i] = "10" Then e.p.Add(CFloat(sValues[i]))
+        If sClaves[i] = "10" Then
+            e.p.Add(CFloat(sValues[i]))
+            NewTrame = True
+            If e.fParam[Me.ipaBulged] = True Then ' this poly has bulges
+                If Not BulgeAdded Then
+                    e.fParam.Add(0) ' faux bulge
+                Endif
+                BulgeAdded = False
+
+
+            End If
+        End If
         If sClaves[i] = "20" Then e.p.Add(CFloat(sValues[i]))
+
 
         If sClaves[i] = "42" Then
             If Not FirstBulge Then
@@ -364,7 +381,10 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
             Else
                 e.fParam.Add(CFloat(sValues[i])) ' bulges, one per trame
+                BulgeAdded = True
+
             Endif
+            NewTrame = False
         End If
     Next
 
