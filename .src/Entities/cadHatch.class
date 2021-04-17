@@ -116,7 +116,7 @@ Public Function BuildPOI(oE As Entity, Optional arrIndex As Integer = -1) As Int
 
     If arrIndex < 0 Then arrIndex = gcd.CurrDrawing.arrEntities.Max       ' si este valor no es provisto , estos POI son de la ultima entidad
     Dim i As Integer
-
+    Return
     oe.PoiPoints.Clear
     oe.poiPoints.insert([oE.P[0], oE.P[1]])
     oe.poiType.Add(gcd.poiEndPoint)
@@ -282,73 +282,124 @@ End
 
 Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
 
-    Dim i As Integer
+    Dim i, iLoop As Integer
     Dim LoopToRead As Integer
     Dim LoopType As Integer
     Dim EdgesToRead As Integer
     Dim EdgeType As Integer
-
-
+    Dim eContour As Entity
 
     Me.setEntity(e)
 
-    For i = 0 To sClaves.Max
-        If LoopToRead > 0 Then
-            ' estas claves definen el borde
-            If sClaves[i] = "92" Then LoopType = CFloat(sValues[i])
-            If LoopType <> 2 Then ' otherwise is a polyline
-                If sClaves[i] = "93" Then EdgesToRead = CFloat(sValues[i])
-                If EdgesToRead > 0 Then
-                    If sClaves[i] = "72" Then EdgeType = CFloat(sValues[i])
+    ' vamos a agrupar las entidades que forman el contorno en un bloque
+    e.pBlock = New Block
+    e.pBlock.entities = New Entity[]
 
-                    ' segun el tipo de edge, leo..
-                    Select Case EdgeType
-                        Case 0  ' invalido
+    'For i = 0 To sClaves.Max
+    i = -1
+    Do While i < sClaves.max    ' en este importador usare un do-loop en vez de un for-next por la complejidad del hatch
+        Inc i
 
-                        Case 1 ' lines
-
-                        Case 2 ' arc o circle
-
-                        Case 3 ' ellipse
-
-                        Case 4 ' spline
-
-
-                    End Select
-
-                End If
-
-
-
-                Continue
-            Endif
-
-            If sClaves[i] = "2" Then e.StringData[Me.sdaPattern] = sValues[i] ' hach file
-
-            If sClaves[i] = "70" Then e.fParam[Me.ipaSolid] = CFloat(sValues[i])
-            If sClaves[i] = "71" Then e.fParam[Me.ipaAsociativity] = CFloat(sValues[i])
-            If sClaves[i] = "72" Then e.fParam[Me.ipaBoundaryType] = CFloat(sValues[i])
-            If sClaves[i] = "91" Then
-                e.fParam[Me.ipaTotalLoops] = CFloat(sValues[i])
-                LoopToRead = e.fParam[Me.ipaTotalLoops]
-            End If
-
-            If sClaves[i] = "52" Then e.fParam[Me.ipaRotation] = CFloat(sValues[i])
-            If sClaves[i] = "41" Then
-                e.fParam[Me.ipaScale] = CFloat(sValues[i])
-
-            End If
-            If sClaves[i] = "75" Then e.fParam[Me.ipaParity] = CFloat(sValues[i])
-            If sClaves[i] = "76" Then e.fParam[Me.ipaPatternType] = CFloat(sValues[i])
-
-            ' boundary
-            If e.fParam[Me.ipaTotalLoops] Then
-                If sClaves[i] = "10" Then e.p.Add(CFloat(sValues[i]))
-                If sClaves[i] = "20" Then e.p.Add(CFloat(sValues[i]))
-            End If
+        If sClaves[i] = "91" Then
+            e.fParam[Me.ipaTotalLoops] = CFloat(sValues[i])
+            LoopToRead = e.fParam[Me.ipaTotalLoops]
         End If
 
-    Next
+        If LoopToRead > 0 Then
+
+            For iLoop = 0 To LoopToRead - 1
+                ' estas claves definen el borde
+                If sClaves[i] = "92" Then LoopType = CFloat(sValues[i])
+                If LoopType <> 2 Then ' otherwise is a polyline
+                    If sClaves[i] = "93" Then EdgesToRead = CFloat(sValues[i])
+                    If EdgesToRead > 0 Then
+                        If sClaves[i] = "72" Then
+                            EdgeType = CFloat(sValues[i])
+
+                            ' segun el tipo de edge, agrego una entidad al bloque que
+                            ' forma el contorno
+                            eContour = New Entity
+                            ' a esta entidad que es un borde le etiquetamos el loop al que pertenece
+                            eContour.Group = iLoop
+
+                            e.pBlock.entities.Add(eContour)
+                            Select Case EdgeType
+                                Case 0  ' invalido
+
+                                Case 1 ' lines
+                                    eContour.ClassHandler = cadLine
+                                    ' leo los dos puntos
+                                    Inc i
+                                    If sClaves[i] = "10" Then eContour.P.Add(CFloat(sValues[i]))
+                                    Inc i
+                                    If sClaves[i] = "20" Then eContour.P.Add(CFloat(sValues[i]))
+                                    Inc i
+                                    If sClaves[i] = "11" Then eContour.P.Add(CFloat(sValues[i]))
+                                    Inc i
+                                    If sClaves[i] = "21" Then eContour.P.Add(CFloat(sValues[i]))
+                                Case 2 ' arc o circle
+                                    e.ClassHandler = cadArc
+                                    Inc i
+                                    If sClaves[i] = "10" Then eContour.P.Add(CFloat(sValues[i]))
+                                    Inc i
+                                    If sClaves[i] = "20" Then eContour.P.Add(CFloat(sValues[i]))
+                                    Inc i
+                                    If sClaves[i] = "40" Then eContour.fParam.Add(CFloat(sValues[i]))
+                                    Inc i
+                                    If sClaves[i] = "50" Then eContour.fParam.Add(CFloat(sValues[i]))
+                                    Inc i
+                                    If sClaves[i] = "51" Then eContour.fParam.Add(CFloat(sValues[i]))
+
+                                Case 3 ' ellipse
+                                    e.ClassHandler = cadEllipse
+                                    Inc i
+                                    If sClaves[i] = "10" Then eContour.P.Add(CFloat(sValues[i]))     ' centro
+                                    Inc i
+                                    If sClaves[i] = "20" Then eContour.P.Add(CFloat(sValues[i]))
+                                    Inc i
+                                    If sClaves[i] = "11" Then eContour.P.Add(CFloat(sValues[i]) + e.P[0])     ' eje mayor, relativo al centro
+                                    Inc i
+                                    If sClaves[i] = "21" Then eContour.P.Add(CFloat(sValues[i]) + e.P[1])
+                                    Inc i
+                                    If sClaves[i] = "40" Then eContour.fParam.Add(CFloat(sValues[i]))
+                                    Inc i
+                                    If sClaves[i] = "41" Then eContour.fParam.Add(CFloat(sValues[i]) * 180 / Pi)
+                                    Inc i
+                                    If sClaves[i] = "42" Then eContour.fParam.Add(CFloat(sValues[i]) * 180 / Pi)
+                            End Select
+                        End If
+
+                    End If
+
+                    Continue
+
+                Else ' read the polyline loop
+
+                Endif
+            Next
+
+        End If
+        If sClaves[i] = "2" Then e.StringData[Me.sdaPattern] = sValues[i] ' hach file
+
+        If sClaves[i] = "70" Then e.fParam[Me.ipaSolid] = CFloat(sValues[i])
+        If sClaves[i] = "71" Then e.fParam[Me.ipaAsociativity] = CFloat(sValues[i])
+        If sClaves[i] = "72" Then e.fParam[Me.ipaBoundaryType] = CFloat(sValues[i])
+
+        If sClaves[i] = "52" Then e.fParam[Me.ipaRotation] = CFloat(sValues[i])
+        If sClaves[i] = "41" Then
+            e.fParam[Me.ipaScale] = CFloat(sValues[i])
+
+        End If
+        If sClaves[i] = "75" Then e.fParam[Me.ipaParity] = CFloat(sValues[i])
+        If sClaves[i] = "76" Then e.fParam[Me.ipaPatternType] = CFloat(sValues[i])
+
+        ' boundary
+        If e.fParam[Me.ipaTotalLoops] Then
+            If sClaves[i] = "10" Then e.p.Add(CFloat(sValues[i]))
+            If sClaves[i] = "20" Then e.p.Add(CFloat(sValues[i]))
+        End If
+
+    Loop
 
     If e.fParam[Me.ipaSolid] Then
         e.StringData[Me.sdaPaternFile] = "Solid"
@@ -362,8 +413,6 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
     Return False
 
-
 LoopImport:
-
 
 End

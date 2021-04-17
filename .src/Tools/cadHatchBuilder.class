@@ -157,11 +157,12 @@ Public Sub FillEntityWithHatch(entToFill As Entity)
     Dim ny As Integer
     Dim ie As Integer
     Dim flxPatternLimits As Float[]
-
+    Dim iLoop As Integer
     Dim enxPattern As New Entity[]
     Dim cPattern As New Collection
-
-    GetBoundLimits(entToFill)    ' veo los limites del contorno
+    Dim enxPatternTotal As New Entity[]
+    Dim eBorder As Entity
+    Dim CorrectionScale As Float = 0.1
 
     ' cargo el sombreado en un array auxiliar
     Dxf.LoadFile(entToFill.StringData[cadHatch.sdaPaternFile], cPattern, True, True, True) ' lo cargo
@@ -174,44 +175,145 @@ Public Sub FillEntityWithHatch(entToFill As Entity)
     ' los patrones son cuadrados, computo el lado
     fPatternSide = 100 ' flxPatternLimits[2] - flxPatternLimits[0]
 
-    ' calculo cuantos patrones necesito
-    iPatternNx = (Xmayor - Xmenor) / fPAtternSide / entToFill.fParam[cadHatch.ipaScale] + 1
-    iPatternNy = (ymayor - ymenor) / fPAtternSide / entToFill.fParam[cadHatch.ipaScale] + 1
+    For iLoop = 0 To entToFill.fParam[cadHatch.ipaTotalLoops] - 1
 
-    ' creo un array para el sombreado total
-    Dim enxPatternTotal As New Entity[]
-    For nx = 0 To iPatternNx - 1
-        For ny = 0 To iPatternNy - 1
-            For ie = 0 To enxPattern.Max
-                enxPatternTotal.Add(clsEntities.ClonEntity(enxPattern[ie]))
-                enxPatternTotal.Last.ClassHandler.scale(enxPatternTotal.Last, entToFill.fParam[cadHatch.ipaScale], entToFill.fParam[cadHatch.ipaScale])
-                enxPatternTotal.Last.ClassHandler.translate(enxPatternTotal.Last, nx * fPAtternSide * entToFill.fParam[cadHatch.ipaScale] + Xmenor, ny * fPAtternSide * entToFill.fParam[cadHatch.ipaScale] + ymenor)
-                enxPatternTotal.Last.ClassHandler.Finish(enxPatternTotal.Last)
+        ' armo ese contorno
+        entToFill.P.Clear
+
+        For Each eBorder In entToFill.pBlock.entities
+            If eborder.Group = iLoop Then
+                If eBorder.ClassHandler.Gender <> cadLine.Gender Then
+                    eBorder.ClassHandler.makepolyine(eborder)
+                    entToFill.P.Insert(eborder.PolyLine.Copy())
+                Else
+                    entToFill.P.Insert(eborder.P.Copy(2, 2))
+                    ' entToFill.P.Insert(eborder.P.Copy())
+                Endif
+            End If
+        Next
+
+        GetBoundLimits(entToFill)    ' veo los limites del contorno
+
+        ' calculo cuantos patrones necesito
+        iPatternNx = (Xmayor - Xmenor) / fPAtternSide / entToFill.fParam[cadHatch.ipaScale] / CorrectionScale + 1
+        iPatternNy = (ymayor - ymenor) / fPAtternSide / entToFill.fParam[cadHatch.ipaScale] / CorrectionScale + 1
+
+        ' creo un array para el sombreado total
+
+        For nx = 0 To iPatternNx - 1
+            For ny = 0 To iPatternNy - 1
+                For ie = 0 To enxPattern.Max
+                    enxPatternTotal.Add(clsEntities.ClonEntity(enxPattern[ie]))
+
+                    '                    enxPatternTotal.Last.ClassHandler.scale(enxPatternTotal.Last, entToFill.fParam[cadHatch.ipaScale] / fPAtternSide, entToFill.fParam[cadHatch.ipaScale] / fPAtternSide)
+
+                    enxPatternTotal.Last.ClassHandler.scale(enxPatternTotal.Last, entToFill.fParam[cadHatch.ipaScale] * CorrectionScale, entToFill.fParam[cadHatch.ipaScale] * CorrectionScale)
+
+                    enxPatternTotal.Last.ClassHandler.translate(enxPatternTotal.Last, nx * fPAtternSide * entToFill.fParam[cadHatch.ipaScale] * CorrectionScale + Xmenor, ny * fPAtternSide * entToFill.fParam[cadHatch.ipaScale] * CorrectionScale + ymenor)
+
+                    enxPatternTotal.Last.ClassHandler.Finish(enxPatternTotal.Last)
+                Next
             Next
         Next
+
+        ' ahora tengo que filtrar las entidades que quedan fuera del contorno y generar lineas sueltas que forman
+        ' el sombreado (por ahora seran solo lineas)
+        ' esas lineas las acumulo en un array
+
+        For Each e In enxPatternTotal
+
+            Select Case e.Gender
+                Case "Line", "LWPolyline"
+                    entToFill.PolyLine.Insert(puntos.PolyPolyIntersection(e.p, entToFill.p))
+
+                    ' this is test to see if the pattern is made correctly
+                    'entToFill.PolyLine.Insert(e.p.Copy())
+
+                Case "Circle", "Arc", "Ellipse"
+                    ' estas entidades deben dibujarse primero
+                    e.ClassHandler.Draw(e)
+                    entToFill.PolyLine.Insert(puntos.PolyPolyIntersection(e.PolyLine, entToFill.p))
+            End Select
+
+        Next
+        ' en este momento tengo el hatch, tengo q guardar estas lineas en algun lugar
+        ' (o no)
+        ' op.PolyLine podria ser
     Next
-
-    ' ahora tengo que filtrar las entidades que quedan fuera del contorno y generar lineas sueltas que forman
-    ' el sombreado (por ahora seran solo lineas)
-    ' esas lineas las acumulo en un array
-
-    For Each e In enxPatternTotal
-
-        Select Case e.Gender
-            Case "Line", "LWPolyline"
-                entToFill.PolyLine.Insert(puntos.PolyPolyIntersection(e.p, entToFill.p))
-            Case "Circle", "Arc", "Ellipse"
-                ' estas entidades deben dibujarse primero
-                e.ClassHandler.Draw(e)
-                entToFill.PolyLine.Insert(puntos.PolyPolyIntersection(e.PolyLine, entToFill.p))
-        End Select
-
-    Next
-    ' en este momento tengo el hatch, tengo q guardar estas lineas en algun lugar
-    ' (o no)
-    ' op.PolyLine podria ser
 
 End
+
+' Public Sub FillEntityWithHatch(entToFill As Entity)
+'
+'     ' Parametros de la entidad:
+'
+'     ' P[]:        son los puntos de la polilinea que define el contorno del sombreado
+'     ' fParam[0]:  escala del sombreado
+'     ' fParam[1]:  angulo
+'     ' StringData[0]: nombre del patron del sombreado
+'
+'     Dim e As New Entity
+'     Dim fPAtternSide As Float
+'     Dim iPatternNx, iPatternNy As Integer
+'     Dim nx As Integer
+'     Dim ny As Integer
+'     Dim ie As Integer
+'     Dim flxPatternLimits As Float[]
+'
+'     Dim enxPattern As New Entity[]
+'     Dim cPattern As New Collection
+'
+'     GetBoundLimits(entToFill)    ' veo los limites del contorno
+'
+'     ' cargo el sombreado en un array auxiliar
+'     Dxf.LoadFile(entToFill.StringData[cadHatch.sdaPaternFile], cPattern, True, True, True) ' lo cargo
+'     gcd.ImpEnty6(cPattern["ENTITIES"], enxPattern)
+'
+'     ' necesito saber cuanto mide el contorno para aplicar la escala y multiplicar hasta cubrir todo el contorno
+'
+'     flxPatternLimits = clsEntities.ComputeLimits(enxPattern)
+'
+'     ' los patrones son cuadrados, computo el lado
+'     fPatternSide = 100 ' flxPatternLimits[2] - flxPatternLimits[0]
+'
+'     ' calculo cuantos patrones necesito
+'     iPatternNx = (Xmayor - Xmenor) / fPAtternSide / entToFill.fParam[cadHatch.ipaScale] + 1
+'     iPatternNy = (ymayor - ymenor) / fPAtternSide / entToFill.fParam[cadHatch.ipaScale] + 1
+'
+'     ' creo un array para el sombreado total
+'     Dim enxPatternTotal As New Entity[]
+'     For nx = 0 To iPatternNx - 1
+'         For ny = 0 To iPatternNy - 1
+'             For ie = 0 To enxPattern.Max
+'                 enxPatternTotal.Add(clsEntities.ClonEntity(enxPattern[ie]))
+'                 enxPatternTotal.Last.ClassHandler.scale(enxPatternTotal.Last, entToFill.fParam[cadHatch.ipaScale], entToFill.fParam[cadHatch.ipaScale])
+'                 enxPatternTotal.Last.ClassHandler.translate(enxPatternTotal.Last, nx * fPAtternSide * entToFill.fParam[cadHatch.ipaScale] + Xmenor, ny * fPAtternSide * entToFill.fParam[cadHatch.ipaScale] + ymenor)
+'                 enxPatternTotal.Last.ClassHandler.Finish(enxPatternTotal.Last)
+'             Next
+'         Next
+'     Next
+'
+'     ' ahora tengo que filtrar las entidades que quedan fuera del contorno y generar lineas sueltas que forman
+'     ' el sombreado (por ahora seran solo lineas)
+'     ' esas lineas las acumulo en un array
+'
+'     For Each e In enxPatternTotal
+'
+'         Select Case e.Gender
+'             Case "Line", "LWPolyline"
+'                 entToFill.PolyLine.Insert(puntos.PolyPolyIntersection(e.p, entToFill.p))
+'             Case "Circle", "Arc", "Ellipse"
+'                 ' estas entidades deben dibujarse primero
+'                 e.ClassHandler.Draw(e)
+'                 entToFill.PolyLine.Insert(puntos.PolyPolyIntersection(e.PolyLine, entToFill.p))
+'         End Select
+'
+'     Next
+'     ' en este momento tengo el hatch, tengo q guardar estas lineas en algun lugar
+'     ' (o no)
+'     ' op.PolyLine podria ser
+'
+' End
 
 Public Sub GetBoundLimits(e As Entity)
 
