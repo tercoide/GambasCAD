@@ -634,9 +634,14 @@ Public Function LinePolyIntersection(flxLine As Float[], flxPoly As Float[]) As 
 
     If flxIntersections.Count > 0 Then
 
-        If FirstInside Xor (flxLine[0] = flxIntersections[0] And flxLine[1] = flxIntersections[1]) Then
-            flxRta.Insert(flxLine.Copy(0, 2))
+        If FirstInside Then
+            If Not EqualPoints(flxLine[0], flxLine[1], flxIntersections[0], flxIntersections[1]) Then
 
+                If Not EqualPoints(flxLine[0], flxLine[1], flxIntersections[flxIntersections.Max - 1], flxIntersections[flxIntersections.Max]) Then
+
+                    flxRta.Insert(flxLine.Copy(0, 2))
+                End If
+            End If
         End If
 
         ' y luego agrego todas las intersecciones
@@ -644,9 +649,10 @@ Public Function LinePolyIntersection(flxLine As Float[], flxPoly As Float[]) As 
 
         ' si el ultimo punto esta adentro, pero no se da el caso particular que coincide con parte de la polilinea, lo agrego
         If LastInside Then
-            If (flxLine[2] <> flxIntersections[flxIntersections.Max - 1]) Or (flxLine[3] <> flxIntersections[flxIntersections.Max]) Then
-
-                flxRta.Insert(flxLine.Copy(2, 2))
+            If Not EqualPoints(flxLine[2], flxLine[3], flxIntersections[flxIntersections.Max - 1], flxIntersections[flxIntersections.Max]) Then
+                If Not EqualPoints(flxLine[2], flxLine[3], flxIntersections[0], flxIntersections[1]) Then
+                    flxRta.Insert(flxLine.Copy(2, 2))
+                End If
             End If
         End If
 
@@ -657,10 +663,27 @@ Public Function LinePolyIntersection(flxLine As Float[], flxPoly As Float[]) As 
 
     End If
 
-    If flxRta.Count = 6 Then Return []
+    If (flxRta.Count Mod 4) > 0 Then
+        ' tengo un punto repetido, posiblemente porque haya una interseccion en un
+        ' punto definitorio de la poligonal
+        ' trato de eliminar puntos iguales
+        For i = 0 To flxRta.Max - 2 Step 2
+            If EqualPoints(flxRta[i], flxRta[i + 1], flxRta[i + 2], flxRta[i + 3]) Then
+                ' remuevo uno de los dos
+                flxRta.Remove(i, 2)
+            Endif
+        Next
+    End If
     If flxRta.Count = 2 Then Return []
 
     Return flxRta
+
+End
+
+' This function is to solve floating point problems
+Public Function EqualPoints(x1 As Float, y1 As Float, x2 As Float, y2 As Float) As Boolean
+
+    If (CSingle(x1) = CSingle(x2)) And (CSingle(y1) = CSingle(y2)) Then Return True Else Return False
 
 End
 
