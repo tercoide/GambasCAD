@@ -162,7 +162,11 @@ Public Sub FillEntityWithHatch(entToFill As Entity)
     Dim cPattern As New Collection
     Dim enxPatternTotal As New Entity[]
     Dim eBorder As Entity
-    Dim CorrectionScale As Float = 1 ' 0.1
+
+    ' este valor intenta commpensar un problema de compatibilidad entre DWG y DXF
+    ' para estar de acuerdo a LibreCAD, debe ser =1, pero algunos DWG se represetan
+    ' con una densidad de relleno menor (mas disperso el relleno)
+    Dim CorrectionScale As Float = 1 '0.01 ' 0.1
 
     ' cargo el sombreado en un array auxiliar
     Dxf.LoadFile(entToFill.StringData[cadHatch.sdaPaternFile], cPattern, True, True, True) ' lo cargo
@@ -177,20 +181,7 @@ Public Sub FillEntityWithHatch(entToFill As Entity)
 
     For iLoop = 0 To entToFill.fParam[cadHatch.ipaTotalLoops] - 1
 
-        ' armo ese contorno
-        entToFill.P.Clear
-
-        For Each eBorder In entToFill.pBlock.entities
-            If eborder.Group = iLoop Then
-                If eBorder.ClassHandler.Gender <> cadLine.Gender Then
-                    eBorder.ClassHandler.makepolyine(eborder)
-                    entToFill.P.Insert(eborder.PolyLine.Copy())
-                Else
-                    entToFill.P.Insert(eborder.P.Copy(2, 2))
-                    ' entToFill.P.Insert(eborder.P.Copy())
-                Endif
-            End If
-        Next
+        MakeBorder(entToFill, iLoop)
 
         GetBoundLimits(entToFill)    ' veo los limites del contorno
 
@@ -245,6 +236,26 @@ Public Sub FillEntityWithHatch(entToFill As Entity)
         ' en este momento tengo el hatch, tengo q guardar estas lineas en algun lugar
         ' (o no)
         ' op.PolyLine podria ser
+    Next
+
+End
+
+Public Sub MakeBorder(entToFill As Entity, iLoopNumber As Integer)
+
+    Dim eBorder As Entity
+    ' armo ese contorno
+    entToFill.P.Clear
+
+    For Each eBorder In entToFill.pBlock.entities
+        If eborder.Group = iLoopNumber Then
+            If eBorder.ClassHandler.Gender <> cadLine.Gender Then
+                eBorder.ClassHandler.MakePolyline(eborder)
+                entToFill.P.Insert(eborder.PolyLine.Copy())
+            Else
+                entToFill.P.Insert(eborder.P.Copy(2, 2))
+                ' entToFill.P.Insert(eborder.P.Copy())
+            Endif
+        End If
     Next
 
 End

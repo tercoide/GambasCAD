@@ -70,6 +70,9 @@ Public Const sdaPaternFile As Integer = 1
 
 Public Sub Draw(oE As Entity)
 
+    Dim iLoop, iStart As Integer
+    Dim fBorder As New Float[]
+
     If Not oE.Visible Then Return
 
     oE.ColorToPaint = gcd.GetGBColor(oE.colour, oE.pLayer)
@@ -79,7 +82,18 @@ Public Sub Draw(oE As Entity)
         GLplus.Lines(oE.PolyLine, oE.ColorToPaint, oE.LineWidth, oE.LineType.index)
     Else
 
-        glPlus.PolygonFilled(oe.P, oe.ColorToPaint, oe.ColorToPaint)
+        ' para solidos, tengo que hacer una llamada para cada loop de borde
+        ' tengo q ver cuantos puntos tiene cada loop
+        ' Ojo con LibreCAD
+        For iLoop = 0 To oe.fParam[cadHatch.ipaTotalLoops] - 1
+            ' obtengo el poligono de bordes
+            fBorder.Clear
+            fBorder.Insert(oe.PolyLine.Copy(iStart, oe.iParam[iLoop]))
+            iStart += fBorder.Count
+
+            glPlus.TRIANGLES(puntos.PolygonTriangulation(fBorder), oE.ColorToPaint, oE.ColorToPaint)
+
+        Next
 
     End If
 
@@ -154,7 +168,23 @@ Public Sub Finish(oE As Entity) As Boolean
     ' busco el tipo de linea, si hace falta
 
     ' tareas finales de armado del objeto
-    If LCase(oe.StringData[Me.sdaPattern]) <> "solid" Then cadHatchBuilder.FillEntityWithHatch(oe)
+    Dim iLoop As Integer
+
+    If LCase(oe.StringData[Me.sdaPattern]) <> "solid" Then
+        cadHatchBuilder.FillEntityWithHatch(oe)
+    Else
+        ' esto es un poco mas complejo
+        ' tengo q ver cuantos puntos tiene cada loop
+        For iLoop = 0 To oe.fParam[cadHatch.ipaTotalLoops] - 1
+            cadHatchBuilder.MakeBorder(oe, iLoop)
+            ' en P ahora estan los puntos que definen el borde
+            oe.iParam.Add(oe.P.Count)
+            oe.PolyLine.insert(oe.P.Copy())
+            oe.P.Clear
+
+        Next
+
+    End If
 
     oE.psel.resize(oE.p.count / 2)
 
@@ -349,7 +379,8 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
                                     If sClaves[i] = "50" Then eContour.fParam.Add(CFloat(sValues[i]))
                                     Inc i
                                     If sClaves[i] = "51" Then eContour.fParam.Add(CFloat(sValues[i]))
-
+                                    Inc i
+                                    If sClaves[i] = "73" Then eContour.fParam.Add(CFloat(sValues[i]))
                                 Case 3 ' ellipse
                                     eContour.ClassHandler = cadEllipse
                                     Inc i
@@ -363,9 +394,20 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
                                     Inc i
                                     If sClaves[i] = "40" Then eContour.fParam.Add(CFloat(sValues[i]))
                                     Inc i
-                                    If sClaves[i] = "41" Then eContour.fParam.Add(CFloat(sValues[i]) * 180 / Pi)
+                                    If sClaves[i] = "50" Then eContour.fParam.Add(CFloat(sValues[i]) * 180 / Pi)
+
+                                    ' esto soluciona un proble de unidades de LibreCAD
+                                    If eContour.fParam[eContour.fParam.Max] > 2 * Pi Then
+                                        eContour.fParam[eContour.fParam.Max] /= (360 / 2 / Pi)
+                                    Endif
                                     Inc i
-                                    If sClaves[i] = "42" Then eContour.fParam.Add(CFloat(sValues[i]) * 180 / Pi)
+                                    If sClaves[i] = "51" Then eContour.fParam.Add(CFloat(sValues[i]) * 180 / Pi)
+
+                                    ' esto soluciona un proble de unidades de LibreCAD
+                                    If eContour.fParam[eContour.fParam.Max] > 2 * Pi Then
+                                        eContour.fParam[eContour.fParam.Max] /= (360 / 2 / Pi)
+                                    Endif
+
                             End Select
                         End If
 
