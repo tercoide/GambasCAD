@@ -312,7 +312,7 @@ End
 
 Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
 
-    Dim i, iLoop As Integer
+    Dim i, iLoop, iPoints, iBorderObjects As Integer
     Dim LoopToRead As Integer
     Dim LoopType As Integer
     Dim EdgesToRead As Integer
@@ -320,6 +320,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     Dim eContour As Entity
 
     Me.setEntity(e)
+    'If e.Handle = "60FA9" Then Stop
 
     ' vamos a agrupar las entidades que forman el contorno en un bloque
     e.pBlock = New Block
@@ -338,9 +339,10 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
         If LoopToRead > 0 Then
 
             For iLoop = 0 To LoopToRead - 1
+                Dec LoopToRead
                 ' estas claves definen el borde
-                If sClaves[i] = "92" Then LoopType = CFloat(sValues[i])
-                If LoopType <> 2 Then ' otherwise is a polyline
+                If sClaves[i] = "92" Then LoopType = CInt(sValues[i])
+                If (LoopType And 2) <> 2 Then ' otherwise is a polyline
                     If sClaves[i] = "93" Then EdgesToRead = CFloat(sValues[i])
                     If EdgesToRead > 0 Then
                         If sClaves[i] = "72" Then
@@ -355,6 +357,8 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
                             e.pBlock.entities.Add(eContour)
                             Select Case EdgeType
                                 Case 0  ' invalido
+
+                                    Stop
 
                                 Case 1 ' lines
                                     eContour.ClassHandler = cadLine
@@ -416,8 +420,69 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
                     Continue
 
                 Else ' read the polyline loop
+                    ' forma el contorno
+                    eContour = New Entity
+                    ' a esta entidad que es un borde le etiquetamos el loop al que pertenece
+                    eContour.Group = iLoop
+                    eContour.ClassHandler = cadLWPolyline
+                    eContour.Gender = cadLWPolyline.Gender
+                    clsEntities.setEntity(eContour)
+                    e.pBlock.entities.Add(eContour)
+
+                    Inc i
+                    ' leo si tiene bulges
+                    If sClaves[i] = "72" Then
+                        If sValues[i] = "1" Then ' tiene bulges
+                            eContour.fParam[cadLWPolyline.ipaBulged] = True
+                        End If
+                    Else
+                        'error de DXF
+                        Stop
+                    Endif
+
+                    Inc i
+                    ' leo si es abierta o cerrada
+                    If sClaves[i] = "73" Then
+                        If sValues[i] = "1" Then ' cerrada
+                            eContour.fParam[cadLWPolyline.ipaPolylineClosed] = True
+                        End If
+                    Else
+                        'error de DXF
+                        Stop
+                    Endif
+
+                    Inc i
+                    ' numero de vertice
+                    If sClaves[i] = "93" Then
+                        eContour.P.Resize(CInt(sValues[i] * 2))
+                    Else
+                        'error de DXF
+
+                    Endif
+
+                    For iPoints = 0 To eContour.P.Count / 2 - 1
+                        Inc i
+                        eContour.P[iPoints * 2] = CFloat(sValues[i])
+                        Inc i
+                        eContour.P[iPoints * 2 + 1] = CFloat(sValues[i])
+                        If eContour.fParam[cadLWPolyline.ipaBulged] = True Then
+                            Inc i ' ignoro el bulge
+                        Endif
+                    Next
 
                 Endif
+                ' despues del loop hay un 97
+                Inc i
+                ' Objetos ecternos de borde
+                If sClaves[i] = "97" Then
+                    For iBorderObjects = 0 To CInt(sValues[i]) - 1 ' los leo
+                        Inc i
+                    Next
+                Else
+                    'error de DXF
+
+                Endif
+
             Next
 
         End If
@@ -434,12 +499,6 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
         End If
         If sClaves[i] = "75" Then e.fParam[Me.ipaParity] = CFloat(sValues[i])
         If sClaves[i] = "76" Then e.fParam[Me.ipaPatternType] = CFloat(sValues[i])
-
-        ' boundary
-        If e.fParam[Me.ipaTotalLoops] Then
-            If sClaves[i] = "10" Then e.p.Add(CFloat(sValues[i]))
-            If sClaves[i] = "20" Then e.p.Add(CFloat(sValues[i]))
-        End If
 
     Loop
 

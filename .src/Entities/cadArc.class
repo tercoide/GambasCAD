@@ -172,67 +172,77 @@ End
 
 Public Sub makepolyline(oe As Entity)
 
-    Dim x, y, theta, angle_increment As Float
+    Dim x, y, theta, fRadio, fStart, fEnd, angle_increment As Float
+    Dim iSentido, iTramos As Integer
     Dim i As Integer
 
     Dim major, minor, angle, la As Float
 
     Dim LargoPixels, LargoReal, EscalaTramos As Float
 
-    If oE.fParam[2] = oE.fParam[1] Then Return
+    fRadio = oE.fParam[0]
+    fStart = oE.fParam[1]
+    fEnd = oe.fParam[2]
+    If oe.fParam[3] = 1 Then iSentido = 1 Else iSentido = -1
+    If fStart = fEnd Then Return
+    If fRadio = 0 Then Return
 
-    If oE.fParam[1] < 0 Then oE.fParam[1] = 360 + oE.fParam[1]
-    If oe.fParam[2] < 0 Then oe.fParam[2] += 360
+    If iSentido = 1 Then
 
-    If oe.fParam[3] > 0 Then
-
-        If oE.fParam[2] < oE.fParam[1] Then oE.fParam[2] = 360 + oE.fParam[2]              ' grados
+        If fEnd < fStart Then fEnd += 360
 
     Else
 
-        If oE.fParam[2] > oE.fParam[1] Then oE.fParam[2] = oE.fParam[2] - 360              ' grados
+        ' el incremento sera negativo, entonces fEnd tiene que ser menor a fStart
+        If fEnd > fStart Then fEnd -= 360
 
     Endif
 
     ' veo el cuantos pixels tendria cada tramo
-    LargoReal = 2 * oE.fParam[0] * Pi * Abs(oE.fParam[1] - oE.fParam[2]) / 360
-    LargoPixels = fMain.Pixels(LargoReal)
-    If LargoPixels = 0 Then LargoPixels = 1
-    ' si quiero tramos de 10 pixels...
-    angle_increment = 5 / LargoPixels * 2 * Pi * oe.fParam[3]
-    If Abs(angle_increment * 10) > Abs(oE.fParam[2] / 180 * Pi - oE.fParam[1] / 180 * Pi) Then
+    LargoReal = 2 * fRadio * Pi * Abs(fEnd - fStart) / 360
+    LargoPixels = fMain.Pixels(LargoReal) ' > 0
 
-        angle_increment = (oE.fParam[2] / 180 * Pi - oE.fParam[1] / 180 * Pi) / 10
+    ' si quiero tramos de 10 pixels como maximo...
+    iTramos = LargoPixels / 10
 
-    End If
+    If iTramos < 6 Then iTramos = 6
 
-    If oE.fParam[2] = oE.fParam[1] Then Return
-
-    ' Debug "Tramos", (oE.fParam[2] / 180 * Pi - oE.fParam[1] / 180 * Pi) / angle_increment
-    If (oE.fParam[2] / 180 * Pi - oE.fParam[1] / 180 * Pi) / angle_increment < 10 Then Stop
-    If LargoPixels < 10 Then
-        EscalaTramos = 1
-    Endif
+    angle_increment = (fEnd - fStart) / iTramos
 
     oE.polyline.Clear
-    'angle_increment = Pi * 2 / 360 * oe.fParam[3]
 
-    For theta = oE.fParam[1] / 180 * Pi To oE.fParam[2] / 180 * Pi Step angle_increment
+    ' For theta = oE.fParam[1] / 180 * Pi To oE.fParam[2] / 180 * Pi Step angle_increment
+    '     ' el punto considerando 0,0 al centro
+    '     x = oE.p[0] + oE.fParam[0] * Cos(theta)
+    '     y = oE.p[1] + oE.fParam[0] * Sin(theta)
+    '     oE.polyline.Add(x)
+    '     oE.polyline.Add(y)
+    '
+    ' Next
+
+    ' paso todo a radianes
+
+    fStart *= Pi / 180
+    fEnd *= Pi / 180
+    angle_increment *= Pi / 180
+
+    For theta = fStart To fEnd Step angle_increment
         ' el punto considerando 0,0 al centro
-        x = oE.p[0] + oE.fParam[0] * Cos(theta)
-        y = oE.p[1] + oE.fParam[0] * Sin(theta)
+        x = oE.p[0] + fRadio * Cos(theta)
+        y = oE.p[1] + fRadio * Sin(theta)
         oE.polyline.Add(x)
         oE.polyline.Add(y)
 
     Next
-    If x <> oE.p[0] + oE.fParam[0] * Cos(oE.fParam[2] / 180 * Pi) Then
-        x = oE.p[0] + oE.fParam[0] * Cos(oE.fParam[2] / 180 * Pi)
-        y = oE.p[1] + oE.fParam[0] * Sin(oE.fParam[2] / 180 * Pi)
-        oE.polyline.Add(x)
-        oE.polyline.Add(y)
 
-    Endif
-
+    ' If x <> oE.p[0] + oE.fParam[0] * Cos(oE.fParam[2] / 180 * Pi) Then
+    '     x = oE.p[0] + oE.fParam[0] * Cos(oE.fParam[2] / 180 * Pi)
+    '     y = oE.p[1] + oE.fParam[0] * Sin(oE.fParam[2] / 180 * Pi)
+    '     oE.polyline.Add(x)
+    '     oE.polyline.Add(y)
+    '
+    ' Endif
+    '
 End
 
 Public Sub Draw(oE As Entity)
@@ -250,8 +260,6 @@ Public Sub Draw(oE As Entity)
     If oE.fParam[2] = oE.fParam[1] Then Return
 
     oE.ColorToPaint = gcd.GetGBColor(oE.colour, oE.pLayer)
-    If oE.fParam[1] < 0 Then oE.fParam[1] = 360 + oE.fParam[1]
-    If oe.fParam[2] < 0 Then oe.fParam[2] += 360
 
     If Me.StepsDone = 2 Then
 
@@ -345,7 +353,7 @@ Public Sub Finish(oE As Entity) As Boolean
     oE.DrawAble = True
     oE.Selected = False
     oE.Finished = True
-    oe.fParam.Add(1) ' sentido de giro
+    If oe.fParam.max < 3 Then oe.fParam.Add(1) ' sentido de giro
 
 End
 
