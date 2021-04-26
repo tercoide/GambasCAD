@@ -31,47 +31,39 @@ Public Const ParamHelper As String = "Start point;End point;extension"
 
 Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
 
+    ' 10,20,30 -> Baseline              '
+    ' 11,21,31 -> Text mid point
+
+    ' 13,23,33 -> Def point, o sea el que determina el valor de la dimension D=Def-Baseline
+    ' 14,24,34 -> Leader endpoint, largo de la linea de definicion
+
     Dim i As Integer
     Dim AfterSubclassmarker As Boolean
     ' revisamos lo que viene del importador comun
-    Me.pointBaselinePoint.x = e.P[0]
-    Me.pointBaselinePoint.y = e.P[1]
-
-    Me.pointTextMidPoint.x = e.P[2]
-    Me.pointTextMidPoint.y = e.P[3]
 
     For i = 0 To sClaves.Max
         If sClaves[i] = "100" And sValues[i] = "AcDbOrdinateDimension" Then AfterSubclassmarker = True
         If AfterSubclassmarker Then ' lo siguientes codigos
 
-            If sClaves[i] = "13" Then Me.pointDefPoint1.x = CFloat(sValues[i])
-            If sClaves[i] = "23" Then Me.pointDefPoint1.y = CFloat(sValues[i])
+            If sClaves[i] = "13" Then e.P[4] = CFloat(sValues[i])
+            If sClaves[i] = "23" Then e.P[5] = CFloat(sValues[i])
 
-            If sClaves[i] = "14" Then Me.pointDefPoint2.x = CFloat(sValues[i])
-            If sClaves[i] = "24" Then Me.pointDefPoint2.y = CFloat(sValues[i])
+            If sClaves[i] = "14" Then e.P[6] = CFloat(sValues[i])
+            If sClaves[i] = "24" Then e.P[7] = CFloat(sValues[i])
 
         End If
 
     Next
 
-    ' ahora recosntruyo el bloque segun mis propios metodos
-    e.P[0] = Me.pointDefPoint1.x
-    e.P[1] = Me.pointDefPoint1.y
-
-    e.P[2] = Me.pointDefPoint2.x
-    e.P[3] = Me.pointDefPoint2.y
-
-    e.P.Add(Me.pointTextMidPoint.x)    '4
-    e.P.Add(Me.pointTextMidPoint.y)
-
-    e.P.Add(Me.pointBaselinePoint.x)       '6
-    e.P.Add(Me.pointBaselinePoint.y)
-
     Me.DimArrowSize = e.pStyle.fArrowSize_41
     Me.DimArrowWidth = Me.DimArrowSize / 3
     Me.DimTextHeight = e.pStyle.fTxtHeight_140
 
-    e.pBlock = Me.ReBuildBlock(e)
+    ' TODO: cuando este terminada la entidad, sacar eso
+    'e.pBlock.AbsoluteCoords = True
+    ' y dejar esto
+
+    e.pBlock = ReBuildBlock(e)
 
     Return True
 
@@ -113,8 +105,10 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
             eBuild.fParam[Me.ipaExtension] = vParam[1]
 
         End If
-
-        eBuild.pBlock = ReBuildBlock(eBuild)
+        ' TODO: cuando este terminada la entidad, sacar eso
+        ebuild.pBlock.AbsoluteCoords = True
+        ' y dejar esto
+        ' eBuild.pBlock = ReBuildBlock(eBuild)
         If definitive Then
             'Stop
             Return True
@@ -144,96 +138,118 @@ Public Sub ReBuildBlock(ELEM As Entity) As Block
     Dim eText As Entity
     Dim ePoint2 As Entity
 
-    ' lineas de demarcacion
-    clsEntities.AddLine(newBlock.entities, [0, Me.DimExtension, 0, -Me.DimExtension], elem.colour, elem.LineWidth, elem.LineType.Index, elem.pLayer)
-    eExtension2 = newBlock.entities.Last
+    '               (P1=Text mid)
+    '         (p3) 12.23
+    '         --+--.-----
+    '           ^   (P4=Leader endpoint)
+    '           !
+    '  + (P0=baseline)
 
-    ' puntos base
+    ' Armo directamente de acuerdo a lo que necesito
+    If elem.fParam[Me.ipaHorizAngle] = 1 Then
+        elem.fParam[cadDimension.ipaRealMeasure] = elem.P[5] - elem.P[1]
+        If elem.fParam[cadDimension.ipaRealMeasure] >= 0 Then
 
-    clsEntities.AddPoint(newBlock.entities, [0.0, 0.0], elem.colour, elem.LineWidth, elem.LineType.Index, elem.pLayer)
+            ' cuadrante superior
 
-    ' flechas
+            ' lineas de demarcacion
+            clsEntities.AddLine(newBlock.entities, [0, 0, 0, 0], elem.colour, elem.LineWidth, elem.LineType.Index, elem.pLayer)
+            eExtension2 = newBlock.entities.Last
 
-    f2.Insert([0, 0, -Me.DimArrowSize, Me.DimArrowWidth, -Me.DimArrowSize, -Me.DimArrowWidth, 0, 0])
+            ' puntos base
 
-    clsEntities.Addsolid(newBlock.entities, f2, elem.colour, elem.LineWidth, elem.LineType.Index, elem.pLayer)
-    eOblique2 = newBlock.entities.Last
+            clsEntities.AddPoint(newBlock.entities, [0.0, 0.0], elem.colour, elem.LineWidth, elem.LineType.Index, elem.pLayer)
 
-    ' texto
-    clsEntities.AddMText(newBlock.entities, [0.0, 0.0, 0.0, 0.0], 0, Me.DimTextHeight, "0.00", elem.colour, elem.LineWidth, elem.LineType.Index, elem.pLayer)
-    eText = newBlock.entities.Last
+            ' flechas
+            ' la flecha va rotada 90*
+            f2.Insert([Me.DimExtension, 0, Me.DimExtension - Me.DimArrowWidth, -Me.DimArrowSize, Me.DimExtension + Me.DimArrowWidth, -Me.DimArrowSize, Me.DimExtension, 0])
 
-    ' -> el bloque
+            clsEntities.Addsolid(newBlock.entities, f2, elem.colour, elem.LineWidth, elem.LineType.Index, elem.pLayer)
+            eOblique2 = newBlock.entities.Last
 
-    elem.fParam[cadInsert.ipaEscX] = 1      ' ScaleX del inserto
-    elem.fParam[cadInsert.ipaEscY] = 1      ' ScaleY del inserto
-    elem.fParam[cadInsert.ipaEscZ] = 1      ' ScaleY del inserto
+            ' texto
+            clsEntities.AddMText(newBlock.entities, [0.0, 0.0, 0.0, 0.0], 0, Me.DimTextHeight, "0.00", elem.colour, elem.LineWidth, elem.LineType.Index, elem.pLayer)
+            eText = newBlock.entities.Last
 
-    elem.Visible = True
+            ' -> el bloque
 
-    ' el largo de la linea principal viene dado por la distancia entre ambos puntos
-    If elem.fParam[Me.ipaHorizAngle] Then
-        d = elem.P[1] - elem.P[7]
-    Else
-        d = elem.P[0] - elem.P[6]
-    End If
-    ' con este click calculo el angulo
-    elem.fParam[cadInsert.ipaRotacion] = Ang(elem.p[2] - elem.P[0], elem.p[3] - elem.P[1]) * 180 / Pi
+            elem.fParam[cadInsert.ipaEscX] = 1      ' ScaleX del inserto
+            elem.fParam[cadInsert.ipaEscY] = 1      ' ScaleY del inserto
+            elem.fParam[cadInsert.ipaEscZ] = 1      ' ScaleY del inserto
 
-    ' la tercera es la segunda linea de demarcacion
-    eExtension2.P[0] = d           ' X0
-    'eExtension2.P[1] = 0           ' Y0
+            elem.Visible = True
 
-    eExtension2.P[2] = d           ' X1
-    'eExtension2.P[3] = 0           ' Y1
+            ' el largo de la linea principal viene dado por la distancia entre puntos 3 y 4
+            If elem.fParam[Me.ipaHorizAngle] = 1 Then
+                d = elem.P[7] - elem.P[5]
 
-    ' el texto
-    eText.StringData[cadMText.sdaText] = Format(d, Me.DimFormat)
+            Else
+                d = elem.P[6] - elem.P[4]
 
-    elem.fParam[cadDimension.ipaRealMeasure] = d
+            End If
+            eExtension2.P[2] = d
+            ' con este click calculo el angulo
+            elem.fParam[cadInsert.ipaRotacion] = Ang(elem.p[6] - elem.P[4], elem.p[7] - elem.P[5]) * 180 / Pi
 
-    flxTextExt = glPlus.MTextExtends(eText.StringData[0], 0, 0, eText.fParam[1])
+            ' ' la tercera es la segunda linea de demarcacion
+            ' eExtension2.P[0] = d           ' X0
+            ' 'eExtension2.P[1] = 0           ' Y0
+            '
+            ' eExtension2.P[2] = d           ' X1
+            ' 'eExtension2.P[3] = 0           ' Y1
 
-    ' la cuarta y quinta son las flechas , tengo que verificar si entran, o el texto
-    If flxTextExt[2] * 1.1 > d Then                      ' no entra
+            ' la medida es entre 0 y 3
+            If elem.fParam[Me.ipaHorizAngle] = 0 Then
 
-        eOblique2.P[0] = 0           ' X0
-        eOblique2.P[2] = -Me.DimArrowSize
-        eOblique2.P[4] = -Me.DimArrowSize
-        eOblique2.P[6] = 0           ' X0
+            Else
+                elem.fParam[cadDimension.ipaRealMeasure] = elem.P[4] - elem.P[0]
+            End If
 
-        ' el texto va afuera
-        eText.P[0] = d + Me.DimArrowSize / 2
-        eText.P[1] = Me.DimArrowWidth
+            ' el texto
+            ' eText.StringData[cadMText.sdaText] = "\\A1;" &
+            Format(elem.fParam[cadDimension.ipaRealMeasure], Me.DimFormat)
 
-    Else                                                                ' entra
+            eText.StringData[cadMText.sdaText] = Format(elem.fParam[cadDimension.ipaRealMeasure], Me.DimFormat)
 
-        eOblique2.P[0] = d           ' X0
-        eOblique2.P[2] = -Me.DimArrowSize + d           ' X0
-        eOblique2.P[4] = -Me.DimArrowSize + d           ' X0
-        eOblique2.P[6] = d           ' X0
+            flxTextExt = glPlus.MTextExtends(eText.StringData[cadMText.sdaText], 0, 0, eText.fParam[cadMText.ipaTextHeight])
 
-        ' el texto va adentro
-        eText.P[0] = d / 2 - flxTextExt[2] / 2
-        eText.P[1] = Me.DimArrowWidth
+            ' ' la cuarta y quinta son las flechas , tengo que verificar si entran, o el texto
+            ' If flxTextExt[2] * 1.1 > d Then                      ' no entra
+            '
+            '     eOblique2.P[0] = 0           ' X0
+            '     eOblique2.P[2] = -Me.DimArrowSize
+            '     eOblique2.P[4] = -Me.DimArrowSize
+            '     eOblique2.P[6] = 0           ' X0
+            '
+            ' Else                                                                ' entra
+            '
+            '     eOblique2.P[0] = d           ' X0
+            '     eOblique2.P[2] = -Me.DimArrowSize + d           ' X0
+            '     eOblique2.P[4] = -Me.DimArrowSize + d           ' X0
+            '     eOblique2.P[6] = d           ' X0
+            '
+            ' End If
 
-    End If
+            Me.extension = elem.fParam[Me.ipaExtension]
 
-    Me.extension = elem.fParam[Me.ipaExtension]
+            ' texto
 
-    ' segunda linea de demarcacion
-    eExtension2.P[1] = Me.DimExtension + Me.extension           ' Y0
-    eExtension2.P[3] = -Me.DimExtension + Me.extension           ' Y1
+            newBlock.x0 = elem.P[4]
+            newBlock.y0 = elem.P[5]
 
-    ' texto
-    eText.P[1] = Me.DimArrowWidth + Me.extension
+            If elem.fParam[cadDimension.ipaRealMeasure] >= 0 Then
+                eText.P[0] = (elem.P[6] - elem.P[4]) / 2 - flxTextExt[3]
+            Else
+                eText.P[0] = (elem.P[6] - elem.P[4]) / 2
+            End If
 
-    eOblique2.P[1] = Me.extension           ' X0
-    eOblique2.P[3] = Me.extension + Me.DimArrowWidth
-    eOblique2.P[5] = Me.extension - Me.DimArrowWidth
-    eOblique2.P[7] = Me.extension           ' X0
+            If elem.fParam[cadDimension.ipaRealMeasure] >= 0 Then
+                eText.P[1] = (elem.P[7] - elem.P[5]) / 2 - flxTextExt[3]
+            Else
+                eText.P[1] = (elem.P[7] - elem.P[5]) / 2
+            End If
+            newBlock.AbsoluteCoords = 2
 
-    ' End If
-    Return newBlock
+            Return newBlock
 
 End
