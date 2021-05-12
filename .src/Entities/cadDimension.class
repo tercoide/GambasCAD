@@ -83,13 +83,18 @@ Public pointBaselinePoint As New Punto2d
 Public pointDefPoint0 As New Punto2d
 Public pointCenter As New Punto2d
 
+Public StyleOverride As Styles
+
+
 ' ESTA CLASE SE USA SOLAMENTE PARA IMPORT/EXPORT DXF
 
 Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
 
     Dim i As Integer
-    Dim DimTypeSet As Boolean
-    Dim BlockSet As Boolean
+    Dim DimTypeSet As Boolean = False
+    Dim BlockSet As Boolean = False
+    Dim ReadingStyle As Boolean = False
+    Dim NextCode As Integer
 
     clsEntities.SetEntity(e)
 
@@ -110,8 +115,9 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
         If sClaves[i] = "3" Then e.pStyle = gcd.FindStyle(sValues[i])
 
+        ' For DEbug
         ' If sClaves[i] = "42" Then
-        '     If sValues[i] Like "15.04*" Then Stop
+        '     If sValues[i] Like "39.46*" Then Stop
         ' End If
 
         If sClaves[i] = "70" Then ' Dimension type:
@@ -157,6 +163,24 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
         End If
         If sClaves[i] = "71" Then e.iParam[Me.iiiAtatchPoint] = CInt(sValues[i])
 
+        If sClaves[i] = "1000" And sValues[i] = "DSTYLE" Then ' empiezo la lectura del estilo
+            ReadingStyle = True
+            StyleOverride = New Styles
+        End If
+
+        If ReadingStyle Then
+
+            If sClaves[i] = "1070" And NextCode = 0 Then
+                NextCode = CInt(sValues[i])
+            Else If NextCode <> 0 Then
+                ' leemos algunos
+                If NextCode = "140" Then StyleOverride.fTxtHeight_140 = CFloat(sValues[i])
+                If NextCode = "41" Then StyleOverride.fArrowSize_41 = CFloat(sValues[i])
+                NextCode = 0
+            End If
+
+        Endif
+
     Next
 
     ' en algunos DXF el codigo 70 no esta
@@ -168,6 +192,15 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     e.fParam[Me.ipaEscZ] = 1    ' esc Z
 
     If Not e.pStyle Then e.pStyle = gcd.CurrDrawing.arrStyles.First
+    If StyleOverride.fArrowSize_41 > 0 Then Me.DimArrowSize = StyleOverride.fArrowSize_41 Else Me.DimArrowSize = e.pStyle.fArrowSize_41
+    Me.DimArrowWidth = Me.DimArrowSize / 3
+
+    ' pero puede haber un Style Override que anula el estilo y propone nuevos valores
+
+
+    ' para definir el alto del texto tengo q ver si no hay un Style referenciado
+    If StyleOverride.fTxtHeight_140 > 0 Then Me.DimTextHeight = StyleOverride.fTxtHeight_140 Else Me.DimTextHeight = e.pStyle.fTxtHeight_140
+
 
     Return e.ClassHandler.ImportDXF(e, sClaves, sValues)
 
