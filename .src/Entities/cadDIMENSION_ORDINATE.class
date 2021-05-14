@@ -33,7 +33,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
     ' 10,20,30 -> Baseline              '
     ' 11,21,31 -> Text mid point
-
+    ' 12,22,32 -> UNUSED
     ' 13,23,33 -> Def point, o sea el que determina el valor de la dimension D=Def-Baseline
     ' 14,24,34 -> Leader endpoint, largo de la linea de definicion
 
@@ -45,11 +45,11 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
         If sClaves[i] = "100" And sValues[i] = "AcDbOrdinateDimension" Then AfterSubclassmarker = True
         If AfterSubclassmarker Then ' lo siguientes codigos
 
-            If sClaves[i] = "13" Then e.P[4] = CFloat(sValues[i])
-            If sClaves[i] = "23" Then e.P[5] = CFloat(sValues[i])
+            If sClaves[i] = "13" Then e.P[6] = CFloat(sValues[i])
+            If sClaves[i] = "23" Then e.P[7] = CFloat(sValues[i])
 
-            If sClaves[i] = "14" Then e.P[6] = CFloat(sValues[i])
-            If sClaves[i] = "24" Then e.P[7] = CFloat(sValues[i])
+            If sClaves[i] = "14" Then e.P[8] = CFloat(sValues[i])
+            If sClaves[i] = "24" Then e.P[9] = CFloat(sValues[i])
 
         End If
 
@@ -59,7 +59,8 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     ' TODO: cuando este terminada la entidad, sacar eso
     'e.pBlock.AbsoluteCoords = True
     ' y dejar esto
-
+    If e.fParam[Me.ipaStyleTextHeigth] > 0 Then Me.DimTextHeight = e.fParam[Me.ipaStyleTextHeigth]
+    Debug "cadDimension.DimTextHeight", cadDimension.DimTextHeight
     e.pBlock = ReBuildBlock(e)
 
     Return True
@@ -135,119 +136,99 @@ Public Sub ReBuildBlock(ELEM As Entity) As Block
     Dim eText As Entity
     Dim ePoint2 As Entity
 
-    '               (P1=Text mid)
-    '         (p3) 12.23
+
+    ' vemos los estilos
+    If elem.fParam[Me.ipaStyleTextHeigth] > 0 Then Me.DimTextHeight = elem.fParam[Me.ipaStyleTextHeigth] Else Me.DimTextHeight = elem.pStyle.fTxtHeight_140
+    If elem.fParam[Me.ipaStyleArrowSize] > 0 Then Me.DimArrowSize = elem.fParam[Me.ipaStyleArrowSize] Else Me.DimArrowSize = elem.pStyle.fArrowSize_41
+    Me.DimArrowWidth = Me.DimArrowSize / 3
+
+
+    '               (P23=Text mid)
+    '         (p67) 12.23
     '         --+--.-----
-    '           ^   (P4=Leader endpoint)
+    '           ^   (P89=Leader endpoint)
     '           !
-    '  + (P0=baseline)
+    '  + (P01=baseline)
+
+    ' Comun para Horiz y Vert
+    ' -> el bloque
+    elem.fParam[cadInsert.ipaEscX] = 1      ' ScaleX del inserto
+    elem.fParam[cadInsert.ipaEscY] = 1      ' ScaleY del inserto
+    elem.fParam[cadInsert.ipaEscZ] = 1      ' ScaleY del inserto
+    elem.Visible = True
+    ' lineas de demarcacion
+    clsEntities.AddLine(newBlock.entities, [0, 0, 0, elem.P[9] - elem.P[7]], elem.colour, elem.LineWidth, elem.LineType.Index, elem.pLayer)
+    eExtension2 = newBlock.entities.Last
+    ' puntos base
+    clsEntities.AddPoint(newBlock.entities, [0.0, 0.0], elem.colour, elem.LineWidth, elem.LineType.Index, elem.pLayer)
+    ' flechas
+    ' la flecha va rotada 90*
+    f2.Insert([Me.DimExtension, 0, Me.DimExtension - Me.DimArrowWidth, -Me.DimArrowSize, Me.DimExtension + Me.DimArrowWidth, -Me.DimArrowSize, Me.DimExtension, 0])
+
+    clsEntities.Addsolid(newBlock.entities, f2, elem.colour, elem.LineWidth, elem.LineType.Index, elem.pLayer)
+    eOblique2 = newBlock.entities.Last
+
+    ' texto
+    clsEntities.AddMText(newBlock.entities, [elem.p[2] - elem.p[6], elem.p[3] - elem.p[7], 0.0, 0.0], 0, Me.DimTextHeight, "0.00", elem.colour, elem.LineWidth, elem.LineType.Index, elem.pLayer)
+    eText = newBlock.entities.Last
+
+
 
     ' Armo directamente de acuerdo a lo que necesito
-    If elem.fParam[Me.ipaHorizAngle] = 1 Then
-        elem.fParam[cadDimension.ipaRealMeasure] = elem.P[5] - elem.P[1]
+    If elem.fParam[Me.ipaHorizAngle] = 1 Then                               ' Ordenada X Horizontal (texto y lineas verticales)
+        elem.fParam[cadDimension.ipaRealMeasure] = elem.P[6] - elem.P[0]
+
+        ' esto no cambia la posicion, ya sea mayor o menor que cero
+        ' lineas de demarcacion
+        eExtension2.P[3] = elem.P[9] - elem.P[7]
+
         If elem.fParam[cadDimension.ipaRealMeasure] >= 0 Then
 
             ' cuadrante superior
-
-            ' lineas de demarcacion
-            clsEntities.AddLine(newBlock.entities, [0, 0, 0, 0], elem.colour, elem.LineWidth, elem.LineType.Index, elem.pLayer)
-            eExtension2 = newBlock.entities.Last
-
-            ' puntos base
-
-            clsEntities.AddPoint(newBlock.entities, [0.0, 0.0], elem.colour, elem.LineWidth, elem.LineType.Index, elem.pLayer)
-
-            ' flechas
-            ' la flecha va rotada 90*
-            f2.Insert([Me.DimExtension, 0, Me.DimExtension - Me.DimArrowWidth, -Me.DimArrowSize, Me.DimExtension + Me.DimArrowWidth, -Me.DimArrowSize, Me.DimExtension, 0])
-
-            clsEntities.Addsolid(newBlock.entities, f2, elem.colour, elem.LineWidth, elem.LineType.Index, elem.pLayer)
-            eOblique2 = newBlock.entities.Last
-
-            ' texto
-            clsEntities.AddMText(newBlock.entities, [0.0, 0.0, 0.0, 0.0], 0, Me.DimTextHeight, "0.00", elem.colour, elem.LineWidth, elem.LineType.Index, elem.pLayer)
-            eText = newBlock.entities.Last
-
-            ' -> el bloque
-
-            elem.fParam[cadInsert.ipaEscX] = 1      ' ScaleX del inserto
-            elem.fParam[cadInsert.ipaEscY] = 1      ' ScaleY del inserto
-            elem.fParam[cadInsert.ipaEscZ] = 1      ' ScaleY del inserto
-
-            elem.Visible = True
-
-            ' el largo de la linea principal viene dado por la distancia entre puntos 3 y 4
-            If elem.fParam[Me.ipaHorizAngle] = 1 Then
-                d = elem.P[7] - elem.P[5]
-
-            Else
-                d = elem.P[6] - elem.P[4]
-
-            End If
-            eExtension2.P[2] = d
-            ' con este click calculo el angulo
-            elem.fParam[cadInsert.ipaRotacion] = Ang(elem.p[6] - elem.P[4], elem.p[7] - elem.P[5]) * 180 / Pi
-
-            ' ' la tercera es la segunda linea de demarcacion
-            ' eExtension2.P[0] = d           ' X0
-            ' 'eExtension2.P[1] = 0           ' Y0
-            '
-            ' eExtension2.P[2] = d           ' X1
-            ' 'eExtension2.P[3] = 0           ' Y1
-
-            ' la medida es entre 0 y 3
-            If elem.fParam[Me.ipaHorizAngle] = 0 Then
-
-            Else
-                elem.fParam[cadDimension.ipaRealMeasure] = elem.P[4] - elem.P[0]
-            End If
-
             ' el texto
-            ' eText.StringData[cadMText.sdaText] = "\\A1;" &
-            Format(elem.fParam[cadDimension.ipaRealMeasure], Me.DimFormat)
+            eText.StringData[cadMText.sdaText] = "\\A1;" & Format(elem.fParam[cadDimension.ipaRealMeasure], Me.DimFormat)
 
-            eText.StringData[cadMText.sdaText] = Format(elem.fParam[cadDimension.ipaRealMeasure], Me.DimFormat)
+            'eText.StringData[cadMText.sdaText] = Format(elem.fParam[cadDimension.ipaRealMeasure], Me.DimFormat)
+            ' esta ordenada es horiz, entonces el texto se rota
+            eText.fParam[cadMText.ipaTextAngle] = 90
 
             flxTextExt = glPlus.MTextExtends(eText.StringData[cadMText.sdaText], 0, 0, eText.fParam[cadMText.ipaTextHeight])
 
-            ' ' la cuarta y quinta son las flechas , tengo que verificar si entran, o el texto
-            ' If flxTextExt[2] * 1.1 > d Then                      ' no entra
+
+            ' If elem.fParam[cadDimension.ipaRealMeasure] >= 0 Then
+            '     eText.P[0] = (elem.P[6] - elem.P[4]) / 2 - flxTextExt[3]
+            ' Else
+            '     eText.P[0] = (elem.P[6] - elem.P[4]) / 2
+            ' End If
             '
-            '     eOblique2.P[0] = 0           ' X0
-            '     eOblique2.P[2] = -Me.DimArrowSize
-            '     eOblique2.P[4] = -Me.DimArrowSize
-            '     eOblique2.P[6] = 0           ' X0
-            '
-            ' Else                                                                ' entra
-            '
-            '     eOblique2.P[0] = d           ' X0
-            '     eOblique2.P[2] = -Me.DimArrowSize + d           ' X0
-            '     eOblique2.P[4] = -Me.DimArrowSize + d           ' X0
-            '     eOblique2.P[6] = d           ' X0
-            '
+            ' If elem.fParam[cadDimension.ipaRealMeasure] >= 0 Then
+            '     eText.P[1] = (elem.P[7] - elem.P[5]) / 2 - flxTextExt[3]
+            ' Else
+            '     eText.P[1] = (elem.P[7] - elem.P[5]) / 2
             ' End If
 
             Me.extension = elem.fParam[Me.ipaExtension]
 
         End If
+    Else ' es vertical
+        elem.fParam[cadDimension.ipaRealMeasure] = elem.P[7] - elem.P[1]
+        eExtension2.P[2] = elem.P[8] - elem.P[6]
+        eText.StringData[cadMText.sdaText] = "\\A1;" & Format(elem.fParam[cadDimension.ipaRealMeasure], Me.DimFormat)
+        ' esta ordenada es vertical, entonces el texto no se rota
+        eText.fParam[cadMText.ipaTextAngle] = 0
+
+        flxTextExt = glPlus.MTextExtends(eText.StringData[cadMText.sdaText], 0, 0, eText.fParam[cadMText.ipaTextHeight])
+
+
+
     End If
 
     ' texto
 
-    newBlock.x0 = elem.P[4]
-    newBlock.y0 = elem.P[5]
+    newBlock.x0 = elem.P[6] ' el inserto se mete en el def point
+    newBlock.y0 = elem.P[7]
 
-    If elem.fParam[cadDimension.ipaRealMeasure] >= 0 Then
-        eText.P[0] = (elem.P[6] - elem.P[4]) / 2 - flxTextExt[3]
-    Else
-        eText.P[0] = (elem.P[6] - elem.P[4]) / 2
-    End If
 
-    If elem.fParam[cadDimension.ipaRealMeasure] >= 0 Then
-        eText.P[1] = (elem.P[7] - elem.P[5]) / 2 - flxTextExt[3]
-    Else
-        eText.P[1] = (elem.P[7] - elem.P[5]) / 2
-    End If
     newBlock.AbsoluteCoords = 2
 
     Return newBlock

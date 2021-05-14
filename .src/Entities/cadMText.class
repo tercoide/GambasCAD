@@ -42,6 +42,8 @@ Public Finished As Boolean = False          ' colocar en true cuando se llegue a
 Public StepsDone As Integer                 ' esto lo cambia cls ElementBuilder durante la construccion
 
 ' esto es para texto RTF o complejos
+Private TextAngle As Float
+
 Private TextLines As New String[]
 Private TextHeigth As New Float[]
 Private TextPosX As New Float[]
@@ -328,7 +330,7 @@ Public Sub Draw(oE As Entity)
 
     If Not oE.Visible Then Return
     oE.ColorToPaint = gcd.GetGBColor(oE.colour, oE.pLayer)
-
+    TextAngle = oe.fParam[Me.ipaTextAngle]
     ' voy a procesar texto
     CurrentTextPosX = oE.p[0]
     CurrentTextPosY = oE.p[1]
@@ -379,6 +381,7 @@ Public Sub ProcessPart(s As String)
 
     Dim s2, sFont, s3, s4 As String
     Dim p1, p2, p3, p4 As Integer
+    Dim fAlign, fAlignR As New Float[]
 
     s2 = s
     If Left$(s2, 1) = "\\" Then
@@ -431,14 +434,31 @@ Public Sub ProcessPart(s As String)
                 CurrentTextPosX += CFloat(Mid(s2, 2, p2 - 2))
                 s2 = Mid(s2, p2 + 1)
                 If Len(s2) > 0 Then ProcessPart(s2)
-            Case "A"            ' no se que significa esto, suele venir \A1;
+            Case "A"            ' no se que significa esto, parece Aligment, suele venir \A1;
                 ' veo q tipo de alineacion
+
+
+
                 If Mid(s2, 2, 1) = "1" Then ' es mid
 
                     p2 = InStr(s2, ";", p1)
 
                     s2 = Mid(s2, p2 + 1)
-                    CurrentTextPosX -= glPlus.TextExtends(s2, CurrentTextHeigth)[0] * 0.5
+                    ' If TextAngle <> 0 Then
+                    '     Debug s2, TextAngle
+                    ' Endif
+                    fAlign = glPlus.TextExtends(s2, CurrentTextHeigth)
+                    fAlign[0] *= -1
+                    'fAlign[0] *= -1
+                    puntos.Rotate(fAlign, TextAngle)
+                    CurrentTextPosX += fAlign[0] * 0.5
+
+                    ' alineo Y
+                    CurrentTextPosY += fAlign[1] * 0.5
+
+                    ' pero , y si esta rotado el texto???
+
+
 
                 End If
                 If Len(s2) > 0 Then ProcessPart(s2)
