@@ -46,6 +46,14 @@ Public StepsDone As Integer                 ' esto lo cambia cls ElementBuilder 
 Public Const DXF_Reading As Boolean = True
 Public Const DXF_Export As Boolean = True
 
+' iParam helpers
+Public Const iTotalParams As Integer = 3
+
+Public Const iiiClosed As Integer = 0
+Public Const iiiUnused1 As Integer = 1
+Public Const iiiUnused2 As Integer = 2
+
+
 ' The entity handler receives a user action, and returns the number of expected parameter
 ' If definitive = true, means the parameter is set
 Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
@@ -113,10 +121,10 @@ Public Sub Draw(oE As Entity)
     For Each ePart In oe.pBlock.entities
         If ePart.Gender = "Vertex" Then
             oe.PolyLine.Add(ePart.P[0])
-            oe.PolyLine.Add(ePart.P[01])
+            oe.PolyLine.Add(ePart.P[1])
         End If
     Next
-    glPlus.Lines(oe.PolyLine, oe.ColorToPaint, oE.LineWidth, oE.LineType.index)
+    glPlus.PolyLines(oe.PolyLine, oe.ColorToPaint, oE.LineWidth, oE.LineType.index, oe.iParam[Me.iiiClosed])
 
 End
 
@@ -188,12 +196,16 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
     Dim i As Integer
 
+    clsEntities.setEntity(e)
+
     For i = 0 To sClaves.Max
 
         If sClaves[i] = "10" Then e.P.Add(CFloat(sValues[i]))
         If sClaves[i] = "20" Then e.P.Add(CFloat(sValues[i]))
         'If sClaves[i] = "30" Then e.P.Add(CFloat(sValues[i]))
-        If sClaves[i] = "39" Then e.fParam.Add(CFloat(sValues[i]))
+        'If sClaves[i] = "39" Then e.fParam.Add(CFloat(sValues[i]))
+
+        If sClaves[i] = "70" Then e.iParam[Me.iiiClosed] = (CInt(sValues[i]) And 1)
 
     Next
     Return True
