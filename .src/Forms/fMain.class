@@ -36,6 +36,8 @@ Public fBlockDegRotation As Float = 0
 Public GridSpacing As Float = 0.5
 Public GridActive As Boolean           ' use with F7: 0 = no grid, 1 = dots, 2 = lines
 
+Public MyPrinter As Printer
+
 Public Sub DrawTimer_Timer()
 
     Dim dx As Single, dy As Single
@@ -144,6 +146,36 @@ Public Sub Run() As Boolean
 
 End
 
+Public Sub Printer1_Draw()
+
+    Dim i As Integer
+    Dim flxLimits As New Float[]
+    Dim scaleX, scale, scaleY As Float
+
+    flxLimits = clsEntities.ComputeLimits(gcd.CurrDrawing.arrEntities, True)
+
+    Debug "Printing"
+
+    ' trato de meter centrado
+    scaleX = (flxLimits[2] - flxLimits[0]) / Paint.w 'Printer1.PaperWidth
+    scaleY = (flxLimits[3] - flxLimits[1]) / Paint.h 'Printer1.PaperHeight
+
+    If scaleX > scaleY Then Scale = scaleX Else Scale = scaley
+
+    Paint.Scale(1 / scale, -1 / scale)
+    Paint.Translate(0, -1 * (flxLimits[3] - flxLimits[1]))
+    For i = 0 To gcd.CurrDrawing.arrLayers.Max
+        If gcd.CurrDrawing.arrLayers[i].Visible Then
+            For Each e As Entity In gcd.CurrDrawing.arrLayers[i].Entities
+                e.ClassHandler.draw2(e)
+            Next
+        End If
+    Next
+
+    Debug "Print done"
+
+End
+
 Public Function Action_Activate(sAction As String) As Boolean
     ' Acciones de los botones y los menús (para no repetir código)
     ' El string de la acción es una propiedad de cada botón o menú
@@ -164,6 +196,10 @@ Public Function Action_Activate(sAction As String) As Boolean
     Try Print Last.name
 
     Select Case LCase(sAction)
+        Case "pdf_export"
+
+            If Printer1.Configure() Then Return
+            Printer1.Print
 
         Case "undo"
             gcd.CurrDrawing.uUndo.DoUndo()
