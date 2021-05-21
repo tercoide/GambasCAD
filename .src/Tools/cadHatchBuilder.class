@@ -189,6 +189,8 @@ Public Sub FillEntityWithHatch(entToFill As Entity)
     ' los patrones son cuadrados, computo el lado
     fPatternSide = 100 ' flxPatternLimits[2] - flxPatternLimits[0]
 
+    If entToFill.fParam[cadHatch.ipaScale] = 0 Then entToFill.fParam[cadHatch.ipaScale] = 1
+
     For iLoop = 0 To entToFill.fParam[cadHatch.ipaTotalLoops] - 1
 
         MakeBorder(entToFill, iLoop)
@@ -367,14 +369,30 @@ End
 
 Public Sub MakeBorder(entToFill As Entity, iLoopNumber As Integer)
 
-    Dim eBorder As Entity
+    Dim eBorder, eFind As Entity
     ' armo ese contorno
     entToFill.P.Clear
 
     For Each eBorder In entToFill.pBlock.entities
         If eborder.Group = iLoopNumber Then
+            If eBorder.Gender = "" Then ' es una entdidad contorno, la busco
+                eFind = gcd.FindEntity(eborder.Handle, True)
+                If IsNull(eFind) Then
+                    Continue
+                    'Stop
+
+                Else
+                    eborder = eFind
+                End If
+            End If
+
+
+
             If eBorder.ClassHandler.Gender = cadLWPolyline.Gender Then
                 entToFill.P.Insert(eborder.P.Copy())
+                If eborder.fParam[cadLWPolyline.ipaPolylineClosed] Then ' agrego el punto inicial
+                    entToFill.P.Insert(eborder.P.Copy(0, 2))
+                Endif
             Else If eBorder.ClassHandler.Gender <> cadLine.Gender Then
                 eBorder.ClassHandler.MakePolyline(eborder)
                 entToFill.P.Insert(eborder.PolyLine.Copy())
