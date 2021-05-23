@@ -87,6 +87,29 @@ Public Const ipaAttchmPoint As Integer = 6
 Public Const sdaTotalParams As Integer = 2
 Public Const sdaText As Integer = 0
 Public Const sdaStyle As Integer = 1
+Public MyEntity As Entity
+'' Creates a new Text entity and prepares arrays
+
+Public Function NewEntity() As Entity
+
+    Dim e As New Entity
+
+    e.Gender = Me.Gender
+    e.ClassHandler = Me
+    e.fParam.Insert([0, 0, 0, 0, 0, 0, 0, 0])
+    e.P.Insert([0, 0])
+    e.StringData.Insert(["", ""])
+
+    ' this may fails on some scopes, but we should Try
+    Try e.pLayer = gcd.CurrDrawing.CurrLayer
+    Try e.colour = gcd.CurrDrawing.CurrColor
+    Try e.LineType = gcd.CurrDrawing.CurrLineType
+    Try e.LineWidth = gcd.CurrDrawing.CurrLineWt
+
+    MyEntity = e    ' we set for futher use elsewere
+    Return e
+
+End
 
 ' The entity handler receives a user action, and returns the number of expected parameter
 ' If definitive = true, means the parameter is set
@@ -583,8 +606,6 @@ Public Sub ExportDXFCol(e As Entity, ByRef cExport As Collection) As Boolean
 
     Dim i As Integer, sText As String
 
-    clsEntities.SetEntity(e)
-
     cExport.Add("MTEXT", dxf.codEntity)
     clsEntities.DXFExportCommonCol(e, cExport)
     cExport.Add("AcDbMText", "100")
@@ -647,12 +668,10 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     Dim TextHeigthSet As Boolean = False
     Dim TextAngleSet As Boolean = False
 
-    clsEntities.SetEntity(e)
-
     For i = 0 To sClaves.Max
 
-        If sClaves[i] = "10" Then e.p.Add(CFloat(sValues[i]))                                       ' X1
-        If sClaves[i] = "20" Then e.P.Add(CFloat(sValues[i]))                                       ' Y1
+        If sClaves[i] = "10" Then e.p[0] = (CFloat(sValues[i]))                                       ' X1
+        If sClaves[i] = "20" Then e.P[1] = (CFloat(sValues[i]))                                       ' Y1
         If sClaves[i] = "40" And Not TextHeigthSet Then
             e.fParam[Me.ipaTextHeight] = CFloat(sValues[i])                                         ' Altura
             TextHeigthSet = True

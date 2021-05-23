@@ -57,6 +57,30 @@ Public Const sdaTotalParams As Integer = 2
 Public Const sdaText As Integer = 0
 Public Const sdaStyle As Integer = 1
 
+Public MyEntity As Entity
+
+'' Creates a new Text entity and prepares arrays
+Public Function NewEntity() As Entity
+
+    Dim e As New Entity
+
+    e.Gender = Me.Gender
+    e.ClassHandler = Me
+    e.fParam.Insert([0, 0, 0, 0, 0, 0, 0, 0])
+    e.P.Insert([0, 0, 0, 0])
+    e.StringData.Insert(["", ""])
+
+    ' this may fails on some scopes, but we should Try
+    Try e.pLayer = gcd.CurrDrawing.CurrLayer
+    Try e.colour = gcd.CurrDrawing.CurrColor
+    Try e.LineType = gcd.CurrDrawing.CurrLineType
+    Try e.LineWidth = gcd.CurrDrawing.CurrLineWt
+
+    MyEntity = e    ' we set for futher use elsewere
+    Return e
+
+End
+
 ' The entity handler receives a user action, and returns the number of expected parameter
 ' If definitive = true, means the parameter is set
 Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
@@ -65,7 +89,6 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
     Dim ip As Integer
 
     If Me.StepsDone = 0 Then  '  posicion
-        clsEntities.setEntity(eBuild)
 
         If vParam[0] <> "point" Then Return Me.StepsDone
 
@@ -73,7 +96,7 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
         Try eBuild.P[1] = vParam[2]
 
         If definitive Then
-            eBuild.fParam.Add(0)
+
             Return True
         End If
     Else If Me.StepsDone = 1 Then ' angulo del texto
@@ -348,14 +371,12 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
     Dim i As Integer
 
-    clsEntities.setEntity(e)
-
     For i = 0 To sClaves.Max
 
-        If sClaves[i] = "10" Then e.p.Add(CFloat(sValues[i]))         ' X0
-        If sClaves[i] = "20" Then e.P.Add(CFloat(sValues[i]))         ' Y0
-        If sClaves[i] = "11" Then e.p.Add(CFloat(sValues[i]))         ' X1
-        If sClaves[i] = "21" Then e.P.Add(CFloat(sValues[i]))         ' Y1
+        If sClaves[i] = "10" Then e.p[0] = (CFloat(sValues[i]))         ' X0
+        If sClaves[i] = "20" Then e.P[1] = (CFloat(sValues[i]))         ' Y0
+        If sClaves[i] = "11" Then e.p[2] = (CFloat(sValues[i]))         ' X1
+        If sClaves[i] = "21" Then e.P[3] = (CFloat(sValues[i]))         ' Y1
         If sClaves[i] = "40" Then e.fParam[Me.ipaTextHeight] = CFloat(sValues[i])         ' Altura
         If sClaves[i] = "1" Then e.StringData[Me.sdaText] &= sValues[i]                ' Texto
         ' Importante , el TEXT no tiene code 3 para mas texto

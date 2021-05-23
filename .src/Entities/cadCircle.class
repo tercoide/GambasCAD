@@ -46,6 +46,29 @@ Public StepsDone As Integer                 ' esto lo cambia cls ElementBuilder 
 
 Public Const DXF_Reading As Boolean = True
 Public Const DXF_Export As Boolean = True
+Property Radius As Float
+Public MyEntity As Entity
+
+'' Creates a new LWpolyline entity and prepares arrays
+Public Function NewEntity() As Entity
+
+    Dim e As New Entity
+
+    e.Gender = Me.Gender
+    e.ClassHandler = Me
+    e.fParam.Insert([0])
+    e.P.Insert([0, 0])
+
+    ' this may fails on some scopes, but we should Try
+    Try e.pLayer = gcd.CurrDrawing.CurrLayer
+    Try e.colour = gcd.CurrDrawing.CurrColor
+    Try e.LineType = gcd.CurrDrawing.CurrLineType
+    Try e.LineWidth = gcd.CurrDrawing.CurrLineWt
+
+    MyEntity = e    ' we set for futher use elsewere
+    Return e
+
+End
 
 ' The entity handler receives a user action, and returns the number of expected parameter
 ' If definitive = true, means the parameter is set
@@ -251,10 +274,11 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
     Dim i As Integer
 
+    e.P.Clear
     For i = 0 To sClaves.Max
         If sClaves[i] = "10" Then e.P.Add(CFloat(sValues[i]))
         If sClaves[i] = "20" Then e.P.Add(CFloat(sValues[i]))
-        If sClaves[i] = "40" Then e.fParam.Add(CFloat(sValues[i]))
+        If sClaves[i] = "40" Then e.fParam[0] = (CFloat(sValues[i]))
     Next
 
     If e.fParam.Count = 0 Then Stop ' e.fParam.Add(0)  ' TODO: averiguar q pasa aca q algunas entidades CIRCLE
@@ -291,3 +315,15 @@ End
 '    "radius": 0.06602049323089,
 '    "thickness": 0.000000,
 '    "extrusion": [0.0, 0.0, 1.0]
+
+Private Function Radius_Read() As Float
+
+    Return MyEntity.fParam[0]
+
+End
+
+Private Sub Radius_Write(Value As Float)
+
+    MyEntity.fParam[0] = Value
+
+End

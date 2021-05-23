@@ -58,13 +58,39 @@ Public Const ipaBulged As Integer = 1
 Public Const ipaReserved2 As Integer = 2
 Public Const ipaBulges As Integer = 3  ' en adelante
 
+' iParam helpers
+Public Const iTotalParams As Integer = 3
+Public Const iiiPolylineClosed As Integer = 0
+Public Const iiiBulged As Integer = 1
+
+Public MyEntity As Entity
+Property IsBulged As Boolean
+Property IsClosed As Boolean
+
+'' Creates a new LWpolyline entity and prepares arrays
+Public Function NewEntity() As Entity
+
+    Dim e As New Entity
+
+    e.Gender = Me.Gender
+    e.ClassHandler = Me
+    e.iParam.Insert([0, 0])
+    e.P.Insert([0, 0])
+
+    ' this may fails on some scopes, but we should Try
+    Try e.pLayer = gcd.CurrDrawing.CurrLayer
+    Try e.colour = gcd.CurrDrawing.CurrColor
+    Try e.LineType = gcd.CurrDrawing.CurrLineType
+    Try e.LineWidth = gcd.CurrDrawing.CurrLineWt
+
+    MyEntity = e    ' we set for futher use elsewere
+    Return e
+
+End
+
 ' The entity handler receives a user action, and returns the number of expected parameter
 ' If definitive = true, means the parameter is set
 Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
-
-    If eBuild.fParam.Count = 0 Then
-        clsEntities.setEntity(eBuild)
-    End If
 
     If vParam[0] = "point" Then
         eBuild.DrawAble = True
@@ -145,8 +171,8 @@ Public Sub Draw(oE As Entity)
     Dim i As Integer
     Dim fArcParams As Float[]
 
-    If oe.fParam[Me.ipaBulged] = True Then
-
+    'If oe.fParam[Me.ipaBulged] = True Then
+    If Me.IsBulged Then
         For i = 0 To oe.P.Count / 2 - 2
 
             ' TODO: esto tapa un error de lectura DXF
@@ -348,41 +374,42 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     Dim NewTrame As Boolean
     Dim BulgeAdded As Boolean
 
-    clsEntities.setEntity(e)
-
+    MyEntity = e
+    e.P.Clear
     For i = 0 To sClaves.Max
 
         'If sClaves[i] = "90" Then mPolyLine.vertexcount = Val(sValues[i])
-        If sClaves[i] = "70" Then e.fParam[Me.ipaPolylineClosed] = CInt(sValues[i])       ' 0 = abierta, 1 = cerrada
+        'If sClaves[i] = "70" Then e.fParam[Me.ipaPolylineClosed] = CInt(sValues[i])       ' 0 = abierta, 1 = cerrada
+        If sClaves[i] = "70" Then Me.IsClosed = (CInt(sValues[i]) <> 0)       ' 0 = abierta, 1 = cerrada
         If sClaves[i] = "10" Then
             e.p.Add(CFloat(sValues[i]))
-            NewTrame = True
-            If e.fParam[Me.ipaBulged] = True Then ' this poly has bulges
-                If Not BulgeAdded Then
-                    e.fParam.Add(0) ' faux bulge
-                Endif
-                BulgeAdded = False
-
-            End If
+            '     NewTrame = True
+            '     If Me.IsBulged Then ' this poly has bulges
+            '         If Not BulgeAdded Then
+            '             e.fParam.Add(0) ' faux bulge
+            '         Endif
+            '         BulgeAdded = False
+            '
+            '     End If
         End If
         If sClaves[i] = "20" Then e.p.Add(CFloat(sValues[i]))
 
         If sClaves[i] = "42" Then
-            If Not FirstBulge Then
-                e.fParam[Me.ipaBulged] = True
-                e.fParam[Me.ipaBulges] = CFloat(sValues[i])
-                FirstBulge = True
-
-            Else
-                e.fParam.Add(CFloat(sValues[i])) ' bulges, one per trame
-                BulgeAdded = True
-
-            Endif
+            ' If Not FirstBulge Then
+            '     Me.IsBulged = True
+            '     e.fParam[Me.ipaBulges] = CFloat(sValues[i])
+            '     FirstBulge = True
+            '
+            ' Else
+            e.fParam.Add(CFloat(sValues[i])) ' bulges, one per trame
+            BulgeAdded = True
+            '
+            ' Endif
             NewTrame = False
         End If
     Next
 
-    If e.fParam[0] = 1 And e.p.Count > 0 Then ' agrego el primer punto de nuevo
+    If Me.IsClosed And e.p.Count > 0 Then ' agrego el primer punto de nuevo
         e.p.Add(e.p[0])
         e.p.Add(e.p[1])
     End If
@@ -392,5 +419,29 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     ' catch
 
     Return False
+
+End
+
+Private Function IsBulged_Read() As Boolean
+
+    Return MyEntity.iParam[0]
+
+End
+
+Private Sub IsBulged_Write(Value As Boolean)
+
+    MyEntity.iParam[0] = Value
+
+End
+
+Private Function IsClosed_Read() As Boolean
+
+    Return MyEntity.iParam[1]
+
+End
+
+Private Sub IsClosed_Write(Value As Boolean)
+
+    MyEntity.iParam[1] = Value
 
 End

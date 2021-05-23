@@ -47,6 +47,29 @@ Public angle As Float
 Public Const DXF_Reading As Boolean = True
 Public Const DXF_Export As Boolean = True
 
+Public MyEntity As Entity
+
+'' Creates a new LWpolyline entity and prepares arrays
+Public Function NewEntity() As Entity
+
+    Dim e As New Entity
+
+    e.Gender = Me.Gender
+    e.ClassHandler = Me
+    e.fParam.Insert([0, 0, 0])
+    e.P.Insert([0, 0, 0, 0])
+
+    ' this may fails on some scopes, but we should Try
+    Try e.pLayer = gcd.CurrDrawing.CurrLayer
+    Try e.colour = gcd.CurrDrawing.CurrColor
+    Try e.LineType = gcd.CurrDrawing.CurrLineType
+    Try e.LineWidth = gcd.CurrDrawing.CurrLineWt
+
+    MyEntity = e    ' we set for futher use elsewere
+    Return e
+
+End
+
 ' The entity handler receives a user action, and returns the number of expected parameter
 ' If definitive = true, means the parameter is set
 Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
@@ -350,15 +373,17 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
     Dim i As Integer
 
+    e.P.Clear
+
     For i = 0 To sClaves.Max
 
         If sClaves[i] = "10" Then e.P.Add(CFloat(sValues[i]))     ' centro
         If sClaves[i] = "20" Then e.P.Add(CFloat(sValues[i]))
         If sClaves[i] = "11" Then e.P.Add(CFloat(sValues[i]) + e.P[0])     ' eje mayor, relativo al centro
         If sClaves[i] = "21" Then e.P.Add(CFloat(sValues[i]) + e.P[1])
-        If sClaves[i] = "40" Then e.fParam.Add(CFloat(sValues[i]))
-        If sClaves[i] = "41" Then e.fParam.Add(CFloat(sValues[i]) * 180 / Pi)
-        If sClaves[i] = "42" Then e.fParam.Add(CFloat(sValues[i]) * 180 / Pi)
+        If sClaves[i] = "40" Then e.fParam[0] = (CFloat(sValues[i]))
+        If sClaves[i] = "41" Then e.fParam[1] = (CFloat(sValues[i]) * 180 / Pi)
+        If sClaves[i] = "42" Then e.fParam[2] = (CFloat(sValues[i]) * 180 / Pi)
 
     Next
     Return True
