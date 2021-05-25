@@ -68,6 +68,10 @@ Private CurrentTextCrossed As Boolean
 Private CurrentTextAngle As Float
 Private CurrentTextColor As Integer
 
+' to create the contour
+
+Public MyPolygon As New Float[]
+
 ' DXF Read/Export
 
 Public Const DXF_Reading As Boolean = True
@@ -87,7 +91,7 @@ Public Const ipaAttchmPoint As Integer = 6
 Public Const sdaTotalParams As Integer = 2
 Public Const sdaText As Integer = 0
 Public Const sdaStyle As Integer = 1
-Public MyEntity As Entity
+
 '' Creates a new Text entity and prepares arrays
 
 Public Function NewEntity() As Entity
@@ -106,7 +110,6 @@ Public Function NewEntity() As Entity
     Try e.LineType = gcd.CurrDrawing.CurrLineType
     Try e.LineWidth = gcd.CurrDrawing.CurrLineWt
 
-    MyEntity = e    ' we set for futher use elsewere
     Return e
 
 End
@@ -303,15 +306,17 @@ Public Sub CreatePolygon(oE As Entity)
 
     oE.Polygon.Clear
 
-    tRect = glPlus.MTextExtends(oE.stringdata[Me.sdaText], oE.p[0], oE.p[1], oE.fParam[Me.ipaTextHeight])
+    ' tRect = glPlus.MTextExtends(oE.stringdata[Me.sdaText], oE.p[0], oE.p[1], oE.fParam[Me.ipaTextHeight])
 
     ' armo el poligono , que ya tiene la escala
 
-    oE.Polygon.Insert([tRect[0], tRect[1], tRect[0] + tRect[2], tRect[1], tRect[0] + tRect[2], tRect[1] + tRect[3], tRect[0], tRect[1] + tRect[3]])
+    oE.Polygon.Insert([Me.MyPolygon[0], Me.MyPolygon[1]])
+    oE.Polygon.Insert([Me.MyPolygon[0], Me.MyPolygon[3]])
+    oE.Polygon.Insert([Me.MyPolygon[2], Me.MyPolygon[3]])
+    oE.Polygon.Insert([Me.MyPolygon[2], Me.MyPolygon[1]])
 
-    puntos.Translate(oE.Polygon, -oE.P[0], -oE.P[1])
-    puntos.Rotate(oE.Polygon, oE.fParam[0] * Pi / 180)
-    puntos.Translate(oE.Polygon, oE.P[0], oE.P[1])
+    ' puntos.Rotate(oE.Polygon, oE.fParam[0] * Pi / 180)
+    ' puntos.Translate(oE.Polygon, oE.P[0], oE.P[1])
 
 End
 '' Creo los puntos de interes
@@ -369,7 +374,11 @@ Public Sub Draw(oE As Entity)
 
     'If InStr(oE.stringdata[0], "Cristia") > 0 Then Stop
 
+    MyPolygon.Clear
+    MyPolygon.insert([1e10, 1e10, -1e10, -1e10])
     ProcessText(oE.stringdata[Me.sdaText])
+
+    CreatePolygon(oe)
 
     'glPlus.DrawMultilineText(oE.stringdata[0], oE.p[0], oE.p[1], oE.fParam[0], oE.fParam[1], oE.ColorToPaint)
 
@@ -404,7 +413,7 @@ Public Sub ProcessPart(s As String)
 
     Dim s2, sFont, s3, s4 As String
     Dim p1, p2, p3, p4 As Integer
-    Dim fAlign, fAlignR As New Float[]
+    Dim fAlign, fAlignR, fRect As New Float[]
 
     s2 = s
     If Left$(s2, 1) = "\\" Then
@@ -489,12 +498,24 @@ Public Sub ProcessPart(s As String)
             If CurrentTextFont <> "" Then glPlus.SelectFont(CurrentTextFont)
 
             glPlus.DrawText(Mid(s2, 1, p2 - 1), CurrentTextPosX, CurrentTextPosY, CurrentTextangle, CurrentTextHeigth, CurrentTextColor)
+            fRect = glPlus.TextExtends(Mid(s2, p2), CurrentTextHeigth)
+            puntos.Rotate(fRect, CurrentTextAngle)
+            If Me.MyPolygon[0] > (CurrentTextPosX) Then Me.MyPolygon[0] = (CurrentTextPosX)
+            If Me.MyPolygon[1] > (CurrentTextPosY) Then Me.MyPolygon[1] = (CurrentTextPosY)
+            If Me.MyPolygon[2] < (CurrentTextPosX + fRect[0]) Then Me.MyPolygon[2] = (CurrentTextPosX + fRect[0])
+            If Me.MyPolygon[3] < (CurrentTextPosY + fRect[1]) Then Me.MyPolygon[3] = (CurrentTextPosY + fRect[1])
 
             ProcessPart(Mid(s2, p2))
         Else
 
             If CurrentTextFont <> "" Then glPlus.SelectFont(CurrentTextFont)
             glPlus.DrawText(s2, CurrentTextPosX, CurrentTextPosY, CurrentTextAngle, CurrentTextHeigth, CurrentTextColor)
+            fRect = glPlus.TextExtends(s2, CurrentTextHeigth)
+            puntos.Rotate(fRect, CurrentTextAngle)
+            If Me.MyPolygon[0] > (CurrentTextPosX) Then Me.MyPolygon[0] = (CurrentTextPosX)
+            If Me.MyPolygon[1] > (CurrentTextPosY) Then Me.MyPolygon[1] = (CurrentTextPosY)
+            If Me.MyPolygon[2] < (CurrentTextPosX + fRect[0]) Then Me.MyPolygon[2] = (CurrentTextPosX + fRect[0])
+            If Me.MyPolygon[3] < (CurrentTextPosY + fRect[1]) Then Me.MyPolygon[3] = (CurrentTextPosY + fRect[1])
 
         Endif
 

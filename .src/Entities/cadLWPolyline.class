@@ -52,20 +52,16 @@ Public Const DXF_Reading As Boolean = True
 Public Const DXF_Export As Boolean = True
 
 ' fParam helpers
-Public Const TotalParams As Integer = 4
-Public Const ipaPolylineClosed As Integer = 0
-Public Const ipaBulged As Integer = 1
-Public Const ipaReserved2 As Integer = 2
-Public Const ipaBulges As Integer = 3  ' en adelante
+' Public Const TotalParams As Integer = 4
+' Public Const ipaPolylineClosed As Integer = 0
+' Public Const ipaBulged As Integer = 1
+' Public Const ipaReserved2 As Integer = 2
+' Public Const ipaBulges As Integer = 3  ' en adelante
 
 ' iParam helpers
-Public Const iTotalParams As Integer = 3
+Public Const iTotalParams As Integer = 2
 Public Const iiiPolylineClosed As Integer = 0
 Public Const iiiBulged As Integer = 1
-
-Public MyEntity As Entity
-Property IsBulged As Boolean
-Property IsClosed As Boolean
 
 '' Creates a new LWpolyline entity and prepares arrays
 Public Function NewEntity() As Entity
@@ -83,7 +79,6 @@ Public Function NewEntity() As Entity
     Try e.LineType = gcd.CurrDrawing.CurrLineType
     Try e.LineWidth = gcd.CurrDrawing.CurrLineWt
 
-    MyEntity = e    ' we set for futher use elsewere
     Return e
 
 End
@@ -171,21 +166,20 @@ Public Sub Draw(oE As Entity)
     Dim i As Integer
     Dim fArcParams As Float[]
 
-    'If oe.fParam[Me.ipaBulged] = True Then
-    If Me.IsBulged Then
+    If oe.iParam[Me.iiiBulged] Then
         For i = 0 To oe.P.Count / 2 - 2
 
             ' TODO: esto tapa un error de lectura DXF
-            If Me.ipaBulges + i > oe.fParam.Max Then Break
+            'If Me.ipaBulges + i > oe.fParam.Max Then Break
 
             ' no todos los tramos pueden tener bulges
-            If Abs(oe.fParam[Me.ipaBulges + i]) > 0.001 Then
+            If Abs(oe.fParam[i]) > 0.001 Then
                 ang1 = Ang(oe.P[(i + 1) * 2] - oe.P[i * 2], oe.P[(i + 1) * 2 + 1] - oe.P[i * 2 + 1])    ' angulo del tramo
                 Lt = puntos.distancia(oe.P[i * 2], oe.P[i * 2 + 1], oe.P[(i + 1) * 2], oe.P[(i + 1) * 2 + 1])
                 If Lt = 0 Then Continue
                 mx = (oe.P[(i + 1) * 2] + oe.P[i * 2]) / 2          ' punto medio del tramo
                 my = (oe.P[(i + 1) * 2 + 1] + oe.P[i * 2 + 1]) / 2
-                B = oe.fParam[Me.ipaBulges + i] * Lt / 2
+                B = oe.fParam[i] * Lt / 2
                 bx = mx + B * Sin(ang1)                             ' Tercer punto del Bulge
                 by = my - B * Cos(ang1)
 
@@ -241,7 +235,7 @@ Public Sub Draw(oE As Entity)
         Next
     Else
 
-        GLplus.PolyLines(oE.p, oE.ColorToPaint, oE.LineWidth, oe.linetype.Index, oe.fParam[Me.ipaPolylineClosed])
+        GLplus.PolyLines(oE.p, oE.ColorToPaint, oE.LineWidth, oe.linetype.Index, oe.iParam[Me.iiiPolylineClosed])
 
     End If
 
@@ -249,8 +243,8 @@ End
 
 Public Sub DrawSelected(oE As Entity)
 
-    GLplus.PolyLines(oE.P, gcd.flgWindowBackColor, oE.LineWidth, gcd.stiDashed, oe.fParam[Me.ipaPolylineClosed])
-    GLplus.PolyLines(oE.P, gcd.ColorForSelected, oE.LineWidth, oE.LineType.Index, oe.fParam[Me.ipaPolylineClosed])
+    GLplus.PolyLines(oE.P, gcd.flgWindowBackColor, oE.LineWidth, gcd.stiDashed, oe.iParam[Me.iiiPolylineClosed])
+    GLplus.PolyLines(oE.P, gcd.ColorForSelected, oE.LineWidth, oE.LineType.Index, oe.iParam[Me.iiiPolylineClosed])
 
 End
 
@@ -374,13 +368,12 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     Dim NewTrame As Boolean
     Dim BulgeAdded As Boolean
 
-    MyEntity = e
     e.P.Clear
     For i = 0 To sClaves.Max
 
         'If sClaves[i] = "90" Then mPolyLine.vertexcount = Val(sValues[i])
         'If sClaves[i] = "70" Then e.fParam[Me.ipaPolylineClosed] = CInt(sValues[i])       ' 0 = abierta, 1 = cerrada
-        If sClaves[i] = "70" Then Me.IsClosed = (CInt(sValues[i]) <> 0)       ' 0 = abierta, 1 = cerrada
+        If sClaves[i] = "70" Then e.iParam[Me.iiiPolylineClosed] = (CInt(sValues[i]) <> 0)       ' 0 = abierta, 1 = cerrada
         If sClaves[i] = "10" Then
             e.p.Add(CFloat(sValues[i]))
             '     NewTrame = True
@@ -402,14 +395,14 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
             '
             ' Else
             e.fParam.Add(CFloat(sValues[i])) ' bulges, one per trame
-            BulgeAdded = True
+            e.iParam[Me.iiiBulged] = 1
             '
             ' Endif
             NewTrame = False
         End If
     Next
 
-    If Me.IsClosed And e.p.Count > 0 Then ' agrego el primer punto de nuevo
+    If e.iParam[Me.iiiPolylineClosed] And e.p.Count > 0 Then ' agrego el primer punto de nuevo
         e.p.Add(e.p[0])
         e.p.Add(e.p[1])
     End If
@@ -419,29 +412,5 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     ' catch
 
     Return False
-
-End
-
-Private Function IsBulged_Read() As Boolean
-
-    Return MyEntity.iParam[0]
-
-End
-
-Private Sub IsBulged_Write(Value As Boolean)
-
-    MyEntity.iParam[0] = Value
-
-End
-
-Private Function IsClosed_Read() As Boolean
-
-    Return MyEntity.iParam[1]
-
-End
-
-Private Sub IsClosed_Write(Value As Boolean)
-
-    MyEntity.iParam[1] = Value
 
 End
