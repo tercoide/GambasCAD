@@ -914,7 +914,7 @@ Private Function Save5EntitiesDirect(eEntys As Entity[]) As Integer
     Dim cEnty As Collection
     Dim eEnty As Entity
     Dim sValues, lpclave As String
-    Dim i As Integer
+    Dim i As Integer, bCan As Boolean
 
     Print #hFIle, "  0"
     Print #hFIle, "SECTION"
@@ -924,8 +924,16 @@ Private Function Save5EntitiesDirect(eEntys As Entity[]) As Integer
     ' here go all entities
     For Each eEnty In eEntys
         cEnty = New Collection
-        clsEntities.DXFExportCommonCol(eEnty, cEnty)
-        eEnty.ClassHandler.ExportDXFCol(eEnty, cEnty)
+        ' veo si lo tengo
+
+        Try bCan = eEnty.ClassHandler.DXF_export
+        If bCan Then
+            clsEntities.DXFExportCommonCol(eEnty, cEnty)
+            eEnty.ClassHandler.ExportDXFCol(eEnty, cEnty)
+        Else    ' trato de exportar como vino
+            cEnty = gcd.CurrDrawing.cModel["ENTITIES"][eEnty.Handle]
+
+        End If
         For Each sValues In cEnty
             lpclave = cEnty.Key
             I = InStr(lpclave, "_")
@@ -933,6 +941,7 @@ Private Function Save5EntitiesDirect(eEntys As Entity[]) As Integer
             Print #hFile, lpclave
             Print #hFIle, sValues
         Next
+
     Next
     ' end section code
     Print #hFIle, "  0"

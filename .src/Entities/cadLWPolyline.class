@@ -221,7 +221,7 @@ Public Sub Draw(oE As Entity)
 
                 If fArcParams[3] > fArcParams[4] Then Swap fArcParams[3], fArcParams[4]
 
-                Debug fArcParams[3], fArcParams[4]
+                'Debug fArcParams[3], fArcParams[4]
                 'If fArcParams[3] > fArcParams[4] Then Stop
                 glPlus.Arc(fArcParams[2], fArcParams[3], fArcParams[4] - fArcParams[3], oE.ColorToPaint, oE.LineWidth, oe.linetype.Index)
                 gl.Translatef(-fArcParams[0], -fArcParams[1], 0)
@@ -346,17 +346,21 @@ End
 
 Public Sub ExportDXFCol(e As Entity, ByRef cExport As Collection) As Boolean
 
-    Dim i As Integer
+    Dim i, IMAX As Integer
 
     cExport.Add("LWPOLYLINE", dxf.codEntity)
     clsEntities.DXFExportCommonCol(e, cExport)
     cExport.Add("AcDbPolyline", "100")
     cExport.Add(e.P.Count / 2, "90")              ' n puntos
-    cExport.Add(CStr(e.fParam[0]), "70")      ' abierta =1 o cerrada =0
+    cExport.Add(CStr(e.iParam[Me.iiiPolylineClosed]), "70")      ' abierta =1 o cerrada =0
     cExport.Add("0", "43")
+    imax = e.P.max
+    If e.iParam[Me.iiiPolylineClosed] Then imax -= 2
     For i = 0 To e.p.Max Step 2
         cExport.Add(CStr(e.p[i]), dxf.codX0 & "_" & CStr(i / 2))
         cExport.Add(CStr(e.p[i + 1]), dxf.codY0 & "_" & CStr(i / 2))
+
+        If i / 2 <= e.fParam.max Then cExport.Add(CStr(e.fParam[i / 2]), "42" & "_" & CStr(i / 2))
     Next
 
 End
@@ -373,34 +377,22 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
         'If sClaves[i] = "90" Then mPolyLine.vertexcount = Val(sValues[i])
         'If sClaves[i] = "70" Then e.fParam[Me.ipaPolylineClosed] = CInt(sValues[i])       ' 0 = abierta, 1 = cerrada
-        If sClaves[i] = "70" Then e.iParam[Me.iiiPolylineClosed] = (CInt(sValues[i]) <> 0)       ' 0 = abierta, 1 = cerrada
+        If sClaves[i] = "70" Then e.iParam[Me.iiiPolylineClosed] = CInt(sValues[i])        ' 0 = abierta, 1 = cerrada
         If sClaves[i] = "10" Then
             e.p.Add(CFloat(sValues[i]))
-            '     NewTrame = True
-            '     If Me.IsBulged Then ' this poly has bulges
-            '         If Not BulgeAdded Then
-            '             e.fParam.Add(0) ' faux bulge
-            '         Endif
-            '         BulgeAdded = False
-            '
-            '     End If
+
+            e.fParam.Add(0) ' faux bulge
+
         End If
         If sClaves[i] = "20" Then e.p.Add(CFloat(sValues[i]))
 
         If sClaves[i] = "42" Then
-            ' If Not FirstBulge Then
-            '     Me.IsBulged = True
-            '     e.fParam[Me.ipaBulges] = CFloat(sValues[i])
-            '     FirstBulge = True
-            '
-            ' Else
-            e.fParam.Add(CFloat(sValues[i])) ' bulges, one per trame
             e.iParam[Me.iiiBulged] = 1
-            '
-            ' Endif
-            NewTrame = False
+            e.fParam[E.fParam.Max] = CFloat(sValues[i])
+
         End If
     Next
+
 
     If e.iParam[Me.iiiPolylineClosed] And e.p.Count > 0 Then ' agrego el primer punto de nuevo
         e.p.Add(e.p[0])
