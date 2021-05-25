@@ -61,6 +61,28 @@ Public Const sdaTotalParams As Integer = 2
 Public Const sdaPattern As Integer = 0
 Public Const sdaPaternFile As Integer = 1
 
+'' Creates a new Hatch entity and prepares arrays
+
+Public Function NewEntity() As Entity
+
+    Dim e As New Entity
+
+    e.Gender = Me.Gender
+    e.ClassHandler = Me
+    e.fParam.Insert([0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    e.P.Insert([0, 0])
+    e.StringData.Insert(["", ""])
+
+    ' this may fails on some scopes, but we should Try
+    Try e.pLayer = gcd.CurrDrawing.CurrLayer
+    Try e.colour = gcd.CurrDrawing.CurrColor
+    Try e.LineType = gcd.CurrDrawing.CurrLineType
+    Try e.LineWidth = gcd.CurrDrawing.CurrLineWt
+
+    Return e
+
+End
+
 ' Parametros de la entidad:
 
 ' P[]:        son los puntos de la polilinea que define el contorno del sombreado
@@ -320,7 +342,6 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     Dim eContour As Entity
     Dim edge As Integer
 
-    Me.setEntity(e)
     'If e.Handle = "60FA9" Then Stop
 
     ' vamos a agrupar las entidades que forman el contorno en un bloque
@@ -453,19 +474,17 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
                 Else ' read the polyline loop
                     ' forma el contorno
-                    eContour = New Entity
+                    eContour = cadLWPolyline.NewEntity()
                     ' a esta entidad que es un borde le etiquetamos el loop al que pertenece
                     eContour.Group = iLoop
-                    eContour.ClassHandler = cadLWPolyline
-                    eContour.Gender = cadLWPolyline.Gender
-                    clsEntities.setEntity(eContour)
+
                     e.pBlock.entities.Add(eContour)
 
                     Inc i
                     ' leo si tiene bulges
                     If sClaves[i] = "72" Then
                         If sValues[i] = "1" Then ' tiene bulges
-                            eContour.fParam[cadLWPolyline.ipaBulged] = True
+                            eContour.iParam[cadLWPolyline.iiiBulged] = 1
                         End If
                     Else
                         'error de DXF
@@ -476,7 +495,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
                     ' leo si es abierta o cerrada
                     If sClaves[i] = "73" Then
                         If sValues[i] = "1" Then ' cerrada
-                            eContour.fParam[cadLWPolyline.ipaPolylineClosed] = True
+                            eContour.iParam[cadLWPolyline.iiiPolylineClosed] = 1
                         End If
                     Else
                         'error de DXF
@@ -497,7 +516,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
                         eContour.P[iPoints * 2] = CFloat(sValues[i])
                         Inc i
                         eContour.P[iPoints * 2 + 1] = CFloat(sValues[i])
-                        If eContour.fParam[cadLWPolyline.ipaBulged] = True Then
+                        If eContour.iParam[cadLWPolyline.iiiBulged] Then
                             Inc i ' ignoro el bulge
                         Endif
                     Next

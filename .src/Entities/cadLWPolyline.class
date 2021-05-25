@@ -52,19 +52,40 @@ Public Const DXF_Reading As Boolean = True
 Public Const DXF_Export As Boolean = True
 
 ' fParam helpers
-Public Const TotalParams As Integer = 4
-Public Const ipaPolylineClosed As Integer = 0
-Public Const ipaBulged As Integer = 1
-Public Const ipaReserved2 As Integer = 2
-Public Const ipaBulges As Integer = 3  ' en adelante
+' Public Const TotalParams As Integer = 4
+' Public Const ipaPolylineClosed As Integer = 0
+' Public Const ipaBulged As Integer = 1
+' Public Const ipaReserved2 As Integer = 2
+' Public Const ipaBulges As Integer = 3  ' en adelante
+
+' iParam helpers
+Public Const iTotalParams As Integer = 2
+Public Const iiiPolylineClosed As Integer = 0
+Public Const iiiBulged As Integer = 1
+
+'' Creates a new LWpolyline entity and prepares arrays
+Public Function NewEntity() As Entity
+
+    Dim e As New Entity
+
+    e.Gender = Me.Gender
+    e.ClassHandler = Me
+    e.iParam.Insert([0, 0])
+    e.P.Insert([0, 0])
+
+    ' this may fails on some scopes, but we should Try
+    Try e.pLayer = gcd.CurrDrawing.CurrLayer
+    Try e.colour = gcd.CurrDrawing.CurrColor
+    Try e.LineType = gcd.CurrDrawing.CurrLineType
+    Try e.LineWidth = gcd.CurrDrawing.CurrLineWt
+
+    Return e
+
+End
 
 ' The entity handler receives a user action, and returns the number of expected parameter
 ' If definitive = true, means the parameter is set
 Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
-
-    If eBuild.fParam.Count = 0 Then
-        clsEntities.setEntity(eBuild)
-    End If
 
     If vParam[0] = "point" Then
         eBuild.DrawAble = True
@@ -145,21 +166,20 @@ Public Sub Draw(oE As Entity)
     Dim i As Integer
     Dim fArcParams As Float[]
 
-    If oe.fParam[Me.ipaBulged] = True Then
-
+    If oe.iParam[Me.iiiBulged] Then
         For i = 0 To oe.P.Count / 2 - 2
 
             ' TODO: esto tapa un error de lectura DXF
-            If Me.ipaBulges + i > oe.fParam.Max Then Break
+            'If Me.ipaBulges + i > oe.fParam.Max Then Break
 
             ' no todos los tramos pueden tener bulges
-            If Abs(oe.fParam[Me.ipaBulges + i]) > 0.001 Then
+            If Abs(oe.fParam[i]) > 0.001 Then
                 ang1 = Ang(oe.P[(i + 1) * 2] - oe.P[i * 2], oe.P[(i + 1) * 2 + 1] - oe.P[i * 2 + 1])    ' angulo del tramo
                 Lt = puntos.distancia(oe.P[i * 2], oe.P[i * 2 + 1], oe.P[(i + 1) * 2], oe.P[(i + 1) * 2 + 1])
                 If Lt = 0 Then Continue
                 mx = (oe.P[(i + 1) * 2] + oe.P[i * 2]) / 2          ' punto medio del tramo
                 my = (oe.P[(i + 1) * 2 + 1] + oe.P[i * 2 + 1]) / 2
-                B = oe.fParam[Me.ipaBulges + i] * Lt / 2
+                B = oe.fParam[i] * Lt / 2
                 bx = mx + B * Sin(ang1)                             ' Tercer punto del Bulge
                 by = my - B * Cos(ang1)
 
@@ -215,7 +235,7 @@ Public Sub Draw(oE As Entity)
         Next
     Else
 
-        GLplus.PolyLines(oE.p, oE.ColorToPaint, oE.LineWidth, oe.linetype.Index, oe.fParam[Me.ipaPolylineClosed])
+        GLplus.PolyLines(oE.p, oE.ColorToPaint, oE.LineWidth, oe.linetype.Index, oe.iParam[Me.iiiPolylineClosed])
 
     End If
 
@@ -223,8 +243,8 @@ End
 
 Public Sub DrawSelected(oE As Entity)
 
-    GLplus.PolyLines(oE.P, gcd.flgWindowBackColor, oE.LineWidth, gcd.stiDashed, oe.fParam[Me.ipaPolylineClosed])
-    GLplus.PolyLines(oE.P, gcd.ColorForSelected, oE.LineWidth, oE.LineType.Index, oe.fParam[Me.ipaPolylineClosed])
+    GLplus.PolyLines(oE.P, gcd.flgWindowBackColor, oE.LineWidth, gcd.stiDashed, oe.iParam[Me.iiiPolylineClosed])
+    GLplus.PolyLines(oE.P, gcd.ColorForSelected, oE.LineWidth, oE.LineType.Index, oe.iParam[Me.iiiPolylineClosed])
 
 End
 
@@ -348,41 +368,41 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     Dim NewTrame As Boolean
     Dim BulgeAdded As Boolean
 
-    clsEntities.setEntity(e)
-
+    e.P.Clear
     For i = 0 To sClaves.Max
 
         'If sClaves[i] = "90" Then mPolyLine.vertexcount = Val(sValues[i])
-        If sClaves[i] = "70" Then e.fParam[Me.ipaPolylineClosed] = CInt(sValues[i])       ' 0 = abierta, 1 = cerrada
+        'If sClaves[i] = "70" Then e.fParam[Me.ipaPolylineClosed] = CInt(sValues[i])       ' 0 = abierta, 1 = cerrada
+        If sClaves[i] = "70" Then e.iParam[Me.iiiPolylineClosed] = (CInt(sValues[i]) <> 0)       ' 0 = abierta, 1 = cerrada
         If sClaves[i] = "10" Then
             e.p.Add(CFloat(sValues[i]))
-            NewTrame = True
-            If e.fParam[Me.ipaBulged] = True Then ' this poly has bulges
-                If Not BulgeAdded Then
-                    e.fParam.Add(0) ' faux bulge
-                Endif
-                BulgeAdded = False
-
-            End If
+            '     NewTrame = True
+            '     If Me.IsBulged Then ' this poly has bulges
+            '         If Not BulgeAdded Then
+            '             e.fParam.Add(0) ' faux bulge
+            '         Endif
+            '         BulgeAdded = False
+            '
+            '     End If
         End If
         If sClaves[i] = "20" Then e.p.Add(CFloat(sValues[i]))
 
         If sClaves[i] = "42" Then
-            If Not FirstBulge Then
-                e.fParam[Me.ipaBulged] = True
-                e.fParam[Me.ipaBulges] = CFloat(sValues[i])
-                FirstBulge = True
-
-            Else
-                e.fParam.Add(CFloat(sValues[i])) ' bulges, one per trame
-                BulgeAdded = True
-
-            Endif
+            ' If Not FirstBulge Then
+            '     Me.IsBulged = True
+            '     e.fParam[Me.ipaBulges] = CFloat(sValues[i])
+            '     FirstBulge = True
+            '
+            ' Else
+            e.fParam.Add(CFloat(sValues[i])) ' bulges, one per trame
+            e.iParam[Me.iiiBulged] = 1
+            '
+            ' Endif
             NewTrame = False
         End If
     Next
 
-    If e.fParam[0] = 1 And e.p.Count > 0 Then ' agrego el primer punto de nuevo
+    If e.iParam[Me.iiiPolylineClosed] And e.p.Count > 0 Then ' agrego el primer punto de nuevo
         e.p.Add(e.p[0])
         e.p.Add(e.p[1])
     End If

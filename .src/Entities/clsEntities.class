@@ -66,14 +66,14 @@ Public Function FindStyle(sName As String) As Style
 
 End
 
-Public Sub setEntity(e As Entity)
-
-    Try e.iParam.Resize(e.ClassHandler.iTotalParams)
-    Try e.fParam.Resize(e.ClassHandler.TotalParams)
-    Try e.StringData.Resize(e.ClassHandler.sdaTotalParams) ' text, style
-    Try e.P.Resize(e.ClassHandler.TotalPoints * 2)
-
-End
+' Public Sub setEntity(e As Entity)
+'
+'     Try e.iParam.Resize(e.ClassHandler.iTotalParams)
+'     Try e.fParam.Resize(e.ClassHandler.fTotalParams)
+'     Try e.StringData.Resize(e.ClassHandler.sdaTotalParams) ' text, style
+'     Try e.P.Resize(e.ClassHandler.TotalPoints * 2)
+'
+' End
 
 Public Function ReconstruirBloques() As Boolean
 
@@ -1291,7 +1291,7 @@ End
 
 '' Imports data from a collection to an entity. True if the entity is handled by m-designer at this version,
 '' False if entity couldn't be created for some reason.
-Public Function DXFImportToEntity(c As Collection, e As Entity, Optional IsDummy As Boolean = False) As Boolean
+Public Function DXFImportToEntity(c As Collection, Optional IsDummy As Boolean = False) As Entity
 
     Dim clsHandler As Object
     Dim sClave As New String[]
@@ -1299,6 +1299,7 @@ Public Function DXFImportToEntity(c As Collection, e As Entity, Optional IsDummy
     Dim lpValue, lpclave As String
     Dim i As Integer
     Dim GotEntity As Boolean
+    Dim e As Entity
 
     ' If Not c.Exist("entity") Then Return False
     ' If Not c "entity") Then Return False
@@ -1322,9 +1323,7 @@ Public Function DXFImportToEntity(c As Collection, e As Entity, Optional IsDummy
         sValue.Add(lpValue)
 
     Next
-    e.ClassHandler = clsHandler
-    e.Gender = clsHandler.Gender
-
+    e = clsHandler.newEntity()
     ' llenamos Common data:
     e.pLayer = gcd.GetLayer(c[dxf.codLayer])
     e.Handle = c[dxf.codHandle]
@@ -1347,17 +1346,17 @@ Public Function DXFImportToEntity(c As Collection, e As Entity, Optional IsDummy
         'If e.ClassHandler.gender <> "Hatch" Then e.ClassHandler.Finish(e)
         e.ClassHandler.Finish(e)
 
-        Return True
+        Return e
 
     Else
 
-        Return False
+        Return Null
 
     End If
 
     ' Catch
     'e.ClassHandler = cadDummy
-    Return False
+    Return Null
 
 End
 
@@ -1572,9 +1571,8 @@ Public Function AddMText(obxContainer As Entity[], Points As Float[], angle As F
 
     Dim oEntity As New Entity
 
-    oEntity.ClassHandler = cadMText
-    oEntity.Gender = oEntity.ClassHandler.gender
-    setEntity(oentity)
+    oEntity = cadMText.NewEntity()
+    oEntity.P.Clear
     oEntity.P.insert(points)                    ' recibimos position x1,y1 pero tal vez venga un recuadro
     oEntity.fParam[cadMText.ipaTextAngle] = angle                  ' GRADOS
     oEntity.fParam[cadMText.ipaTextHeight] = height                  ' alto letras
