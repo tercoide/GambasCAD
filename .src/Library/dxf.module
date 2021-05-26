@@ -57,7 +57,8 @@ Public Function DWGtoDXF(sDwgFile As String) As String
 End
 
 '' Carga el DXF y lo mete en cModel del dibujo actual
-Public Function LoadFile(sFile As String, cToFill As Collection, Optional IgnoreTables As Boolean = False, IgnoreBlocks As Boolean = False, IgnoreHeader As Boolean = False)
+' Verbose=0 nada, 1=minimo, 2=grupos, 3=todo
+Public Function LoadFile(sFile As String, cToFill As Collection, Optional IgnoreTables As Boolean = False, IgnoreBlocks As Boolean = False, IgnoreHeader As Boolean = False, VerboseLevel As Integer = 0)
 
     Dim t As Float = Timer
     Dim cLlaveActual, cSectionActual, cTable As Collection
@@ -158,15 +159,19 @@ Public Function LoadFile(sFile As String, cToFill As Collection, Optional Ignore
         Endif
     Wend
 
-    ' Print "DXF: Leidas", nEntitiesread, " entidades"
-    ' If cEntitiesUnread.Count > 0 Then
-    '   Print "DXF: Un total de", nEntitiesUnread, " entidades no pudieron ser leidas:"
-    '   For Each unread As String In cEntitiesUnread
-    '     Print unread
-    '   Next
-    ' Endif
-    ' Print
-    Print "DXF: fin lectura en ", Timer - t
+    If VerboseLevel > 1 Then
+        If VerboseLevel > 2 Then
+            Print "DXF: Leidas", nEntitiesread, " entidades"
+            If cEntitiesUnread.Count > 0 Then
+                Print "DXF: Un total de", nEntitiesUnread, " entidades no pudieron ser leidas:"
+                For Each unread As String In cEntitiesUnread
+                    Print unread
+                Next
+            Endif
+            Print
+        End If
+        Print "DXF: fin lectura en ", Timer - t
+    End If
 
 End
 
@@ -790,7 +795,7 @@ End
 
 Private Function Save4BlocksDirect(eBlocks As Block[]) As Integer
 
-    Dim i As Integer
+    Dim i As Integer, bCan As Boolean
     Dim iii As Integer
     Dim eBlock As Block, cEnty As Collection, eEnty As Entity
     Dim sValues, lpclave As String
@@ -830,8 +835,14 @@ Private Function Save4BlocksDirect(eBlocks As Block[]) As Integer
 
             For Each eEnty In eBlock.entities
                 cEnty = New Collection
-                clsEntities.DXFExportCommonCol(eEnty, cEnty)
-                eEnty.ClassHandler.ExportDXFCol(eEnty, cEnty)
+
+                If eEnty.ClassHandler.DXF_export Then
+                    clsEntities.DXFExportCommonCol(eEnty, cEnty)
+                    eEnty.ClassHandler.ExportDXFCol(eEnty, cEnty)
+                Else    ' trato de exportar como vino
+                    cEnty = gcd.CurrDrawing.cModel["BLOCKS"][eBlock.name]["entities"][eEnty.Handle]
+
+                End If
                 For Each sValues In cEnty
                     lpclave = cEnty.Key
                     I = InStr(lpclave, "_")
@@ -840,6 +851,12 @@ Private Function Save4BlocksDirect(eBlocks As Block[]) As Integer
                     Print #hFIle, sValues
                 Next
             Next
+
+
+            ' que pasa con el ENDBLK?
+            ' Al leer, lo guardo como una entidad y, por lo tanto lo tengo en el bloque, pero...corresponde?
+            ' no seria mejor generarlo? al fin y al cabo es solo una señal para el lector de archivos (como el SEQEND)
+
 
         Endif
 
