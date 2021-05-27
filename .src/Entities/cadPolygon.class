@@ -21,6 +21,7 @@
 ' Boston, MA  02110-1301  USA
 Create Static
 'Fast
+Inherits CadLWpolyline
 
 Public Const Gender As String = "Polygon"
 Public Const DrawingOrder As Integer = 1        ' 1 = draws first
@@ -34,32 +35,8 @@ Public Const OrthogonalIgnored As Boolean = False
 Public Const OrthogonalForced As Boolean = False
 Public Const ParamDefault As String = "5; ; "
 Public Const StretchAble As Boolean = True           ' Si lo puedo deformar
-Public Selected As Boolean
 
-Public DrawAble As Boolean = False          ' True si durante la construccion ya tiene suficientes elementos para poder hacer una representacion digna
-Public Visible As Boolean = True            ' si esta entidad puede ser mostrada independientmente
-Public Finished As Boolean = False          ' colocar en true cuando se llegue a completar
-Public StepsDone As Integer                 ' esto lo cambia cls ElementBuilder durante la construccion
 
-'' Creates a new LWpolyline entity and prepares arrays
-Public Function NewEntity() As Entity
-
-    Dim e As New Entity
-
-    e.Gender = Me.Gender
-    e.ClassHandler = Me
-    e.fParam.Insert([0])
-    e.P.Insert([0, 0])
-
-    ' this may fails on some scopes, but we should Try
-    Try e.pLayer = gcd.CurrDrawing.CurrLayer
-    Try e.colour = gcd.CurrDrawing.CurrColor
-    Try e.LineType = gcd.CurrDrawing.CurrLineType
-    Try e.LineWidth = gcd.CurrDrawing.CurrLineWt
-
-    Return e
-
-End
 
 ' The entity handler receives a user action, and returns the number of expected parameter
 ' If definitive = true, means the parameter is set
@@ -71,8 +48,8 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
     If Me.StepsDone = 0 Then                    ' lados
         If vParam[0] <> "float" Then Return
 
-        eBuild.fParam[0] = vParam[1]
-
+        eBuild.iParam[0] = vParam[1]
+        eBuild.fParam.Add(0)
         If definitive Then Return True
 
     Else If Me.StepsDone = 1 Then               ' centro del poligono
@@ -88,7 +65,7 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
 
         If vParam[0] <> "float" Then Return False
 
-        eBuild.fParam[1] = vParam[1]
+        eBuild.fParam[0] = vParam[1]
         eBuild.DrawAble = True
 
         If definitive Then Return True
@@ -106,11 +83,11 @@ Public Sub Draw(oE As Entity)
     Dim angle, xangle, x, y, z, r As Float
     Dim i As Integer
 
-    If oe.fParam[0] < 3 Then Return
-    r = oe.fParam[1]
-    xangle = 3.1415927 / oe.fParam[0]
+    If oe.iParam[0] < 3 Then Return
+    r = oe.fParam[0]
+    xangle = 3.1415927 / oe.iParam[0]
     oe.Polygon.Clear
-    For i = 0 To oe.fParam[0] * 2 - 1 Step 2
+    For i = 0 To oe.iParam[0] * 2 - 1 Step 2
 
         angle = xangle * i
         oe.Polygon.Add(r * Cos(angle) + oe.P[0])

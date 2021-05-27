@@ -42,6 +42,8 @@ Public Finished As Boolean = False          ' colocar en true cuando se llegue a
 Public StepsDone As Integer                 ' esto lo cambia cls ElementBuilder durante la construccion
 
 ' esto es para texto RTF o complejos
+Private Printing As Boolean
+
 Private TextAngle As Float
 
 Private TextLines As New String[]
@@ -235,68 +237,10 @@ End
 
 Public Function Draw2(oE As Entity)
 
-    If Not oE.Visible Then Return
+    Printing = True
+    Draw(oe)
+    Printing = False
 
-    Dim angulo As Float, hText As New PaintExtents, lText As String
-
-    Dim FontScalePrev As Float
-
-    paint.Save
-
-    'FontScalePrev = paint.FontScale
-
-    paint.LineWidth = 1
-    ' La cota puede estar inclinada, entonces debo rotarla
-
-    If oE.fParam.Count > 0 Then
-
-        angulo = oE.fParam[0] / 180 * Pi
-
-    Else
-
-        angulo = 0
-
-    End If
-
-    If oE.stringdata[0] = "" Then
-
-        ltext = "ABCdef123"
-
-    Else
-
-        ltext = oE.stringdata[0]
-
-    End If
-
-    If oE.fParam.Count > 1 Then
-
-        If oE.fParam[1] <= 0 Then
-            paint.Font.Size = 10
-        Else ' FIXME: hay problemas con el ancho del total del texto que no acompaña el zooming
-            paint.Font.Size = oE.fParam[1]
-        End If
-
-    Else
-        ' cuando ScaleZoom es 0.15 el texto coincide con DXF
-        ' entonces voy a trabajar con esa relacion
-
-        paint.Font.Size = 10
-
-    End If
-
-    htext = paint.TextExtents(ltext)
-
-    paint.brush = Paint.Color(oE.ColorToPaint)
-
-    paint.Translate(oE.p[0], oE.p[1])
-    paint.Rotate(-angulo)
-    paint.Scale(1, -1)
-
-    paint.DrawText(ltext)
-
-    paint.Stroke
-
-    paint.Restore
 
 End
 
@@ -498,6 +442,19 @@ Public Sub ProcessPart(s As String)
             If CurrentTextFont <> "" Then glPlus.SelectFont(CurrentTextFont)
 
             glPlus.DrawText(Mid(s2, 1, p2 - 1), CurrentTextPosX, CurrentTextPosY, CurrentTextangle, CurrentTextHeigth, CurrentTextColor)
+            If Printing Then
+                Paint.save
+                paint.Translate(CurrentTextPosX, CurrentTextPosY)
+                paint.Rotate(-CurrentTextangle)
+                paint.Scale(1, -1)
+                Paint.DrawText(Mid(s2, 1, p2 - 1))
+                Paint.Stroke
+                Paint.Restore
+
+
+            Endif
+
+
             fRect = glPlus.TextExtends(Mid(s2, p2), CurrentTextHeigth)
             puntos.Rotate(fRect, CurrentTextAngle)
             If Me.MyPolygon[0] > (CurrentTextPosX) Then Me.MyPolygon[0] = (CurrentTextPosX)
@@ -510,6 +467,17 @@ Public Sub ProcessPart(s As String)
 
             If CurrentTextFont <> "" Then glPlus.SelectFont(CurrentTextFont)
             glPlus.DrawText(s2, CurrentTextPosX, CurrentTextPosY, CurrentTextAngle, CurrentTextHeigth, CurrentTextColor)
+            If Printing Then
+                Paint.save
+                paint.Translate(CurrentTextPosX, CurrentTextPosY)
+                paint.Rotate(-CurrentTextangle)
+                paint.Scale(1, -1)
+
+                Paint.DrawText(s2)
+                Paint.Stroke
+                Paint.Restore
+            Endif
+
             fRect = glPlus.TextExtends(s2, CurrentTextHeigth)
             puntos.Rotate(fRect, CurrentTextAngle)
             If Me.MyPolygon[0] > (CurrentTextPosX) Then Me.MyPolygon[0] = (CurrentTextPosX)
