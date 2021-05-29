@@ -104,6 +104,13 @@ Public Const flgGCD_New As Integer = 8
 'Public Const flg8 As Integer = 128
 'Public Const flg9 As Integer = 256
 
+'variables de ambiente
+Public flgShowInspector As Boolean = False
+Public flgSearchingEntity As Boolean = False  ' impide cuellos de botellla
+Public flgSearchingPOI As Boolean
+Public flgShowingLayers As Boolean
+Public flgNewPosition As Boolean        ' seteada cuando hay un cambio en pan o zoom
+
 Public Drawings As New Drawing[]
 Public DrawingReady As Boolean = False
 Public CurrDrawing As Drawing
@@ -1115,5 +1122,67 @@ Public Function FitDxfToImage(sDXFfile As String, imgPreview As Object, Optional
         Paint.End
 
     End If
+
+End
+
+Public Function Xreal(ScreenX As Float) As Float
+
+    Return Metros((screenx - fmain.glarea1.w / 2 - gcd.CurrDrawing.PanX))
+
+End
+
+Public Function Yreal(ScreenY As Float) As Float
+
+    Return Metros((-ScreenY + fmain.glarea1.h / 2 - gcd.CurrDrawing.PanY))
+
+End
+
+Public Function XPix(X As Float) As Float
+
+    'Return Metros((screenx - glarea1.w / 2 - gcd.CurrDrawing.PanX))
+    Return Me.Pixels(X) + fmain.glarea1.w / 2 + gcd.CurrDrawing.PanX
+
+End
+
+Public Function YPix(Y As Float) As Float
+
+    'Return Metros((-ScreenY + glarea1.h / 2 - gcd.CurrDrawing.PanY))
+    Return -(Me.Pixels(Y) - fmain.glarea1.h / 2 + gcd.CurrDrawing.PanY)
+
+End
+
+Public Function Pixels(distancia As Float) As Float  ' converts meters to pixels
+    ' transforma Metros en Pixeles sin tener en cuenta el Pan
+
+    Return distancia * gcd.CurrDrawing.ScaleZoom
+
+End
+
+' Public Function Metros(pixeles As Integer) As Float  ' converts pixels to meters
+'
+'     Return pixeles / gcd.CurrDrawing.ScaleZoom
+'
+' End
+
+Public Function Near(xyzReal As Float) As Float
+    ' return the nearest point to the grid
+    ' this is a world to world points (not pixels)
+
+    ' Example:
+    ' if                    GridSpacing = 0.2
+    ' we pass               xyzReal = 1.35
+    ' function will give    NearReal = 1.40
+
+    Dim n As Integer, r As Float
+
+    If Not fmain.Gridactive Then Return xyzReal
+
+    r = xyzReal / fmain.GridSpacing
+    n = Int(r)
+    r = r - Int(r)
+
+    If r > 0.5 Then n += 1
+
+    Return n * fmain.GridSpacing
 
 End

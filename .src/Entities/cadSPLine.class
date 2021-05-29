@@ -474,3 +474,233 @@ Public Sub Draw(oE As Entity)
     ' gl.End()
 
 End
+
+' Importo los datos que puedo procesar de una coleccion y genero un Entity para ser agregado a un array
+Public Function ImportJsonCol(c As Collection, e As Entity) As Boolean
+
+    Dim i, iFinal As Integer
+    Dim fTangLargo As Float
+    Dim fControlPoints As New Float[]
+    Dim fFitPoint, fKnots As New Float[]
+
+    e.fParam.Resize(Me.TotalParams)
+
+    If c.Exist("ctrl_pts") Then
+
+        e.fParam.Add(Me.TypeControls)
+        For i = 0 To c["ctrl_pts"].Max
+            e.P.Add(c["ctrl_pts"][i]["x"])
+            e.P.Add(c["ctrl_pts"][i]["y"])
+        Next
+    End If
+
+    If c.Exist("fit_pts") Then
+
+        e.fParam.Add(Me.TypeTangent)
+        For i = 0 To c["fit_pts"].Max
+            e.P.Add(c["fit_pts"][i][0])
+            e.P.Add(c["fit_pts"][i][1])
+        Next
+    End If
+    ' fabrico control points ente fit_points
+
+    Try e.fParam[Me.ipaFlag] = CFloat(c["closed_b"])
+    Try e.fParam[Me.ipaDegree] = CInt(c["degree"])
+
+    Try e.fParam[Me.ipaTotalControlPoints] = c["ctrl_pts"].Count
+    Try e.fParam[Me.ipaTotalFitPoints] = c["fit_pts"].Count
+    Try e.fParam[Me.ipaKnotTolerance] = CFloat(c["knot_tol"])
+    Try e.fParam[Me.ipaControlTolerance] = CFloat(c["ctrl_tol"])
+    Try e.fParam[Me.ipaFitTolerance] = CFloat(c["fit_tol"])
+
+    ' Los Knots estan en el indice me.TotalParams en adelante
+    If c.Exist("knots") Then
+        e.fParam.Add(c["knots"].Copy())
+        e.fParam[Me.ipaTotalKnots] = c["knots"].Count
+    Else
+
+        fKnots.Clear
+
+        fKnots.Add(0)
+        fKnots.Add(0)
+        fKnots.Add(0)
+
+        If e.P.Count / 2 > 3 Then
+            For i = 1 To e.P.count / 2 - 3 + 4
+                fKnots.Add(i / ((e.P.count / 2 - 2)))
+            Next
+        End If
+        fKnots.Add(1)
+        fKnots.Add(1)
+        fKnots.Add(1)
+        e.fParam.insert(fKnots.Copy())
+    End If
+
+    ' i = 2
+    ' Do
+    '
+    '   fControlPoints.Add((e.P[i] + e.P[i + 2]) / 2)
+    '   fControlPoints.Add((e.P[i + 1] + e.P[i + 3]) / 2)
+    '   fFitPoint.Add(e.P[i + 2])
+    '   fFitPoint.Add(e.P[i + 3])
+    '   e.P.insert(fControlPoints, i + 2)
+    '   e.P.Insert(fFitPoint, i + 4)
+    '   fControlPoints.Clear
+    '   fFitPoint.Clear
+    '   i = i + 6
+    ' Loop Until i > iFinal
+    '
+    '
+    If c.Exist("beg_tan_vec") Then
+        fTangLargo = puntos.distancia(e.P[0], e.P[1], e.P[2], e.P[3]) / 2
+        'fTangLargo = 1
+        e.P.Insert([e.P[0] + c["beg_tan_vec"][0] * fTangLargo, e.P[1] + c["beg_tan_vec"][1] * fTangLargo], 2)
+
+    Endif
+
+    If c.Exist("end_tan_vec") Then
+        fTangLargo = puntos.distancia(e.P[e.P.Max - 3], e.P[e.P.Max - 2], e.P[e.P.Max - 1], e.P[e.P.Max]) / 2
+        'fTangLargo = 1
+        e.P.Insert([e.P[e.P.Max - 1] - c["end_tan_vec"][0] * fTangLargo, e.P[e.P.Max] - c["end_tan_vec"][1] * fTangLargo], e.P.max - 1)
+
+    Endif
+
+    ' puede habre tangentes
+
+    If e.P.Count = 0 Then e.P.Insert([0, 0, 0, 0, 0, 0, 0, 0])
+
+    Return True
+
+    'Catch
+
+    Return False
+
+End
+
+'      "entity": "SPLINE",
+'      "index": 3357,
+'      "type": 36,
+'      "handle": [0, 1249847],
+'      "size": 418,
+'      "bitsize": 3284,
+'      "ownerhandle": [12, 1, 2, 1249845],
+'      "_subclass": "AcDbEntity",
+'      "prev_entity": [4, 0, 0, 0],
+'      "next_entity": [6, 0, 0, 1249848],
+'      "layer": [5, 1, 16, 16],
+'      "preview_exists": 0,
+'      "entmode": 0,
+'      "nolinks": 0,
+'      "color": 256,
+'      "ltype_scale": 1.0,
+'      "ltype_flags": 0,
+'      "plotstyle_flags": 0,
+'      "invisible": 0,
+'      "linewt": 29,
+'      "_subclass": "AcDbSpline",
+'      "scenario": 1,
+'      "degree": 3,
+'      "rational": 0,
+'      "closed_b": 0,
+'      "periodic": 0,
+'      "knot_tol": 0.0000000001,
+'      "ctrl_tol": 0.0000000001,
+'      "weighted": 0,
+'      "knots": [
+'        0.00000000000000,
+'        0.00000000000000,
+'        0.00000000000000,
+'        0.00000000000000,
+'        0.11913126411571,
+'        0.23975678553509,
+'        0.49083550137789,
+'        1.04447328364244,
+'        1.44003107270299,
+'        1.55491017607702,
+'        1.92016945852300,
+'        2.22324540117473,
+'        2.48758013168516,
+'        2.82200084095037,
+'        3.00883554387170,
+'        3.16218973969312,
+'        3.16218973969312,
+'        3.16218973969312,
+'        3.16218973969312
+'      ],
+'      "ctrl_pts": [
+'        {
+'          "x": -0.21323049241494,
+'          "y": 0.84482240616663,
+'          "z": 0.0
+'        },
+'        {
+'          "x": -0.1847166715454,
+'          "y": 0.87190801033913,
+'          "z": 0.0
+'        },
+'        {
+'          "x": -0.1228526953775,
+'          "y": 0.922359536827,
+'          "z": 0.0
+'        },
+'        {
+'          "x": 0.02043360444333,
+'          "y": 1.00035857198183,
+'          "z": 0.0
+'        },
+'        {
+'          "x": 0.27257295630051,
+'          "y": 1.1752608208499,
+'          "z": 0.0
+'        },
+'        {
+'          "x": 0.61052372379078,
+'          "y": 1.38248143619054,
+'          "z": 0.0
+'        },
+'        {
+'          "x": 0.92880308857434,
+'          "y": 1.54637696665506,
+'          "z": 0.0
+'        },
+'        {
+'          "x": 1.21565315275478,
+'          "y": 1.6043944582336,
+'          "z": 0.0
+'        },
+'        {
+'          "x": 1.47769680033207,
+'          "y": 1.61054542981341,
+'          "z": 0.0
+'        },
+'        {
+'          "x": 1.78840999609696,
+'          "y": 1.61736294507911,
+'          "z": 0.0
+'        },
+'        {
+'          "x": 2.08859470791577,
+'          "y": 1.60619051383182,
+'          "z": 0.0
+'        },
+'        {
+'          "x": 2.35172325891301,
+'          "y": 1.59913454504708,
+'          "z": 0.0
+'        },
+'        {
+'          "x": 2.57162173748583,
+'          "y": 1.55677519634268,
+'          "z": 0.0
+'        },
+'        {
+'          "x": 2.68480471484867,
+'          "y": 1.53475995596965,
+'          "z": 0.0
+'        },
+'        {
+'          "x": 2.73031030857453,
+'          "y": 1.51193841889326,
+'          "z": 0.0
+'        }
+'      ]
