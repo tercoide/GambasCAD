@@ -1059,3 +1059,61 @@ Catch
     End Select
 
 End
+
+'' Carga un DXF e intenta dibujarlo centrado en el contenedor: DrawingArea, Picture, Image
+''          iColor: CAD color o -1 para usar como vienen en el DXF
+''          fLineWidth: -1=como vienen, 0=automatico, >0 = fijo en ese valor
+Public Function FitDxfToImage(sDXFfile As String, imgPreview As Object, Optional iColor As Integer = 0, fLineWidth As Float = 1) As Boolean
+
+    Dim cModelPreview As Collection
+    Dim entyBlock As New Entity[]
+    Dim scaleX, scale, scaleY As Float
+    Dim entScale As Float
+    Dim entidad As Entity
+    Dim sFActor As Float = 1.5
+    Dim flxLimits As New Float[]
+
+    If Not Exist(sDxfFile) Then Return False
+    'imgPreview = New Image(80, 80, Color.Black)
+    cModelPreview = New Collection
+    entyBlock.Clear
+    entyBlock = New Entity[]
+    Dxf.LoadFile(sDxfFile, cModelPreview, True, False, True)
+
+    gcd.ImpEnty6(cModelPreview["ENTITIES"], entyBlock)
+    For Each entidad In entyBlock
+        entidad.pLayer = gcd.CurrDrawing.CurrLayer
+    Next
+    clsEntities.BuildPoi(entyBlock)
+    If entyBlock.Count > 0 Then
+        flxLimits = clsEntities.ComputeLimits(entyBlock)                    ' computo el tamaño de la entidad, y luego determino la escala
+
+        Paint.Begin(imgPreview)
+
+        Paint.Reset ' vuelvo escalas y traslados a cero
+        Paint.Translate(Paint.W / 2, Paint.H / 2) ' centro el dibujo
+        If (flxLimits[2] - flxLimits[0]) > 1e-10 Then scaleX = Paint.w / (flxLimits[2] - flxLimits[0]) Else scaleX = 1e10
+        If (flxLimits[3] - flxLimits[1]) > 1e-10 Then scaleY = Paint.H / (flxLimits[3] - flxLimits[1]) Else scaleY = 1e10
+        If scaleX < scaleY Then Scale = scaleX Else Scale = scaley
+        Paint.Scale(scale * 0.85, -scale * 0.85)
+
+        ' centro el dibujo
+        Paint.Translate(-(flxLimits[2] + flxLimits[0]) / 2, -(flxLimits[3] + flxLimits[1]) / 2)
+
+        For Each entidad In entyBlock
+            If iColor < 0 Then
+                Paint.Brush = gcd.gColor[entidad.colour]
+            Else
+                Paint.Brush = Paint.Color(iColor)
+            Endif
+            If fLineWidth = 0 Then
+                Paint.LineWidth = entidad.LineWidth / scale
+            End If
+
+            entidad.ClassHandler.draw2(entidad)
+        Next
+        Paint.End
+
+    End If
+
+End

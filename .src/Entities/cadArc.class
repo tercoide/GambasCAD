@@ -41,11 +41,19 @@ Public StepsDone As Integer                 ' esto lo cambia cls ElementBuilder 
 ' vars creadas en finish
 Public start As Float
 Public recorrido As Float
+Public anticlockwise As Boolean = True
 
 ' DXF Read/Export
 
 Public Const DXF_Reading As Boolean = True
 Public Const DXF_Export As Boolean = True
+
+' Entity data:
+'   P[0]        center X
+'   P[1]        center Y
+'   fParam[0]   radius
+'   fParam[1]   start angle (degrees)
+'   fParam[2]   end angle   (degrees)
 
 '' Creates a new LWpolyline entity and prepares arrays
 Public Function NewEntity() As Entity
@@ -93,7 +101,6 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
         eBuild.fParam[0] = vParam[1]
         eBuild.fParam[1] = 0
         eBuild.fParam[2] = 360
-        eBuild.fParam[3] = 1
 
         If definitive Then Return True
 
@@ -177,13 +184,13 @@ Public Sub Scale(e As Entity, sX As Float, sY As Float)
     If sx < 0 Then
         E.fParam[1] = 180 - E.fParam[1]
         E.fParam[2] = 180 - E.fParam[2]
-        e.fParam[3] *= -1
+        e.iParam[0] *= -1
     Endif
 
     If sy < 0 Then
         E.fParam[1] = 360 - E.fParam[1]
         E.fParam[2] = 360 - E.fParam[2]
-        e.fParam[3] *= -1
+        e.iParam[0] *= -1
     Endif
 
     'If e.fParam[1] > e.fParam[2] Then Swap e.fParam[1], e.fParam[2]
@@ -203,7 +210,7 @@ Public Sub makepolyline(oe As Entity)
     fRadio = oE.fParam[0]
     fStart = oE.fParam[1]
     fEnd = oe.fParam[2]
-    If oe.fParam[3] = 1 Then iSentido = 1 Else iSentido = -1
+    If (oe.fParam[2] - oe.fParam[1]) < 0 Then iSentido = -1 Else iSentido = 1
     If fStart = fEnd Then Return
     If fRadio = 0 Then Return
 
@@ -214,10 +221,10 @@ Public Sub makepolyline(oe As Entity)
     Else
 
         ' el incremento sera negativo, entonces fEnd tiene que ser menor a fStart
-        If fEnd > fStart Then fEnd -= 360
+        If fEnd < fStart Then fEnd += 360
 
     Endif
-
+    '
     ' veo el cuantos pixels tendria cada tramo
     LargoReal = 2 * fRadio * Pi * Abs(fEnd - fStart) / 360
     LargoPixels = fMain.Pixels(LargoReal) ' > 0
@@ -244,7 +251,7 @@ Public Sub makepolyline(oe As Entity)
 
     fStart *= Pi / 180
     fEnd *= Pi / 180
-    angle_increment *= Pi / 180
+    angle_increment *= Pi / 180 '* iSentido
 
     For theta = fStart To fEnd Step angle_increment
         ' el punto considerando 0,0 al centro
@@ -321,9 +328,13 @@ End
 
 Public Function Draw2(oE As Entity)
 
+    Dim fStart, fEnd As Float
 
+    fStart = oE.fParam[1]
+    fEnd = oe.fParam[2]
+    If fEnd < fStart Then fEnd += 360
 
-    paint.Arc(oE.p[0], oE.p[1], oE.fParam[0], start, recorrido)
+    paint.Arc(oE.p[0], oE.p[1], oE.fParam[0], fStart / 180 * Pi, (fEnd - fStart) / 180 * Pi)
 
     paint.Stroke
 
@@ -365,11 +376,11 @@ Public Sub Finish(oE As Entity) As Boolean
     ' tareas finales de armado del objeto
 
     oE.psel.resize(oE.p.count / 2)
+    Me.makepolyline(oe)
 
     oE.DrawAble = True
     oE.Selected = False
     oE.Finished = True
-    If oe.fParam.max < 3 Then oe.fParam.Add(1) ' sentido de giro
 
 End
 

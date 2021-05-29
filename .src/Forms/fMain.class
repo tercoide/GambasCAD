@@ -270,8 +270,8 @@ Public Sub Printer1_Draw()
     Paint.Reset ' vuelvo escalas y traslados a cero
     Paint.Translate(Paint.W / 2, Paint.H / 2) ' centro el dibujo
     ' trato de meter centrado
-    scaleX = Paint.w / (flxLimits[2] - flxLimits[0])
-    scaleY = Paint.H / (flxLimits[3] - flxLimits[1])
+    If (flxLimits[2] - flxLimits[0]) > 1e-10 Then scaleX = Paint.w / (flxLimits[2] - flxLimits[0]) Else scaleX = 1e10
+    If (flxLimits[3] - flxLimits[1]) > 1e-10 Then scaleY = Paint.H / (flxLimits[3] - flxLimits[1]) Else scaleY = 1e10
 
     If scaleX < scaleY Then Scale = scaleX Else Scale = scaley
     Paint.Scale(scale * 0.85, -scale * 0.85)
@@ -1654,17 +1654,10 @@ Public Sub ToggleButton4_Click()
 
 End
 
-Public Sub ListView1_Click()
-
-End
-
 Public Sub DirView1_Click()
 
     Dim sFilename As String
     Dim imgPreview As Image
-    Dim cModelPreview As Collection
-    Dim entyBlock As New Entity[]
-    Dim flxLimits As New Float[]
     Dim entScale As Float
     Dim entidad As Entity
     Dim sFActor As Float = 1.5
@@ -1672,46 +1665,8 @@ Public Sub DirView1_Click()
     ListView1.Clear
     For Each sFilename In Dir(DirView1.Current, "*.dxf")
         imgPreview = New Image(80, 80, Color.Black)
-        cModelPreview = New Collection
-        entyBlock.Clear
-        entyBlock = New Entity[]
-        Dxf.LoadFile(DirView1.Current &/ sFilename, cModelPreview, True, True, True)         ' cargo la entidad
 
-        gcd.ImpEnty6(cModelPreview["ENTITIES"], entyBlock)
-        For Each entidad In entyBlock
-            entidad.pLayer = gcd.CurrDrawing.CurrLayer
-        Next
-        clsEntities.BuildPoi(entyBlock)
-        If entyBlock.Count > 0 Then
-            flxLimits = clsEntities.ComputeLimits(entyBlock)                    ' computo el tamaño de la entidad, y luego determino la escala
-
-            If Abs(flxLimits[2] - flxLimits[0]) > Abs(flxLimits[3] - flxLimits[1]) Then
-
-                entScale = imgPreview.w / Abs(flxLimits[2] - flxLimits[0]) / sFActor
-                'entScale = Abs(flxLimits[2] - flxLimits[0]) / imgPreview.h '/ 1.5
-
-            Else
-
-                entScale = imgPreview.h / Abs(flxLimits[3] - flxLimits[1]) / sFActor
-                'entScale = Abs(flxLimits[3] - flxLimits[1]) / imgPreview.w '/ 1.5
-
-            Endif
-
-            Paint.Begin(imgPreview)
-
-            Paint.Translate(imgPreview.w / 2 - (flxLimits[2] + flxLimits[0]) / 2 / entScale * sFActor, imgPreview.h / 2 + (flxLimits[3] + flxLimits[1]) / 2 / entScale * sFActor)
-            'Paint.Translate(0, -flxLimits[3])
-            Paint.Scale(entScale, -entScale)
-            For Each entidad In entyBlock
-                entidad.ColorToPaint = gcd.flgWhiteAndBlack
-                entidad.LineWidth = 1 / entscale '* imgPreview.w / 10
-
-                entidad.LineType = gcd.CurrDrawing.CurrLineType
-                entidad.ClassHandler.draw2(entidad)
-            Next
-            Paint.End
-
-        End If
+        gcd.FitDxfToImage(DirView1.Current &/ sFilename, imgPreview, gcd.flgWhiteAndBlack, 0)
 
         ListView1.Add(Left$(sFilename, -4), Left$(sFilename, -4), imgPreview.Picture)
 
