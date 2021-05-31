@@ -135,6 +135,9 @@ Public flgOnScreenHelpColor As Integer = Color.LightGray    '' Tincho, esta es n
 ' Vars for entities edition
 Public arrUndo As New Entity[]             '' An array to put an unmodified copy of an entity before modifying it and then restoring it to the previous version.
 
+Public MainGLArea As Control  ' this is for m-designer compatibility and point to main form GLArea
+
+
 '' Transfer layers to main windows ComboBox
 Public Sub UpdateLayersCombo()
 
@@ -168,7 +171,7 @@ Public Sub UpdateLayersCombo()
 
     ' fMain.tbnLayersOnScreen.Picture = paintPlus.picTexto(gcd.currentDrawing.arrLayers.First.Name, fMain.Font.H, fMain.tbnLayersOnScreen.w, fMain.tbnLayersOnScreen.h, Color.ButtonForeground, Color.ButtonBackground, Align.Left)
 
-    If Not currentDrawing.currentLayer Then currentDrawing.currentLayer = currentDrawing.arrLayers.First
+    If Not currentDrawing.CurrLayer Then currentDrawing.CurrLayer = currentDrawing.arrLayers.First
     Return
 
 End
@@ -193,7 +196,7 @@ Public Sub UpdateLineWtCombo()
     '  +   ---------------------  0.00mm    +
     '  +------------------------------------+
     Paint.MoveTo(0, imagen.h / 2)
-    lw = currentDrawing.currentLayer.LineWt '][dxf.codLWht] / 100 * 3
+    lw = currentDrawing.CurrLayer.LineWt '][dxf.codLWht] / 100 * 3
     Paint.LineWidth = lw
     If Paint.LineWidth < 1 Then Paint.LineWidth = 1
     Paint.RelLineTo(imagen.w / 2, 0)
@@ -312,7 +315,7 @@ Public Sub UpdateLineTypeCombo()
         fMain.tblLTypes.AddToolButton("tbnLType" & CStr(i),, imagen.Picture, "ltype_change_" & lty.Name)
 
     Next
-    gcd.currentDrawing.currentLineType = currentDrawing.arrLTYpes.First
+    gcd.currentDrawing.CurrLineType = currentDrawing.arrLTYpes.First
 
 End
 
@@ -321,12 +324,12 @@ Public Function UpdatDimTypeTypeCombo()
     Dim cDimStyle As Collection
     Dim i As Integer
 
-    If IsNull(gcd.currentDrawing.currentDimStyle) Then gcd.currentDrawing.currentDimStyle = gcd.currentDrawing.arrStyles.First
+    If IsNull(gcd.currentDrawing.CurrDimStyle) Then gcd.currentDrawing.CurrDimStyle = gcd.currentDrawing.arrStyles.First
     fMain.cmbDimStyle.Clear
     For Each cDimStyle In gcd.currentDrawing.cModel["TABLES"]["DIMSTYLE"]
         fMain.cmbDimStyle.Add(cDimStyle[dxf.codName])
 
-        If gcd.currentDrawing.currentDimStyle.name = cDimStyle[dxf.codName] Then i = fMain.cmbDimStyle.Count
+        If gcd.currentDrawing.CurrDimStyle.name = cDimStyle[dxf.codName] Then i = fMain.cmbDimStyle.Count
     Next
     If i = 0 Then i = 1
     fMain.cmbDimStyle.Index = i - 1
@@ -477,6 +480,8 @@ Public Function EditEntities(sProperty As String, vValue As Variant, Optional Do
 End
 
 Public Sub Main()
+
+    MainGLArea = fmain.GLArea1
 
     Select flgWindowBackColor
         Case Color.Black
@@ -1089,7 +1094,7 @@ Public Function FitDxfToImage(sDXFfile As String, imgPreview As Object, Optional
 
     gcd.ImpEnty6(cModelPreview["ENTITIES"], entyBlock)
     For Each entidad In entyBlock
-        entidad.pLayer = gcd.currentDrawing.currentLayer
+        entidad.pLayer = gcd.currentDrawing.CurrLayer
     Next
     clsEntities.BuildPoi(entyBlock)
     If entyBlock.Count > 0 Then
@@ -1184,5 +1189,18 @@ Public Function Near(xyzReal As Float) As Float
     If r > 0.5 Then n += 1
 
     Return n * fmain.GridSpacing
+
+End
+
+Public Function ScreenWidth() As Integer
+
+    Return fmain.GLArea1.W
+
+End
+
+
+Public Function ScreenHeight() As Integer
+
+    Return fmain.GLArea1.h
 
 End
