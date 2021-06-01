@@ -1,1 +1,307 @@
-../../../GauchoCAD/.src/Tools/clsDefaultJob.class
+' Gambas class file
+
+' m-designer
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+
+' Tool maintained by Terco
+
+' this is the Main Job, either we are doing this or other job
+Inherits ToolsBase
+Create Static
+Public Const Gender As String = "Default"
+
+Public EntityForEdit As Entity
+Public iEntityForEdit As Integer = -1
+Public GripPoint As Integer = -1
+Public dX As Float
+Public dY As Float
+
+Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer = 0) As Boolean
+    ' Modes:
+    '       0 = Move, all points in the element must be selected, or click on it.
+    '       1 = Stretch, selection may be partial, each element is called to see if the support stretching
+
+    Me.Mode = _Mode
+    Me.PoiChecking = True
+
+End
+
+Public Function MouseDown(mouseX As Integer, mouseY As Integer) ' esta rutina es llamada por FCAD en el evento DrawingArea_MouseDown
+
+    Dim i As Integer
+
+    GripPoint = -1
+    Me.SelStartX = mouseX
+    Me.SelStartY = mouseY
+    Me.SelStartXr = gcd.Xreal(Me.SelStartX)
+    Me.SelStartYr = gcd.Yreal(Me.SelStartY)
+
+    dX = Me.SelStartXr
+    dY = Me.SelStartYr
+
+    Me.SelEndX = Me.SelStartX
+    Me.SelEndy = Me.SelStartY
+
+    Me.SelEndXr = Me.SelStartXr
+    Me.SelEndyr = Me.SelStartYr
+
+    Me.PoiChecking = False
+    If Mouse.Left Then
+
+        If gcd.CurrentDrawing.iEntity[3] >= 0 Then                         ' 1.1.2 el mouse no esta enganchado, pero esta arriba de una entidad
+
+            If gcd.CurrentDrawing.arrEntities[gcd.CurrentDrawing.iEntity[3]].selected Then
+
+                ' veo si esta en un grip
+                For i = 0 To gcd.CurrentDrawing.arrEntities[gcd.CurrentDrawing.iEntity[3]].PoiType.Max
+                    If puntos.Around(Me.SelStartXr, Me.SelStartYr, gcd.CurrentDrawing.arrEntities[gcd.CurrentDrawing.iEntity[3]].PoiPoints[i * 2], gcd.CurrentDrawing.arrEntities[gcd.CurrentDrawing.iEntity[3]].PoiPoints[i * 2 + 1], gcd.Metros(8)) Then
+
+                        ' estoy editando la entidad desde un grip
+                        EntityForEdit = gcd.CurrentDrawing.arrEntities[gcd.CurrentDrawing.iEntity[3]]
+                        GripPoint = i
+                        iEntityForEdit = gcd.CurrentDrawing.iEntity[3]
+                        ' chequeo
+                        If EntityForEdit.PoiType[GripPoint] = gcd.poiQuadrant Then
+                            dx = EntityForEdit.P[0]
+                            dY = EntityForEdit.P[1]
+
+                        Endif
+
+                        Me.PoiChecking = True
+                        gcd.CurrentDrawing.flgShowPOIinfo = True
+
+                        Break
+
+                    Endif
+                Next
+
+                If GripPoint < 0 Then clsEntities.deSelectElem(gcd.CurrentDrawing.iEntity[3])               '   -> la deselecciono
+            Else
+                clsEntities.SelectElem(gcd.CurrentDrawing.iEntity[3])                 '   -> la selecciono
+
+            Endif
+            Me.Active = False
+
+            clsEntities.GLGenDrawListSel(0)
+
+        Else
+
+            Me.Active = True
+        End If
+    End If
+
+End
+
+Public Function MouseUp(mouseX As Integer, mouseY As Integer) ' esta rutina es llamada por FCAD en el evento DrawingArea_MouseUp
+
+    Dim Crossing As Boolean = False
+    Dim tipo As String
+    Dim t As Float = Timer
+
+    Me.SelEndX = mousex
+    Me.SelEndy = mouseY
+    Me.PoiChecking = True
+    If Me.Active Then
+
+        ' corrijo para start<end
+        Me.Active = False
+
+        If Me.SelStartX > Me.SelEndX Then
+            crossing = True
+            Swap Me.SelStartX, Me.SelEndX
+        Else
+            crossing = False
+        End If
+        If Me.SelStartY < Me.SelEndy Then Swap Me.SelStartY, Me.SelEndy                     ' this is FLIPPED
+
+        tipo = "nueva"
+        If Mouse.Shift Then tipo = "resta" ' estos elementos de la seleccion anterior
+        If Mouse.Control Then tipo = "suma" ' elementos a la seleccion anterior
+
+        ' Paso a coordenadas reales
+        Me.SelStartXr = gcd.Xreal(Me.SelStartX)
+        Me.SelStartYr = gcd.Yreal(Me.SelStartY)
+        Me.SelEndXr = gcd.Xreal(Me.SelEndX)
+        Me.SelEndyr = gcd.Yreal(Me.SelEndy)
+
+        ' veo si el rectangulo es suficientemente grande como para representar una seleccion por rectangulo
+        If (Me.SelEndX - Me.SelStartX + (-Me.SelEndy + Me.SelStartY)) > 10 Then
+
+            Me.selectionCount = clsEntities.SelectionSquare(Me.SelStartXr, Me.SelStartYr, Me.SelEndXr, Me.SelEndyr, tipo, crossing)
+            Debug "Select parsing time ", Timer - t
+
+        Else
+            clsEntities.DeSelection()
+
+        End If
+        clsEntities.GLGenDrawListSel(0)
+
+        DrawingAids.HelperTrabajo = ("Selected") & " " & Str$(Me.selectionCount) & " " & ("elements")
+
+    Else If GripPoint >= 0 Then
+
+        EntityForEdit.ClassHandler.buildpoi(EntityForEdit)
+        GripPoint = -1
+        clsEntities.glGenDrawList(iEntityForEdit)
+        iEntityForEdit = -1
+        'Me.Finish()
+
+    Else
+
+        'Stop
+
+    End If
+
+End
+
+Public Function MouseMove(mouseX As Integer, mouseY As Integer) ' esta rutina es llamada por FCAD en el evento DrawingArea_MouseMove
+
+    Me.SelEndX = mouseX
+    Me.SelEndy = mouseY
+    Me.SelEndXr = gcd.Xreal(Me.SelEndX)
+    Me.SelEndyr = gcd.Yreal(Me.SelEndy)
+
+    If Me.Active Then
+
+        gcd.Redraw
+
+    Else
+
+        If (gcd.CurrentDrawing.iEntity[2] >= 0) Then
+
+            Me.SelEndXr = gcd.CurrentDrawing.iEntity[0]
+            Me.SelEndYr = gcd.CurrentDrawing.iEntity[1]
+
+        End If
+    End If
+
+    If GripPoint >= 0 Then
+        Select Case EntityForEdit.PoiType[GripPoint]
+            Case gcd.poiBasePoint, gcd.poiCenter, gcd.poiMidPoint
+                EntityForEdit.ClassHandler.translate(EntityForEdit, Me.SelEndXr - dx, Me.SelEndYr - dY)
+                dX = Me.SelEndXr
+                dY = Me.SelEndYr
+            Case gcd.poiEndPoint
+                Select Case EntityForEdit.Gender
+                    Case "Line", "LWPolyline", "SPline"
+                        If GripPoint > 0 Then ' tengo que descontar los midPoints o me dara error de desborde
+
+                            EntityForEdit.p[GripPoint] += Me.SelEndXr - dx
+                            EntityForEdit.p[GripPoint + 1] += Me.SelEndYr - dY
+                        Else
+                            EntityForEdit.p[0] += Me.SelEndXr - dx
+                            EntityForEdit.p[1] += Me.SelEndYr - dY
+
+                        Endif
+                        dX = Me.SelEndXr
+                        dY = Me.SelEndYr
+
+                End Select
+            Case gcd.poiQuadrant
+                EntityForEdit.fparam[0] = puntos.distancia(Me.SelEndXr, Me.SelEndYr, dx, dY)
+
+        End Select
+
+    Endif
+
+End
+
+Public Function KeyText(EnteredText As String)
+
+    ' los comandos por teclado los maneja tincho
+
+    ' in this case, we try to run the command wich is a class
+    Dim o As Object, RunWith As String, c As Class
+
+    EnteredText = LCase(Trim(EnteredText))
+    If EnteredText = "" Then Return                                ' no BS here
+
+    Select Case LCase(EnteredText)
+
+        Case Else
+
+            gcd.clsJobPrevious = gcd.clsJob
+
+            o = Object.New("cad" & EnteredText)
+
+            ' check if the class needs to be run trough other
+            If o.usewith = "" Then                        ' its a tool
+                gcd.clsJob = o
+                gcd.clsJob.start
+
+            Else                                                    ' its propably an eentity
+
+                gcd.clsJob = Object.New(o.usewith)
+                gcd.clsJob.start(o)
+
+            End If
+
+    End Select
+
+    Return
+
+    ' TODO: dejar comentado mientras hagamos debug
+    '' catch
+
+    DrawingAids.ErrorMessage = "Command not recognized"
+    '
+    '
+
+End
+
+Public Sub Draw() ' esta rutina es llamada por FCAD en el evento DrawingArea_Draw
+    ' por ultimo, y para que se vea arriba, la seleccion
+
+    If Me.Active Then
+
+        If Me.SelStartX > Me.SelEndX Then                               ' Seleccion crossing, o sea que si cualquier arista del rectangulo cruza el bounding poligon, queda seleccionado
+
+            GLplus.Rectangle2D(Me.SelStartXr, Me.SelStartYr, Me.SelEndXr - Me.SelStartXr, Me.SelEndyr - Me.SelStartYr, Color.RGB(224, 220, 207, 215),,,, Color.red, 1, 1, 2)
+
+            ' gl.Begin(Gl.POLYGON)
+            ' gl.Color4f(1, 0, 0, 0.15)
+            ' gl.Vertex2f(Me.SelStartXr, Me.SelStartYr)
+            '
+            ' gl.Vertex2f(Me.SelEndXr, Me.SelStartYr)
+            '
+            ' gl.Vertex2f(Me.SelEndXr, Me.SelEndyr)
+            '
+            ' gl.Vertex2f(Me.SelStartXr, Me.SelEndyr)
+            '
+            ' gl.End
+        Else                                                            ' seleccion full, todos los puntos deben estar adentro
+
+            GLplus.Rectangle2D(Me.SelStartXr, Me.SelStartYr, Me.SelEndXr - Me.SelStartXr, Me.SelEndyr - Me.SelStartYr, Color.RGB(224, 220, 207, 215),,,, Color.Green, 1, 0, 2)
+
+        End If
+    Else
+
+        If GripPoint >= 0 Then
+
+            EntityForEdit.ClassHandler.Draw(EntityForEdit)
+
+        Endif
+
+        gl.CallList(gcd.CurrentDrawing.GlListSelectedEntities)
+        clsEntities.DrawPoiSymbolsAll
+
+    End If
+
+End

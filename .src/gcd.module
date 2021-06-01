@@ -137,7 +137,6 @@ Public arrUndo As New Entity[]             '' An array to put an unmodified copy
 
 Public MainGLArea As Control  ' this is for m-designer compatibility and point to main form GLArea
 
-
 '' Transfer layers to main windows ComboBox
 Public Sub UpdateLayersCombo()
 
@@ -589,33 +588,36 @@ Public Sub ImpEnty6(cEny As Collection, obx As Entity[])
             'If UCase(e[dxf.codEntity]) = "INSERT" Then Stop
 
             entNueva = clsEntities.DXFImportToEntity(e, IsDummy)
-
-            If Not IsNull(entNueva) Then         ' si esta implementada, llenamos los datos
-
-                If flgIsPolyline Then
-                    pBlockPolyline.entities.Add(entNueva)
-                Else
-                    obx.Add(entNueva)
-                End If
-
-                If e[dxf.codEntity] = "POLYLINE" Then
-                    flgIsPolyline = True
-                    pBlockPolyline = New Block
-                    pBlockPolyline.entities = New Entity[]
-                    gcd.currentDrawing.arrPolyLines.Add(pBlockPolyline)
-                    entNueva.pBlock = pBlockPolyline
-                End If
-                If e[dxf.codEntity] = "SEQEND" And flgIsPolyline = True Then
-                    flgIsPolyline = False
-                    pBlockPolyline = Null
-                End If
-                entNueva = Null                                           ' limpiamos
-            Else                                                        ' no esta implementada
+            If IsDummy Then
+                ' no esta implementada
                 Print "Entidad no implementada o con errores:", e[dxf.codHandle], e[dxf.codEntity]
 
-            Endif
+            Else
 
-        Endif
+                If Not IsNull(entNueva) Then         ' si esta implementada, llenamos los datos
+
+                    If flgIsPolyline Then
+                        pBlockPolyline.entities.Add(entNueva)
+                    Else
+                        obx.Add(entNueva)
+                    End If
+
+                    If e[dxf.codEntity] = "POLYLINE" Then
+                        flgIsPolyline = True
+                        pBlockPolyline = New Block
+                        pBlockPolyline.entities = New Entity[]
+                        gcd.currentDrawing.arrPolyLines.Add(pBlockPolyline)
+                        entNueva.pBlock = pBlockPolyline
+                    End If
+                    If e[dxf.codEntity] = "SEQEND" And flgIsPolyline = True Then
+                        flgIsPolyline = False
+                        pBlockPolyline = Null
+                    End If
+                    entNueva = Null                                           ' limpiamos
+
+                Endif
+            End If
+        End If
     Next
 
 End
@@ -1198,9 +1200,24 @@ Public Function ScreenWidth() As Integer
 
 End
 
-
 Public Function ScreenHeight() As Integer
 
     Return fmain.GLArea1.h
+
+End
+
+Public Sub redraw()
+
+    fmain.glarea1.Refresh
+
+End
+
+'' Regenera las listas de OpenGL
+Public Sub Regen()
+
+    ' deberia leear algun dato
+    clsEntities.glGenDrawList
+    clsEntities.glGenDrawListSel
+    redraw
 
 End
