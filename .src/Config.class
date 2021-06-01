@@ -1,0 +1,87 @@
+' Gambas class file
+
+' Config
+' A simple, self contained configuration class
+'
+' Copyright (C) Ing Martin P Cristia and Martin Belmonte
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+
+Create Static
+Export
+Private Const ConfigFile As String = "config/m-designer/config.json"
+' ==============Variables de configuracion a guardar, agregar las necesarias=======================
+Public CurrentColor As Byte = 1
+Public CurrentWidth As Byte = 1
+Public CurrentLType As Byte = 1
+Public NuevoParametro As Float = 1.2299
+Public otroparametro As String = "Gaucho pampa"
+
+'==================================================================================================
+
+Public Sub Load(Optional sFile As String)
+
+    Dim jConfig As Collection
+    Dim i As Integer
+    Dim sSymbol As String
+    Dim obj As Object = Me
+    Dim MyClass As Class = Object.Class(obj)
+
+    If sFile = "" Then
+        sFile = User.Home &/ ConfigFile
+    Endif
+
+    If Exist(sFile) Then
+        jConfig = JSON.FromString(File.Load(sFile))
+        For Each sSymbol In myClass.Symbols
+            If jConfig.Exist(sSymbol) Then
+                Object.SetProperty(obj, sSymbol, jConfig[sSymbol])
+            Endif
+        Next
+    Endif
+
+End
+
+Static Public Sub Save(Optional sFile As String)
+
+    Dim i As Integer
+    Dim jConfig As New JSONCollection
+    Dim obj As Object = Me
+    Dim MyClass As Class = Object.Class(obj)
+    Dim Var As String
+    Dim Valor As Variant
+
+    If sFile = "" Then
+        sFile = User.Home &/ ConfigFile
+    Endif
+
+    '
+    ' Next
+    For Each Var In myClass.Symbols
+        ' verificamos que sea una propiedad o variable
+        If (MyClass[var].kind = Class.Variable) Or (MyClass[var].kind = Class.Property) Then
+            valor = Object.GetProperty(obj, var)
+            jConfig.Add(Valor, var)
+        End If
+
+    Next
+
+    If Not Exist(File.Dir(sFile)) Then
+        Shell "mkdir -p " & File.Dir(sFile) Wait
+    Endif
+    File.Save(sFile, JSON.Encode(jConfig))
+
+End
