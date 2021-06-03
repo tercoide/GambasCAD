@@ -152,7 +152,7 @@ Public Sub UpdateLayersCombo()
         End If
     Next
     mLayer.Name = sName
-    For Each aLayer In currentDrawing.arrLayers
+    For Each aLayer In currentDrawing.oLayers
         m2 = New Menu(mLayer)
         m2.Text = aLayer.Name
         m2.Picture = paintPlus.picCirculito(8, GetGBColor(aLayer.Colour), Color.ButtonForeground)
@@ -161,16 +161,16 @@ Public Sub UpdateLayersCombo()
     ' fMain.mbtLayers.Menu = sName
     ' fMain.mbtLayers.Text = mLayer.Children[0].Text
     ' fMain.mbtLayers.Picture = mLayer.Children[0].Picture
-
+    aLayer = gcd.currentDrawing.oLayers[gcd.currentDrawing.oLayers.First]
     fMain.grdLayers[0.0, 0.0].Picture = mLayer.Children[0].Picture
-    fMain.grdLayers[0, 4].Text = gcd.currentDrawing.arrLayers.First.Name
-    fMain.grdLayers[0, 1].Picture = IIf(gcd.currentDrawing.arrLayers.First.Visible, fLayersOnScreen.picVisibleOn, fLayersOnScreen.picVisibleOff)
-    fMain.grdLayers[0, 2].Picture = IIf(gcd.currentDrawing.arrLayers.First.Frozen, fLayersOnScreen.picFrozenOn, fLayersOnScreen.picFrozenOff)
-    fMain.grdLayers[0, 3].Picture = IIf(gcd.currentDrawing.arrLayers.First.Locked, fLayersOnScreen.picLockedOn, fLayersOnScreen.picLockedOff)
+    fMain.grdLayers[0, 4].Text = aLayer.Name
+    fMain.grdLayers[0, 1].Picture = IIf(aLayer.Visible, fLayersOnScreen.picVisibleOn, fLayersOnScreen.picVisibleOff)
+    fMain.grdLayers[0, 2].Picture = IIf(aLayer.Frozen, fLayersOnScreen.picFrozenOn, fLayersOnScreen.picFrozenOff)
+    fMain.grdLayers[0, 3].Picture = IIf(aLayer.Locked, fLayersOnScreen.picLockedOn, fLayersOnScreen.picLockedOff)
 
     ' fMain.tbnLayersOnScreen.Picture = paintPlus.picTexto(gcd.currentDrawing.arrLayers.First.Name, fMain.Font.H, fMain.tbnLayersOnScreen.w, fMain.tbnLayersOnScreen.h, Color.ButtonForeground, Color.ButtonBackground, Align.Left)
 
-    If Not currentDrawing.CurrLayer Then currentDrawing.CurrLayer = currentDrawing.arrLayers.First
+    If Not currentDrawing.CurrLayer Then currentDrawing.CurrLayer = aLayer
     Return
 
 End
@@ -290,7 +290,7 @@ Public Sub UpdateLineTypeCombo()
     fMain.tblLTypes.tbnChilds.Clear
 
     ' ahora espesores especificos
-    For Each lty In currentDrawing.arrLTYpes
+    For Each lty In currentDrawing.oLTYpes
         Inc i
 
         ' primero agregamos la correspondiente a ByLayer
@@ -314,7 +314,7 @@ Public Sub UpdateLineTypeCombo()
         fMain.tblLTypes.AddToolButton("tbnLType" & CStr(i),, imagen.Picture, "ltype_change_" & lty.Name)
 
     Next
-    gcd.currentDrawing.CurrLineType = currentDrawing.arrLTYpes.First
+    gcd.currentDrawing.CurrLineType = currentDrawing.oLTYpes[currentDrawing.oLTYpes.First]
 
 End
 
@@ -323,7 +323,7 @@ Public Function UpdatDimTypeTypeCombo()
     Dim cDimStyle As Collection
     Dim i As Integer
 
-    If IsNull(gcd.currentDrawing.CurrDimStyle) Then gcd.currentDrawing.CurrDimStyle = gcd.currentDrawing.arrStyles.First
+    If IsNull(gcd.currentDrawing.CurrDimStyle) Then gcd.currentDrawing.CurrDimStyle = gcd.currentDrawing.oStyles[gcd.currentDrawing.oStyles.First]
     fMain.cmbDimStyle.Clear
     For Each cDimStyle In gcd.currentDrawing.cModel["TABLES"]["DIMSTYLE"]
         fMain.cmbDimStyle.Add(cDimStyle[dxf.codName])
@@ -337,11 +337,11 @@ End
 
 Public Function FindStyle(sName As String) As Styles
 
-    Dim i As Integer
+    Dim st As Styles
 
-    For i = 0 To gcd.currentDrawing.arrStyles.Max
+    For Each st In gcd.currentDrawing.oStyles
 
-        If gcd.currentDrawing.arrStyles[i].Name = sname Then Return gcd.currentDrawing.arrStyles[i]
+        If st.Name = sname Then Return st
 
     Next
 
@@ -351,11 +351,11 @@ End
 
 Public Function FindStyleByHandle(sHandle As String) As Styles
 
-    Dim i As Integer
+    Dim st As Styles
 
-    For i = 0 To gcd.currentDrawing.arrStyles.Max
+    For Each st In gcd.currentDrawing.oStyles
 
-        If gcd.currentDrawing.arrStyles[i].handle = sHandle Then Return gcd.currentDrawing.arrStyles[i]
+        If st.handle = sHandle Then Return st
 
     Next
 
@@ -388,13 +388,13 @@ Public Function FindEntity(sHandle As String, Optional SearchInBlocks As Boolean
 
 End
 
-Public Function FindLineType(sName As String) As LType
+Public Function FindLType(sName As String) As LType
 
-    Dim i As Integer
+    Dim LT As LType
 
-    For i = 0 To gcd.currentDrawing.arrLTYpes.Max
+    For Each LT In gcd.currentDrawing.oLTYpes
 
-        If LCase(gcd.currentDrawing.arrLTYpes[i].Name) = LCase(sname) Then Return gcd.currentDrawing.arrLTYpes[i]
+        If LCase(LT.Name) = LCase(sname) Then Return LT
 
     Next
 
@@ -523,42 +523,48 @@ Public Sub ImportBlocksFromDXF(colData As Collection) ', obxEntities As Entity[]
 
     Dim iTotalEntities As Integer, colent, colBlk As Collection, flxPoints As New Float[], P As Float[]
     Dim hBlock As String
-    Dim cEntyList As New Collection
+    Dim cParent As Collection, cEntyList As New Collection
     Dim hEnty As Variant, iEnty As Integer
     Dim cEnty As Variant[]
     Dim i As Integer
 
     If Not colData.Exist("BLOCKS") Then Return
-    For Each colBlk In colData["TABLES"]["BLOCK_RECORD"]
-        Dim newBlock As New Block
-        newBlock.entities = New Entity[]
-        newBlock.name = colBlk[dxf.codName]
-        newBlock.HandleOwnerParent = colBlk[dxf.codHandleOwner]
-        newBlock.HandleAsociatedLayout = colBlk["340"]
-        Try newBlock.InsertUnits = colBlk["70"]
-        Try newBlock.Explotability = colBlk["280"]
-        Try newBlock.Scalability = colBlk["281"]
-        gcd.currentDrawing.arrBlocks.Add(newBlock)
-
-    Next
+    ' For Each colBlk In colData["TABLES"]["BLOCK_RECORD"]
+    '     Dim newBlock As New Block
+    '     newBlock.entities = New Collection
+    '     newBlock.name = colBlk[dxf.codName]
+    '     newBlock.handle = colBlk[dxf.codHandle]
+    '     newBlock.HandleOwnerParent = colBlk[dxf.codHandleOwner]
+    '     newBlock.HandleAsociatedLayout = colBlk["340"]
+    '     Try newBlock.InsertUnits = colBlk["70"]
+    '     Try newBlock.Explotability = colBlk["280"]
+    '     Try newBlock.Scalability = colBlk["281"]
+    '     gcd.currentDrawing.oBlocks.Add(newBlock, newBlock.handle)
+    '
+    ' Next
 
     For Each colBlk In colData["BLOCKS"]
-        newBlock = clsEntities.FIndBlock(colBlk[dxf.codName])
+        Dim newBlock As New Block
+        newBlock.entities = New Collection
         newBlock.name = colBlk[dxf.codName]
+        cParent = colData["TABLES"]["BLOCK_RECORD"][newBlock.name]
         newBlock.handle = colBlk[dxf.codHandle]
-        newBlock.HandleOwner = colBlk[dxf.codHandleOwner]
+        newBlock.HandleOwner = cParent[dxf.codHandle]
+        newBlock.HandleOwnerParent = cParent[dxf.codHandleOwner]
+        'newBlock = clsEntities.FIndBlock(colBlk[dxf.codName])
         newBlock.layer = colBlk[dxf.codLayer]
         newBlock.x0 = colBlk[dxf.codX0]
         newBlock.y0 = colBlk[dxf.codY0]
         If colBlk.Exist(dxf.codZ0) Then newBlock.z0 = colBlk[dxf.codZ0]
         newBlock.flags = colBlk["70"]
+        gcd.currentDrawing.oBlocks.Add(newBlock, newBlock.handle)
 
     Next
     For Each colBlk In colData["BLOCKS"]
 
         If colBlk.Exist("entities") Then
 
-            ImpEnty6(colBlk["entities"], gcd.currentDrawing.arrBlocks[i].entities)
+            ImpEnty6(colBlk["entities"], gcd.currentDrawing.oBlocks[colBlk[dxf.codHandle]].entities)
             'If gcd.currentDrawing.arrBlocks[i].entities.Count = 0 Then Stop
 
         Else
@@ -573,12 +579,13 @@ Public Sub ImportBlocksFromDXF(colData As Collection) ', obxEntities As Entity[]
 End
 
 '' Importa las cosas de manera descentralizada
-Public Sub ImpEnty6(cEny As Collection, obx As Entity[])
+Public Sub ImpEnty6(cEny As Collection, obx As Collection, Optional NewHandles As Boolean = True)
 
     Dim e As Collection               ' current Entity
     Dim entNueva As Entity
     Dim flgIsPolyline, IsDummy As Boolean
     Dim pBlockPolyline As Block
+    Dim sHandle As String
 
     For Each e In cEny                                              ' Para cada Coleccion de datos de vrx
         If e.Exist(dxf.codEntity) Then                                     ' es una entidad?
@@ -595,11 +602,15 @@ Public Sub ImpEnty6(cEny As Collection, obx As Entity[])
             Else
 
                 If Not IsNull(entNueva) Then         ' si esta implementada, llenamos los datos
-
-                    If flgIsPolyline Then
-                        pBlockPolyline.entities.Add(entNueva)
+                    If NewHandles Or (entNueva.Handle = "") Then
+                        sHandle = Me.NewHandle()
                     Else
-                        obx.Add(entNueva)
+                        sHandle = entNueva.Handle
+                    End If
+                    If flgIsPolyline Then
+                        pBlockPolyline.entities.Add(entNueva, sHandle)
+                    Else
+                        obx.Add(entNueva, sHandle)
                     End If
 
                     If e[dxf.codEntity] = "POLYLINE" Then
@@ -626,7 +637,7 @@ Public Function GetLayer(LayerName As String) As Layer
 
     Dim Lay As Layer
 
-    For Each Lay In gcd.currentDrawing.arrLayers
+    For Each Lay In gcd.currentDrawing.oLayers
 
         If Lay.Name = LayerName Then Return Lay
     Next
@@ -646,14 +657,14 @@ Public Sub ReadLayers()
 
     Dim hLay As Layer
     ' primero eliminamos lo q haya
-    currentDrawing.arrLayers.Clear
+    currentDrawing.oLayers.Clear
     For Each cLay As Collection In gcd.currentDrawing.cModel["TABLES"]["LAYER"]
         hLay = New Layer
         hLay.Name = cLay[dxf.codName]
         hLay.Visible = CInt(cLay[dxf.codColor]) >= 0
         hLay.Colour = Abs(CInt(cLay[dxf.codColor]))
         hLay.handle = cLay[dxf.codHandle]
-        currentDrawing.arrLayers.Add(hLay)
+        currentDrawing.oLayers.Add(hLay, hLay.handle)
     Next
 
 End
@@ -665,16 +676,14 @@ Public Sub ReadEntities()
     Dim e As Entity
 
     ' primero eliminamos lo q haya
-    For Each hLay In currentDrawing.arrLayers
+    For Each hLay In currentDrawing.oLayers
         hLay.Entities.Clear
     Next
 
-    For Each e In currentDrawing.arrEntities
+    For Each e In currentDrawing.oEntities
         'e.pLayer = currentDrawing.arrLayers[gcd.FindLaIndex(e.pLayer)]
         e.pLayer.Entities.Add(e)
     Next
-
-    currentDrawing.arrVisibleEntities.Resize(currentDrawing.arrEntities.Count)
 
 End
 
@@ -687,7 +696,7 @@ Public Sub ReadLTypes()
     Dim sNextKey As String
 
     ' primero eliminamos lo q haya
-    currentDrawing.arrLTYpes.Clear
+    currentDrawing.oLTYpes.Clear
     For Each c As Collection In currentDrawing.cLtypes
         hlty = New LType
         hlty.Name = c[dxf.codName]
@@ -716,7 +725,7 @@ Public Sub ReadLTypes()
 
         Next
 
-        currentDrawing.arrLTYpes.Add(hlty)
+        currentDrawing.oLTYpes.Add(hlty, hlty.handle)
 
     Next
 
@@ -732,7 +741,7 @@ Public Sub ReadStyles()
     Dim RefStyle As Styles
 
     ' primero eliminamos lo q haya
-    currentDrawing.arrStyles.Clear
+    currentDrawing.oStyles.Clear
     ' Leo los styles de texto
     For Each c As Collection In gcd.currentDrawing.cModel["TABLES"]["STYLE"]
         hlty = New Styles
@@ -747,7 +756,7 @@ Public Sub ReadStyles()
         ' Esto no puede usarse asi, LastHeightUsed_2 es solo un dato de historial
         ' If hlty.FixedH_40 = 0 Then hlty.FixedH_40 = CFloat(c["42"])
 
-        currentDrawing.arrStyles.Add(hlty)
+        currentDrawing.oStyles.Add(hlty, hlty.handle)
 
     Next
     ' Leo lo styles de dimensiones
@@ -755,7 +764,12 @@ Public Sub ReadStyles()
         hlty = New Styles
 
         hlty.Name = c[dxf.codName]
-        hlty.handle = c[dxf.codHandle]
+        If IsNull(c[dxf.codHandle]) Then
+            hlty.handle = c["105"]
+        Else
+            hlty.handle = c[dxf.codHandle]
+        Endif
+
         hlty.IsDimStyle = True
 
         Try hlty.fArrowSize_41 = CFloat(c["41"])
@@ -774,7 +788,7 @@ Public Sub ReadStyles()
             Endif
         Endif
 
-        currentDrawing.arrStyles.Add(hlty)
+        currentDrawing.oStyles.Add(hlty, hlty.handle)
 
     Next
 
@@ -850,7 +864,7 @@ Public Function UpdateGraphics(Optional handles As String[] = [], DoRegen As Boo
 
     If handles.Count = 0 Then                   ' Update all entities
 
-        gcd.ImpEnty6(gcd.currentDrawing.cEntities, gcd.currentDrawing.arrEntities)
+        gcd.ImpEnty6(gcd.currentDrawing.cEntities, gcd.currentDrawing.oEntities)
 
     Else                                        ' Update only entities with handles provided
 
