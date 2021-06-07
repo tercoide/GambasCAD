@@ -365,21 +365,13 @@ End
 
 Public Function FindEntity(sHandle As String, Optional SearchInBlocks As Boolean = False) As Entity
 
-    Dim i, iB As Integer
+    Dim i, oBlock As Block
 
-    For i = 0 To gcd.currentDrawing.arrEntities.Max
-
-        If gcd.currentDrawing.arrEntities[i].Handle = sHandle Then Return gcd.currentDrawing.arrEntities[i]
-
-    Next
+    If gcd.currentDrawing.oEntities.Exist(sHandle) Then Return gcd.currentDrawing.oEntities[sHandle]
 
     If SearchInBlocks Then
-        For iB = 0 To gcd.currentDrawing.arrBlocks.Max
-            For i = 0 To gcd.currentDrawing.arrBlocks[iB].entities.Max
-
-                If gcd.currentDrawing.arrBlocks[iB].entities[i].Handle = sHandle Then Return gcd.currentDrawing.arrBlocks[iB].entities[i]
-
-            Next
+        For Each oBlock In gcd.currentDrawing.oBlocks
+            If oBlock.entities.Exist(sHandle) Then Return gcd.currentDrawing.oEntities[sHandle]
 
         Next
     Endif
@@ -564,7 +556,7 @@ Public Sub ImportBlocksFromDXF(colData As Collection) ', obxEntities As Entity[]
 
         If colBlk.Exist("entities") Then
 
-            ImpEnty6(colBlk["entities"], gcd.currentDrawing.oBlocks[colBlk[dxf.codHandle]].entities)
+            DXFtoEntity(colBlk["entities"], gcd.currentDrawing.oBlocks[colBlk[dxf.codHandle]].entities)
             'If gcd.currentDrawing.arrBlocks[i].entities.Count = 0 Then Stop
 
         Else
@@ -579,7 +571,7 @@ Public Sub ImportBlocksFromDXF(colData As Collection) ', obxEntities As Entity[]
 End
 
 '' Importa las cosas de manera descentralizada
-Public Sub ImpEnty6(cEny As Collection, obx As Collection, Optional NewHandles As Boolean = True)
+Public Sub DXFtoEntity(cEny As Collection, obx As Collection, Optional NewHandles As Boolean = True)
 
     Dim e As Collection               ' current Entity
     Dim entNueva As Entity
@@ -604,6 +596,7 @@ Public Sub ImpEnty6(cEny As Collection, obx As Collection, Optional NewHandles A
                 If Not IsNull(entNueva) Then         ' si esta implementada, llenamos los datos
                     If NewHandles Or (entNueva.Handle = "") Then
                         sHandle = Me.NewHandle()
+                        entNueva.Handle = sHandle
                     Else
                         sHandle = entNueva.Handle
                     End If
@@ -653,17 +646,20 @@ Public Sub ReadVars()
 End
 
 '' Reads layers collection and puts data in arrLayers
-Public Sub ReadLayers()
+Public Sub ReadLayers(Optional cLayers As Collection)
 
-    Dim hLay As Layer
+    Dim hLay As Layer, cLayData As Collection
+
+    If Not cLayData Then cLayData = gcd.currentDrawing.cModel["TABLES"]["LAYER"]
     ' primero eliminamos lo q haya
     currentDrawing.oLayers.Clear
-    For Each cLay As Collection In gcd.currentDrawing.cModel["TABLES"]["LAYER"]
+    For Each cLay As Collection In cLayData
         hLay = New Layer
         hLay.Name = cLay[dxf.codName]
         hLay.Visible = CInt(cLay[dxf.codColor]) >= 0
         hLay.Colour = Abs(CInt(cLay[dxf.codColor]))
         hLay.handle = cLay[dxf.codHandle]
+        If hLay.handle = "" Then hLay.handle = gcd.NewHandle()
         currentDrawing.oLayers.Add(hLay, hLay.handle)
     Next
 
@@ -702,6 +698,7 @@ Public Sub ReadLTypes()
         hlty.Name = c[dxf.codName]
         hlty.Description = c["3"]
         hlty.handle = c[dxf.codHandle]
+        If hLty.handle = "" Then hLty.handle = gcd.NewHandle()
         hlty.nTrames = CInt(c["73"])
         If hlty.nTrames > 0 Then hlty.Length = c["40"]
         i = 0
@@ -864,7 +861,7 @@ Public Function UpdateGraphics(Optional handles As String[] = [], DoRegen As Boo
 
     If handles.Count = 0 Then                   ' Update all entities
 
-        gcd.ImpEnty6(gcd.currentDrawing.cEntities, gcd.currentDrawing.oEntities)
+        gcd.DXFtoEntity(gcd.currentDrawing.cEntities, gcd.currentDrawing.oEntities)
 
     Else                                        ' Update only entities with handles provided
 
@@ -1103,7 +1100,7 @@ Public Function FitDxfToImage(sDXFfile As String, imgPreview As Object, Optional
     entyBlock = New Entity[]
     Dxf.LoadFile(sDxfFile, cModelPreview, True, False, True)
 
-    gcd.ImpEnty6(cModelPreview["ENTITIES"], entyBlock)
+    gcd.DXFtoEntity(cModelPreview["ENTITIES"], entyBlock)
     For Each entidad In entyBlock
         entidad.pLayer = gcd.currentDrawing.CurrLayer
     Next
