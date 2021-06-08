@@ -609,8 +609,8 @@ Public Sub DXFtoEntity(cEny As Collection, obx As Collection, Optional NewHandle
                     If e[dxf.codEntity] = "POLYLINE" Then
                         flgIsPolyline = True
                         pBlockPolyline = New Block
-                        pBlockPolyline.entities = New Entity[]
-                        gcd.currentDrawing.arrPolyLines.Add(pBlockPolyline)
+                        pBlockPolyline.entities = New Collection
+                        gcd.currentDrawing.oPolyLines.Add(pBlockPolyline, entNueva.Handle)
                         entNueva.pBlock = pBlockPolyline
                     End If
                     If e[dxf.codEntity] = "SEQEND" And flgIsPolyline = True Then
@@ -666,7 +666,7 @@ Public Sub ReadLayers(Optional cLayers As Collection)
 End
 
 '' Reads entities and fill arrLayers
-Public Sub ReadEntities()
+Public Sub FillLayers()
 
     Dim hLay As Layer
     Dim e As Entity
@@ -861,7 +861,7 @@ Public Function UpdateGraphics(Optional handles As String[] = [], DoRegen As Boo
 
     If handles.Count = 0 Then                   ' Update all entities
 
-        gcd.DXFtoEntity(gcd.currentDrawing.cEntities, gcd.currentDrawing.oEntities)
+        gcd.DXFtoEntity(gcd.currentDrawing.cEntities, gcd.currentDrawing.oEntities, False)
 
     Else                                        ' Update only entities with handles provided
 
@@ -882,7 +882,7 @@ Public Function UpdateGraphics(Optional handles As String[] = [], DoRegen As Boo
 
     End If
 
-    gcd.ReadEntities            ' esto necesita que arrLayers y arrEntities esten cargados
+    gcd.FillLayers            ' esto necesita que arrLayers y arrEntities esten cargados
     clsEntities.BuildPoi()
 
     If DoRegen Then fMain.Regen
@@ -963,7 +963,7 @@ Public Function iHeader(VarName As String) As Integer
 
 End
 
-Public Function GetHeaderValue(VarName As String) As Variant
+Public Function GetHeaderValue(VarName As String, Optional DefValuer As Variant) As Variant
 
     If currentDrawing.cHeader.Exist(VarName) Then
         If currentDrawing.cHeader[VarName].count = 1 Then
