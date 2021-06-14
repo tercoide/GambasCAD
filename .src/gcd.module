@@ -447,9 +447,8 @@ Public Function EditEntities(sProperty As String, vValue As Variant, Optional Do
 
     gcd.currentDrawing.uUndo.OpenUndoStage(sProperty, Undo.TypeModify)
 
-    For i = 0 To currentDrawing.arrSelecIndex.Max
-        e = currentDrawing.arrEntities[currentDrawing.arrSelecIndex[i]]
-        gcd.currentDrawing.uUndo.AddUndoItem(gcd.currentDrawing.arrSelecIndex[i], clsEntities.ClonEntity(e, False))
+    For Each e In currentDrawing.oSelected
+        gcd.currentDrawing.uUndo.AddUndoItem(clsEntities.ClonEntity(e, False))
         Select Case sProperty
 
             Case "color"
@@ -466,7 +465,7 @@ Public Function EditEntities(sProperty As String, vValue As Variant, Optional Do
     Next
 
     gcd.currentDrawing.uUndo.CloseUndoStage()
-    If DoRegen Then fMain.Regen
+    If DoRegen Then Regen
 
 End
 
@@ -1225,5 +1224,51 @@ Public Sub Regen()
     clsEntities.glGenDrawList
     clsEntities.glGenDrawListSel
     redraw
+
+End
+
+Public Function Libre_DWGtoDXF(sDwgFile As String) As String
+
+    Dim str, filebase, tmpdwg, tmpdir, tmpdirdxf As String
+    Dim Steps As Integer
+
+    filebase = utils.FileFromPath(sDwgFile)
+    'filebase = sDwgFile
+    steps = 0 ' elimino el archivo temporal que hubiese creado
+
+    If Exist(main.dirDwgIn &/ filebase) Then Kill main.dirDwgIn &/ filebase
+
+    Steps = 1 ' hago una copia previa a la conversion
+    Copy sDwgFile To main.dirDwgIn &/ filebase
+
+    Steps = 2 ' Calling the converter
+    Shell "dwgread -O DXF " & " -o '" & main.dirDxfOut &/ utils.FileWithoutExtension(filebase) & ".dxf' '" & main.dirDwgIn &/ filebase & "'" Wait To str
+    Debug str
+    steps = 3
+    ' vacio el directorio de entrada
+
+    Return main.dirDxfOut &/ utils.FileWithoutExtension(filebase) & ".dxf"
+
+Catch
+
+    Select Case Steps
+        Case 0
+            ' esto puede fallar por acceso denegado
+            Print ("Acces denied to temp file")
+            Return Null
+        Case 1
+            ' esto puede fallar por file corrupt
+            Print ("File corrupt")
+            Return Null
+        Case 2
+            ' esto puede fallar por diversas cuestiones
+            Print ("Conversion failed")
+            Return Null
+        Case 3
+            ' esto puede fallar por diversas cuestiones
+            Print ("Could't empty temp dir")
+            Return Null
+
+    End Select
 
 End

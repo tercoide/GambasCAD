@@ -462,7 +462,14 @@ Public Function Action_Activate(sAction As String) As Boolean
         Case "file_open"
 
             Dialog.Title = ("Select File")
-            Dialog.Filter = ["*.dxf;*.dwg", "Drawings", "*.dxf", "DXF Drawing exchange 2010", "*.dwg", "DWG AutoCAD Drawing file 2010"]
+
+            If main.convODA Or main.convLibreDWG Then
+                Dialog.Filter = ["*.dxf;*.dwg", "Drawings", "*.dxf", "DXF Drawing exchange 2010", "*.dwg", "DWG AutoCAD Drawing file 2010"]
+            Else
+
+                Dialog.Filter = ["*.dxf", "Drawings", "*.dxf", "DXF Drawing exchange 2010"]
+
+            End If
             Dialog.OpenFile(False)
             f = Dialog.Path
 
@@ -482,7 +489,17 @@ Public Function Action_Activate(sAction As String) As Boolean
                             fMain.Mouse = Mouse.Wait
                             Application.Busy = 1
                             'fDxf = dxf.DWGtoDXF(f)
-                            fDxf = gcd.ODA_DWGtoDXF(f)
+                            If main.convODA Then
+                                fDxf = gcd.ODA_DWGtoDXF(f)
+                            Else If main.convLibreDWG Then
+                                fDxf = gcd.Libre_DWGtoDXF(f)
+                            End If
+
+                            If fDxf = "" Then
+                                Message(("Can't open file: Error On conversion"))
+                                Return
+                            Endif
+
                             gcd.currentDrawing.RequiresFileRename = True
 
                             dxf.LoadFile(fDxf, gcd.currentDrawing.cModel, False, False, False)
