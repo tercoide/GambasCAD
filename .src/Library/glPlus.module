@@ -42,51 +42,6 @@
 '       +-------------------------------------------------------------------------------------------+           = pixeles
 'Fast Unsafe
 ' una lbreria de funciones para pasar de Paint a OpenGL
-Library "libGL"
-Library "libGLExt"
-
-' declaraciones faltantes en Gambas
-Public Extern glCreateShader(ShaderType As Integer) As Integer In "libGL"
-Public Extern BufferData(target As Integer, size As Integer, data As Integer[], usage As Integer)
-Public Extern DrawArrays(mode As Integer, first As Integer, count As Integer)
-'Public Extern MultiDrawArrays(mode As Integer, int * first, sizei * count, primcount As Integer)
-Public Extern DrawElements(mode As Integer, count As Integer, type As Integer, indices As Integer[])
-'Public Extern MultiDrawElements(mode As Integer, sizei * count, type As Integer, void * * indices, sizei primcount)
-Public Extern DrawRangeElements(mode As Integer, start As Integer, _end As Integer, count As Integer, type As Integer, indices As Integer[])
-'Public Extern InterleavedArrays(format As Integer, stride As Integer, void * pointer)
-Public Extern BindBuffer(target As Integer, buffer As Integer)
-Public Extern DeleteBuffers(n As Integer, buffers As Integer[])
-Public Extern GenBuffers(n As Integer, buffers As Integer[])
-
-Public Extern BufferSubData(target As Integer, offset As Integer, size As Integer, data As Integer[])
-'Public Extern * MapBufferRange(target As Integer, intptr offset, sizeiptr length, bitfield access)
-'Public Extern * MapBuffer(target As Integer, access As Integer)
-'Public Extern FlushMappedBufferRange(target As Integer, intptr offset, sizeiptr length)
-'Public Extern Function UnmapBuffer(target As Integer) As Boolean
-
-'' Genera n arrays de vertices
-Public Extern GenVertexArrays(n As Integer, arrays As Integer[])
-Public Extern DeleteVertexArrays(n As Integer, arrays As Integer[])
-Public Extern BindVertexArray(array As Integer)
-Public Extern VertexPointer(size As Integer, type As Integer, stride As Integer, pointer As Integer[])
-Public Extern NormalPointer(type As Integer, stride As Integer, pointer As Integer[])
-Public Extern ColorPointer(size As Integer, type As Integer, stride As Integer, pointer As Integer[])
-Public Extern SecondaryColorPointer(size As Integer, type As Integer, stride As Integer, pointer As Integer[])
-Public Extern IndexPointer(type As Integer, stride As Integer, pointer As Integer)
-Public Extern EdgeFlagPointer(stride As Integer, pointer As Integer[])
-'Public Extern FogCoordPointer(type As Integer, stride As Integer, void * pointer)
-'Public Extern TexCoordPointer(size As Integer, type As Integer, stride As Integer, void * pointer)
-Public Extern VertexAttribPointer(index As Integer, size As Integer, type As Integer, normalized As Boolean, stride As Integer, pointer As Integer[])
-Public Extern VertexAttribIPointer(index As Integer, size As Integer, type As Integer, stride As Integer, pointer As Integer[])
-Public Extern EnableClientState(array As Integer)
-Public Extern DisableClientState(array As Integer)
-Public Extern EnableVertexAttribArray(index As Integer)
-Public Extern DisableVertexAttribArray(index As Integer)
-Public Extern ClientActiveTexture(texture As Integer)
-Public Extern ArrayElement(i As Integer)
-
-Public Const GL_FRAGMENT_SHADER As Integer = &h8B30
-Public Const GL_VERTEX_SHADER As Integer = &8B31
 
 Public Struct letterSt
 
@@ -168,6 +123,39 @@ Public GLDrwListEditing As New Integer[]                ' all entities on edit b
 Public LineStipples As New Integer[]
 Public LineStippleScales As New Integer[]
 
+' modo inmediato o programado
+Public InmediateMode As Boolean = True
+Public InmediateModeRequired As Boolean
+Public VBO_present As Boolean = False   ' si tenemos VBO que dibujar
+
+' VBO
+Public VBO_lines As Single[][]
+Public VBO_vertex As New Single[][]
+Public VBO_colors As Single[][]
+Public VBO_normals As Single[][]
+Public VBO_pixels As Single[][]
+Public VBO_current As Integer           ' the current set of arrays we are filling
+
+'' Return a Handle for a new set of VBO arrays
+Public Function VBONewSetOfArrays() As Integer
+
+    VBO_vertex.Add([])
+
+    Return VBO_vertex.Max
+
+End
+
+'' Clears the VBO from memory
+Public Sub VBOFlush()
+
+    VBO_vertex.Clear
+    VBO_colors.Clear
+    VBO_normals.Clear
+    VBO_pixels.Clear
+    VBO_current = -1
+
+End
+
 Public Sub Resize(drwContext As Object) ' only glArea for now
 
     ' establecemos adonde vamos a dibujar, porque puede ser en algun lugar mas chico de la misma glDrawingArea
@@ -205,6 +193,68 @@ Public Sub Resize(drwContext As Object) ' only glArea for now
 
 End
 
+Public Function LoadShader(sVertexShaderFile As String, sFragmentShaderFile As String) As Integer
+
+    Dim fShaders As File
+    Dim sShader, sInput As String
+    Dim f As File
+    Dim iShaderProgram, iVerShaderID, iFraShaderID As Integer
+    ' verificamos si el sistema soporta shaders
+    If Not gl.CheckExtensions("GL_ARB_vertex_program") Then Return 0
+    If Not Exist(sVertexShaderFile) Then Return 0
+    If Not Exist(sFragmentShaderFile) Then Return 0
+
+    f = Open sVertexShaderFile For Input
+    Do
+        Input #f, sInput
+
+        sShader &= sInput & gb.CrLf
+
+    Loop Until f.Eof
+
+    Close #f
+    sShader = ""
+
+    iVerShaderID = gl.CreateShader(gl.VERTEX_SHADER)
+    If iVerShaderID = 0 Then Stop
+    ' ' set the source code
+    Gl.ShaderSource(iVerShaderID, sShader)
+    ' ' compile
+    gl.CompileShader(iVerShaderID)
+
+    f = Open sFragmentShaderFile For Input
+    Do
+        Input #f, sInput
+
+        sShader &= sInput & gb.CrLf
+
+    Loop Until f.Eof
+
+    Close #f
+
+    iFraShaderID = gl.CreateShader(gl.FRAGMENT_SHADER)
+    If iFRaShaderID = 0 Then Stop
+    ' ' set the source code
+    Gl.ShaderSource(iFraShaderID, sShader)
+    ' ' compile
+    gl.CompileShader(iFraShaderID)
+
+    ishaderProgram = gl.CreateProgram()
+    gl.AttachShader(ishaderProgram, iVerShaderID)
+    gl.AttachShader(ishaderProgram, iFraShaderID)
+    gl.LinkProgram(ishaderProgram)
+    '
+    Debug gl.GetShaderInfoLog(ishaderProgram)
+    '
+    ' ' una vez complilados, no se necesitan mas
+    '
+    gl.DeleteShader(iVerShaderID)
+    gl.DeleteShader(iFraShaderID)
+
+    Return iShaderProgram
+
+End
+
 Public Sub Init(drwContext As Object) ' only glArea for now
 
     Dim sExt As String
@@ -212,26 +262,17 @@ Public Sub Init(drwContext As Object) ' only glArea for now
 
     Resize(drwContext)
 
-    shaVertexShaderSource = "#version 330 core" & gb.cr &
-        "layout (location = 0) in vec3 aPos;" & gb.cr &
-        "void main()" & gb.cr &
-        "{" & gb.cr &
-        "   gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);" & gb.cr &
-        "}"
-    shaFragmentShaderSource = "#version 330 core" & gb.cr &
-        "out vec4 FragColor;" & gb.cr &
-        "void main()" & gb.cr &
-        "{" & gb.cr &
-        "   FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);" & gb.cr &
-        "}"
+    Dim gbcolor As Integer
+    Dim r, g, b, a As Float
 
-    ' con este color limpiamos la pantalla
-    If gcd.flgWindowBackColor = 0 Then
-        gl.ClearColor(0, 0, 0, 1)
-    Else
-        gl.ClearColor(1, 1, 1, 1)
+    gbcolor = drwContext.background
 
-    Endif
+    a = 1 - Color.GetAlpha(gbColor) / 255
+    r = (Shr(gbColor, 16) And 255) / 255
+    g = (Shr(gbColor, 8) And 255) / 255
+    b = (gbColor And 255) / 255
+
+    gl.ClearColor(r, g, b, a)
 
     ' line stipples
 
@@ -254,44 +295,16 @@ Public Sub Init(drwContext As Object) ' only glArea for now
     ' Divide
     LineStipples.Add(&X00000000000000000011001100111111)
     LineStippleScales.Add(1)
-
+    Print "Support VBO?", gl.CheckExtensions("GL_ARB_vertex_buffer_object")
+    Print "Support GLSL?", gl.CheckExtensions("GL_ARB_vertex_program")
     Print "Shading version", GL.GetString(gl.SHADING_LANGUAGE_VERSION)
     Print "GL version", GL.GetString(gl.VERSION)
     Print "Chipset vendor", GL.GetString(gl.VENDOR)
-    Print "Shade model", GL.GetString(gl.EXTENSIONS)
+    'Print "Extensions", GL.GetString(gl.EXTENSIONS)
 
-    bREt = GL.CheckExtensions(sExt)
-    Print "Extensions", sExt
     ' lets make shaders
-
-    ' ' create the VertexShader and get Id
-    shaVert1 = GLCreateShader(GL_VERTEX_SHADER)
-    ' ' set the source code
-    ' Gl.ShaderSource(shaVert1, shaVertexShaderSource)
-    ' ' compile
-    ' gl.CompileShader(shaVert1)
-    ' ' chequeamos que todo haya salido OK
-    ' Debug gl.GetShaderInfoLog(shaVert1)
-    '
-    ' ' creamos el shader de coloreado o Fragment
-    ' shaFrag1 = gl.CreateShader(gl.FRAGMENT_SHADER)
-    ' gl.ShaderSource(shaFrag1, shaFragmentShaderSource)
-    ' gl.CompileShader(shaFrag1)
-    ' Debug gl.GetShaderInfoLog(shaFrag1)
-    '
-    ' shaderProgram = gl.CreateProgram()
-    ' gl.AttachShader(shaderProgram, shaVert1)
-    ' gl.AttachShader(shaderProgram, shaFrag1)
-    ' gl.LinkProgram(shaderProgram)
-    '
-    ' Debug gl.GetShaderInfoLog(shaderProgram)
-    '
-    ' ' una vez complilados, no se necesitan mas
-    '
-    ' gl.DeleteShader(shaVert1)
-    ' gl.DeleteShader(shaFrag1)
-
-    ' Fin de la inicializacion de openGL
+    Me.shaderProgram = Me.LoadShader("VertexShader1.txt", "FragmentShader1.txt")
+    Print "Shader loading result:", gl.GetShaderInfoLog(Me.shaderProgram)
 
 End
 
@@ -357,28 +370,52 @@ End
 Fast Unsafe Public Function Lines(vertices As Float[], Optional colour As Integer = 0, LineWidth As Float = 1, dashes As Integer = 0)
 
     Dim i As Integer
+    Dim r As Float, g As Float, b As Float
 
-    'glColorRGB(colour)
-    gl.LineWidth(LineWidth) ' obsoleto en WebGL
-    If dashes > 0 Then
-        gl.LineStipple(LineStippleScales[dashes], LineStipples[dashes])
-        gl.Enable(GL.LINE_STIPPLE)
-    Else
+    'If gbcolor > 0 Then Stop
+    r = (Shr(Colour, 16) And 255) / 256
+    g = (Shr(Colour, 8) And 255) / 256
+    b = (Colour And 255) / 256
 
-        gl.Disable(GL.LINE_STIPPLE)
+    If InmediateMode Then
+        'glColorRGB(colour)
+        gl.LineWidth(LineWidth) ' obsoleto en WebGL
+        If dashes > 0 Then
+            gl.LineStipple(LineStippleScales[dashes], LineStipples[dashes])
+            gl.Enable(GL.LINE_STIPPLE)
+        Else
 
-    Endif
+            gl.Disable(GL.LINE_STIPPLE)
 
-    gl.Begin(gl.Lines)
+        Endif
 
-    For i = 0 To vertices.Max Step 2
-        glColorRGB(colour)
-        gl.Vertex2f(vertices[i], vertices[i + 1])
+        gl.Begin(gl.Lines)
 
-    Next
-    gl.end
+        For i = 0 To vertices.Max Step 2
+            glColorRGB(colour)
+            gl.Vertex2f(vertices[i], vertices[i + 1])
 
-    If dashes > 0 Then gl.Disable(GL.LINE_STIPPLE)
+        Next
+        gl.end
+
+        If dashes > 0 Then gl.Disable(GL.LINE_STIPPLE)
+    Else ' we as writing to an array
+        For i = 0 To vertices.Max Step 2
+            VBO_vertex[VBO_current].Add(vertices[i])         'X
+            VBO_vertex[VBO_current].Add(vertices[i + 1])     'Y
+            VBO_vertex[VBO_current].Add(0)                   'Z
+
+            VBO_vertex[VBO_current].Add(r)                    'R
+            VBO_vertex[VBO_current].Add(g)                    'G
+            VBO_vertex[VBO_current].Add(b)                    'B
+
+            VBO_vertex[VBO_current].Add(0)                    'Normales apuntan al user
+            VBO_vertex[VBO_current].Add(0)                    '
+            VBO_vertex[VBO_current].Add(1)                    '
+
+        Next
+
+    End If
 
 End
 
@@ -456,7 +493,7 @@ Fast Unsafe Public Function Arc(Optional radio As Float, start_angle As Float, l
 
     For theta = 0 To length Step angle_increment
 
-        GLplus.Vertex2D(radio * Cos(start_angle + theta), radio * Sin(start_angle + theta), colour)
+        Vertex2D(radio * Cos(start_angle + theta), radio * Sin(start_angle + theta), colour)
     Next
 
     GL.End
@@ -615,7 +652,7 @@ Fast Unsafe Public Function Circle(center As Float[], radious As Float, Optional
         ' el punto considerando 0,0 al centro
         x = center[0] + radious * Cos(theta)
         y = center[1] + radious * Sin(theta)
-        GLplus.Vertex2D(x, y, Colour)
+        Vertex2D(x, y, Colour)
     Next
     gl.End
     If dashes > 0 Then gl.Disable(GL.LINE_STIPPLE)
