@@ -1,0 +1,84 @@
+' Gambas module file
+
+' glsl
+' A library of Shading Language functions
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+
+Public Function LoadShader(sVertexShaderFile As String, sFragmentShaderFile As String) As Integer
+
+    Dim fShaders As File
+    Dim sShader, sInput As String
+    Dim f As File
+    Dim iShaderProgram, iVerShaderID, iFraShaderID As Integer
+    ' verificamos si el sistema soporta shaders
+    If Not gl.CheckExtensions("GL_ARB_vertex_program") Then Return 0
+    If Not Exist(sVertexShaderFile) Then Return 0
+    If Not Exist(sFragmentShaderFile) Then Return 0
+
+    f = Open sVertexShaderFile For Input
+    Do
+        Input #f, sInput
+
+        sShader &= sInput & gb.CrLf
+
+    Loop Until f.Eof
+
+    Close #f
+    sShader = ""
+
+    iVerShaderID = gl.CreateShader(gl.VERTEX_SHADER)
+    If iVerShaderID = 0 Then Stop
+    ' ' set the source code
+    Gl.ShaderSource(iVerShaderID, sShader)
+    ' ' compile
+    gl.CompileShader(iVerShaderID)
+
+    f = Open sFragmentShaderFile For Input
+    Do
+        Input #f, sInput
+
+        sShader &= sInput & gb.CrLf
+
+    Loop Until f.Eof
+
+    Close #f
+
+    iFraShaderID = gl.CreateShader(gl.FRAGMENT_SHADER)
+    If iFRaShaderID = 0 Then Stop
+    ' ' set the source code
+    Gl.ShaderSource(iFraShaderID, sShader)
+    ' ' compile
+    gl.CompileShader(iFraShaderID)
+
+    ishaderProgram = gl.CreateProgram()
+    gl.AttachShader(ishaderProgram, iVerShaderID)
+    gl.AttachShader(ishaderProgram, iFraShaderID)
+    gl.LinkProgram(ishaderProgram)
+
+    '
+    Debug gl.GetShaderInfoLog(ishaderProgram)
+    '
+    ' ' una vez complilados, no se necesitan mas
+    '
+    gl.DeleteShader(iVerShaderID)
+    gl.DeleteShader(iFraShaderID)
+
+    Return iShaderProgram
+
+End

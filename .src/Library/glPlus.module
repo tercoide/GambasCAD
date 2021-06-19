@@ -129,21 +129,11 @@ Public InmediateModeRequired As Boolean
 Public VBO_present As Boolean = False   ' si tenemos VBO que dibujar
 
 ' VBO
-Public VBO_lines As Single[][]
-Public VBO_vertex As New Single[][]
-Public VBO_colors As Single[][]
-Public VBO_normals As Single[][]
-Public VBO_pixels As Single[][]
-Public VBO_current As Integer           ' the current set of arrays we are filling
-
-'' Return a Handle for a new set of VBO arrays
-Public Function VBONewSetOfArrays() As Integer
-
-    VBO_vertex.Add([])
-
-    Return VBO_vertex.Max
-
-End
+Public VBO_lines As New Single[]
+Public VBO_vertex As New Single[]
+Public VBO_colors As New Single[]
+Public VBO_normals As New Single[]
+Public VBO_pixels As New Single[]
 
 '' Clears the VBO from memory
 Public Sub VBOFlush()
@@ -152,7 +142,11 @@ Public Sub VBOFlush()
     VBO_colors.Clear
     VBO_normals.Clear
     VBO_pixels.Clear
-    VBO_current = -1
+
+    VBO_vertex = New Single[]
+    VBO_colors.Clear
+    VBO_normals.Clear
+    VBO_pixels.Clear
 
 End
 
@@ -193,67 +187,6 @@ Public Sub Resize(drwContext As Object) ' only glArea for now
 
 End
 
-Public Function LoadShader(sVertexShaderFile As String, sFragmentShaderFile As String) As Integer
-
-    Dim fShaders As File
-    Dim sShader, sInput As String
-    Dim f As File
-    Dim iShaderProgram, iVerShaderID, iFraShaderID As Integer
-    ' verificamos si el sistema soporta shaders
-    If Not gl.CheckExtensions("GL_ARB_vertex_program") Then Return 0
-    If Not Exist(sVertexShaderFile) Then Return 0
-    If Not Exist(sFragmentShaderFile) Then Return 0
-
-    f = Open sVertexShaderFile For Input
-    Do
-        Input #f, sInput
-
-        sShader &= sInput & gb.CrLf
-
-    Loop Until f.Eof
-
-    Close #f
-    sShader = ""
-
-    iVerShaderID = gl.CreateShader(gl.VERTEX_SHADER)
-    If iVerShaderID = 0 Then Stop
-    ' ' set the source code
-    Gl.ShaderSource(iVerShaderID, sShader)
-    ' ' compile
-    gl.CompileShader(iVerShaderID)
-
-    f = Open sFragmentShaderFile For Input
-    Do
-        Input #f, sInput
-
-        sShader &= sInput & gb.CrLf
-
-    Loop Until f.Eof
-
-    Close #f
-
-    iFraShaderID = gl.CreateShader(gl.FRAGMENT_SHADER)
-    If iFRaShaderID = 0 Then Stop
-    ' ' set the source code
-    Gl.ShaderSource(iFraShaderID, sShader)
-    ' ' compile
-    gl.CompileShader(iFraShaderID)
-
-    ishaderProgram = gl.CreateProgram()
-    gl.AttachShader(ishaderProgram, iVerShaderID)
-    gl.AttachShader(ishaderProgram, iFraShaderID)
-    gl.LinkProgram(ishaderProgram)
-    '
-    Debug gl.GetShaderInfoLog(ishaderProgram)
-    '
-    ' ' una vez complilados, no se necesitan mas
-    '
-    gl.DeleteShader(iVerShaderID)
-    gl.DeleteShader(iFraShaderID)
-
-    Return iShaderProgram
-
-End
 
 Public Sub Init(drwContext As Object) ' only glArea for now
 
@@ -303,7 +236,7 @@ Public Sub Init(drwContext As Object) ' only glArea for now
     'Print "Extensions", GL.GetString(gl.EXTENSIONS)
 
     ' lets make shaders
-    Me.shaderProgram = Me.LoadShader("VertexShader1.txt", "FragmentShader1.txt")
+    'Me.shaderProgram = Me.LoadShader("VertexShader1.txt", "FragmentShader1.txt")
     Print "Shader loading result:", gl.GetShaderInfoLog(Me.shaderProgram)
 
 End
@@ -401,17 +334,17 @@ Fast Unsafe Public Function Lines(vertices As Float[], Optional colour As Intege
         If dashes > 0 Then gl.Disable(GL.LINE_STIPPLE)
     Else ' we as writing to an array
         For i = 0 To vertices.Max Step 2
-            VBO_vertex[VBO_current].Add(vertices[i])         'X
-            VBO_vertex[VBO_current].Add(vertices[i + 1])     'Y
-            VBO_vertex[VBO_current].Add(0)                   'Z
+            VBO_vertex.Add(vertices[i])         'X
+            VBO_vertex.Add(vertices[i + 1])     'Y
+            VBO_vertex.Add(0)                   'Z
 
-            VBO_vertex[VBO_current].Add(r)                    'R
-            VBO_vertex[VBO_current].Add(g)                    'G
-            VBO_vertex[VBO_current].Add(b)                    'B
+            VBO_colors.Add(r)                    'R
+            VBO_colors.Add(g)                    'G
+            VBO_colors.Add(b)                    'B
 
-            VBO_vertex[VBO_current].Add(0)                    'Normales apuntan al user
-            VBO_vertex[VBO_current].Add(0)                    '
-            VBO_vertex[VBO_current].Add(1)                    '
+            VBO_normals.Add(0)                    'Normales apuntan al user
+            VBO_normals.Add(0)                    '
+            VBO_normals.Add(1)                    '
 
         Next
 

@@ -20,7 +20,7 @@ Private RawFlag As Boolean = False
 
 'variables de ambiente
 Public flgShowInspector As Boolean = False
-Public flgSearchingEntity As Boolean = False  ' impide cuellos de botellla
+
 Public flgSearchingPOI As Boolean
 Public flgShowingLayers As Boolean
 Public flgNewPosition As Boolean        ' seteada cuando hay un cambio en pan o zoom
@@ -34,7 +34,7 @@ Public fBlockScaleY As Float = 1
 Public fBlockDegRotation As Float = 0
 
 Public GridSpacing As Float = 0.5
-Public GridActive As Boolean           ' use with F7: 0 = no grid, 1 = dots, 2 = lines
+Public GridActive As Boolean = False         ' use with F7: 0 = no grid, 1 = dots, 2 = lines
 
 Public MyPrinter As Printer
 
@@ -90,12 +90,10 @@ Public Sub DrawTimer_Timer()
     '     mouWheel = False
     '
     ' End If
-
+    Debug "Drawn"
     glarea1.Refresh
-    If flgNewPosition Then
-        clsEntities.CollectVisibleEntities
-        flgNewPosition = False
-    End If
+
+    '
 
 End Sub
 
@@ -383,10 +381,10 @@ Public Function Action_Activate(sAction As String) As Boolean
 
         Case "undo"
             gcd.currentDrawing.uUndo.DoUndo()
-            Regen
+            gcd.Regen
         Case "redo"
             gcd.currentDrawing.uUndo.DoRedo()
-            Regen
+            gcd.Regen
         Case "window_close"
             For i = 0 To gcd.Drawings.Count
                 If gcd.Drawings[i] = gcd.currentDrawing Then
@@ -493,7 +491,7 @@ Public Function Action_Activate(sAction As String) As Boolean
                             If main.convODA Then
                                 fDxf = gcd.ODA_DWGtoDXF(f)
                             Else If main.convLibreDWG Then
-                                fDxf = gcd.Libre_DWGtoDXF(f)
+                                fDxf = gcd.LibreDWGtoDXF(f)
                             End If
 
                             If fDxf = "" Then
@@ -887,6 +885,8 @@ Public Sub GLArea1_draw()
     For Each L In gcd.currentDrawing.oLayers
         If L.Visible Then gl.CallList(L.glList)
     Next
+    '
+    'clsEntities.DrawArrays()
 
     'gl.CallList(gcd.currentDrawing.GlListAllEntities)
 
@@ -912,6 +912,11 @@ Public Sub GLArea1_draw()
         End Select
 
     Endif
+
+    If flgNewPosition Then
+        clsEntities.CollectVisibleEntities
+        flgNewPosition = False
+    End If
 
     gcd.clsJob.Draw()
 
@@ -1043,7 +1048,7 @@ Public Sub GLArea1_MouseMove()
             gcd.clsJob.MouseMove(mouse.x, mouse.y) ' dispatch event to the Job
             If gcd.clsJob.poichecking Then
                 If gcd.clsJob.iEntityForEdit < 0 Then
-                    If Not Me.flgSearchingEntity Then
+                    If Not gcd.flgSearchingEntity Then
                         gcd.currentDrawing.iEntity[2] = -1
                         gcd.currentDrawing.HoveredEntity = clsMouseTracking.CheckAboveEntity(Xreal(mouse.x), Yreal(mouse.Y), Metros(8))
                         ' If gcd.currentDrawing.iEntity[3] <> gcd.currentDrawing.iLastEntity Then
@@ -1068,7 +1073,7 @@ Public Sub GLArea1_MouseMove()
                 End If
             End If
 
-            If flgShowInspector Then
+            If Config.TrackShowInspector Then
 
                 If gcd.currentDrawing.HoveredEntity Then
 
@@ -1097,7 +1102,7 @@ Public Sub GLArea1_MouseMove()
             End If
 
             If gcd.clsJob.EntityChecking Then
-                If Not Me.flgSearchingEntity Then
+                If Not gcd.flgSearchingEntity Then
                     gcd.currentDrawing.iEntity[3] = clsMouseTracking.CheckAboveEntity(Xreal(mouse.x), Yreal(mouse.Y), Metros(8))
                 End If
             End If
@@ -1110,8 +1115,6 @@ Public Sub GLArea1_MouseMove()
             gcd.clsJob.MouseMove(mouse.x, mouse.y) ' dispatch event to the Job
 
     End Select
-
-    Redraw
 
 End
 
@@ -1233,7 +1236,7 @@ Public Sub GLArea1_MouseWheel()
     ' Inc flgWheelCounter
     ' Debug "Mouse weel", flgWheelCounter
 
-    If Pixels(GridSpacing) < 5 Then GridActive = False Else GridActive = True
+    'If Pixels(GridSpacing) < 5 Then GridActive = False Else GridActive = True
 
     px = Xreal(Mouse.x) ' posicion real en donde esta el mouse, previo al zoom
     py = Yreal(Mouse.y)
@@ -1257,6 +1260,7 @@ Public Sub GLArea1_MouseWheel()
 
     flgNewPosition = True
 
+    Debug "Drawing requested"
     redraw 'glarea1.Refresh
 
     ' despues de actualizar la pantalla, recolectamos las entidades visibles
@@ -1272,16 +1276,6 @@ Public Sub redraw()
 
     $hDrawTimer.Trigger
     Wait 0.001
-
-End
-
-'' Regenera las listas de OpenGL
-Public Sub Regen()
-
-    'clsEntities.glGenDrawListLAyers2
-    clsEntities.glGenDrawList
-    clsEntities.glGenDrawListSel
-    redraw
 
 End
 
@@ -1561,15 +1555,6 @@ End
 '
 ' End
 
-Public Sub tbnOrtho4_Click()
-
-    Me.flgShowInspector = tbnOrtho4.Value
-    If Me.flgShowInspector = False Then
-        Try fInspector.Close
-    Endif
-
-End
-
 Public Sub grdLayers_Click()
 
     If flgShowingLayers Then
@@ -1780,5 +1765,24 @@ Public Sub tmrAutosave_Timer()
 End
 
 Public Sub tb11_Click()
+
+End
+
+Public Sub tbnInspector_MouseUp()
+
+    If Mouse.Left Then
+
+        Config.TrackShowInspector = tbnInspector.Value
+        If Not Config.TrackShowInspector Then
+            Try fInspector.Close
+        Endif
+
+    Else If Mouse.Right Then
+
+    Endif
+
+End
+
+Public Sub tbnInspector_Click()
 
 End

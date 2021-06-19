@@ -22,6 +22,47 @@
 
 Create Static
 
+Public inxBuffersID As New Integer[]
+
+Public Sub DrawArrays()
+
+    Dim iError, vOffset, nOffset, cOffset, tOffset As Integer
+
+    If inxBuffersID.Count = 0 Then Return
+
+    glx.glBindBuffer(glc.ARRAY_BUFFER, inxBuffersID[0])
+
+    iError = glx.glGetError()
+    If iError <> 0 Then Print "GL Error:", iError
+    glx.glEnableClientState(glc.VERTEX_ARRAY)
+    glx.glEnableClientState(glc.NORMAL_ARRAY)
+    glx.glEnableClientState(glc.COLOR_ARRAY)
+
+    iError = glx.glGetError()
+    If iError <> 0 Then Print "GL Error:", iError
+
+    vOffset = 0
+    nOffset = glPlus.VBO_vertex.Count * SizeOf(gb.Single)
+    cOffset = nOffset + glPlus.VBO_normals.Count * SizeOf(glPlus.VBO_normals.Type)
+    'tOffset = cOffset + sizeof colors
+
+    glx.glVertexPointer(3, glc.FLOAT, 0, vOffset)
+    glx.glNormalPointer(glc.FLOAT, 0, nOffset)
+    glx.glColorPointer(3, glc.FLOAT, 0, cOffset)
+
+    iError = glx.glGetError()
+    If iError <> 0 Then Print "GL Error:", iError
+
+    glx.glDrawArrays(glc.LINES, 0, glPlus.VBO_vertex.Count * 3)
+
+    glx.gldisableClientState(glc.VERTEX_ARRAY)
+    glx.gldisableClientState(glc.NORMAL_ARRAY)
+    glx.gldisableClientState(glc.COLOR_ARRAY)
+
+    glx.glBindBuffer(glc.ARRAY_BUFFER, 0)
+
+End
+
 Public Function FIndBlockIDbyHandle(BlockHandle As String) As Block
 
     Dim B As Block
@@ -138,9 +179,12 @@ Public Sub glGenBuffers(Optional eEntity As Entity = Null)
 
         ' If Not gl.islist(gcd.CurrDrawing.GlListAllEntities) Then gcd.CurrDrawing.GlListAllEntities = gl.GenLists(1)
         Dim t As Float = Timer
+        Dim iError As Integer
         ' listas de entidades
-        iVbo = glPlus.VBONewSetOfArrays()
+        glPlus.VBOFlush
         glPlus.InmediateMode = False
+
+        If gcd.CurrentDrawing.oEntities.Count = 0 Then Return
         For Each e In gcd.CurrentDrawing.oEntities
 
             'If Not gl.islist(e.glDrwList) Then e.glDrwList = gl.GenLists(1)
@@ -151,14 +195,38 @@ Public Sub glGenBuffers(Optional eEntity As Entity = Null)
         Next
         glPlus.InmediateMode = True
 
-        Dim inxBuffersID As New Integer[]
-
         Dim oneBufferID As Integer
         inxBuffersID.Resize(3)
-        gl.Enable(glc.GL_VERTEX_ARRAY)
+
+        iError = glx.glGetError()
+        If iError <> 0 Then Print "GL Error:", Hex(iError)
+
         'glx.glGenBuffers(1, VarPtr(oneBufferID))
-        glx.glGenBuffers(3, inxBuffersID.Data)
-        Stop
+        glx.glGenBuffers(3, inxBuffersID.Data)                      ' genero un buffer ID
+        iError = glx.glGetError()
+        If iError <> 0 Then Print "GL Error:", Hex(iError)
+        glx.glBindBuffer(glc.ARRAY_BUFFER, inxBuffersID[0])      ' lo conecto como Vertex Buffer
+        iError = glx.glGetError()
+        If iError <> 0 Then Print "GL Error:", Hex(iError)
+        Dim BytesTotales As Integer
+        BytesTotales = glPlus.VBO_vertex.Count + glPlus.VBO_normals.Count + glPlus.VBO_colors.Count
+        BytesTotales *= SizeOf(gb.Single)
+
+        ' Reservo espacio. 0 significa que despues le mando la data
+        glx.glBufferData(glc.ARRAY_BUFFER, BytesTotales, 0, glc.STATIC_DRAW)
+        iError = glx.glGetError()
+        If iError <> 0 Then Print "GL Error:", Hex(iError)
+        ' mando vertices
+        glx.glBufferSubData(glc.ARRAY_BUFFER, 0, glPlus.VBO_vertex.Count * SizeOf(gb.Single), glPlus.VBO_vertex.Data)
+
+        ' mando normales
+        glx.glBufferSubData(glc.ARRAY_BUFFER, glPlus.VBO_vertex.Count * SizeOf(gb.Single), glPlus.VBO_normals.Count * SizeOf(gb.Single), glPlus.VBO_normals.Data)
+
+        ' mando colores
+        glx.glBufferSubData(glc.ARRAY_BUFFER, (glPlus.VBO_vertex.Count + glPlus.VBO_normals.Count) * SizeOf(gb.Single), glPlus.VBO_colors.Count * SizeOf(gb.Single), glPlus.VBO_colors.Data)
+        iError = glx.glGetError()
+        If iError <> 0 Then Print "GL Error:", Hex(iError)
+        glx.glBindBuffer(glc.ARRAY_BUFFER, 0)      ' finlizo transferencia de datos a la GPU
 
         ' ' lista de entidaes seleccionadas
         ' For Each e In gcd.CurrentDrawing.oEntities
@@ -997,9 +1065,16 @@ End
 Public Function SelPartial(eTesting As Entity, X1real As Float, Y1real As Float, X2real As Float, Y2real As Float) As Boolean
 
     Dim ii As Integer, puedo As Boolean = False
+    Dim oLoop As Boundary
 
     Select Case eTesting.Gender
 
+        Case "Hatch"
+
+            For Each oLoop In eTesting.pBlock.oBoundaryPath
+                puedo = puntos.IsPoligonCrossingRect(oLoop.Polyline, X1real, Y1real, X2real, Y2real)
+                If puedo Then Break
+            Next
         Case Else
 
             ' Si tengo un bounding poligon, entonces verifico que alguna linea lo cruce

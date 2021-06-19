@@ -105,9 +105,9 @@ Public Extern glDeleteBuffers(n As Integer, buffers As Pointer)
 ' Calling with (n as integer, VarPtr(inx.data))  with inx.count >= n
 Public Extern glGenBuffers(n As Integer, buffers As Pointer)
 Public Extern glIsBuffer(buffer As Integer) As Boolean
-Public Extern glBufferData(iTarget As Integer, size As Integer, data As Byte[], usage As Integer)
-Public Extern glBufferSubData(iTarget As Integer, offset As Integer, size As Integer, data As Byte[])
-Public Extern glGetBufferSubData(iTarget As Integer, offset As Integer, size As Integer, data As Byte[])
+Public Extern glBufferData(iTarget As Integer, size As Long, data As Pointer, usage As Integer)
+Public Extern glBufferSubData(iTarget As Integer, offset As Integer, size As Long, data As Pointer)
+Public Extern glGetBufferSubData(iTarget As Integer, offset As Integer, size As Long, data As Pointer)
 Public Extern glMapBuffer(iTarget As Integer, access As Integer) As Integer[]
 Public Extern glUnmapBuffer(iTarget As Integer) As Boolean
 Public Extern glGetBufferParameteriv(iTarget As Integer, iPname As Integer, params As Integer[])
@@ -964,3 +964,38 @@ Public Extern glValidateProgram(program As Integer)
 ' Public Const GL_ARB_transform_feedback_overflow_query 1
 ' Public Const GL_TRANSFORM_FEEDBACK_OVERFLOW_ARB As Integer = &H82EC
 ' Public Const GL_TRANSFORM_FEEDBACK_STREAM_OVERFLOW_ARB As Integer = &H82ED
+
+' ==============OTROS QUE NO ESTABAN (probablemente deprecados)=============================
+
+Public Extern glEnableClientState(capacidad As Integer)
+Public Extern glDisableClientState(capacidad As Integer)
+Public Extern glVertexPointer(size As Integer, type As Integer, stride As Long, data As Pointer)
+Public Extern glNormalPointer(type As Integer, stride As Long, data As Pointer)
+Public Extern glColorPointer(size As Integer, type As Integer, stride As Long, data As Pointer)
+
+Public Function createVBO(data As Pointer, dataSizeBytes As Integer, target As Integer, usage As Integer) As Integer
+
+    Dim id As Integer = 0 ' 0 Is Reserved, glGenBuffersARB()will Return non - zero id If success
+
+    glGenBuffers(1, VarPtr(id))                     'Create a vbo
+    glBindBuffer(target, id)                        'activate vbo id To Use
+    glBufferData(target, dataSizeBytes, data, usage)     'upload data To video card
+
+    ' check data size In VBO Is Same As Input array, If Not Return 0 And delete VBO
+    Dim bufferSize As Integer = 0
+    glGetBufferParameteriv(target, glc.GL_BUFFER_SIZE, VarPtr(bufferSize))
+    If (dataSizeBytes <> bufferSize) Then
+        glDeleteBuffers(1, VarPtr(id))
+        id = 0
+        Print "[createVBO()] Data size is mismatch with input array"
+    End If
+
+    Return id ' Return VBO id
+
+End
+
+Public Function CheckExtension(sExtension As String) As Boolean
+
+    Return (InStr(LCase(GLx.glGetString(glc.EXTENSIONS)), LCase(sExtension)) > 0)
+
+End
