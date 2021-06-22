@@ -1,96 +1,53 @@
 ' Gambas class file
 
+' Estrategias:
+' Si tengo pre seteados los puntos, lineas y poligonos puedo buscar con ese orden
+' de prelacion. Luego una linea sera detectada antes que un poligono. Ello puede ser
+' muy util en caso de poligonos grandes con lineas dentro que deban ser detectadas
+' antes.
+
+' La otra estrategia es la actual (jun/21) de generar una lista de entidades visibles
+' de acuerdo a los layers encendidos y las entidades que se ven realemnte en la pantalla.
+
 Create Static
 Create Private
+
 'Fast Unsafe
 
 ' poi
 
-Public Function PoiTotalPoints() As Integer
-
-    Dim i, t As Integer
-
-    For i = 0 To gcd.CurrentDrawing.oEntities
-
-        t += gcd.CurrentDrawing.oEntities[i].PoiType.Count
-    Next
-    Return t
-
-End
-
-'' Creo el array de POIpoints
-'' son los puntos que van a enganchar el mouse
-
-Public Sub ReBuildPOIPoints()
-
-    Dim i, ii, n As Integer, EPoi As New Integer[], nPois As Integer
-    Dim rData As New Float[]
-    Dim e, breathe, iPoligon, iLine, iTotalPoints As Integer
-    Dim t As Float = Timer
-
-    gcd.CurrentDrawing.poiPoints.Clear           ' limpio
-    gcd.CurrentDrawing.poiType.Clear
-
-    iTotalPoints = PoiTotalPoints()         ' calculo el tamaño total para redimensionar, esto es mas rapido que ir insertando
-
-    gcd.CurrentDrawing.poiType.Resize(iTotalPoints)
-    gcd.CurrentDrawing.poiEntities.Resize(iTotalPoints)
-    gcd.CurrentDrawing.poiPoints.Resize(iTotalPoints * 2)
-
-    For e = 0 To gcd.CurrentDrawing.oEntities
-
-        For i = 0 To gcd.CurrentDrawing.oEntities[e].PoiType.Max
-            gcd.CurrentDrawing.poiType[ii] = gcd.CurrentDrawing.oEntities[e].PoiType[i]
-            gcd.CurrentDrawing.poiEntities[ii] = e
-            gcd.CurrentDrawing.poiPoints[ii * 2] = gcd.CurrentDrawing.oEntities[e].PoiPoints[i]
-            gcd.CurrentDrawing.poiPoints[ii * 2 + 1] = gcd.CurrentDrawing.oEntities[e].PoiPoints[i + 1]
-            Inc ii
-        Next
-
-    Next
-    Debug "POI points built in ", Timer - t
-
-    For e = 1 To gcd.CurrentDrawing.oEntities
-        If e = gcd.CurrentDrawing.oEntities Then t = Timer
-
-        RebuilIntersections(e)
-
-    Next
-
-    Debug "POI points built in ", Timer - t
-
-End
-
-Public Sub RebuilIntersections(iEntity As Integer)
-
-    Dim i, i2, n As Integer, EPoi As New Integer[], nPois As Integer
-    Dim rData As New Float[]
-    Dim breathe, iPoligon, iLine, iTotalPoints As Integer
-    Dim t As Float = Timer
-    Dim e As Entity
-
-    e = gcd.CurrentDrawing.oEntities[iEntity]
-
-    ' veo cada caso en particular
-    Select Case e.Gender
-        Case "Line"
-            For i2 = iEntity - 1 To 0 Step -1
-
-                Select Case gcd.CurrentDrawing.oEntities[i2].Gender
-
-                    Case "Line"
-                        If puntos.doIntersect(e.P[0], e.P[1], e.P[2], e.P[3], gcd.CurrentDrawing.oEntities[i2].P[0], gcd.CurrentDrawing.oEntities[i2].P[1], gcd.CurrentDrawing.oEntities[i2].P[2], gcd.CurrentDrawing.oEntities[i2].P[3]) Then
-                            gcd.CurrentDrawing.poiPoints.Insert(puntos.lineLineIntersection([e.P[0], e.P[1]], [e.P[2], e.P[3]], [gcd.CurrentDrawing.oEntities[i2].P[0], gcd.CurrentDrawing.oEntities[i2].P[1]], [gcd.CurrentDrawing.oEntities[i2].P[2], gcd.CurrentDrawing.oEntities[i2].P[3]]))
-                            gcd.CurrentDrawing.poiEntities.Add(iEntity)
-                            gcd.CurrentDrawing.poiType.Add(gcd.poiIntersection)
-
-                        Endif
-
-                End Select
-            Next
-    End Select
-
-End
+' '' Creo el array de POIpoints
+' '' son los puntos que van a enganchar el mouse
+' Public Sub ReBuildPOIPoints()
+'
+'     Dim i, ii, n As Integer, EPoi As New Integer[], nPois As Integer
+'     Dim rData As New Float[]
+'     Dim e, breathe, iPoligon, iLine, iTotalPoints As Integer
+'     Dim t As Float = Timer
+'
+'     gcd.CurrentDrawing.poiPoints.Clear           ' limpio
+'     gcd.CurrentDrawing.poiType.Clear
+'
+'     iTotalPoints = PoiTotalPoints()         ' calculo el tamaño total para redimensionar, esto es mas rapido que ir insertando
+'
+'     gcd.CurrentDrawing.poiType.Resize(iTotalPoints)
+'     gcd.CurrentDrawing.poiEntities.Resize(iTotalPoints)
+'     gcd.CurrentDrawing.poiPoints.Resize(iTotalPoints * 2)
+'
+'     For e = 0 To gcd.CurrentDrawing.oEntities
+'
+'         For i = 0 To gcd.CurrentDrawing.oEntities[e].PoiType.Max
+'             gcd.CurrentDrawing.poiType[ii] = gcd.CurrentDrawing.oEntities[e].PoiType[i]
+'             gcd.CurrentDrawing.poiEntities[ii] = e
+'             gcd.CurrentDrawing.poiPoints[ii * 2] = gcd.CurrentDrawing.oEntities[e].PoiPoints[i]
+'             gcd.CurrentDrawing.poiPoints[ii * 2 + 1] = gcd.CurrentDrawing.oEntities[e].PoiPoints[i + 1]
+'             Inc ii
+'         Next
+'
+'     Next
+'     Debug "POI points built in ", Timer - t
+'
+' End
 
 '' Creo el array de POI
 '' son los puntos que van a enganchar el mouse
@@ -102,10 +59,12 @@ Public Sub ReBuildPOI()
     Dim e, breathe, iPoligon, iLine, iPoint As Integer
     Dim t As Float = Timer
 
-    gcd.CurrentDrawing.poiEntities.Clear
-    gcd.CurrentDrawing.poiLines.Clear
-    gcd.CurrentDrawing.poiLinesEntities.Clear
-    gcd.CurrentDrawing.poiPoints.Clear
+    gcd.CurrentDrawing.poiLines.Clear               'x1y1x2y2 x1y1x2y2 ...
+    gcd.CurrentDrawing.poiLinesEntities.Clear       ' Key: str(position) Value: Handle of entity
+
+    gcd.CurrentDrawing.poiPoints.Clear              ' x1y1 x1y1 x1y1...
+    gcd.CurrentDrawing.poiPointsEntities.Clear      ' Key: str(position) Value: Handle of entity
+
     gcd.CurrentDrawing.poiPoligonElements.Clear
     gcd.CurrentDrawing.poiPoligonEntities.Clear
     gcd.CurrentDrawing.poiPoligons.Clear
@@ -155,9 +114,14 @@ Public Function CheckAboveEntity(xr As Float, Yr As Float, tolerance As Float) A
     Dim major, minor, la As Float
     Dim x, y, theta, angle_increment As Float
     Dim eVisible As Entity
-    Dim T As Float = Timer
+    Dim T As Float
+    Dim obo As Boundary
+    Dim iSearchID As Integer
 
+    iSearchID = Rnd(0, 1000)
+    T = Timer
     gcd.flgSearchingEntity = True
+    ' Debug "Iniciando busqueda ", iSearchID
     Dec iVisible
     Found = True
     For Each eVisible In gcd.CurrentDrawing.oVisibleEntities
@@ -176,9 +140,11 @@ Public Function CheckAboveEntity(xr As Float, Yr As Float, tolerance As Float) A
 
             Case "Line"
 
-                If Not Config.TrackEntityLines Then Continue
+                minor = puntos.PointToLineDistance([xr, yr], eVisible.p) ' <= tolerance Then Goto ExitSearch 'Return True Else Return False
 
-                If puntos.doIntersect(xr - tolerance, yr, xr + tolerance, yr, eVisible.P[0], eVisible.P[1], eVisible.P[2], eVisible.P[3]) Or puntos.doIntersect(xr, yr - tolerance, xr, yr + tolerance, eVisible.P[0], eVisible.P[1], eVisible.P[2], eVisible.P[3]) Then Goto ExitSearch
+                ' If Not Config.TrackEntityLines Then Continue
+                '
+                ' If puntos.doIntersect(xr - tolerance, yr, xr + tolerance, yr, eVisible.P[0], eVisible.P[1], eVisible.P[2], eVisible.P[3]) Or puntos.doIntersect(xr, yr - tolerance, xr, yr + tolerance, eVisible.P[0], eVisible.P[1], eVisible.P[2], eVisible.P[3]) Then Goto ExitSearch
 
             Case "LWPolyline"
                 If Not Config.TrackEntityLines Then Continue
@@ -284,8 +250,9 @@ Public Function CheckAboveEntity(xr As Float, Yr As Float, tolerance As Float) A
 
             Case "Hatch"
                 If Not Config.TrackEntityHatches Then Continue
-                If puntos.isInside(eVisible.Polygon, xr, yr) Then Goto ExitSearch
-
+                For Each oBo In eVisible.pBlock.oBoundaryPath
+                    If puntos.isInside(oBo.Polyline, xr, yr) Then Goto ExitSearch
+                Next
         End Select
 
         utils.DoEvents(0.05000)
@@ -295,9 +262,9 @@ Public Function CheckAboveEntity(xr As Float, Yr As Float, tolerance As Float) A
     Found = False
 
 ExitSearch:
-
+    ' Debug "Fin busqueda       ", iSearchID, " en ", Timer - t
     gcd.flgSearchingEntity = False
-    ' ' Debug "Above entity en ", Timer - t
+
     ' If iVisible = gcd.CurrentDrawing.oVisibleEntities.Count Then
     '
     '   Return Null
@@ -337,7 +304,7 @@ Public Sub CheckPOI(xr As Float, Yr As Float) As Float[]
 
     ' If Me.flgSearchingPOI Then Return   ' no nesting this
     gcd.flgSearchingPOI = True
-
+    ' Debug "Iniciando busqueda de POI", Rnd(0, 1000)
     Dim t As Float = Timer
 
     tolerance = gcd.Metros(16)

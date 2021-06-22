@@ -38,7 +38,7 @@ Public Function Start(Optional sfilename As Variant, Optional _mode As Integer =
     Me.EntityChecking = True
     cModelPreview = New Collection
 
-    eBlock.entities = New Entity[]
+    eBlock.entities = New Collection
 
     Dxf.LoadFile(sFilename, cModelPreview, True, True, True)         ' cargo la entidad
     gcd.DXFtoEntity(cModelPreview["ENTITIES"], eBlock.entities)
@@ -77,7 +77,6 @@ Public Sub Draw()
 
         et.pLayer = gcd.CurrentDrawing.CurrLayer
         et.colour = gcd.CurrentDrawing.CurrColor
-        et.ColorToPaint = gcd.gColor[et.colour]
 
         et.LineType = gcd.CurrentDrawing.CurrLineType
 
@@ -134,16 +133,15 @@ Public Function MouseUp(mouseX As Integer, mouseY As Integer) ' called by FCAD->
         entPart.Handle = gcd.NewHandle()
         entPart.pLayer = gcd.CurrentDrawing.CurrLayer
         entPart.HandleOwner = eBlock.handle
-        eBlock.entities.Add(entPart)
+        eBlock.entities.Add(entPart, entPart.Handle)
         For Each entPart In eBlock.entities
             entPart.HandleOwner = eBlock.HandleOwner
         Next
 
-        gcd.CurrentDrawing.arrBlocks.Add(eBlock)
+        gcd.CurrentDrawing.oBlocks.Add(eBlock, eBlock.handle)
     End If
     ' ahora creo el insert
 
-    gcd.CurrentDrawing.arrEntities.Add(entInsert)
     entInsert.pBlock = eBlock
     entInsert.Handle = gcd.NewHandle()
     entInsert.HandleOwner = "1"
@@ -163,8 +161,9 @@ Public Function MouseUp(mouseX As Integer, mouseY As Integer) ' called by FCAD->
 
     entInsert.fParam.Add(fmain.FBlockdegRotation)
     entInsert.ClassHandler.Finish(entInsert)
+    gcd.CurrentDrawing.oEntities.Add(entInsert, entInsert.Handle)
 
-    EntityBuilder.LastEntity = entInsert                                       ' save it to repeat on rigth click
+    EntityBuilder.LastEntity = entInsert   ' save it to repeat on rigth click
 
     gcd.clsJobPrevious = Me
     gcd.clsJob = clsDefaultJob
@@ -173,6 +172,7 @@ Public Function MouseUp(mouseX As Integer, mouseY As Integer) ' called by FCAD->
     fmain.PanelBlockFit.Visible = False
     fmain.ListView1.Visible = True
 
-    gcd.regen
+    clsEntities.glGenDrawList(entInsert)
+    clsEntities.glGenDrawListLAyers(entInsert.pLayer)
 
 End

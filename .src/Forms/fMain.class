@@ -21,7 +21,6 @@ Private RawFlag As Boolean = False
 'variables de ambiente
 Public flgShowInspector As Boolean = False
 
-Public flgSearchingPOI As Boolean
 Public flgShowingLayers As Boolean
 Public flgNewPosition As Boolean        ' seteada cuando hay un cambio en pan o zoom
 
@@ -37,8 +36,6 @@ Public GridSpacing As Float = 0.5
 Public GridActive As Boolean = False         ' use with F7: 0 = no grid, 1 = dots, 2 = lines
 
 Public MyPrinter As Printer
-
-Public tskMouseTracking As TaskMouseTracking
 
 Public ftring As New Float[]
 Public ftring2 As New Float[]
@@ -90,7 +87,7 @@ Public Sub DrawTimer_Timer()
     '     mouWheel = False
     '
     ' End If
-    Debug "Drawn"
+
     glarea1.Refresh
 
     '
@@ -151,29 +148,29 @@ Public Sub Run() As Boolean
 
 End
 
-Public Sub tskMouseTracking_Error(mydata As String)
+' Public Sub tskMouseTracking_Error(mydata As String)
+'
+'     Print "Task error", mydata
+'
+' End
+'
+' Public Sub mytask_Error(mydata As String)
+'
+'     Print "Task error", mydata
+'
+' End
 
-    Print "Task error", mydata
-
-End
-
-Public Sub mytask_Error(mydata As String)
-
-    Print "Task error", mydata
-
-End
-
-Public Sub tskMouseTracking_Read(mydata As String)
-
-    Print "Task returns", mydata, tskMouseTracking.Value
-
-End
-
-Public Sub mytask_Read(mydata As String)
-
-    Print "Task returns", mydata, tskMouseTracking.Value
-
-End
+' Public Sub tskMouseTracking_Read(mydata As String)
+'
+'     Print "Task returns", mydata, tskMouseTracking.Value
+'
+' End
+'
+' Public Sub mytask_Read(mydata As String)
+'
+'     Print "Task returns", mydata, tskMouseTracking.Value
+'
+' End
 
 Public Sub Printer1_Draw()
 
@@ -853,22 +850,22 @@ Public Sub GLArea1_draw()
     ' Primero la grid
     ' DrawingAids.DrawGrid
 
-    ' TEST
-    Dim fArcParams As Float[]
-
-    ' aqui podria usar una rutina de arco entre 3 puntos
-    fArcParams = puntos.Arc3Point(0, 0, -100, 50, -300, 20)
-    ' traslado el centro
-    gl.Translatef(fArcParams[0], fArcParams[1], 0)
-    glPlus.Arc(fArcParams[2], fArcParams[3], fArcParams[4] - fArcParams[3], Color.Blue, 1, 0)
-    gl.Translatef(-fArcParams[0], -fArcParams[1], 0)
-    fArcParams = Null
-
+    ' ' TEST
+    ' Dim fArcParams As Float[]
+    '
+    ' ' aqui podria usar una rutina de arco entre 3 puntos
+    ' fArcParams = puntos.Arc3Point(0, 0, -100, 50, -300, 20)
+    ' ' traslado el centro
+    ' gl.Translatef(fArcParams[0], fArcParams[1], 0)
+    ' glPlus.Arc(fArcParams[2], fArcParams[3], fArcParams[4] - fArcParams[3], Color.Blue, 1, 0)
+    ' gl.Translatef(-fArcParams[0], -fArcParams[1], 0)
+    ' fArcParams = Null
+    '
     If gcd.DrawBounds Then DrawingAids.DrawPolygons
 
-    glPlus.Triangles(ftring, Color.Red, Color.Red)
-
-    glPlus.Triangles(ftring2, Color.Blue, Color.blue)
+    ' glPlus.Triangles(ftring, Color.Red, Color.Red)
+    '
+    ' glPlus.Triangles(ftring2, Color.Blue, Color.blue)
 
     If gcd.currentDrawing.HoveredEntity Then
         ' si no esta seleccionada, la resalto
@@ -919,8 +916,7 @@ Public Sub GLArea1_draw()
     End If
 
     gcd.clsJob.Draw()
-
-    ' Debug "redraw"
+    ' Debug "Drawn", cint(Rnd(0, 1000))
 
 End
 
@@ -989,7 +985,7 @@ Public Sub GLArea1_DblClick()
 
         Case "Default"                                                  ' 1. Seleccionando
 
-            If Not Me.flgSearchingPOI Then
+            If Not gcd.flgSearchingPOI Then
                 gcd.currentDrawing.iEntity = clsMouseTracking.CheckPOI(Xreal(mouse.x), Yreal(mouse.Y))
             Else    ' estoy buscando, pero me movi, asi que me desengancho del POI anterior
 
@@ -1027,40 +1023,24 @@ Public Sub GLArea1_MouseMove()
     CursorX = mouse.x
     CursorY = mouse.y
 
-    ' If IsNull(tskMouseTracking) Then
-    '
-    '     'If Not tskMouseTracking.Running Then
-    '     Debug "Creating task for tracking"
-    '
-    '     tskMouseTracking = New TaskMouseTracking As "mytask"
-    '
-    '     tskMouseTracking.tolerance = Metros(8)
-    '
-    '     tskMouseTracking.Sx = Xreal(mouse.x)
-    '     tskMouseTracking.sy = Yreal(mouse.y)
-    ' End If
-    'Me.flgSearchingEntity = True ' FIXME: poner en false despues de reparar
-    'Me.flgSearchingPOI = True
-
     Select gcd.clsJob.gender
 
         Case "Default"                                                  ' 1. Seleccionando
             gcd.clsJob.MouseMove(mouse.x, mouse.y) ' dispatch event to the Job
             If gcd.clsJob.poichecking Then
-                If gcd.clsJob.iEntityForEdit < 0 Then
+                If gcd.clsJob.EntityForEdit Then
                     If Not gcd.flgSearchingEntity Then
                         gcd.currentDrawing.iEntity[2] = -1
                         gcd.currentDrawing.HoveredEntity = clsMouseTracking.CheckAboveEntity(Xreal(mouse.x), Yreal(mouse.Y), Metros(8))
-                        ' If gcd.currentDrawing.iEntity[3] <> gcd.currentDrawing.iLastEntity Then
-                        '     gcd.currentDrawing.iLastEntity = gcd.currentDrawing.iEntity[3]
-                        '
-                        ' End If
+                        If gcd.currentDrawing.HoveredEntity Then
+                            gcd.currentDrawing.iLastEntity = gcd.currentDrawing.HoveredEntity
+                        End If
 
                     Else
                         'Debug "No puedo buscar entidades"
                     End If
                 Else
-                    If Not Me.flgSearchingPOI Then
+                    If Not gcd.flgSearchingPOI Then
                         gcd.currentDrawing.iEntity = clsMouseTracking.CheckPOI(Xreal(mouse.x), Yreal(mouse.Y))
                     Else    ' estoy buscando, pero me movi, asi que me desengancho del POI anterior
 
@@ -1088,7 +1068,7 @@ Public Sub GLArea1_MouseMove()
         Case Else
 
             If gcd.clsJob.poichecking Then
-                If Not Me.flgSearchingPOI Then
+                If Not gcd.flgSearchingPOI Then
                     gcd.currentDrawing.iEntity = clsMouseTracking.CheckPOI(Xreal(mouse.x), Yreal(mouse.Y))
                 Else    ' estoy buscando, pero me movi, asi que me desengancho del POI anterior
 
@@ -1102,9 +1082,10 @@ Public Sub GLArea1_MouseMove()
             End If
 
             If gcd.clsJob.EntityChecking Then
-                If Not gcd.flgSearchingEntity Then
-                    gcd.currentDrawing.iEntity[3] = clsMouseTracking.CheckAboveEntity(Xreal(mouse.x), Yreal(mouse.Y), Metros(8))
-                End If
+
+                ' verifico antes de buscar
+                If Not gcd.flgSearchingEntity Then gcd.currentDrawing.HoveredEntity = clsMouseTracking.CheckAboveEntity(Xreal(mouse.x), Yreal(mouse.Y), Metros(8))
+
             End If
 
             gcd.currentDrawing.flgShowPOIinfo = True
@@ -1115,6 +1096,8 @@ Public Sub GLArea1_MouseMove()
             gcd.clsJob.MouseMove(mouse.x, mouse.y) ' dispatch event to the Job
 
     End Select
+
+    redraw
 
 End
 
@@ -1292,6 +1275,7 @@ Public Sub Form_KeyPress()
     Dim t As Float = Timer
     Dim ftring2 As Float[]
     Dim a As Integer
+    Dim oki As Integer
 
     Select Key.Code
 
@@ -1305,11 +1289,47 @@ Public Sub Form_KeyPress()
 
         Case Key.f2
             t = Timer
-            For a = 1 To 10
-                glarea1.Refresh
-            Next
-            Debug "10 refreshes", Timer - t
+            Dim NE As New Entity
+            Debug "Creando 500.000 lineas"
+            For a = 1 To 500000
+                NE = cadLine.NewEntity([Rnd(-100, 100), Rnd(-100, -100), Rnd(100, 100), Rnd(100, 100)])
+                NE.ClassHandler.finish(ne)
+                gcd.currentDrawing.oEntities.Add(ne, ne.Handle)
 
+            Next
+            Debug "Creadas", Timer - t
+            t = Timer
+            gcd.FillLayers()
+            gcd.Regen
+            cadZoomE.Start()
+            clsEntities.CollectVisibleEntities
+
+            Debug "Regen en ", Timer - t
+            Dim oka As Boolean
+            t = Timer
+            For Each NE In gcd.currentDrawing.oEntities
+                oka = NE.ClassHandler.MouseOverMe(NE, 2000, 2000, 10)
+            Next
+            Debug "Tracking via ClassHandler en ", Timer - t
+
+            t = Timer
+
+            NE = clsMouseTracking.CheckAboveEntity(2000, 2000, 10)
+
+            Debug "Tracking via clsMouseTRacking en ", Timer - t
+
+            ' lleno poi
+            t = Timer
+            For Each NE In gcd.currentDrawing.oEntities
+                Inc a
+                gcd.currentDrawing.poiLines.Insert(NE.p.Copy())
+                gcd.currentDrawing.oExtras.Add(ne.Handle, Str(a))
+            Next
+            Debug "Llenado del POI en ", Timer - t
+            t = Timer
+            a = puntos.inPolySegment(gcd.currentDrawing.poiLines, 2000, 2000, 10)
+            Debug "Busqueda via POI en ", Timer - t
+            Stop
             ' ftring = puntos.PolygonTriangulation3([185, -315, 185, -295, 179, -295, 179, -296, 184, -296, 184, -314, 179, -314, 179, -315])
 
             'ftring2 = puntos.PolygonTriangulation([185, -315, 185, -295, 179, -295, 179, -296, 184, -296, 184, -314, 179, -314, 179, -315])
@@ -1318,12 +1338,8 @@ Public Sub Form_KeyPress()
 
         Case Key.f6
 
-            If gcd.DrawBounds = True Then
-                gcd.DrawBounds = False
-            Else
-                gcd.DrawBounds = True
-            Endif
-            ' btnBounds.Value = gcd.DrawBounds
+            gcd.DrawBounds = Not gcd.DrawBounds
+            Me.redraw
 
         Case Key.BackSpace
 
@@ -1331,15 +1347,11 @@ Public Sub Form_KeyPress()
 
         Case Key.f8
 
-            Debug "Entidades transferidas en  ", Timer - t
+            ' Debug "Entidades transferidas en  ", Timer - t
 
-            ' If btnOrtho.Value = False Then
-            '   gcd.Orthogonal = True
-            ' Else
-            '   gcd.Orthogonal = False
-            ' Endif
+            gcd.Orthogonal = Not gcd.Orthogonal
 
-            ' btnOrtho.Value = gcd.Orthogonal
+            tbnOrtho.Value = gcd.Orthogonal
 
         Case Key.f7
             ' If btnGrid.Value = False Then
