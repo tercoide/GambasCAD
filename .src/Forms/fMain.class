@@ -106,7 +106,7 @@ Public Sub Run() As Boolean
     Me.grdLayers.w = 146
     'Me.tbnLayersOnScreen.w = 96
 
-    PanelBlockFit.Visible = False 'ag = CStr(PanelBlockFit.h)
+    'PanelBlockFit.Visible = False 'ag = CStr(PanelBlockFit.h)
     'PanelBlockFit.h = 0
 
     fMain.grdLayers.Rows.Count = 1
@@ -356,6 +356,7 @@ Public Function Action_Activate(sAction As String) As Boolean
     ' El string de la acción es una propiedad de cada botón o menú
     ' El código que se ejecuta lo hace dentro de la rutina llamada, nunca dentro de este mismo evento.
 
+    Dim r As Float
     Dim NewDrawing As Drawing
     Dim f, fDxf, fBak As String
     Dim fMinimal As String = "./minimal/minimal-2010.dxf"
@@ -371,6 +372,38 @@ Public Function Action_Activate(sAction As String) As Boolean
     Try Print Last.name
 
     Select Case LCase(sAction)
+
+        Case "regen"
+
+            gcd.Regen
+
+        Case "menu_blocks_scale"
+            Try r = CFloat(InputBox(("Scale:"), ("Block insertion"), "1"))
+            clsBlocks.fBlockScaleX = r
+            clsBlocks.fBlockScaley = r
+
+        Case "menu_blocks_rot_0"
+            clsBlocks.fBlockDegRotation = 0
+
+        Case "menu_blocks_rot_90"
+            clsBlocks.fBlockDegRotation = 90
+
+        Case "menu_blocks_rot_180"
+            clsBlocks.fBlockDegRotation = 180
+
+        Case "menu_blocks_rot_270"
+            clsBlocks.fBlockDegRotation = 270
+
+        Case "menu_blocks_rot_other"
+
+            Try r = CFloat(InputBox(("Rotation (deg):"), ("Block insertion"), "0"))
+
+            clsBlocks.fBlockDegRotation = r
+        Case "menu_blocks_mirrored"
+
+            clsBlocks.mPopUp.Children[clsBlocks.mPopUp.Children.Count - 1].Checked = Not clsBlocks.mPopUp.Children[clsBlocks.mPopUp.Children.Count - 1].Checked
+            clsBlocks.Mirrored = IIf(clsBlocks.mPopUp.Children[clsBlocks.mPopUp.Children.Count - 1].Checked, -1, 1)
+
         Case "pdf_export"
 
             If Printer1.Configure() Then Return
@@ -695,7 +728,7 @@ Public Function Action_Activate(sAction As String) As Boolean
 
         Case Like "ltype_change_*"
 
-            gcd.currentDrawing.CurrLineType = gcd.FindLineType(Mid(sAction, 14))
+            gcd.currentDrawing.CurrLineType = gcd.FindLType(Mid(sAction, 14))
 
             ' si tengo algo seleccionado, debo cambiar su color a este
             gcd.EditEntities("linetype", gcd.currentDrawing.CurrLineType)
@@ -1106,6 +1139,9 @@ Public Sub GLArea1_MouseUp()
 
     ' "Los IF son mas rapidos" - Autor Anonimo
 
+    ' verifico que no haya habido un menu en la tool
+    'If (gcd.clsJob.MenuRightClick <> "") And Mouse.Then Return      ' no se maneja aca el click
+
     ' los rigth clicks se manejan en FCAD , ni las herramientas ni las entidades los necesitan
     If Mouse.Right Then                ' rigth clicks means finish what you're doing rigth now and go back to the previous Job
         ' the Finish() sub will do this in a good manner
@@ -1120,9 +1156,7 @@ Public Sub GLArea1_MouseUp()
 
         Else    ' es una tool
 
-            gcd.clsJob.finish
-            gcd.clsJobPrevious = gcd.clsJob
-            gcd.clsJob = clsDefaultJob
+            gcd.clsJob.MouseRightUp(mouse.x, mouse.y)
 
         Endif
 
@@ -1243,7 +1277,7 @@ Public Sub GLArea1_MouseWheel()
 
     flgNewPosition = True
 
-    Debug "Drawing requested"
+    'Debug "Drawing requested"
     redraw 'glarea1.Refresh
 
     ' despues de actualizar la pantalla, recolectamos las entidades visibles
@@ -1722,7 +1756,7 @@ Public Sub ListView1_DblClick()
     ' Next
     ' clsEntities.BuildPoi(entyBlock)
 
-    PanelBlockFit.Visible = True
+    'PanelBlockFit.Visible = True
     ListView1.Visible = False
 
     gcd.clsJobPrevious = gcd.clsJob

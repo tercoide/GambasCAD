@@ -27,6 +27,13 @@ Public eBlock As Block
 Private cModelPreview As Collection
 Public fBlock As New Punto2d
 
+Public mPopUp As Menu
+
+Public fBlockDegRotation As Float
+Public fBlockScaleX As Float = 1
+Public fBlockScaleY As Float = 1
+Public Mirrored As Integer = 1  ' not mirrored; mirrored = -1
+
 Public Function Start(Optional sfilename As Variant, Optional _mode As Integer = 0) As Boolean
 
     Dim xf As String[]
@@ -36,6 +43,10 @@ Public Function Start(Optional sfilename As Variant, Optional _mode As Integer =
     eBlock = New Block
     eBlock.name = ""
     Me.EntityChecking = True
+    Me.MenuRightClick = "mBlocks"
+
+    ' fmain.GLArea1.PopupMenu = Me.MenuRightClick
+
     cModelPreview = New Collection
 
     eBlock.entities = New Collection
@@ -53,24 +64,22 @@ End
 Public Sub Draw()
 
     Dim ET As Entity, i As Integer
-    Dim fBlockDegRotation As Float
-    Dim Mirrored As Integer
 
     If eBlock.entities.Count = 0 Then Return
 
-    fmain.fBlockDegRotation = CFloat(fmain.txtRotation.Text)
-    Try fmain.fBlockScaleX = CFloat(fmain.txtScalex.Text)
-    If fmain.fBlockScaleX = 0 Then fmain.fBlockScaleX = 1
+    'fBlockDegRotation = CFloat(fmain.txtRotation.Text)
+    'Try fBlockScaleX = CFloat(fmain.txtScalex.Text)
+    If fBlockScaleX = 0 Then fBlockScaleX = 1
 
-    Try fmain.fBlockScaleY = CFloat(fmain.txtScaleY.Text)
-    If fmain.fBlockScaleY = 0 Then fmain.fBlockScaleY = 1
+    'Try fmain.fBlockScaleY = CFloat(fmain.txtScaleY.Text)
+    If fBlockScaleY = 0 Then fBlockScaleY = 1
 
-    If fmain.tbnMirrored.value Then Mirrored = -1 Else Mirrored = 1
+    'If fmain.tbnMirrored.value Then Mirrored = -1 Else Mirrored = 1
 
     gl.PushMatrix
     gl.Translatef(fBlock.x, fBlock.y, 0)
-    gl.Rotatef(fmain.fBlockDegRotation, 0, 0, 1)
-    gl.Scalef(fmain.fBlockScaleX * Mirrored, fmain.fBlockScaleY, 1)
+    gl.Rotatef(fBlockDegRotation, 0, 0, 1)
+    gl.Scalef(fBlockScaleX * Mirrored, fBlockScaleY, 1)
 
     For Each ET In eBlock.entities
         'et.visible = True
@@ -104,6 +113,14 @@ Public Function MouseMove(mouseX As Integer, mouseY As Integer) ' esta rutina es
         fBlock.y = gcd.CurrentDrawing.iEntity[1]
 
     End If
+
+End
+
+Public Function MouseRightUp(mouseX As Integer, mouseY As Integer) ' dummy
+
+    Me.mPopUp.Popup
+
+    '    Debug "Salgo del menu"
 
 End
 
@@ -155,11 +172,11 @@ Public Function MouseUp(mouseX As Integer, mouseY As Integer) ' called by FCAD->
     entInsert.P.Add(fBlock.x)
     entInsert.P.Add(fBlock.y)
 
-    entInsert.fParam.Add(fmain.FBlockscaleX)
-    entInsert.fParam.Add(fmain.FBlockscaleY)
+    entInsert.fParam.Add(FBlockscaleX)
+    entInsert.fParam.Add(FBlockscaleY)
     entInsert.fParam.Add(1)
 
-    entInsert.fParam.Add(fmain.FBlockdegRotation)
+    entInsert.fParam.Add(FBlockdegRotation)
     entInsert.ClassHandler.Finish(entInsert)
     gcd.CurrentDrawing.oEntities.Add(entInsert, entInsert.Handle)
 
@@ -169,7 +186,7 @@ Public Function MouseUp(mouseX As Integer, mouseY As Integer) ' called by FCAD->
     gcd.clsJob = clsDefaultJob
     DrawingAids.CleanTexts
 
-    fmain.PanelBlockFit.Visible = False
+    'fmain.PanelBlockFit.Visible = False
     fmain.ListView1.Visible = True
 
     clsEntities.glGenDrawList(entInsert)
