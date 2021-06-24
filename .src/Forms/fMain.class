@@ -1020,26 +1020,24 @@ Public Sub GLArea1_DblClick()
 
         Case "Default"                                                  ' 1. Seleccionando
 
-            If Not gcd.flgSearchingPOI Then
-                gcd.currentDrawing.iEntity = clsMouseTracking.CheckPOI(Xreal(mouse.x), Yreal(mouse.Y))
+            If Not gcd.flgSearchingEntity Then
+                gcd.clsJob.EntityForEdit = clsMouseTracking.CheckAboveEntity(Xreal(mouse.x), Yreal(mouse.Y), Metros(8))
+
             Else    ' estoy buscando, pero me movi, asi que me desengancho del POI anterior
 
                 gcd.currentDrawing.iEntity[0] = Xreal(mouse.x)
                 gcd.currentDrawing.iEntity[1] = Yreal(mouse.y)
                 gcd.currentDrawing.iEntity[2] = -1                 ' POI type
-                gcd.currentDrawing.iEntity[3] = -1                 ' Hooked entity
 
             End If
 
-            If gcd.currentDrawing.iEntity[3] >= 0 Then
+            If gcd.clsJob.EntityForEdit Then
 
                 'Stop
                 ' I comment the abobe line because its stop my tool also. What is the idea whit stop?
                 ' TINCHO aca podes lanzar tu editor de texto u otras propiedades
-                k = gcd.currentDrawing.iEntity[3]
-                e = gcd.currentDrawing.arrEntities[k]
 
-                Select e.Gender
+                Select gcd.clsJob.EntityForEdit.Gender
                     Case "Text"
 
                 End Select
@@ -1053,6 +1051,11 @@ End
 
 Public Sub GLArea1_MouseMove()
 
+    ' Voy a cambiar un poco el sistema porque me pierdo:
+
+    ' Primero busco entidades bajo el mouse
+    ' luego, si hace falta, busco POI dentro de esa entidad
+
     'Debug "Pan", gcd.currentDrawing.PanX, gcd.currentDrawing.Pany
     'Debug "MouseMove event", Rnd(0, 1000)
     CursorX = mouse.x
@@ -1062,29 +1065,28 @@ Public Sub GLArea1_MouseMove()
 
         Case "Default"                                                  ' 1. Seleccionando
             gcd.clsJob.MouseMove(mouse.x, mouse.y) ' dispatch event to the Job
-            If gcd.clsJob.poichecking Then
+            If Not gcd.flgSearchingEntity Then
+                gcd.currentDrawing.HoveredEntity = clsMouseTracking.CheckAboveEntity(Xreal(mouse.x), Yreal(mouse.Y), Metros(8))
                 If gcd.clsJob.EntityForEdit Then
-                    If Not gcd.flgSearchingEntity Then
-                        gcd.currentDrawing.iEntity[2] = -1
-                        gcd.currentDrawing.HoveredEntity = clsMouseTracking.CheckAboveEntity(Xreal(mouse.x), Yreal(mouse.Y), Metros(8))
-                        If gcd.currentDrawing.HoveredEntity Then
-                            gcd.currentDrawing.iLastEntity = gcd.currentDrawing.HoveredEntity
-                        End If
-
-                    Else
-                        'Debug "No puedo buscar entidades"
+                    gcd.currentDrawing.iEntity[2] = -1
+                    gcd.currentDrawing.HoveredEntity = clsMouseTracking.CheckAboveEntity(Xreal(mouse.x), Yreal(mouse.Y), Metros(8))
+                    If gcd.currentDrawing.HoveredEntity Then
+                        gcd.currentDrawing.iLastEntity = gcd.currentDrawing.HoveredEntity
                     End If
+
                 Else
-                    If Not gcd.flgSearchingPOI Then
-                        gcd.currentDrawing.iEntity = clsMouseTracking.CheckPOI(Xreal(mouse.x), Yreal(mouse.Y))
-                    Else    ' estoy buscando, pero me movi, asi que me desengancho del POI anterior
+                    'Debug "No puedo buscar entidades"
+                End If
+            Else
+                If Not gcd.flgSearchingPOI Then
+                    gcd.currentDrawing.iEntity = clsMouseTracking.CheckPOI(Xreal(mouse.x), Yreal(mouse.Y))
+                Else    ' estoy buscando, pero me movi, asi que me desengancho del POI anterior
 
-                        gcd.currentDrawing.iEntity[0] = Xreal(mouse.x)
-                        gcd.currentDrawing.iEntity[1] = Yreal(mouse.y)
-                        gcd.currentDrawing.iEntity[2] = -1                 ' POI type
-                        gcd.currentDrawing.iEntity[3] = -1                 ' Hooked entity
+                    gcd.currentDrawing.iEntity[0] = Xreal(mouse.x)
+                    gcd.currentDrawing.iEntity[1] = Yreal(mouse.y)
+                    gcd.currentDrawing.iEntity[2] = -1                 ' POI type
+                    gcd.currentDrawing.iEntity[3] = -1                 ' Hooked entity
 
-                    End If
                 End If
             End If
 
@@ -1318,7 +1320,7 @@ Public Sub Form_Keypress()
         Case Key.Enter, Key.Return
             Debug KeysAccumulator
 
-            Form_Activate()
+            '            Form_Activate()
 
             gcd.clsJob.KeyText(KeysAccumulator)
             KeysAccumulator = ""
@@ -1839,6 +1841,5 @@ Public Sub tbnOrtho2_Click()
 
     gcd.DrawBounds = Not gcd.DrawBounds
     Me.redraw
-
 
 End

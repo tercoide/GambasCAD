@@ -108,171 +108,31 @@ End
 '' Veo si estoy sobre una entidad y la devuelvo
 Public Function CheckAboveEntity(xr As Float, Yr As Float, tolerance As Float) As Entity
 
-    Dim rData As New Float[], angle, angle2 As Float
-    Dim e, i, iVisible, breathe, iPoligon, iLine, iPoint As Integer
+    Dim iVisible As Integer
     Dim Found As Boolean = True
-    Dim major, minor, la As Float
-    Dim x, y, theta, angle_increment As Float
     Dim eVisible As Entity
-    Dim T As Float
-    Dim obo As Boundary
-    Dim iSearchID As Integer
+    Dim T As Float = Timer
 
-    iSearchID = Rnd(0, 1000)
-    T = Timer
     gcd.flgSearchingEntity = True
-    ' Debug "Iniciando busqueda ", iSearchID
     Dec iVisible
-    Found = True
+    Found = False
+
     For Each eVisible In gcd.CurrentDrawing.oVisibleEntities
         Inc iVisible
-        'If iVisible > gcd.CurrentDrawing.VisibleEntitiesMax Then                 ' limito la busqueda a 1000 entidades
-        'If (iVisible = 1000) Or (iVisible > gcd.CurrDrawing.VisibleEntitiesMax) Then                 ' limito la busqueda a 1000 entidades
-        'iVisible = gcd.CurrentDrawing.oVisibleEntities.Count
-        'Debug "Alcanzado el limite de MouseTracking", Format(Now, "ss")
-        '  Break
-        'End If
 
-        ' TODO: fix this
-        ' If e = clsDefaultJob.iEntityForEdit Then Continue
+        If eVisible.ClassHandler.overme(eVisible, xr, yr, tolerance) Then
 
-        Select Case eVisible.Gender
+            Found = True
+            Break
+        End If
 
-            Case "Line"
-
-                minor = puntos.PointToLineDistance([xr, yr], eVisible.p) ' <= tolerance Then Goto ExitSearch 'Return True Else Return False
-
-                ' If Not Config.TrackEntityLines Then Continue
-                '
-                ' If puntos.doIntersect(xr - tolerance, yr, xr + tolerance, yr, eVisible.P[0], eVisible.P[1], eVisible.P[2], eVisible.P[3]) Or puntos.doIntersect(xr, yr - tolerance, xr, yr + tolerance, eVisible.P[0], eVisible.P[1], eVisible.P[2], eVisible.P[3]) Then Goto ExitSearch
-
-            Case "LWPolyline"
-                If Not Config.TrackEntityLines Then Continue
-                For i = 0 To eVisible.P.count - 4 Step 2
-                    If puntos.doIntersect(xr - tolerance, Yr, Xr + tolerance, Yr, eVisible.P[i + 0], eVisible.P[i + 1], eVisible.P[i + 2], eVisible.P[i + 3]) Or puntos.doIntersect(xr, Yr - tolerance, Xr, Yr + tolerance, eVisible.P[i + 0], eVisible.P[i + 1], eVisible.P[i + 2], eVisible.P[i + 3]) Then Goto ExitSearch
-                Next
-
-            Case "Polyline"
-                If Not Config.TrackEntityLines Then Continue
-
-                For i = 0 To eVisible.PolyLine.count - 4 Step 2
-                    If puntos.doIntersect(xr - tolerance, Yr, Xr + tolerance, Yr, eVisible.PolyLine[i + 0], eVisible.PolyLine[i + 1], eVisible.PolyLine[i + 2], eVisible.PolyLine[i + 3]) Or puntos.doIntersect(xr, Yr - tolerance, Xr, Yr + tolerance, eVisible.PolyLine[i + 0], eVisible.PolyLine[i + 1], eVisible.PolyLine[i + 2], eVisible.PolyLine[i + 3]) Then Goto ExitSearch
-                Next
-            Case "SPLine"
-                If Not Config.TrackEntityCurves Then Continue
-
-                For i = 0 To eVisible.PolyLine.count - 4 Step 2
-                    If puntos.doIntersect(xr - tolerance, Yr, Xr + tolerance, Yr, eVisible.PolyLine[i + 0], eVisible.PolyLine[i + 1], eVisible.PolyLine[i + 2], eVisible.PolyLine[i + 3]) Or puntos.doIntersect(xr, Yr - tolerance, Xr, Yr + tolerance, eVisible.PolyLine[i + 0], eVisible.PolyLine[i + 1], eVisible.PolyLine[i + 2], eVisible.PolyLine[i + 3]) Then Goto ExitSearch
-                Next
-
-            Case "Circle"
-                If Not Config.TrackEntityCurves Then Continue
-                If Abs(puntos.distancia(xr, yr, eVisible.P[0], eVisible.P[1]) - eVisible.fParam[0]) < tolerance Then Goto ExitSearch
-                If puntos.Around(xr, yr, eVisible.P[0], eVisible.P[1], tolerance) Then Goto ExitSearch
-
-            Case "Arc"
-                If Not Config.TrackEntityCurves Then Continue
-                If puntos.Around(xr, yr, eVisible.P[0], eVisible.P[1], tolerance) Then Goto ExitSearch
-
-                If Abs(puntos.distancia(xr, yr, eVisible.P[0], eVisible.P[1]) - eVisible.fParam[0]) < tolerance Then
-
-                    ' tengo que ver si esa en la porcion
-                    angle = Ang(xr - eVisible.P[0], yr - eVisible.P[1]) * 180 / Pi
-                    If angle < 0 Then angle += 360
-                    If eVisible.fParam[1] <= eVisible.fParam[2] Then
-                        If angle >= eVisible.fParam[1] And angle <= eVisible.fParam[2] Then Goto ExitSearch
-                    Else
-                        If angle >= eVisible.fParam[1] Or angle <= eVisible.fParam[2] Then Goto ExitSearch
-                    End If
-
-                End If
-
-            Case "Ellipse"
-                If Not Config.TrackEntityCurves Then Continue
-                ' necesito determinar el radio en el angulo del punto que estaria sobre la elipse
-                angle = Ang(xr - eVisible.P[0], yr - eVisible.P[1]) ' * 180 / Pi
-
-                ' el radio en este agulo viene dado por
-
-                major = Sqr((eVisible.p[2] - eVisible.p[0]) ^ 2 + (eVisible.p[3] - eVisible.p[1]) ^ 2)
-                Minor = major * eVisible.fParam[0]
-                angle2 = Ang(eVisible.p[2] - eVisible.p[0], eVisible.p[3] - eVisible.p[1])
-
-                ' x = gcd.CurrDrawing.arrEntities[e].p[0] + major * Cos(angle) * Cos(angle2) - minor * Sin(angle) * Sin(angle2)
-                ' y = gcd.CurrDrawing.arrEntities[e].p[1] + major * Cos(angle) * Sin(angle2) + minor * Sin(angle) * Cos(angle2)
-
-                x = eVisible.p[0] + major * Cos(angle) * Cos(angle2) - minor * Sin(angle) * Sin(angle2)
-                y = eVisible.p[1] + major * Cos(angle) * Sin(angle2) + minor * Sin(angle) * Cos(angle2)
-
-                ' veo si en esa posicion esta cerca de la elipse
-                'If Abs(puntos.distancia(xr, yr, x, y)) < tolerance Then
-
-                ' If Abs(puntos.distancia(xr, yr, gcd.CurrDrawing.arrEntities[e].P[0], gcd.CurrDrawing.arrEntities[e].P[1]) - Sqr(x * x + y * y)) < tolerance Then
-                '   ' tengo que ver si esa en la porcion
-                '   angle = Angle * 180 / Pi
-                '   If angle < 0 Then angle += 360
-                '   If gcd.CurrDrawing.arrEntities[e].fParam[1] <= gcd.CurrDrawing.arrEntities[e].fParam[2] Then
-                '     If angle >= gcd.CurrDrawing.arrEntities[e].fParam[1] And angle <= gcd.CurrDrawing.arrEntities[e].fParam[2] Then Break
-                '   Else
-                '     If angle >= gcd.CurrDrawing.arrEntities[e].fParam[1] Or angle <= gcd.CurrDrawing.arrEntities[e].fParam[2] Then Break
-                '   End If
-                'Break
-                x = major * Cos(angle) * Cos(angle2) - minor * Sin(angle) * Sin(angle2)
-                y = major * Cos(angle) * Sin(angle2) + minor * Sin(angle) * Cos(angle2)
-
-                ' veo si en esa posicion esta cerca de la elipse
-                If Abs(puntos.distancia(xr, yr, eVisible.P[0], eVisible.P[1]) - Sqr(x * x + y * y)) < tolerance Then
-                    ' tengo que ver si esa en la porcion
-                    angle = Angle * 180 / Pi
-                    If angle < 0 Then angle += 360
-                    If eVisible.fParam[1] <= eVisible.fParam[2] Then
-                        If angle >= eVisible.fParam[1] And angle <= eVisible.fParam[2] Then Goto ExitSearch
-                    Else
-                        If angle >= eVisible.fParam[1] Or angle <= eVisible.fParam[2] Then Goto ExitSearch
-                    End If
-                    'Break
-
-                End If
-
-                ' ademas verifico si esta sobre el centro
-
-                If puntos.Around(xr, yr, eVisible.P[0], eVisible.P[1], tolerance) Then Goto ExitSearch
-
-            Case "Solid", "Insert"
-                If Not Config.TrackEntityInserts Then Continue
-                ' Text, MText, Solid y otros
-                If puntos.isInside(eVisible.Polygon, xr, yr) Then Goto ExitSearch
-
-            Case "MText", "Text"
-                If Not Config.TrackEntityTexts Then Continue
-                ' Text, MText, Solid y otros
-                If puntos.isInside(eVisible.Polygon, xr, yr) Then Goto ExitSearch
-
-            Case "Hatch"
-                If Not Config.TrackEntityHatches Then Continue
-                For Each oBo In eVisible.pBlock.oBoundaryPath
-                    If puntos.isInside(oBo.Polyline, xr, yr) Then Goto ExitSearch
-                Next
-        End Select
-
-        utils.DoEvents(0.05000)
+        utils.DoEvents(0.01000)
 
     Next
 
-    Found = False
-
-ExitSearch:
-    ' Debug "Fin busqueda       ", iSearchID, " en ", Timer - t
     gcd.flgSearchingEntity = False
 
-    ' If iVisible = gcd.CurrentDrawing.oVisibleEntities.Count Then
-    '
-    '   Return Null
-    ' Else
-    '   ' Debug "Encontre una entidad " & gcd.CurrDrawing.arrEntities[e].Gender, "en", Timer - t
     If Found Then Return eVisible Else Return Null
-
-    ' End If
 
 End
 
