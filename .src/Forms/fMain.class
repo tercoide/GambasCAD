@@ -98,11 +98,6 @@ Public Sub Run() As Boolean
 
     ' acomodo el tamanio de los controles
 
-    Me.tblLineWt.w = 128
-    Me.tblLTypes.w = 128
-    Me.mbtColors.w = 128
-    'Me.mbtLayers.w = 128
-    Me.cmbDimStyle.w = 128
     Me.grdLayers.w = 146
     'Me.tbnLayersOnScreen.w = 96
 
@@ -374,6 +369,10 @@ Public Function Action_Activate(sAction As String) As Boolean
 
     Select Case LCase(sAction)
 
+        Case "exit"
+
+            actions.ExitProgram
+
         Case "regen"
 
             gcd.Regen
@@ -455,9 +454,6 @@ Public Function Action_Activate(sAction As String) As Boolean
             gcd.ReadLayers
             gcd.ReadStyles
             gcd.UpdateLayersCombo
-            gcd.UpdateLineWtCombo
-            gcd.UpdateLineTypeCombo
-            gcd.UpdatDimTypeTypeCombo
             gcd.UpdateGraphics
 
             Me.Text = f
@@ -520,9 +516,6 @@ Public Function Action_Activate(sAction As String) As Boolean
                             gcd.ReadLayers
                             gcd.ReadStyles
                             gcd.UpdateLayersCombo
-                            gcd.UpdateLineWtCombo
-                            gcd.UpdateLineTypeCombo
-                            gcd.UpdatDimTypeTypeCombo
                             gcd.UpdateGraphics
 
                             ' modelo recien cargado
@@ -555,9 +548,6 @@ Public Function Action_Activate(sAction As String) As Boolean
                             gcd.ReadLayers
                             gcd.ReadStyles
                             gcd.UpdateLayersCombo
-                            gcd.UpdateLineWtCombo
-                            gcd.UpdateLineTypeCombo
-                            gcd.UpdatDimTypeTypeCombo
                             gcd.UpdateGraphics
 
                             cadZoomE.Start()                                ' por ahora mostramos el dibujo centrado, hasta q leamos el estado anterior
@@ -636,21 +626,6 @@ Public Function Action_Activate(sAction As String) As Boolean
                 Me.Text = f
 
             Endif
-
-        Case Like "color_*"
-
-            iColor = CInt(Mid(sAction, 7))
-            mbtColors.Text = "Color " & CStr(iColor) 'Me.mbtColors.Children[iColor].Text
-            If iColor = 256 Then mbtColors.Text = "ByLayer"
-            If iColor = 257 Then mbtColors.Text = "ByBlock"
-
-            mbtColors.Picture = paintPlus.picCirculito(8, gcd.gColor[iColor], Color.ButtonForeground)
-
-            gcd.currentDrawing.CurrColor = iColor
-
-            ' si tengo algo seleccionado, debo cambiar su color a este
-            gcd.EditEntities("color", iColor)
-            clsEntities.DeSelection()
 
         Case Like "cad*"
 
@@ -829,7 +804,7 @@ Public Sub form_Close()
 
     Me.Close
 
-    main.Terminate
+    actions.ExitProgram
 
 End
 
@@ -1358,22 +1333,6 @@ Public Sub Form_Keypress()
 
             KeysAccumulator = Left(KeysAccumulator, -1)
 
-        Case Key.f8
-
-            ' Debug "Entidades transferidas en  ", Timer - t
-
-            gcd.Orthogonal = Not gcd.Orthogonal
-
-            tbnOrtho.Value = gcd.Orthogonal
-
-        Case Key.f7
-            ' If btnGrid.Value = False Then
-            '   puntos.Gridactive = True
-            ' Else
-            '   puntos.Gridactive = False
-            ' Endif
-            ' btnGrid.Value = puntos.Gridactive
-
         Case Key.F11
 
         Case Key.Esc
@@ -1523,48 +1482,6 @@ Public Sub Form_Keypress()
 
 End
 
-Public Sub tbnOrtho_Click()
-
-    gcd.Orthogonal = tbnOrtho.value
-    If tbnOrtho.Value Then
-        tbnOrtho.foreground = Color.Blue
-        tbnOrtho.Font.Bold = True
-    Else
-        tbnOrtho.foreground = Color.Buttonforeground
-        tbnOrtho.Font.Bold = False
-    Endif
-
-End
-
-Public Sub tbnSnap_Click()
-
-    If tbnSnap.Value Then
-        gcd.SnapMode = gcd.SnapModePrev
-        tbnSnap.foreground = Color.DarkGreen
-        tbnSnap.Font.Bold = True
-    Else
-        gcd.SnapModePrev = gcd.SnapMode
-        gcd.SnapMode = -1
-        tbnSnap.foreground = Color.Buttonforeground
-        tbnSnap.Font.Bold = False
-    Endif
-
-End
-
-Public Sub tbnGrid_Click()
-
-    If tbnGrid.Value Then
-        gcd.GridMode = gcd.GridModePrev
-        tbnGrid.foreground = Color.DarkGray
-        tbnGrid.Font.Bold = True
-    Else
-        gcd.GridModePrev = gcd.GridMode
-        gcd.GridMode = -1
-        tbnGrid.foreground = Color.Buttonforeground
-        tbnGrid.Font.Bold = False
-    Endif
-
-End
 '
 ' Public Sub lblCommand_KeyPress()
 '
@@ -1639,39 +1556,6 @@ Public Sub FillWindowMenu()
 
 End
 
-Public Sub cmbDimStyle_Click()
-
-    gcd.currentDrawing.CurrDimStyle = gcd.FindStyle(cmbDimStyle.Text)
-
-End
-'
-' Public Sub ToggleButton2_Click()
-'
-'     If Not ToggleButton2.Value Then
-'         ToggleButton2.Tag = CStr(ToggleButton2.Parent.h)
-'         ToggleButton2.Parent.h = ToggleButton2.H
-'     Else
-'
-'         ToggleButton2.Parent.h = CInt(ToggleButton2.tag)
-'     End If
-'
-' End
-
-Public Sub ToggleButton1_Click()
-
-    If Not ToggleButton1.Value Then
-        ToggleButton1.Tag = CStr(ToggleButton1.Parent.h)
-        'panel9.h = ToggleButton1.H
-        'vbox2.h = 0
-
-    Else
-        'panel9.Visible = True
-
-        'panel9.h = CInt(ToggleButton1.tag)
-    End If
-
-End
-
 ' Public Sub ToggleButton3_Click()
 '
 '     If Not ToggleButton3.Value Then
@@ -1696,46 +1580,22 @@ End
 '
 ' End
 
-Public Sub DirView1_Click()
-
-    Dim sFilename As String
-    Dim imgPreview As Image
-    Dim entScale As Float
-    Dim entidad As Entity
-    Dim sFActor As Float = 1.5
-
-    ListView1.Clear
-    For Each sFilename In Dir(DirView1.current, "*.dxf")
-        imgPreview = New Image(80, 80, Color.Black)
-
-        gcd.FitDxfToImage(DirView1.current &/ sFilename, imgPreview, gcd.flgWhiteAndBlack, 0)
-
-        ListView1.Add(Left$(sFilename, -4), Left$(sFilename, -4), imgPreview.Picture)
-
-    Next
-
-End
-
-Public Sub tmrAutosave_Timer()
-
-    ' el autosave funciona solo si guarde antes, o sea si el dibujo tiene nombre
-    ' ademas se guarda solo en formato dxf, para acelerar el proceso
-
-    If Not gcd.currentDrawing.RequiresFileRename Then
-        If gcd.currentDrawing.RequiresSaving Then
-            If Dxf.SaveFile(gcd.currentDrawing.FileName & ".Autosave", gcd.currentDrawing.cModel) < 0 Then
-                Print "Autosave error"
-            Else
-                Print ("Autosaved to ") & gcd.currentDrawing.FileName & ".Autosave"
-            Endif
-        End If
-    End If
-
-End
-
-Public Sub tb11_Click()
-
-End
+' Public Sub tmrAutosave_Timer()
+'
+'     ' el autosave funciona solo si guarde antes, o sea si el dibujo tiene nombre
+'     ' ademas se guarda solo en formato dxf, para acelerar el proceso
+'
+'     If Not gcd.currentDrawing.RequiresFileRename Then
+'         If gcd.currentDrawing.RequiresSaving Then
+'             If Dxf.SaveFile(gcd.currentDrawing.FileName & ".Autosave", gcd.currentDrawing.cModel) < 0 Then
+'                 Print "Autosave error"
+'             Else
+'                 Print ("Autosaved to ") & gcd.currentDrawing.FileName & ".Autosave"
+'             Endif
+'         End If
+'     End If
+'
+' End
 
 Public Sub tbnInspector_MouseUp()
 
@@ -1755,19 +1615,9 @@ Public Sub tbnInspector_MouseUp()
 
 End
 
-Public Sub tbnInspector_Click()
-
-End
-
 Public Sub tbnOrtho2_Click()
 
     gcd.DrawBounds = Not gcd.DrawBounds
     Me.redraw
-
-End
-
-Public Sub GLArea1_KeyPress()
-
-    ' Debug "GLArea", Key.Text
 
 End
