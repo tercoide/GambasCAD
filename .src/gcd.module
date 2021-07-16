@@ -28,6 +28,10 @@
 ' Based on an example called MuchosCirculos by JGuardon y MrShell
 ' XML Load/Save by Tincho
 
+Public debugTime As Boolean = True
+Private LastTick As Float
+Private LastTimer As Date
+
 Public PrintingScale As Float '' This is needed by some clases, like Text and MText.
 Public ScreenDensity As Float = 1080 / 29.5  '' pixele by cm wich gives a 1:100 scale in my monitor
 
@@ -591,7 +595,7 @@ Public Sub DXFtoEntity(cEny As Collection, obx As Collection, Optional NewHandle
             entNueva = clsEntities.DXFImportToEntity(e, IsDummy)
             If IsDummy Then
                 ' no esta implementada
-                Print "Entidad no implementada o con errores:", e[dxf.codHandle], e[dxf.codEntity]
+                gcd.debuginfo("Entidad no implementada o con errores: " & e[dxf.codHandle] & "," & e[dxf.codEntity])
 
             Else
 
@@ -1017,19 +1021,19 @@ Catch
     Select Case Steps
         Case 0
             ' esto puede fallar por acceso denegado
-            Print ("Acces denied to temp file")
+            gcd.debuginfo("Acces denied to temp file")
             Return Null
         Case 1
             ' esto puede fallar por file corrupt
-            Print ("File corrupt")
+            gcd.debuginfo("File corrupt")
             Return Null
         Case 2
             ' esto puede fallar por diversas cuestiones
-            Print ("Conversion failed")
+            gcd.debuginfo("Conversion failed")
             Return Null
         Case 3
             ' esto puede fallar por diversas cuestiones
-            Print ("Could't empty temp dir")
+            gcd.debuginfo("Could't empty temp dir")
             Return Null
 
     End Select
@@ -1063,19 +1067,19 @@ Catch
     Select Case Steps
         Case 0
             ' esto puede fallar por acceso denegado
-            Print ("Acces denied to temp file")
+            gcd.debuginfo("Acces denied to temp file")
             Return Null
         Case 1
             ' esto puede fallar por file corrupt
-            Print ("File corrupt")
+            gcd.debuginfo("File corrupt")
             Return Null
         Case 2
             ' esto puede fallar por diversas cuestiones
-            Print ("Conversion failed")
+            gcd.debuginfo("Conversion failed")
             Return Null
         Case 3
             ' esto puede fallar por diversas cuestiones
-            Print ("Could't empty temp dir")
+            gcd.debuginfo("Could't empty temp dir")
             Return Null
 
     End Select
@@ -1276,5 +1280,50 @@ Catch
             Return Null
 
     End Select
+
+End
+
+'' Debug hacia texarea con numero indefinido de parámetros
+Public Sub debugInfo(txt As String, Optional MismaLineaAnterior As Boolean = False, Optional forzar As Boolean = False)
+
+    ' agrego funcionalidad
+    Dim st As String, t As Float
+
+    fmain.txtCmd.Text = ": " & txt
+    fmain.txtcmd.Tag = "True"
+
+    If debugTime Then
+        txt = Format$(Timer - LastTimer, "0.00") & " : " & txt & gb.CrLf
+    Else
+        txt = ": " & txt & gb.CrLf
+    End If
+
+    If MismaLineaAnterior Then
+        fmain.txtDebug.Undo
+
+    Else ' no voy a loguear lineas repetidas
+        ''hlog(txt)
+        LastTimer = Timer
+    End If
+
+    fmain.txtDebug.Insert(txt)
+    fmain.txtDebug.EnsureVisible
+
+    ' txt = ": "
+    ' txtDebug.Insert(txt)
+    'txtDebug.EnsureVisible
+
+    'txtDebug.Insert(": ")
+    'lastPos = txtDebug.Length
+    ' en caso que el ususario tenga cerrada esta ventana, le muestro la linea en
+    'lblAyudaRapida.text = Left$(txt, -2)
+
+    'itsTime = False
+    If forzar Then
+        fmain.txtDebug.Refresh
+        Wait 0.01
+    End If
+
+    Utils.doevents
 
 End
