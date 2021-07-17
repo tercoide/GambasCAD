@@ -12,27 +12,34 @@ Public Setting As New SettingST
 Public Params As Settings
 
 'Dirs
-Public dirDwgIn As String = User.Home &/ ".config/m-designer/DwgIn"
-Public dirDxfIn As String = User.Home &/ ".config/m-designer/DxfIn"
-Public dirDwgOut As String = User.Home &/ ".config/m-designer/DwgOut"
-Public dirDxfOut As String = User.Home &/ ".config/m-designer/DxfOut"
-Public dirTemplates As String = User.Home &/ ".config/m-designer/templates"
+Public dirDwgIn As String = User.Home &/ ".config/GambasCAD/DwgIn"
+Public dirDxfIn As String = User.Home &/ ".config/GambasCAD/DxfIn"
+Public dirDwgOut As String = User.Home &/ ".config/GambasCAD/DwgOut"
+Public dirDxfOut As String = User.Home &/ ".config/GambasCAD/DxfOut"
+Public dirTemplates As String = User.Home &/ ".config/GambasCAD/templates"
 Public dirBlocks As String      ' path to Blocks
 
 ' file conversion
 Public convLibreDWG As Boolean
 Public convODA As Boolean
 
+Public MyLog As File
+
 Public Sub main()
 
-    gcd.debugInfo("Init program")
+    Dim sFile As String
+
+    ' Inicializo el programa
+    Initialize          ' general init
+
+    MyLog = Open User.Home &/ ".config/GambasCAD/log.txt" For Write Create
+
+    gcd.debugInfo("Init program",,, True)
     fMain.TabPanel1.Index = 1
 
     ' leo la configuracion inicial
     Config.Load()
 
-    ' Inicializo el programa
-    Initialize          ' general init
     InitColors          ' CAD color init
     ' InitButtons         ' fMain buttons
     InitMenus           ' fMain menus
@@ -43,6 +50,11 @@ Public Sub main()
     fLayersOnScreen.Run
     fMain.Run
 
+    If Application.Args.Count > 1 Then
+        sFile = Args[1]
+        actions.FileOpen(sfile)
+    Endif
+
 End
 
 Public Sub Initialize()
@@ -50,8 +62,8 @@ Public Sub Initialize()
     Dim aFile As String
 
     ' Dirs
-    If Not IsDir(User.Home &/ ".config/m-designer") Then            ' first timer
-        Mkdir User.Home &/ ".config/m-designer"
+    If Not IsDir(User.Home &/ ".config/GambasCAD") Then            ' first timer
+        Mkdir User.Home &/ ".config/GambasCAD"
         Mkdir dirDwgIn       ' DWG to be converted by ODA
         Mkdir dirDxfIn       ' where ODA puts the converted DWG into DXF
         Mkdir dirDxfOut      ' drawings saved into DXF prior to be converted back to DWG
@@ -86,7 +98,7 @@ Public Sub Initialize()
     ' ODA
     If Exist("/usr/bin/ODAFileConverter") Then convODA = True
 
-    Params = New Settings(User.Home &/ ".config/m-designer/m-designer.conf", "Parameters")
+    Params = New Settings(User.Home &/ ".config/GambasCAD/GambasCAD.conf", "Parameters")
 
     Select Params["/DrawingArea/DarkMode", True]
 
