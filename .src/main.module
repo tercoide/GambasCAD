@@ -12,6 +12,7 @@ Public Setting As New SettingST
 Public Params As Settings
 
 'Dirs
+Public dirResources As String = "/usr/share/gambascad"
 Public dirDwgIn As String = User.Home &/ ".config/GambasCAD/DwgIn"
 Public dirDxfIn As String = User.Home &/ ".config/GambasCAD/DxfIn"
 Public dirDwgOut As String = User.Home &/ ".config/GambasCAD/DwgOut"
@@ -22,12 +23,22 @@ Public dirBlocks As String      ' path to Blocks
 ' file conversion
 Public convLibreDWG As Boolean
 Public convODA As Boolean
-
+Public DebugMode As Boolean = True
 Public MyLog As File
 
 Public Sub main()
 
     Dim sFile As String
+
+    ' necesitamo saber desde donde estamos corriendo
+    If Application.Path Like "/usr/bin*" Then
+        DebugMode = False
+        dirResources = "/usr/share/gambascad"
+
+    Else
+        DebugMode = True
+        dirResources = Application.Path
+    Endif
 
     ' Inicializo el programa
     Initialize          ' general init
@@ -35,6 +46,8 @@ Public Sub main()
     MyLog = Open User.Home &/ ".config/GambasCAD/log.txt" For Write Create
 
     gcd.debugInfo("Init program",,, True)
+    gcd.debugInfo("Debug mode = " & DebugMode,,, True)
+
     fMain.TabPanel1.Index = 1
 
     ' leo la configuracion inicial
@@ -70,8 +83,8 @@ Public Sub Initialize()
         Mkdir dirDwgOut     ' where ODA puts the converted DXF into DWG, prior to final destination
         Mkdir dirTemplates
         ' Copio lo templates
-        For Each aFile In Dir(Application.Path &/ "minimal")
-            Copy Application.Path &/ "minimal/" &/ afile To dirTemplates &/ aFile
+        For Each aFile In Dir(main.dirResources &/ "minimal")
+            Copy main.dirResources &/ "minimal/" &/ afile To dirTemplates &/ aFile
         Next
 
     Else                    ' empty temporary files in case there are any
@@ -150,7 +163,7 @@ Public Sub Initialize()
         Endif
     Endif
 
-    dirBlocks = Params["/Blocks/LibraryPath", Application.Path &/ "library"]
+    dirBlocks = Params["/Blocks/LibraryPath", main.dirResources &/ "library"]
 
 End
 
