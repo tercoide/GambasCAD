@@ -780,233 +780,40 @@ Public Sub GLArea1_draw()
 
 End
 
-' Protocolo del Mouse
-'--------------------
-
-' Rigth Clicks  ---> No son enviados a las clases herramienta/entidad; son procesados por FCAD como accion es que terminan o empiezan algo. Tanto MouseDown/Up
-'   MouseDown ---------> Lo ignoro
-'   MouseUp -----------> A-Trabajo activo? Mando señal de Finalizar/Cancelar ya mismo
-'                        B- Click en objeto: muestro las propiedades frmPropiedades (aun no implementado)
-'                           Click en el aire: Equivale a <enter> que repite el trabajo anterior, si lo hubo.
-
-' Wheel -----------> Es utilizado como zoom. No es enviado a las clases.
-
-' MouseMove--------> 1-Trabajo activo? --> Se envia el evento
-'                    2-Paneando? Se actualizan los valores de PanX/Y y se refresca la pantalla
-
-' Left Clicks
-'   MouseDown------> 1- Trabajo activo? -> Se envia a la clase que trabaja gcd.clsJobs si hay una activa. Sino se analziza donde fue el click.
-'                    2- no hay trabajos:
-'                           2.a- Click en el aire  --> o Paneo, segun el boton que este presionado.
-'                           2.b- Click en objeto   --> De/selecciono el objeto
-'
-'
-'
-'   MouseUp-------->1-Trabajo activo: ---> envio evento
-'
-'
+' NUEVO Protocolo del Mouse para OpenGL: todo se envia a la clsJob actuante
 
 Public Sub GLArea1_MouseDown()
 
-    If Mouse.Right Then Return  'handled in MouseUp
-
-    If Mouse.Middle Then Return  'handled in MouseUp
-
-    Select gcd.clsJob.gender
-
-        Case "Default"                                                  ' 1. Seleccionando
-
-            gcd.clsJob.mouseDown(mouse.x, mouse.y)                               '    -> envio el evento a la clase default
-
-        Case "Builder"                                                  ' 2.Construyendo una entidad
-
-            gcd.clsJob.mouseDown(mouse.x, mouse.y)                                   '      y envio el evento a la clase
-
-        Case Else
-
-            gcd.clsJob.mouseDown(mouse.x, mouse.y)                                   ' dispatch event to the Job
-
-    End Select
-
-    redraw
+    gcd.clsJob.mouseDown()
 
 End
 
 Public Sub GLArea1_DblClick()
 
-    Dim k As Single
-    Dim e As Entity
-    Dim te As Entity
-
-    CursorX = mouse.x
-    CursorY = mouse.y
-
-    Select gcd.clsJob.gender
-
-        Case "Default"                                                  ' 1. Seleccionando
-
-            If Not gcd.flgSearchingEntity Then
-                gcd.clsJob.EntityForEdit = clsMouseTracking.CheckAboveEntity(Xreal(mouse.x), Yreal(mouse.Y), Metros(8))
-
-            Else    ' estoy buscando, pero me movi, asi que me desengancho del POI anterior
-
-                gcd.currentDrawing.iEntity[0] = Xreal(mouse.x)
-                gcd.currentDrawing.iEntity[1] = Yreal(mouse.y)
-                gcd.currentDrawing.iEntity[2] = -1                 ' POI type
-
-            End If
-
-            If gcd.clsJob.EntityForEdit Then
-
-                'Stop
-                ' I comment the abobe line because its stop my tool also. What is the idea whit stop?
-                ' TINCHO aca podes lanzar tu editor de texto u otras propiedades
-
-                Select gcd.clsJob.EntityForEdit.Gender
-                    Case "Text"
-
-                End Select
-            Endif
-            '======================= otra Tool
-        Case Else
-
-    End Select
+    gcd.clsJob.DblClick()
 
 End
 
 Public Sub GLArea1_MouseMove()
 
-    ' Voy a cambiar un poco el sistema porque me pierdo:
+    ' Universal:
 
-    ' Primero busco entidades bajo el mouse
-    ' luego, si hace falta, busco POI dentro de esa entidad
+    Me.lblCoord.Text = Format(gcd.Xreal(Mouse.x), Config.FormatCoord) & " : " & Format(gcd.Yreal(Mouse.y), config.FormatInquiries)
+    Me.lblOutput.Text = DrawingAids.HelperTrabajo
 
-    'Debug "Pan", gcd.currentDrawing.PanX, gcd.currentDrawing.Pany
-    'Debug "MouseMove event", Rnd(0, 1000)
-    CursorX = mouse.x
-    CursorY = mouse.y
-
-    Select gcd.clsJob.gender
-
-        Case "Default"                                                  ' 1. Seleccionando
-            gcd.clsJob.MouseMove(mouse.x, mouse.y) ' dispatch event to the Job
-            If Not gcd.flgSearchingEntity Then
-                gcd.currentDrawing.HoveredEntity = clsMouseTracking.CheckAboveEntity(Xreal(mouse.x), Yreal(mouse.Y), Metros(8))
-                If gcd.clsJob.EntityForEdit Then
-                    gcd.currentDrawing.iEntity[2] = -1
-                    gcd.currentDrawing.HoveredEntity = clsMouseTracking.CheckAboveEntity(Xreal(mouse.x), Yreal(mouse.Y), Metros(8))
-                    If gcd.currentDrawing.HoveredEntity Then
-                        gcd.currentDrawing.iLastEntity = gcd.currentDrawing.HoveredEntity
-                    End If
-
-                Else
-                    'Debug "No puedo buscar entidades"
-                End If
-            Else
-                If Not gcd.flgSearchingPOI Then
-                    gcd.currentDrawing.iEntity = clsMouseTracking.CheckPOI(Xreal(mouse.x), Yreal(mouse.Y))
-                Else    ' estoy buscando, pero me movi, asi que me desengancho del POI anterior
-
-                    gcd.currentDrawing.iEntity[0] = Xreal(mouse.x)
-                    gcd.currentDrawing.iEntity[1] = Yreal(mouse.y)
-                    gcd.currentDrawing.iEntity[2] = -1                 ' POI type
-
-                End If
-            End If
-
-            If Config.TrackShowInspector Then
-
-                If gcd.currentDrawing.HoveredEntity Then
-
-                    FInspector.Run(gcd.currentDrawing.HoveredEntity)
-                Else
-                    FInspector.Close
-
-                Endif
-            End If
-
-            '======================= otra Tool
-        Case Else
-
-            If gcd.clsJob.poichecking Then
-                If Not gcd.flgSearchingPOI Then
-                    gcd.currentDrawing.iEntity = clsMouseTracking.CheckPOI(Xreal(mouse.x), Yreal(mouse.Y))
-                Else    ' estoy buscando, pero me movi, asi que me desengancho del POI anterior
-
-                    gcd.currentDrawing.iEntity[0] = Xreal(mouse.x)
-                    gcd.currentDrawing.iEntity[1] = Yreal(mouse.y)
-                    gcd.currentDrawing.iEntity[2] = -1                 ' POI type
-
-                End If
-
-            End If
-
-            If gcd.clsJob.EntityChecking Then
-
-                ' verifico antes de buscar
-                If Not gcd.flgSearchingEntity Then gcd.currentDrawing.HoveredEntity = clsMouseTracking.CheckAboveEntity(Xreal(mouse.x), Yreal(mouse.Y), Metros(8))
-
-            End If
-
-            gcd.currentDrawing.flgShowPOIinfo = True
-
-            DrawingAids.Helper.dX = 15
-            DrawingAids.Helper.dY = 15
-            DrawingAids.Helper.fColor = Color.DarkBlue
-            gcd.clsJob.MouseMove(mouse.x, mouse.y) ' dispatch event to the Job
-
-    End Select
-
-    redraw
+    gcd.clsJob.MouseMove()
 
 End
 
 Public Sub GLArea1_MouseUp()
-    ' ex Public Sub drwArea_MouseUp()
 
-    ' "Los IF son mas rapidos" - Autor Anonimo
+    gcd.clsJob.MouseUp()
 
-    ' verifico que no haya habido un menu en la tool
-    'If (gcd.clsJob.MenuRightClick <> "") And Mouse.Then Return      ' no se maneja aca el click
+End
 
-    ' los rigth clicks se manejan en FCAD , ni las herramientas ni las entidades los necesitan
-    If Mouse.Right Then                ' rigth clicks means finish what you're doing rigth now and go back to the previous Job
-        ' the Finish() sub will do this in a good manner
-        If gcd.clsJob.gender = "Builder" Then
+Public Sub GLArea1_MouseWheel()
 
-            gcd.clsJob.KeyText("U")
-
-        Else If gcd.clsJob.gender = "Default" Then
-
-            gcd.clsJob = gcd.clsJobPrevious
-            gcd.clsJob.Start()
-
-        Else    ' es una tool
-
-            gcd.clsJob.MouseRightUp(mouse.x, mouse.y)
-
-        Endif
-
-    Else If Mouse.Left Then
-
-        gcd.clsJob.MouseUp(mouse.x, mouse.y)
-
-    Else If Mouse.Middle Then
-
-        If gcd.clsJob.gender <> "Pan" Then
-            gcd.clsJobPreZoom = gcd.clsJob
-            gcd.clsJob = cadPan
-            gcd.clsJob.Start()
-
-        Else
-
-            gcd.clsJob = gcd.clsJobPreZoom
-
-        End If
-
-    End If
-
-    redraw
+    gcd.clsJob.MouseWHEEL()
 
 End
 
@@ -1069,50 +876,6 @@ Public Function Near(xyzReal As Float) As Float
     If r > 0.5 Then n += 1
 
     Return n * GridSpacing
-
-End
-
-' El objetivo es que el zoom dinamico se haga manteniendo el dibujo que esta en la pos del mouse
-Public Sub GLArea1_MouseWheel()
-
-    Dim px, py, dx, dy, factor As Float
-    ' chequeamos si vale la pena seguir dibujando la grid, o sea, menos de 3 pixels
-    ' Inc flgWheelCounter
-    ' Debug "Mouse weel", flgWheelCounter
-
-    'If Pixels(GridSpacing) < 5 Then GridActive = False Else GridActive = True
-
-    px = Xreal(Mouse.x) ' posicion real en donde esta el mouse, previo al zoom
-    py = Yreal(Mouse.y)
-
-    ' TODO: , redondear para que la escala sea 1:100 1:75 1:50 etc
-
-    factor = (1 + 0.075 * Mouse.Delta)
-
-    gcd.currentDrawing.ScaleZoom = gcd.currentDrawing.ScaleZoom * factor
-
-    dx = Xreal(Mouse.x) ' posicion real en donde esta el mouse, posterior al zoom
-    dy = Yreal(Mouse.y)
-
-    ' pero con ciertos limites TODO: imponer
-    ' If ScaleZoom < 0.001 Then ScaleZoom = 0.001
-    ' If ScaleZoom > 50 Then ScaleZoom = 50
-
-    ' nuevo metodo (el Pan esta en pixels)
-    gcd.currentDrawing.PanX += pixels(dx - px)
-    gcd.currentDrawing.PanY += pixels(dy - py)
-
-    flgNewPosition = True
-
-    'Debug "Drawing requested"
-    redraw 'glarea1.Refresh
-
-    ' despues de actualizar la pantalla, recolectamos las entidades visibles
-
-    ' Dec flgWheelCounter
-
-    ' Test
-    ' Debug "Mouse tracking task ID", tskMouseTracking.Handle
 
 End
 
