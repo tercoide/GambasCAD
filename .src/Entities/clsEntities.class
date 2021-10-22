@@ -1065,7 +1065,7 @@ End
 Public Function SelPartial(eTesting As Entity, X1real As Float, Y1real As Float, X2real As Float, Y2real As Float) As Boolean
 
     Dim ii As Integer, puedo As Boolean = False
-    Dim oLoop As Boundary
+    Dim oLoop As Boundary, flxPoly As Float[]
 
     Select Case eTesting.Gender
 
@@ -1073,11 +1073,14 @@ Public Function SelPartial(eTesting As Entity, X1real As Float, Y1real As Float,
 
             For Each oLoop In eTesting.pBlock.oBoundaryPath
 
-                puedo = puntos.IsPoligonInsideRect(oLoop.Polyline, X1real, Y1real, X2real, Y2real)
-                If puedo Then Break
+                For Each flxPoly In oLoop.Polylines
 
-                puedo = puntos.IsPoligonCrossingRect(oLoop.Polyline, X1real, Y1real, X2real, Y2real)
-                If puedo Then Break
+                    puedo = puntos.IsPoligonInsideRect(flxPoly, X1real, Y1real, X2real, Y2real)
+                    If puedo Then Break
+
+                    puedo = puntos.IsPoligonCrossingRect(flxPoly, X1real, Y1real, X2real, Y2real)
+                    If puedo Then Break
+                Next
             Next
 
         Case Else
@@ -1348,5 +1351,21 @@ Public Sub FillLayersWithEntities(oDrawing As Drawing)
     Next
     ' Esto ya no es posible con Colecciones
     'currentDrawing.oVisibleEntities.Resize(CurrentDrawing.oEntities.Count)
+
+End
+
+'' Devuelve una entidad recortada de la original que esta dentro del recuadro provisto
+'' o null si la enidad base queda afuera del recuadro
+Public Function TrimmedEntity(eBase As Entity, x0 As Float, y0 As Float, X1 As Float, Y1 As Float) As Entity
+    ' vamos a considerar que x0,y0 son coordenadas inferior-izquierda (como openGL, no como Paint)
+
+    If Me.SelFull(eBase, x0, y0, x1, y1) Then Return eBase
+
+    If Me.SelPartial(eBase, x0, y0, x1, y1) Then
+
+    Else ' la entidad esta completamente fuera del recuadro
+
+        Return Null
+    Endif
 
 End

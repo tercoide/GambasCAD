@@ -146,7 +146,6 @@ Public Sub Run() As Boolean
     Wait
     Me.Visible = True
     glPlus.ClearColor(Config.BackgroundColor)
-    gcd.DrawingReady = True
 
 End
 
@@ -155,11 +154,34 @@ Public Sub Printer1_Draw()
     Dim i As Integer
     Dim flxLimits As New Float[]
     Dim scaleX, scaleY As Float
-    '  Dim jPrint As New JSONCollection
+    Dim PSY As PrintStyle
 
+    '  Dim jPrint As New JSONCollection
+    PSY = gcd.currentDrawing.CurrPrintStyle
     Printer1.FullPage = True
 
-    flxLimits = clsEntities.ComputeLimits(gcd.currentDrawing.oEntities)
+    ' DETERMINO LO QUE HAY QUE IMPRIMIR
+    If PSY.PrintArea = 0 Then ' all drawing
+
+        flxLimits = clsEntities.ComputeLimits(gcd.currentDrawing.oEntities)
+
+        PSY.PrintAreaX0 = flxLimits[0]
+        PSY.PrintAreaY0 = flxLimits[1]
+        PSY.PrintAreaX1 = flxLimits[2]
+        PSY.PrintAreaY1 = flxLimits[3]
+
+    Else If PSY.PrintArea = 1 Then ' viewport
+
+        PSY.PrintAreaX0 = gcd.Xreal(0)
+        PSY.PrintAreaY0 = gcd.Yreal(0)
+        PSY.PrintAreaX1 = gcd.Xreal(Me.GLArea1.Width)
+        PSY.PrintAreaY1 = gcd.Yreal(Me.GLArea1.h)
+
+    Else
+
+        ' nada porque ya estan seteados
+
+    End If
 
     Debug "Printing"
 
@@ -183,98 +205,38 @@ Public Sub Printer1_Draw()
     ' '       |               x1,y1-----x2,y2 |
     ' '       +-------------------------------+
     '
-    ' ' Supongamos que la linea x1y1----x2y2 tiene la coordenadas [20,-10] - [70,-10]
-    ' ' y quiero imprimirla centrada
-    ' ' Determino las coordenadas del centro de los dibujos (la linea) [45,-10] y tengo que llevarla al
-    ' ' centro del Paint  [.W/2 , .H/2]
-    ' ' Test 1
-    ' Paint.Translate(Paint.W / 2, Paint.H / 2)
-    ' Paint.Translate(-45, 10)
-    ' Paint.Brush = Paint.Color(Color.red)
-    ' Paint.LineWidth = 3
-    ' Paint.MoveTo(20, -10)
-    ' Paint.LineTo(70, -10)
-    ' Paint.Stroke
-    '
-    ' '===============================TEST 2=========================================
-    ' ' lo mismo pero quiero hacer un Fit al 85% de la hoja, dejando un margen
-    ' Paint.Reset ' vuelvo escalas y traslados a cero
-    ' Paint.Translate(Paint.W / 2, Paint.H / 2) ' centro el dibujo
-    ' scale = Paint.W * 0.85 / (70 - 20)  '(longitud de la linea)
-    ' Paint.Scale(scale, -scale) 'scaleY es negativa para compensar la distinta forma de dibujar GL y Paint
-    ' ' ahora traslado el dibujo
-    ' Paint.Translate(-45, 10)  ' (-) el centro del dibujo
-    '
-    ' Paint.Brush = Paint.Color(Color.blue)
-    ' Paint.LineWidth = 1 / scale
-    ' Paint.MoveTo(20, -10)
-    ' Paint.LineTo(70, -10)
-    ' Paint.Stroke
-    '
-    ' '==============================TEST 3==========================================
-    '
-    ' ' testing limites
-    ' Paint.reset
-    ' Paint.Brush = Paint.Color(Color.red)
-    ' Paint.Arc(0, 0, 30)
-    '
-    ' Paint.Brush = Paint.Color(Color.Purple)
-    ' Paint.Arc(Paint.w, Paint.h, 30)
-    ' Paint.Fill
-    '
-    ' '==============================TEST 4==========================================
-    ' ' supongamos que el dibujo tiene los siguientes limites [-12,40]-[20,70]
-    ' ' voy a dibujar un recuadro centrado y fiteado en la hoja al 85%
-    ' Paint.Reset ' vuelvo escalas y traslados a cero
-    ' Paint.Translate(Paint.W / 2, Paint.H / 2) ' centro el dibujo
-    ' ' veo cual escala manda
-    ' scaleX = Paint.w / (20 - (-12))   ' ancho de pagina/ancho del dibujo
-    ' scaleY = Paint.H / (70 - 40)      ' alto de pagina/alto dibujo
-    '
-    ' If scaleX < scaleY Then scale = scaleX Else scale = scaleY
-    '
-    ' Paint.Scale(scale * 0.85, -scale * 0.85)
-    ' ' LAs coordenadas del centro del dibujo son (X0+X1)/2;(Y0+Y1)/2 o sea
-    ' Paint.Translate(-(20 + -12) / 2, -(70 + 40) / 2) ' traslado esos valores en negativo
-    ' Paint.Brush = Paint.Color(Color.DarkYellow)
-    ' Paint.LineWidth = 2 / scale
-    ' Paint.Rectangle(-12, 40, (20 - -12), (70 - 40))
-    ' Paint.Stroke
 
     '==============================ACTUAL PRINT==========================================
 
     Paint.Reset ' vuelvo escalas y traslados a cero
-    Paint.Translate(Paint.W / 2, Paint.H / 2) ' centro el dibujo
-    ' trato de meter centrado
-    If (flxLimits[2] - flxLimits[0]) > 1e-10 Then scaleX = Paint.w / (flxLimits[2] - flxLimits[0]) Else scaleX = 1e10
-    If (flxLimits[3] - flxLimits[1]) > 1e-10 Then scaleY = Paint.H / (flxLimits[3] - flxLimits[1]) Else scaleY = 1e10
 
-    If ScaleX < ScaleY Then gcd.PrintingScale = ScaleX Else gcd.PrintingScale = Scaley
-    Paint.Scale(gcd.PrintingScale * 0.85, -gcd.PrintingScale * 0.85)
+    ' APLICO LA ESCALA
 
-    ' centro el dibujo
-    Paint.Translate(-(flxLimits[2] + flxLimits[0]) / 2, -(flxLimits[3] + flxLimits[1]) / 2)
+    If PSY.PrintScale = -1 Then ' fit to page
 
-    'For i = 0 To gcd.currentDrawing.cLayer.arrLayer.Max
-    '  If gcd.currentDrawing.arrLayers[i].Visible Then
+        Paint.Translate(Paint.W / 2, Paint.H / 2) ' centro el dibujo
+        ' trato de meter centrado
+        If (PSY.PrintAreaX1 - PSY.PrintAreaX0) > 1e-10 Then scaleX = Paint.w / (PSY.PrintAreaX1 - PSY.PrintAreaX0) Else scaleX = 1e10
+        If (PSY.PrintAreaY1 - PSY.PrintAreaY0) > 1e-10 Then scaleY = Paint.H / (PSY.PrintAreaY1 - PSY.PrintAreaY0) Else scaleY = 1e10
 
-    ' If Exist(FPrint.sConfig) Then
-    '     jPrint = JSON.FromString(File.Load(FPrint.sConfig), True)
-    '
-    ' Endif
-    ' '     For i = 0 To gcd.currentDrawing.arrLayers.Max
-    '         If gcd.currentDrawing.arrLayers[i].Visible Then
-    '             For Each e As Entity In gcd.currentDrawing.arrLayers[i].Entities
-    '                 e.ClassHandler.draw2(e)
-    '             Next
-    '         End If
-    '     Next
-    '
-    Dim L As Layer, E As Entity
+        If ScaleX < ScaleY Then gcd.PrintingScale = ScaleX Else gcd.PrintingScale = Scaley
+        Paint.Scale(gcd.PrintingScale * 0.85, -gcd.PrintingScale * 0.85)
+
+        ' centro el dibujo
+        Paint.Translate(-(PSY.PrintAreaX1 + PSY.PrintAreaX0) / 2, -(PSY.PrintAreaY1 + PSY.PrintAreaY0) / 2)
+    Else ' tengo que aplicar cierta escala
+
+        gcd.PrintingScale = PSY.PrintScale
+
+    End If
+
+    Dim L As Layer, E, E2 As Entity
     For Each L In gcd.currentDrawing.oLayers
         If L.Visible Then
-            For Each E In L.Entities
-
+            For Each E2 In L.Entities
+                If Not e2.Visible Then Continue
+                If PSY.PrintArea <> 0 Then E = clsEntities.TrimmedEntity(E2, PSY.PrintAreaX0, PSY.PrintAreaY0, PSY.PrintAreaX1, PSY.PrintAreaY1) Else e = e2
+                If IsNull(e) Then Continue
                 If e.LineWidth = 0 Then e.LineWidth = 1
                 ' If jPrint.Exist("Monochrome") Then
                 '   If jPrint["Monochrome"] Then
@@ -373,7 +335,19 @@ Public Function Action_Activate(sAction As String) As Boolean
         Case "print"
 
             If Not gcd.currentDrawing.CurrPrintStyle Then gcd.currentDrawing.CurrPrintStyle = New PrintStyle
-            fPrint.ShowModal
+            i = fPrint.ShowModal()
+            If i = 1 Then
+
+                Printer1.Print
+            Else If i = 0 Then
+                gcd.debugInfo("Print cancelled")
+
+            Else If i = 2 Then
+                gcd.debugInfo("Selecting what to print")
+
+            End If
+
+            ' vemos si hay q imprimir algo
 
         Case "undo"
             gcd.currentDrawing.uUndo.DoUndo()
@@ -382,9 +356,9 @@ Public Function Action_Activate(sAction As String) As Boolean
         Case "about"
             i = fAbout.ShowModal()
 
-        Case "redo"
-            gcd.currentDrawing.uUndo.DoRedo()
-            gcd.Regen
+            ' Case "redo"
+            '     gcd.currentDrawing.uUndo.DoRedo()
+            '     gcd.Regen
         Case "window_close"
             For i = 0 To gcd.Drawings.Count
                 If gcd.Drawings[i] = gcd.currentDrawing Then
@@ -431,80 +405,80 @@ Public Function Action_Activate(sAction As String) As Boolean
             Me.Close
             Quit
 
-        Case "file_new"
-
-            actions.FileNew
-
+            ' Case "file_new"
+            '
+            '     actions.FileNew
+            '
         Case "file_open"
 
             actions.FileOpen
 
-        Case "file_save"
+            ' Case "file_save"
+            '
+            '     f = gcd.currentDrawing.FileName
+            '
+            '     fbas = File.Dir(f) &/ File.BaseName(f)
+            '     fBak = "'" & fbas & ".bak'"
+            '     If gcd.currentDrawing.RequiresFileRename Then
+            '         Me.Action_Activate("file_saveas")
+            '         Return
+            '     Else
+            '         If Exist(f) Then
+            '             If Exist(fBak) Then Shell "rm " & fBak Wait
+            '             Shell "mv '" & f & "' '" & fbas & ".bak'" Wait
+            '         End If
+            '
+            '         If File.Ext(f) = "dxf" Then
+            '             Dxf.SaveFile(f, gcd.currentDrawing.cModel, gcd.currentDrawing)
+            '         Else If File.Ext(f) = "dwg" Then
+            '             ' guardamos la version DXF en el dir adecuado, con el nombre elegido
+            '             't = main.dirDxfOut &/ Utils.FileWithoutExtension(Utils.FileFromPath(f)) & ".dxf"
+            '             t = Temp & ".dxf"
+            '             Dxf.SaveFile(t, gcd.currentDrawing.cModel)
+            '             t = gcd.oda_dxftodwg(t)
+            '             ' como el proceso de grabado pudo resultar en error, chequeo la existencia primero
+            '
+            '             If Exist(t) Then Move t To f
+            '
+            '         End If
+            '
+            '     Endif
 
-            f = gcd.currentDrawing.FileName
-
-            fbas = File.Dir(f) &/ File.BaseName(f)
-            fBak = "'" & fbas & ".bak'"
-            If gcd.currentDrawing.RequiresFileRename Then
-                Me.Action_Activate("file_saveas")
-                Return
-            Else
-                If Exist(f) Then
-                    If Exist(fBak) Then Shell "rm " & fBak Wait
-                    Shell "mv '" & f & "' '" & fbas & ".bak'" Wait
-                End If
-
-                If File.Ext(f) = "dxf" Then
-                    Dxf.SaveFile(f, gcd.currentDrawing.cModel, gcd.currentDrawing)
-                Else If File.Ext(f) = "dwg" Then
-                    ' guardamos la version DXF en el dir adecuado, con el nombre elegido
-                    't = main.dirDxfOut &/ Utils.FileWithoutExtension(Utils.FileFromPath(f)) & ".dxf"
-                    t = Temp & ".dxf"
-                    Dxf.SaveFile(t, gcd.currentDrawing.cModel)
-                    t = gcd.oda_dxftodwg(t)
-                    ' como el proceso de grabado pudo resultar en error, chequeo la existencia primero
-
-                    If Exist(t) Then Move t To f
-
-                End If
-
-            Endif
-
-        Case "file_saveas"
-
-            f = gcd.currentDrawing.FileName
-            fbas = File.Dir(f) &/ File.BaseName(f)
-            fBak = "'" & fbas & ".bak'"
-
-            Dialog.AutoExt = True
-            Dialog.Filter = ["*.dxf", "DXF Drawing exchange 2010", "*.dwg", "DWG AutoCAD Drawing file 2010"]
-            If Dialog.SaveFile() Then Return ' cancel saving
-
-            f = Dialog.Path
-
-            If Exist(f) Then
-                If Message.Question(("The file exist"), ("Replace"), ("Cancel")) = 2 Then
-                    f = ""
-                Endif
-            Endif
-
-            If f = "" Then
-                Print "Cancel"
-            Else
-
-                'If LCase(File.Ext(f)) <> "dxf" Then f &= ".dxf"
-                If Exist(f) Then
-                    If Exist(fBak) Then Shell "rm " & fBak Wait
-                    Shell "mv '" & f & "' '" & fbas & ".bak'" Wait
-                End If
-
-                gcd.currentDrawing.FileName = f
-                gcd.currentDrawing.RequiresFileRename = False
-                Action_Activate("file_save")
-
-                Me.Text = f
-
-            Endif
+            ' Case "file_saveas"
+            '
+            '     f = gcd.currentDrawing.FileName
+            '     fbas = File.Dir(f) &/ File.BaseName(f)
+            '     fBak = "'" & fbas & ".bak'"
+            '
+            '     Dialog.AutoExt = True
+            '     Dialog.Filter = ["*.dxf", "DXF Drawing exchange 2010", "*.dwg", "DWG AutoCAD Drawing file 2010"]
+            '     If Dialog.SaveFile() Then Return ' cancel saving
+            '
+            '     f = Dialog.Path
+            '
+            '     If Exist(f) Then
+            '         If Message.Question(("The file exist"), ("Replace"), ("Cancel")) = 2 Then
+            '             f = ""
+            '         Endif
+            '     Endif
+            '
+            '     If f = "" Then
+            '         Print "Cancel"
+            '     Else
+            '
+            '         'If LCase(File.Ext(f)) <> "dxf" Then f &= ".dxf"
+            '         If Exist(f) Then
+            '             If Exist(fBak) Then Shell "rm " & fBak Wait
+            '             Shell "mv '" & f & "' '" & fbas & ".bak'" Wait
+            '         End If
+            '
+            '         gcd.currentDrawing.FileName = f
+            '         gcd.currentDrawing.RequiresFileRename = False
+            '         Action_Activate("file_save")
+            '
+            '         Me.Text = f
+            '
+            '     Endif
 
         Case Like "cad*"
 
@@ -547,22 +521,6 @@ Public Function Action_Activate(sAction As String) As Boolean
 
             ' si tengo algo seleccionado, debo cambiar su color a este
             gcd.EditEntities("layer", gcd.currentDrawing.CurrLayer)
-            clsEntities.DeSelection()
-
-        Case Like "linewt_change_*"
-
-            gcd.currentDrawing.CurrLineWt = CInt(Mid(sAction, 15)) / 100
-
-            ' si tengo algo seleccionado, debo cambiar su color a este
-            gcd.EditEntities("linewt", gcd.currentDrawing.CurrLineWt)
-            clsEntities.DeSelection()
-
-        Case Like "ltype_change_*"
-
-            gcd.currentDrawing.CurrLineType = gcd.FindLType(Mid(sAction, 14))
-
-            ' si tengo algo seleccionado, debo cambiar su color a este
-            gcd.EditEntities("linetype", gcd.currentDrawing.CurrLineType)
             clsEntities.DeSelection()
 
     End Select
