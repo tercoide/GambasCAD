@@ -136,12 +136,15 @@ Public Sub Run() As Boolean
 
     Action_Activate("file_new")
 
-    tmrAutosave.Delay = main.Params["/AutoSaveDelayMin", 15] * 1000 * 60
+    tmrAutosave.Delay = config.AutoSaveDelayMin * 1000 * 60
     'tmrAutosave.Enabled = True
 
     ' FIXME: en GTK no se puede cambiar el color del background de textboxes
     'Me.txtCmd.Background = Color.White
     Me.Visible = False
+
+    LeerRecientes
+
     Me.Show()
     Wait
     Me.Visible = True
@@ -303,6 +306,7 @@ Public Function Action_Activate(sAction As String) As Boolean
     Dim fMinimal As String = "./minimal/minimal.dxf"
     Dim fx As String[]
     Dim fbas As String
+    Dim sWName As String
     Dim t As String
     Dim iColor, i As Integer
     Dim imgCirculito As Image
@@ -381,7 +385,7 @@ Public Function Action_Activate(sAction As String) As Boolean
 
         Case Like "windowchange_*"
 
-            Dim sWName As String
+
 
             sWName = Mid(sAction, 14)
 
@@ -412,6 +416,14 @@ Public Function Action_Activate(sAction As String) As Boolean
         Case "file_open"
 
             actions.FileOpen
+
+        Case Like "file_open_*"
+
+
+
+            sWName = Mid(sAction, 11)
+
+            actions.FileOpen(sWName)
 
             ' Case "file_save"
             '
@@ -532,75 +544,81 @@ Public Sub LeerRecientes()
     'TODO esto deberia estar en un ini
     ' obtengo los lastopen
 
-    Paint
+    Dim mnuLastOpen As New Menu(Me)
+    Dim mnuFiles As Menu
 
-    main.setting.lastopen1 = main.params["Files/LastOpen1", ""]
-    main.setting.lastopen2 = main.params["Files/LastOpen2", ""]
-    main.setting.lastopen3 = main.params["Files/LastOpen3", ""]
-    main.setting.lastopen4 = main.params["Files/LastOpen4", ""]
-    main.setting.lastopen5 = main.params["Files/LastOpen5", ""]
+    mnuLastOpen.Name = "LastOpenedFiles"
+    mnuFiles = New Menu(mnuLastOpen)
+    mnuFiles.Text = Config.FilesLastOpen1
+    mnuFiles.Action = "file_open_" & Config.FilesLastOpen1
 
-    If Exist(main.setting.lastopen1) Then
+    mnuFiles = New Menu(mnuLastOpen)
+    mnuFiles.Text = Config.FilesLastOpen2
+    mnuFiles.Action = "file_open_" & config.filesLastOpen2
 
-        mnuReciente1.Text = main.setting.lastopen1
-        mnuReciente1.Visible = True
-        'sep4.Visible = True
+    mnuFiles = New Menu(mnuLastOpen)
+    mnuFiles.Text = Config.FilesLastOpen3
+    mnuFiles.Action = "file_open_" & config.filesLastOpen3
 
-    Else
-        mnuReciente1.Visible = 0
-        'sep4.Visible = 0
-        main.setting.lastopen1 = ""
-    End If
-    If Exist(main.setting.lastopen2) Then
-        mnuReciente2.Text = main.setting.lastopen2
-        mnuReciente2.Visible = True
+    mnuFiles = New Menu(mnuLastOpen)
+    mnuFiles.Text = Config.FilesLastOpen4
+    mnuFiles.Action = "file_open_" & config.filesLastOpen4
 
-    Else
-        mnuReciente2.Visible = 0
-        main.setting.lastopen2 = ""
+    mnuFiles = New Menu(mnuLastOpen)
+    mnuFiles.Text = Config.FilesLastOpen5
+    mnuFiles.Action = "file_open_" & config.filesLastOpen5
 
-    End If
-    If Exist(main.setting.lastopen3) Then
-        mnuReciente3.Text = main.setting.lastopen3
-        mnuReciente3.Visible = True
 
-    Else
-        mnuReciente3.Visible = 0
-        main.setting.lastopen3 = ""
 
-    End If
+    MenuButton1.Menu = "LastOpenedFiles"
 
-    If Exist(main.setting.lastopen4) Then
-        mnuReciente4.Text = main.setting.lastopen4
-        mnuReciente4.Visible = True
 
-    Else
-        mnuReciente4.Visible = 0
-        main.setting.lastopen4 = ""
-
-    End If
-
-    If Exist(main.setting.lastopen5) Then
-        mnuReciente5.Text = main.setting.lastopen5
-        mnuReciente5.Visible = True
-
-    Else
-        mnuReciente5.Visible = 0
-        main.setting.lastopen5 = ""
-
-    End If
 
 End
 
 Public Sub GuardarParametros()
 
-    If main.setting.lastopen1 <> "" Then main.params["Files/LastOpen1"] = main.setting.lastopen1
-    If main.setting.lastopen2 <> "" Then main.params["Files/LastOpen2"] = main.setting.lastopen2
-    If main.setting.lastopen3 <> "" Then main.params["Files/LastOpen3"] = main.setting.lastopen3
-    If main.setting.lastopen4 <> "" Then main.params["Files/LastOpen4"] = main.setting.lastopen4
-    If main.setting.lastopen5 <> "" Then main.params["Files/LastOpen5"] = main.setting.lastopen5
+    If main.setting.lastopen1 <> "" Then config.LastOpen1 = main.setting.lastopen1
+    If main.setting.lastopen2 <> "" Then config.LastOpen2 = main.setting.lastopen2
+    If main.setting.lastopen3 <> "" Then config.LastOpen3 = main.setting.lastopen3
+    If main.setting.lastopen4 <> "" Then config.LastOpen4 = main.setting.lastopen4
+    If main.setting.lastopen5 <> "" Then config.LastOpen5 = main.setting.lastopen5
 
 End
+
+Public Sub AddFilesOpen(sFilename As String)
+
+    ' verifico que ya lo tenga en la lista de recientes
+    If sFilename = Config.FilesLastOpen1 Then Return ' nada que hacer
+
+    ' ubico en primer lugar al archivo reciente
+    If sFilename = Config.FilesLastOpen2 Then
+        Swap Config.FilesLastOpen2, Config.FilesLastOpen1
+        Return
+    End If
+
+    If sFilename = Config.FilesLastOpen3 Then
+        Swap Config.FilesLastOpen3, Config.FilesLastOpen1
+        Return
+    End If
+    If sFilename = Config.FilesLastOpen4 Then
+        Swap Config.FilesLastOpen4, Config.FilesLastOpen1
+        Return
+    End If
+    If sFilename = Config.FilesLastOpen5 Then
+        Swap Config.FilesLastOpen5, Config.FilesLastOpen1
+        Return
+    End If
+
+    ' no lo tengo, descarto el ultimo y lo agrego al principio, desplazando el resto
+    Config.FilesLastOpen5 = Config.FilesLastOpen4
+    Config.FilesLastOpen4 = Config.FilesLastOpen3
+    Config.FilesLastOpen3 = Config.FilesLastOpen2
+    Config.FilesLastOpen2 = Config.FilesLastOpen1
+    Config.FilesLastOpen1 = sFilename
+
+End
+
 
 Public Sub VerifLastOpen(sA_Abrir As String)
 
@@ -922,6 +940,10 @@ Public Sub Form_Keypress()
 
             gcd.DrawBounds = Not gcd.DrawBounds
             Me.redraw
+        Case Key.F4
+
+            gcd.DrawHatch = Not gcd.DrawHatch
+            gcd.RegenList
 
         Case Key.BackSpace
 
@@ -1221,5 +1243,11 @@ Public Sub mnuFile_Hide()
 End
 
 Public Sub mnuFile_Click()
+
+End
+
+Public Sub MenuButton1_Click()
+
+
 
 End
