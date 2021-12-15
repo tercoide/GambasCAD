@@ -1,1 +1,140 @@
-../../../GauchoCAD/.src/Classes/Drawing.class
+' Gambas class file
+
+' Tool maintained by Terco
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 2 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+
+'===============================DOCUMENT==============================================
+' datos obtenidos de la lectura de los archivos DWG, DXF y de dibujar
+' ver http://entercad.ru/acadauto.en/
+Public oHeader As New Headers
+Public oClasses As New CadClass[]               '' de objetos classes, como no tienen handle no es una coleccion
+' Tables
+Public oAppID As New Collection
+Public oDimStyles As New Collection
+Public oTextStyles As New Collection
+Public oViews As New Collection
+Public oViewports As New Collection
+Public oUCSs As New Collection
+Public oLTYpes As New Collection                '' de objetos LineTypes
+Public oLayers As New Collection                '' de objetos Layer
+Public oBlocks As New Collection                '' bloques de este grafico
+
+' Entidades
+Public oEntities As New Collection              '' were all elements live
+
+'Objetos
+Public oObjects As New Collection
+
+
+
+'======================================================================================
+
+
+' USAGE VARS
+Public KeysAccumulator As String
+Public FirstTime As Boolean = True
+Public DrawingReady As Boolean = False
+Public DrawNeedsUpdate As Boolean                   '' true on mouse, key or tool events
+Public TimerTic As Integer = 0                      '' this reaches 1024 and then zeroes, at 33Hz
+Public nDraws As Integer
+Public nDrawsRequired As Integer
+Public idDrawing As Integer
+Public LastHandle As Integer
+Public LastHatch As Integer
+Public LastHatchFile As String
+Public LastHatchPattern As String
+Public LastScale As Float
+Public LastAngle As Float
+Public Xmenor As Float = 1E100
+Public Xmayor As Float = -1E100
+Public Ymenor As Float = 1E100
+Public Ymayor As Float = -1E100
+Public FileName As String
+Public PanX As Integer = 0              '' trnaslation of th 0,0 from the corner of the drawing area
+Public PanY As Integer = 0              '' in pixels
+Public ScaleZoom As Float = 1
+Public Propiedadtest As String
+
+Public RequiresFileRename As Boolean = True   ' para dibujos nuevo o formatos no soportados para save
+Public RequiresSaving As Boolean = False      ' cuando haya cambios en el dibujo q guardar
+
+' Current drawing vars
+Public CurrLayer As Layer
+Public CurrColor As Integer
+Public CurrLineType As LineType
+Public CurrLineWt As Float          ' in mm, stored 100x in DXF
+Public CurrDimStyle As DimStyle
+Public CurrTextStyle As TextStyle
+Public CurrPrintStyle As PrintStyle
+
+
+' 2021 DEPRECADO
+Public dxfModel As New Collection   '' All data from a DXF file is loaded here
+Public cModel As New Collection     '' All data from a dwg file is loaded here
+Public Handles As New Collection    '' A list of objects pointers
+Public cLayers As New Collection    '' All layers data from dwg is listed here
+Public cLtypes As New Collection    '' All linetypes data from dwg is listed here
+Public cBlocks As New Collection    '' All Blocks data from dwg is listed here
+Public cEntities As New Collection  '' All Entity are here if form cEntities[handle] as Entity
+Public cImport As New Collection    '' Impor data from dxf, dwg is loaded here
+Public cHeader As New Collection    '' Header data
+Public cHeaderCodes As New Collection '' Header codes (used for saving)
+Public HandSeed As Integer      '' Last available handle for this drawing
+
+
+
+
+'=======================cosas temporales que no se guardan con el grafico=================
+Public uUndo As New Undo
+Public arrTmp As New Collection               '' Temporal array to put a copy of an entity before change something in it
+Public arrUndo As New Collection              '' An array to put an unmodified copy of an entity before modifying it and then restoring it to the previous version.
+
+' SELECTION
+Public oSelected As New Collection       '' List of selected entities
+Public oVisibleEntities As New Collection     ' set at view change
+Public VisibleEntitiesMax As Integer            ' para acelerar no redimensiono arrVis.. uso esto
+Public oPolyLines As New Collection              ' mmmmmmmm
+
+' point of interests, lines, areas and entities: all this is generated n the entity creation
+Public poiPoints As New Float[]                 '' xy pairs of points
+Public poiType As New Integer[]                 '' tipe of poi: End, Mid, Quadrant, Tangent
+Public poiEntities As New Integer[]             '' related entity
+
+Public poiLines As New Float[]                  '' x0y0x1y1 points
+Public poiLinesEntities As New Integer[]        '' related entity
+
+Public poiPoligons As New Float[]               '' this define multiple poligons to search for proximity
+Public poiPoligonStartIndex As New Integer[]
+Public poiPoligonElements As New Integer[]
+Public poiPoligonEntities As New Integer[]      '' related entity
+
+' interaccion del mouse en pantalla
+Public LastPoint As New Float[]                 '' ultimo punto marcado o null si no existe
+Public iEntity As New Single[] '             '' las coordenadas del punto encontrado y el tipo de punto
+Public HoveredEntity As Entity                  '' La entidad quee esta debajo del mouse
+Public eLastEntity As Entity                   '' ultima entidad encontrada
+
+Public flgShowPOIinfo As Boolean = True
+Public EntitySearchMode As Integer = 0  ' 0 = no search; 1 = search entity ; 2 = search POI
+
+' OpenGl stuff
+Public GlListAllEntities As Integer
+Public GlListSelectedEntities As Integer
+
+

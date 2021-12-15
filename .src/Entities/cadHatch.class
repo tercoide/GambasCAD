@@ -1,1 +1,930 @@
-../../../GauchoCAD/.src/Entities/cadHatch.class
+' Gambas class file
+
+' m-designer
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+Create Static
+' Fast
+Inherits EntityBase
+Public Const Gender As String = "Hatch"
+Public Const PointsToDraw As Integer = 0             ' minimal point requered for drawing something usefull
+Public Const HelperTrabajo As String = ("Hatch")
+Public Const ParamType As String = "PTF"                             ' that is Point, Point, Float; could be Color Text, etc
+Public Const ParamHelper As String = "Point;Texture;Scale"      ' a little text that is shown at the prompt waiting for user input during build
+Public Const ParamDefault As String = " ;Concrete;1"
+Public Const USEWITH As String = "cadHatchBuilder"
+
+Public Const DXF_Export As Boolean = False
+
+' fParam helpers
+Public Const TotalParams As Integer = 10
+Public Const ipaSolid As Integer = 0
+Public Const ipaAsociativity As Integer = 1
+Public Const ipaTotalLoops As Integer = 2
+Public Const ipaRotation As Integer = 3
+Public Const ipaScale As Integer = 4
+Public Const ipaParity As Integer = 5
+Public Const ipaPatternType As Integer = 6
+Public Const ipaBoundaryType As Integer = 7 ' 0=lwpolyine, 1=lines, 2=circular arc, 3=ellipse arc, 4=spline
+
+' stringdata helpers
+Public Const sdaTotalParams As Integer = 2
+Public Const sdaPattern As Integer = 0
+Public Const sdaPaternFile As Integer = 1
+
+Public Xmenor As Float = 1e10
+Public Ymenor As Float = 1e10
+Public Xmayor As Float = -1e10
+Public Ymayor As Float = -1e10
+
+' Parametros de la entidad:
+
+' P[]:        son los puntos de la polilinea que define el contorno del sombreado
+' fParam[0]:  escala del sombreado
+' fParam[1]:  angulo
+' StringData[0]: nombre del patron del sombreado
+'' Builds the geometry of the entity wthout drwing it
+Public Function BuildGeometry(E As Entity, Optional density As Float)
+
+  Dim oloop As Boundary
+
+  If LCase(e.StringData[Me.sdaPattern]) <> "solid" Then
+
+    FillEntityWithHatch2(e)
+
+  Else
+
+    ' para solidos, tengo que hacer una llamada para cada loop de borde
+    ' tengo q ver cuantos puntos tiene cada loop
+    ' Ojo con LibreCAD
+    For Each oLoop In e.pBlock.oBoundaryPath
+
+      'oLoop.Polylines.Add(MakeBorder2(oLoop))
+      If oLoop.Polylines.Count = 0 Then Continue
+      oLoop.Triangles = puntos.PolygonTriangulation(oLoop.Polylines[0])
+
+    Next
+
+  End If
+
+End
+
+Public Sub Draw(oE As Entity)
+
+  Dim iLoop, iStart As Integer
+  Dim fBorder As New Float[]
+  Dim oLoop As Boundary
+  Dim E2 As Entity
+
+  If Not oE.Visible Then Return
+
+  'BuildGeometry(oe)
+
+  If LCase(oe.StringData[Me.sdaPattern]) <> "solid" Then
+
+    GLplus.Lines(oE.PolyLine, gcd.GetGBColor(oE.Colour, oe.pLayer), oE.LineWidth, oE.LineType.index)
+
+  Else
+
+    ' para solidos, tengo que hacer una llamada para cada loop de borde
+    ' tengo q ver cuantos puntos tiene cada loop
+    ' Ojo con LibreCAD
+    For Each oLoop In oe.pBlock.oBoundaryPath
+      ' obtengo el poligono de bordes
+      ' fBorder.Clear
+      ' fBorder.Insert(oLoop.e.PolyLine.Copy(iStart, oe.iParam[iLoop]))
+      ' iStart += fBorder.Count
+
+      'glPlus.Polygon(oLoop.Polyline, Color.Yellow, 2)
+      If oloop.Polylines.Count = 0 Then Continue
+
+      If puntos.IsPoligonSelfIntersecting(oLoop.Polylines[0]) Then
+
+        Debug "A polygon in HATCH is self intersecting"
+      Endif
+
+      glPlus.TRIANGLES(oloop.Triangles, gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetGBColor(oE.Colour, oe.pLayer))
+
+    Next
+
+  End If
+
+End
+
+'' A fat version of the line
+Public Sub DrawSelected(oE As Entity)
+
+  Dim i As Integer
+
+  GLplus.Lines(oE.PolyLine, config.WindowBackColor, oE.LineWidth, gcd.stiDashed)
+  GLplus.Lines(oE.PolyLine, config.ColorForSelected, oE.LineWidth, oE.LineType.index)
+
+End
+
+'' A fat version of the line
+Public Sub DrawRemark(oE As Entity)
+
+  If Not oE.Visible Then Return
+
+  GLplus.Lines(oE.PolyLine, config.WindowBackColor, oE.LineWidth, gcd.stiDashed)
+  GLplus.Lines(oE.PolyLine, gcd.GetGBColor(oE.Colour, oe.pLayer), oE.LineWidth + 2, oe.linetype.index)
+
+End
+
+Public Function Draw2(oE As Entity)
+
+  Dim iLoop, iStart As Integer
+  Dim fBorder As New Float[]
+
+  If oe.StringData[1] <> "Solid" Then
+
+    paintPlus.Lines(oE.PolyLine)
+  Else
+    Paint.Polygon(oe.PolyLine)
+
+  End If
+
+End
+
+'' Creo los puntos de interes
+'' Build point of interest
+
+Public Function BuildPOI(oE As Entity) As Integer
+
+  ' si este valor no es provisto , estos POI son de la ultima entidad
+  Dim i As Integer
+
+  Return
+  oe.PoiPoints.Clear
+  oe.poiPoints.insert([oE.P[0], oE.P[1]])
+  oe.poiType.Add(gcd.poiEndPoint)
+  'oe.poiEntities.Add(arrIndex)
+
+  For i = 0 To oE.P.count - 4 Step 2
+
+    oe.poiPoints.insert([(oE.P[i + 0] + oE.P[i + 2]) / 2, (oE.P[i + 1] + oE.P[i + 3]) / 2])   ' mid
+    oe.poiType.Add(gcd.poiMidPoint)
+    'oe.poiEntities.Add(arrIndex)
+
+    oe.poiPoints.insert([oE.P[i + 2], oE.P[i + 3]])
+    oe.poiType.Add(gcd.poiEndPoint)
+    'oe.poiEntities.Add(arrIndex)
+
+    ' line
+    'gcd.CurrDrawing.poiLines.insert([oE.p[i], oE.p[i + 1], oE.p[i + 2], oE.p[i + 3]])
+    'gcd.CurrDrawing.poiLinesEntities.Add(arrIndex)
+    ' gcd.CurrDrawing.poiLinesRelPoint.Insert([i / 2, i / 2 + 1])
+
+  Next
+
+End
+
+Public Sub Translate(e As Entity, dX As Float, dY As Float, Optional OnlySelected As Boolean = False)
+
+  cadLWPolyline.Translate(e, dX, dY, OnlySelected)
+  puntos.Translate(e.PolyLine, dx, dy)
+
+End
+
+Public Sub Rotate(e As Entity, radians As Float)
+
+  cadLWPolyline.Rotate(e, radians)
+  puntos.Rotate(e.PolyLine, radians)
+
+End
+
+Public Sub Scale(e As Entity, sX As Float, sY As Float)
+
+  cadLWPolyline.Scale(e, sx, sy)
+  puntos.Scale(e.PolyLine, sx, sy)
+
+End
+
+Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
+
+  Dim i, iLoop, iPoints, iBorderObjects, iBoundaryObject As Integer
+  Dim LoopToRead As Integer
+  Dim LoopType As Integer
+  Dim EdgesToRead As Integer
+  Dim EdgeType As Integer
+  Dim eContour As Entity
+  Dim edge As Integer
+  Dim oNewPAth As Boundary
+  Dim jscPath, vSeg As JSONCollection
+  Dim RefObjHandle As String
+
+  'If e.Handle = "60FA9" Then Stop
+
+  ' vamos a agrupar las entidades que forman el contorno en un bloque
+  e.pBlock = New Block
+  e.pBlock.oBoundaryPath = New Boundary[]
+
+  'For i = 0 To sClaves.Max
+  i = -1
+  Do While i < sClaves.max    ' en este importador usare un do-loop en vez de un for-next por la complejidad del hatch
+    Inc i
+
+    If sClaves[i] = "91" Then
+      e.fParam[Me.ipaTotalLoops] = CFloat(sValues[i])
+      LoopToRead = e.fParam[Me.ipaTotalLoops]
+    End If
+
+    If LoopToRead > 0 Then
+
+      Inc i
+
+      ' para Debug
+      ' If LoopToRead = 21 Then Stop
+
+      For iLoop = 0 To LoopToRead - 1
+
+        oNewPAth = New Boundary
+        e.pBlock.oBoundaryPath.Add(oNewPAth)
+
+        oNewPAth.eSegments = New Entity[]
+        oNewPAth.sHandles = New String[]
+        Dec LoopToRead
+        ' estas claves definen el borde
+
+        i = dxf.ReadCode(92, sClaves, sValues, ByRef LoopType, i)
+        oNewPAth.Flag = LoopType
+        If i = True Then Stop
+        If (LoopType And 2) <> 2 Then ' otherwise is a polyline
+          Inc i
+
+          i = dxf.ReadCode(93, sClaves, sValues, ByRef EdgesToRead, i)
+          If i = True Then Stop
+          For edge = 0 To EdgesToRead - 1
+
+            i = dxf.ReadCode(72, sClaves, sValues, ByRef EdgeType, i)
+            If i = True Then Stop
+
+            ' segun el tipo de edge, agrego una entidad al bloque que
+            ' forma el contorno
+            eContour = New Entity
+            ' a esta entidad que es un borde le etiquetamos el loop al que pertenece
+
+            oNewPAth.eSegments.Add(eContour, CStr(i))
+            Select Case EdgeType
+              Case 0  ' invalido
+
+                Stop
+
+              Case 1 ' lines
+                eContour.ClassHandler = cadLine
+                eContour.Gender = eContour.ClassHandler.Gender
+                ' leo los dos puntos
+                Inc i
+                If sClaves[i] = "10" Then eContour.P.Add(CFloat(sValues[i]))
+                Inc i
+                If sClaves[i] = "20" Then eContour.P.Add(CFloat(sValues[i]))
+                Inc i
+                If sClaves[i] = "11" Then eContour.P.Add(CFloat(sValues[i]))
+                Inc i
+                If sClaves[i] = "21" Then eContour.P.Add(CFloat(sValues[i]))
+              Case 2 ' arc o circle
+                eContour.ClassHandler = cadArc
+                eContour.Gender = eContour.ClassHandler.Gender
+                Inc i
+                If sClaves[i] = "10" Then eContour.P.Add(CFloat(sValues[i]))
+                Inc i
+                If sClaves[i] = "20" Then eContour.P.Add(CFloat(sValues[i]))
+                Inc i
+                If sClaves[i] = "40" Then eContour.fParam.Add(CFloat(sValues[i]))
+                Inc i
+                If sClaves[i] = "50" Then eContour.fParam.Add(CFloat(sValues[i]))
+                Inc i
+                If sClaves[i] = "51" Then eContour.fParam.Add(CFloat(sValues[i]))
+                Inc i
+                If sClaves[i] = "73" Then eContour.fParam.Add(CFloat(sValues[i]))
+              Case 3 ' ellipse
+                eContour.ClassHandler = cadEllipse
+                eContour.Gender = eContour.ClassHandler.Gender
+                Inc i
+                If sClaves[i] = "10" Then eContour.P.Add(CFloat(sValues[i]))     ' centro
+                Inc i
+                If sClaves[i] = "20" Then eContour.P.Add(CFloat(sValues[i]))
+                Inc i
+                If sClaves[i] = "11" Then eContour.P.Add(CFloat(sValues[i]) + eContour.P[0])     ' eje mayor, relativo al centro
+                Inc i
+                If sClaves[i] = "21" Then eContour.P.Add(CFloat(sValues[i]) + eContour.P[1])
+                Inc i
+                If sClaves[i] = "40" Then eContour.fParam.Add(CFloat(sValues[i]))
+                Inc i
+                If sClaves[i] = "50" Then eContour.fParam.Add(CFloat(sValues[i]) * 180 / Pi)
+
+                ' esto soluciona un proble de unidades de LibreCAD
+                If eContour.fParam[eContour.fParam.Max] > 2 * Pi Then
+                  eContour.fParam[eContour.fParam.Max] /= (360 / 2 / Pi)
+                Endif
+                Inc i
+                If sClaves[i] = "51" Then eContour.fParam.Add(CFloat(sValues[i]) * 180 / Pi)
+
+                ' esto soluciona un proble de unidades de LibreCAD
+                If eContour.fParam[eContour.fParam.Max] > 2 * Pi Then
+                  eContour.fParam[eContour.fParam.Max] /= (360 / 2 / Pi)
+                Endif
+
+            End Select
+          Next
+
+          ' cuando termino de leer los datos del Edge, puede venir REference Boundary Object
+          ' estas son las entidades de donde se obtuvo el contorno, puede ignrarse
+          Inc i
+          If sClaves[i] = "97" Then
+            For iBoundaryObject = 1 To CInt(sValues[i])
+              Inc i
+
+              ' a esta entidad que es un borde le etiquetamos el loop al que pertenece
+
+              i = dxf.ReadCode(330, sClaves, sValues, ByRef RefObjHandle, i)
+              oNewPAth.sHandles.Add(RefObjHandle)
+            Next
+          End If
+
+          Continue
+
+        Else ' read the polyline loop
+          ' forma el contorno
+          eContour = cadLWPolyline.NewEntity()
+          ' a esta entidad que es un borde le etiquetamos el loop al que pertenece
+
+          ' Debug "PolyLine loop en un hatch"
+          oNewPAth.eSegments.Add(eContour)
+
+          Inc i
+          ' leo si tiene bulges
+          If sClaves[i] = "72" Then
+            If sValues[i] = "1" Then ' tiene bulges
+              eContour.iParam[cadLWPolyline.iiiBulged] = 1
+            End If
+          Else
+            'error de DXF
+            Stop
+          Endif
+
+          Inc i
+          ' leo si es abierta o cerrada
+          If sClaves[i] = "73" Then
+            If sValues[i] = "1" Then ' cerrada
+              eContour.iParam[cadLWPolyline.iiiPolylineClosed] = 1
+            End If
+          Else
+            'error de DXF
+            Stop
+          Endif
+
+          Inc i
+          ' numero de vertice
+          If sClaves[i] = "93" Then
+            eContour.P.Resize(CInt(sValues[i] * 2))
+          Else
+            'error de DXF
+
+          Endif
+
+          For iPoints = 0 To eContour.P.Count / 2 - 1
+            Inc i
+            eContour.P[iPoints * 2] = CFloat(sValues[i])
+            Inc i
+            eContour.P[iPoints * 2 + 1] = CFloat(sValues[i])
+            If eContour.iParam[cadLWPolyline.iiiBulged] Then
+              Inc i ' ignoro el bulge
+            Endif
+          Next
+
+          ' If eContour.iParam[cadLWPolyline.iiiPolylineClosed] = 1 Then
+          '   eContour.P.Add(eContour.P[0])
+          '   eContour.P.Add(eContour.P[1])
+          '
+          ' Endif
+
+        Endif
+        ' despues del loop hay un 97
+        Inc i
+        ' Objetos ecternos de borde
+        If sClaves[i] = "97" Then
+          For iBorderObjects = 0 To CInt(sValues[i]) - 1 ' los leo
+            ' aca viene un Handle a un objeto que tambien es contorno pero no esta definido directamette en la entidad Hatch
+            ' pero puede ocurrir que este objeto no este cargado aun en ningun lado porque su lectura no ocurrio
+            ' TODO: verificar esto
+
+            Inc i
+          Next
+        Else
+          'error de DXF
+
+        Endif
+        Inc i
+
+      Next
+
+    End If
+    If sClaves[i] = "2" Then e.StringData[Me.sdaPattern] = sValues[i] ' hach file
+
+    If sClaves[i] = "70" Then e.fParam[Me.ipaSolid] = CFloat(sValues[i])
+    If sClaves[i] = "71" Then e.fParam[Me.ipaAsociativity] = CFloat(sValues[i])
+    If sClaves[i] = "72" Then e.fParam[Me.ipaBoundaryType] = CFloat(sValues[i])
+
+    If sClaves[i] = "52" Then e.fParam[Me.ipaRotation] = CFloat(sValues[i])
+    If sClaves[i] = "41" Then
+      e.fParam[Me.ipaScale] = CFloat(sValues[i])
+
+    End If
+    If sClaves[i] = "75" Then e.fParam[Me.ipaParity] = CFloat(sValues[i])
+    If sClaves[i] = "76" Then e.fParam[Me.ipaPatternType] = CFloat(sValues[i])
+
+  Loop
+
+  If e.fParam[Me.ipaSolid] Then
+    e.StringData[Me.sdaPaternFile] = "Solid"
+  Else
+    e.StringData[Me.sdaPaternFile] = gcd.dirResources &/ "patterns" &/ LCase(e.StringData[Me.sdaPattern]) & ".dxf"
+  End If
+
+  Return True
+
+  ' catch
+
+  Return False
+
+LoopImport:
+
+End
+
+' Importo los datos que puedo procesar de una coleccion y genero un Entity para ser agregado a un array
+Public Function ImportJsonCol(c As Collection, e As Entity) As Boolean
+
+  Dim i, iLoop, iPoints, iBorderObjects, iBoundaryObject As Integer
+  Dim LoopToRead As Integer
+  Dim LoopType As Integer
+  Dim EdgesToRead As Integer
+  Dim EdgeType As Integer
+  Dim eContour As Entity
+  Dim edge As Integer
+  Dim oNewPAth As Boundary
+  Dim jscPath, vSeg As JSONCollection
+
+  ' for test
+  Dim sclaves, sValues As New String[]
+  Dim eNewSeg As Entity
+
+  'If e.Handle = "60FA9" Then Stop
+
+  ' vamos a agrupar las entidades que forman el contorno en un bloque
+  e.pBlock = New Block
+  e.pBlock.oBoundaryPath = New Boundary[]
+  e.pBlock.entities = New Collection
+
+  e.P.Clear
+  '============General, manejado por clsEntities=======================
+  '  {
+  '       "entity": "HATCH",
+  '       "index": 248,
+  '       "type": 78,
+  '       "handle": [0, 2628],
+  '       "size": 264,
+  '       "bitsize": 2043,
+  '       "eed": [
+  '         {
+  '           "size": 25,
+  '           "handle": [5, 23],
+  '           "code": 10,
+  '           "value": [ 0.0, 0.0, 0.0 ]
+  '         }
+  '       ],
+  '       "_subclass": "AcDbEntity",
+  '       "prev_entity": [12, 1, 123, 2505],
+  '       "next_entity": [10, 1, 56, 2684],
+  '       "layer": [5, 2, 2629, 2629],
+  '       "preview_exists": 0,
+  '       "entmode": 2,
+  '       "nolinks": 0,
+  '       "color": 256,
+  '       "ltype_scale": 1.0,
+  '       "ltype_flags": 0,
+  '       "plotstyle_flags": 0,
+  '       "invisible": 0,
+  '       "linewt": 29,
+  '       "_subclass": "AcDbHatch",
+  '       "elevation": 0.0,
+  '       "extrusion": [ 0.0, 0.0, 1.0 ],
+
+  '============Parametros particulares===================
+  '       "name": "ANSI31",
+  e.StringData[Me.sdaPattern] = c["name"]
+  '       "is_solid_fill": 0,
+  e.fParam[Me.ipaSolid] = c["is_solid_fill"]
+  If e.fParam[Me.ipaSolid] Then
+    e.StringData[Me.sdaPaternFile] = "Solid"
+  Else
+    e.StringData[Me.sdaPaternFile] = gcd.dirResources &/ "patterns" &/ LCase(e.StringData[Me.sdaPattern]) & ".dxf"
+  End If
+
+  '       "is_associative": 0,
+  e.fParam[Me.ipaAsociativity] = CInt(c["is_associative"])
+
+  '       "paths": [
+  For Each jscPath In c["paths"]
+    oNewPAth = New Boundary
+    e.pBlock.oBoundaryPath.Add(oNewPAth)
+    oNewPAth.Flag = CInt(jscPath["flag"])
+    oNewPAth.eSegments = New Entity[]
+    If jscPath.Exist("segs") Then
+      For Each vSeg In jscPath["segs"]
+
+        Select Case vSeg["curve_type"]
+          Case "1"
+            eNewSeg = cadLine.NewEntity()
+            eNewSeg.P.Clear
+            eNewSeg.P.Insert(vSeg["first_endpoint"])
+            eNewSeg.P.Insert(vSeg["second_endpoint"])
+          Case "2"
+            eNewSeg = cadArc.NewEntity()
+
+            eNewSeg.P[0] = (vSeg["center"][0])
+            eNewSeg.P[1] = (vSeg["center"][1])
+            eNewSeg.fParam[0] = vSeg["radius"]
+            eNewSeg.fParam[1] = vSeg["start_angle"]
+            eNewSeg.fParam[2] = vSeg["end_angle"]
+
+        End Select
+        oNewPAth.eSegments.Add(eNewSeg)
+      Next
+    End If
+    If jscPath.Exist("polyline_path") Then
+      For Each vSeg In jscPath["polyline_path"]
+        Select Case jscPath.Key
+          Case "point"
+            eNewSeg = cadLine.NewEntity()
+            eNewSeg.P.Clear
+            eNewSeg.P.Insert(vSeg[0])
+            eNewSeg.P.Insert(vSeg[1])
+        End Select
+        oNewPAth.eSegments.Add(eNewSeg)
+      Next
+    End If
+
+  Next
+
+  '         {
+  '           "flag": 1,
+
+  '           "segs": [
+  '             {
+  '               "curve_type": 1,
+  '               "first_endpoint": [ 31.81250471810391, 17.06738345547637 ],
+  '               "second_endpoint": [ 130.43342411352171, 17.06738345547637 ]
+  '             },
+  '             {
+  '               "curve_type": 1,
+  '               "first_endpoint": [ 130.43342411352171, 17.06738345547637 ],
+  '               "second_endpoint": [ 130.43342411352171, 60.8547319733965 ]
+  '             },
+  '             {
+  '               "curve_type": 1,
+  '               "first_endpoint": [ 130.43342411352171, 60.8547319733965 ],
+  '               "second_endpoint": [ 31.81250471810392, 60.8547319733965 ]
+  '             },
+  '             {
+  '               "curve_type": 1,
+  '               "first_endpoint": [ 31.81250471810391, 60.8547319733965 ],
+  '               "second_endpoint": [ 31.81250471810391, 17.06738345547637 ]
+  '             }
+  '           ],
+  '           "boundary_handles": [
+  '
+  '           ]
+  '         }
+  '       ],
+  '       "style": 0,
+  e.fParam[Me.ipaParity] = CInt(c["style"])
+  '       "pattern_type": 1,
+  e.fParam[Me.ipaPatternType] = CInt(c["pattern_type"])
+
+  '       "angle": 0.0,
+  Try e.fParam[Me.ipaRotation] = CFloat(c["angle"]) ' no existe para SOLID
+  '       "scale_spacing": 100.0,
+  Try e.fParam[Me.ipaScale] = CFloat(c["scale_spacing"]) ' no existe para SOLID
+  '       "double_flag": 0,
+  '       "deflines": [
+  '         {
+  '           "angle": 0.78539816339745,
+  '           "pt0": [ -20.60504680697467, -22.67847848134647 ],
+  '           "offset": [ -8.83883476483184, 8.83883476483184 ],
+  '           "dashes": [
+  '
+  '           ]
+  '         }
+  '       ],
+  '       "seeds": [
+  '         [ -20.60504680697467, -22.67847848134647 ]
+  '       ]
+  '     },
+
+  Return True
+
+  ' catch
+
+  Return False
+
+End
+
+'' Return if that position is over the entity within the tolerance
+Public Function OverMe(e As Entity, Xr As Float, Yr As Float, tolerance As Float) As Boolean
+
+  Dim oBound As Boundary
+
+  For Each oBound In e.pBlock.oBoundaryPath
+
+    If oBound.Polyline Then
+      If puntos.isInside(oBound.Polyline, xr, yr) Then Return True
+    End If
+  Next
+
+  Return False
+
+End
+
+'' Procesa las entidades de borde y las trnasforma en polilineas cerradas, que pueden estar una dentro de otra
+Public Sub MakeBorder2(oPath As Boundary)
+
+  Dim eBorder, eFind As Entity
+  Dim drwPath As New Float[]
+  Dim i As Integer
+  Dim FirstX, FirstY As Single
+  Dim FirstPointSet As Boolean = False
+  Dim BoundaryGotClosed As Boolean = False
+
+  ' armo ese contorno
+
+  For Each eBorder In oPath.eSegments
+
+    If Not eBorder Then Continue 'por si es Null
+
+    If eBorder.Gender = "" Then
+      ' eFind = gcd.FindEntity(eborder.Handle, True)
+      ' If IsNull(eFind) Then
+      '
+      Debug "Borde de hatch no encntrado", eborder.Handle
+      Continue
+      Stop
+      '
+      ' Else
+      '   eborder = eFind
+      ' End If
+    End If
+    Select Case eBorder.ClassHandler.Gender
+
+      Case cadLWPolyline.Gender
+        drwPath.Insert(eborder.P.Copy())
+        BoundaryGotClosed = True
+        FirstX = drwPath[0]
+        FirstY = drwPath[1]
+
+
+      Case "Arc", "Circle", "Ellipse", "SPLine"
+        ' FIXME: puede haber entidades como Text como bordes
+        Try eBorder.ClassHandler.MakePolyline(eborder)
+        drwPath.Insert(eborder.PolyLine.Copy())
+        BoundaryGotClosed = True
+        FirstX = drwPath[0]
+        FirstY = drwPath[1]
+
+      Case "Text", "MText"
+        ' FIXME: puede haber entidades como Text como bordes
+
+        drwPath.Insert(eborder.Polygon.Copy())
+        BoundaryGotClosed = True
+        FirstX = drwPath[0]
+        FirstY = drwPath[1]
+
+      Case "Line"
+        drwPath.Insert(eborder.P.Copy())
+
+
+
+        If Not FirstPointSet Then
+          FirstX = eborder.P[0]
+          FirstY = eborder.P[1]
+          FirstPointSet = True
+        Else
+          If FirstX = eborder.P[2] Then
+            If FirstY = eborder.P[3] Then ' se cerro el contorno
+              BoundaryGotClosed = True
+
+            End If
+          End If
+        End If
+    End Select
+    If BoundaryGotClosed Then
+      ' ahora veo si tengo un a poly anterior
+      If oPath.Polylines.Count = 0 Then
+        oPath.Polylines.add(drwPath)
+      Else ' verifico que no sea un hueco
+        If puntos.isInside(oPath.Polylines[0], FirstX, FirstY) Then ' es un hueco
+          oPath.Holes.Add(drwPath)
+        Else
+          oPath.Polylines.add(drwPath)
+        Endif
+
+      Endif
+      drwPath = New Float[]
+      FirstPointSet = False
+      BoundaryGotClosed = False
+    Endif
+
+
+  Next
+
+
+  Return
+
+End
+
+Public Sub FillEntityWithHatch2(entToFill As Entity)
+
+  ' Parametros de la entidad:
+
+  ' P[]:        son los puntos de la polilinea que define el contorno del sombreado
+  ' fParam[0]:  escala del sombreado
+  ' fParam[1]:  angulo
+  ' StringData[0]: nombre del patron del sombreado
+
+  Dim e As Entity
+  Dim fPAtternSide As Float
+  Dim iPatternNx, iPatternNy As Integer
+  Dim nx As Integer
+  Dim ny As Integer
+  Dim ie, i As Integer
+  Dim flxPatternLimits, flxContorno, flxFirstPass, flxSecondPass As New Float[]
+  Dim iLoop As Integer
+  Dim enxPattern As New Collection
+  Dim cPattern As New Collection
+  Dim drwPattern As New Drawing
+  Dim enxPatternScaled As New Collection
+  Dim eBorder As Entity
+  Dim sPAtternFile As String
+  Dim oLoop As Boundary
+
+  ' este valor intenta commpensar un problema de compatibilidad entre DWG y DXF
+  ' para estar de acuerdo a LibreCAD, debe ser =1, pero algunos DWG se represetan
+  ' con una densidad de relleno menor (mas disperso el relleno)
+  Dim CorrectionScale As Float = 1 '0.01 ' 0.1
+
+  sPAtternFile = entToFill.StringData[cadHatch.sdaPaternFile]
+
+  ' verifico si tengo el pattern
+  If Not Exist(sPAtternFile) Then ' lo reemplazo
+
+    sPAtternFile = gcd.dirResources &/ "patterns" &/ "ansi31.dxf"
+
+  End If
+
+  ' cargo el sombreado en un array auxiliar
+
+  Dxf.LoadFile(sPAtternFile, drwPattern, True, True, True) ' lo cargo
+  'gcd.DXFtoEntity(cPattern["ENTITIES"], enxPattern, True)
+  enxPattern = drwPattern.oEntities
+  ' necesito saber cuanto mide el contorno para aplicar la escala y multiplicar hasta cubrir todo el contorno
+
+  flxPatternLimits = clsEntities.ComputeLimits(enxPattern)
+
+  ' los patrones son cuadrados, computo el lado
+  fPatternSide = 100 ' flxPatternLimits[2] - flxPatternLimits[0]
+
+  If entToFill.fParam[cadHatch.ipaScale] = 0 Then
+    entToFill.fParam[cadHatch.ipaScale] = 1
+  Else
+    ''entToFill.fParam[cadHatch.ipaScale] /= 12  ' TODO: verificar esta escala
+  Endif
+
+  For Each oLoop In entToFill.pBlock.oBoundaryPath
+
+
+    MakeBorder2(oLoop)
+    If oloop.Polylines.Count = 0 Then Continue
+
+
+    GetBoundLimits2(oloop.Polylines[0])    ' veo los limites del contorno exterior
+
+
+    ' vamos a mentir un poco
+    ' xmenor -= 1
+    ' ymenor -= 1
+    ' Xmayor += 1
+    ' ymayor += 1
+
+    ' calculo cuantos patrones necesito
+    iPatternNx = (Xmayor - Xmenor) / fPAtternSide / entToFill.fParam[cadHatch.ipaScale] / CorrectionScale + 1
+    iPatternNy = (ymayor - ymenor) / fPAtternSide / entToFill.fParam[cadHatch.ipaScale] / CorrectionScale + 1
+
+    ' creo un array para el sombreado total  <---No mas
+
+    ' Muevo el pattern y filtro
+
+    For nx = 0 To iPatternNx - 1
+      For ny = 0 To iPatternNy - 1
+        For Each e In enxPattern
+          For Each flxContorno In oLoop.Polylines
+            ' este borde es nulo
+            If flxContorno.Count < 6 Then Continue
+
+
+            e.ClassHandler.scale(e, entToFill.fParam[cadHatch.ipaScale] * CorrectionScale, entToFill.fParam[cadHatch.ipaScale] * CorrectionScale)
+
+            e.ClassHandler.translate(e, nx * fPAtternSide * entToFill.fParam[cadHatch.ipaScale] * CorrectionScale + Xmenor, ny * fPAtternSide * entToFill.fParam[cadHatch.ipaScale] * CorrectionScale + ymenor)
+
+            ' ahora lo dibujo
+            ' ahora tengo que filtrar las entidades que quedan fuera del contorno y generar lineas sueltas que forman
+            ' el sombreado (por ahora seran solo lineas)
+            ' esas lineas las acumulo en un array
+
+            Select Case e.Gender
+              Case "Line", "LWPolyline"
+
+                ' nuevo: el contorno pueden ser varias polis, o sea con huecos
+
+                flxFirstPass.Insert(puntos.PolyPolyIntersection(e.p, flxContorno))
+
+                ' this is test to see if the pattern is made correctly
+                'entToFill.PolyLine.Insert(e.p.Copy())
+
+              Case "Circle", "Arc", "Ellipse"
+                ' estas entidades deben dibujarse primero
+                e.ClassHandler.MakePolyline(e, 6)
+                flxFirstPass.Insert(puntos.PolyPolyIntersection(e.PolyLine, flxContorno))
+            End Select
+
+            ' Vuelvo a la posicion original
+
+            e.ClassHandler.translate(e, -(nx * fPAtternSide * entToFill.fParam[cadHatch.ipaScale] * CorrectionScale + Xmenor), -(ny * fPAtternSide * entToFill.fParam[cadHatch.ipaScale] * CorrectionScale + ymenor))
+
+            e.ClassHandler.scale(e, 1 / entToFill.fParam[cadHatch.ipaScale] * CorrectionScale, 1 / entToFill.fParam[cadHatch.ipaScale] * CorrectionScale)
+          Next
+        Next
+
+      Next
+    Next
+
+    ' HASTA ACA LLEGO BIEN, CON EL CONTORNO PPAL LLENO
+
+
+    ' limpio los huecos
+    If oLoop.Holes.Count > 0 Then
+      For Each flxContorno In oLoop.Holes
+
+        For i = 0 To flxFirstPass.Max - 3 Step 4
+          entToFill.PolyLine.Insert(puntos.LineholeIntersection(flxFirstPass.Copy(i, 4), flxContorno))
+
+        Next
+
+      Next
+
+    Else
+
+      entToFill.PolyLine.Insert(flxFirstPass.Copy())
+    End If
+
+  Next
+
+End
+
+Public Sub GetBoundLimits2(fxlPoints As Float[])
+
+  Dim i As Integer
+
+  Xmenor = 1e10
+  Ymenor = 1e10
+  Xmayor = -1e10
+  Ymayor = -1e10
+
+  For i = 0 To fxlPoints.max Step 2
+
+    If fxlPoints[i] < Xmenor Then Xmenor = fxlPoints[i]
+
+    If fxlPoints[i + 1] < Ymenor Then Ymenor = fxlPoints[i + 1]
+
+    If fxlPoints[i] > Xmayor Then Xmayor = fxlPoints[i]
+
+    If fxlPoints[i + 1] > Ymayor Then Ymayor = fxlPoints[i + 1]
+
+  Next
+
+End

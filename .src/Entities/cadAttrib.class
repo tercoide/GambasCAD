@@ -1,1 +1,141 @@
-../../../GauchoCAD/.src/Entities/cadAttrib.class
+' Gambas class file
+
+' m-designer
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+Create Static
+' Fast
+Inherits CadText
+Public Const Gender As String = "Attrib"
+Public Const DrawingOrder As Integer = 100 ' 1 a 32.724 esto debe Drawse primero y ser sobreescrito por el resto
+Public Const PointsToDraw As Integer = 1             ' minimal point requered for drawing something usefull
+Public Const HelperTrabajo As String = ("Inserts an attirb")
+Public Const ParamType As String = "PAFT"
+Public Const ParamHelper As String = "Start point;Angle;Heigth;"      ' a little text that is shown at the prompt waiting for user input during build
+Public Const ParamDefault As String = " ; 0 ; 10 ; "
+
+Public Const sdaTag As Integer = 2
+Public Const sdaPromt As Integer = 3
+
+Public Sub Draw(oE As Entity)
+
+  If (CInt(oe.fParam[cadText.ipaTextVisibility]) And 1) = 1 Then Return ' es invisible
+  cadText.Draw(oe)
+
+End
+
+Public Sub Draw2(oE As Entity)
+
+  If (CInt(oe.fParam[cadText.ipaTextVisibility]) And 1) = 1 Then Return ' es invisible
+  cadText.Draw2(oe)
+
+End
+
+Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
+
+  Dim i As Integer
+  Dim AfterSubclassmarker As Boolean
+
+  cadText.ImportDXF(e, sClaves, sValues)
+
+  e.StringData.Add("")    ' tag
+  e.StringData.Add("")    ' promt
+
+  For i = 0 To sClaves.Max
+    If sClaves[i] = "100" And sValues[i] = "AcDbAttribute" Then AfterSubclassmarker = True
+    If AfterSubclassmarker Then ' lo siguientes codigos
+      If sClaves[i] = "3" Then e.stringdata[Me.sdaPromt] = sValues[i]
+      If sClaves[i] = "2" Then e.stringdata[Me.sdaTag] = sValues[i]
+      If sClaves[i] = "70" Then e.fParam[cadText.ipaTextVisibility] = CFloat(sValues[i])      ' FLAGS  1=invisible, 2=constante 4 = preguntar 8 = preseteado
+    End If
+  Next
+
+  Return True
+
+  ' catch
+
+  Return False
+
+End
+
+Public Sub ExportDXFCol(e As Entity, ByRef stxExport As String[]) As Boolean
+
+  cadText.ExportDXFCol(e, stxExport)
+
+  ' sobreescribo el nombre de la entidad
+  stxExport[0] = "ATTRIB"
+
+  stxExport.insert(["AcDbAttribute", "100"])
+  ' ===========================================================================
+  stxExport.insert([e.stringdata[Me.sdaPromt], "3"])
+  stxExport.insert([e.stringdata[Me.sdaTag], "2"])
+  stxExport.insert([CStr(CInt(e.fParam[cadText.ipaTextVisibility])), "70"]) ' FLAGS  1=invisible, 2=constante 4 = preguntar 8 = preseteado
+
+End
+
+' Importo los datos que puedo procesar de una coleccion y genero un Entity para ser agregado a un array
+Public Function ImportJsonCol(c As Collection, e As Entity) As Boolean
+
+  cadText.ImportJsonCol(c, e)
+
+  e.StringData[cadText.sdaText] = (c["text_value"])
+
+  Return True
+
+Catch
+
+  Return False
+
+End
+
+'    "entity": "ATTRIB",
+'    "index": 186,
+'    "type": 2,
+'    "handle": [0, 1601],
+'    "size": 81,
+'    "bitsize": 578,
+'    "ownerhandle": [8, 0, 0, 1600],
+'    "_subclass": "AcDbEntity",
+'    "prev_entity": [4, 0, 0, 0],
+'    "next_entity": [6, 0, 0, 1602],
+'    "layer": [5, 1, 6, 6],
+'    "preview_exists": 0,
+'    "entmode": 0,
+'    "nolinks": 0,
+'    "color": 4,
+'    "ltype_scale": 1.0,
+'    "ltype_flags": 1,
+'    "plotstyle_flags": 0,
+'    "invisible": 0,
+'    "linewt": 30,
+'    "_subclass": "AcDbText",
+'    "dataflags": 109,
+'    "ins_pt": [368.00000000000199, 23.9999999999996],
+'    "alignment_pt": [368.00000000000199, 25.4999999999996],
+'    "extrusion": [0.0, 0.0, 1.0],
+'    "thickness": 0.000000,
+'    "height": 3.0,
+'    "width_factor": 0.8,
+'    "text_value": "12345",
+'    "vert_alignment": 2,
+'    "_subclass": "AcDbAttribute",
+'    "tag": "TAG001",
+'    "field_length": 0,
+'    "flags": 0,
+'    "style": [5, 1, 25, 25]

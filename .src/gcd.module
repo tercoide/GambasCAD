@@ -291,7 +291,7 @@ Public Sub UpdateLineTypeCombo()
     Dim imagen As Image
     Dim Xc, Yc, i, trame, TotalTrames As Integer
     Dim LW As Float
-    Dim lty As LType
+    Dim lty As LineType
     Dim f As Float
 
     '  +------------------------------------+
@@ -347,9 +347,9 @@ Public Function UpdatDimTypeTypeCombo()
 
 End
 
-Public Function FindStyle(sName As String) As Styles
+Public Function FindStyle(sName As String) As TextStyle
 
-    Dim st As Styles
+    Dim st As TextStyle
 
     For Each st In gcd.currentDrawing.oStyles
 
@@ -361,9 +361,9 @@ Public Function FindStyle(sName As String) As Styles
 
 End
 
-Public Function FindStyleByHandle(sHandle As String) As Styles
+Public Function FindStyleByHandle(sHandle As String) As TextStyle
 
-    Dim st As Styles
+    Dim st As TextStyle
 
     For Each st In gcd.currentDrawing.oStyles
 
@@ -392,9 +392,9 @@ Public Function FindEntity(sHandle As String, Optional SearchInBlocks As Boolean
 
 End
 
-Public Function FindLType(sName As String) As LType
+Public Function FindLType(sName As String) As LineType
 
-    Dim LT As LType
+    Dim LT As LineType
 
     For Each LT In gcd.currentDrawing.oLTYpes
 
@@ -652,12 +652,6 @@ Public Function GetLayer(LayerName As String) As Layer
 
 End
 
-'' Reads vars
-Public Sub ReadVars()
-
-    'gcd.currentDrawing.UCS.Add(gcd.GetHeaderValue("ucsx"))
-
-End
 
 '' Reads layers collection and puts data in oLayers
 Public Sub ReadLayers(Optional cLayers As Collection)
@@ -698,10 +692,10 @@ Public Sub FillLayers()
 
 End
 
-'' Reads LTypes collection and puts data in arrLTypes
+'' Reads LineTypes collection and puts data in arrLTypes
 Public Sub ReadLTypes()
 
-    Dim hlty As LType
+    Dim hlty As LineType
     Dim t, i As Integer
     Dim fTrameLength As Float
     Dim sNextKey As String
@@ -709,7 +703,7 @@ Public Sub ReadLTypes()
     ' primero eliminamos lo q haya
     currentDrawing.oLTYpes.Clear
     For Each c As Collection In currentDrawing.cLtypes
-        hlty = New LType
+        hlty = New LineType
         hlty.Name = c[dxf.codName]
         hlty.Description = c["3"]
         hlty.handle = c[dxf.codHandle]
@@ -743,20 +737,20 @@ Public Sub ReadLTypes()
 
 End
 
-'' Reads Styles and DimStyles collection and puts data in arrStyles
+'' Reads TextStyle and DimStyles collection and puts data in arrStyles
 Public Sub ReadStyles()
 
-    Dim hlty As Styles
+    Dim hlty As TextStyle
     Dim t, i As Integer
     Dim fTrameLength As Float
     Dim sH2, sNextKey As String
-    Dim RefStyle As Styles
+    Dim RefStyle As TextStyle
 
     ' primero eliminamos lo q haya
     currentDrawing.oStyles.Clear
-    ' Leo los styles de texto
+    ' Leo los TextStyle de texto
     For Each c As Collection In gcd.currentDrawing.cModel["TABLES"]["STYLE"]
-        hlty = New Styles
+        hlty = New TextStyle
 
         hlty.Name = c[dxf.codName]
         hlty.handle = c[dxf.codHandle]
@@ -772,9 +766,9 @@ Public Sub ReadStyles()
         currentDrawing.oStyles.Add(hlty, sh2)
 
     Next
-    ' Leo lo styles de dimensiones
+    ' Leo lo TextStyle de dimensiones
     For Each c As Collection In gcd.currentDrawing.cModel["TABLES"]["DIMSTYLE"]
-        hlty = New Styles
+        hlty = New TextStyle
 
         hlty.Name = c[dxf.codName]
         If IsNull(c[dxf.codHandle]) Then
@@ -931,50 +925,50 @@ End
 '
 ' End
 
-Public Sub UpdateModel()
-
-    Dim ent As Entity
-    Dim dxfExporting As Boolean
-    Dim cNewEntity As Collection
-    Dim sNewHandle As String
-    Dim iHandle As Integer
-
-    For Each ent In currentDrawing.arrEntities
-
-        dxfExporting = False               ' Supongo que la clase todvia no esta lista
-
-        ' ' la primera verificacion que hago es ver si la entidad es de un insert, entonces no se guarda
-
-        ' Esto puede fallar en caso q no este lista, por eso el Try
-        Try dxfExporting = ent.ClassHandler.DXF_Export
-
-        If dxfExporting Then               ' La clase esta lista para crear/editar JSON
-
-            ' Verifico si la entidad ya existe en cModel, o fue creada por el usuario graficamente
-            If currentDrawing.cEntities.Exist(ent.Handle) Then
-
-                ' Ya existe, la vacio
-                cNewEntity = New Collection
-                currentDrawing.cEntities.Add(cNewEntity, ent.Handle)
-
-                ent.ClassHandler.ExportDXFCol(ent, currentDrawing.cEntities[ent.Handle])
-
-            Else
-                ' No existe, debemos crear la entrada
-                cNewEntity = New Collection
-                sNewHandle = NewHandle()
-                ' iHandle = currentDrawing.cModel["AuxHeader"]["HANDSEED"]
-                currentDrawing.cEntities.Add(cNewEntity, sNewHandle)
-                ent.Handle = sNewHandle
-
-                ent.ClassHandler.ExportDXFCol(ent, currentDrawing.cEntities[sNewHandle])
-
-            End If
-        End If
-
-    Next
-
-End
+' Public Sub UpdateModel()
+'
+'     Dim ent As Entity
+'     Dim dxfExporting As Boolean
+'     Dim cNewEntity As Collection
+'     Dim sNewHandle As String
+'     Dim iHandle As Integer
+'
+'     For Each ent In currentDrawing.arrEntities
+'
+'         dxfExporting = False               ' Supongo que la clase todvia no esta lista
+'
+'         ' ' la primera verificacion que hago es ver si la entidad es de un insert, entonces no se guarda
+'
+'         ' Esto puede fallar en caso q no este lista, por eso el Try
+'         Try dxfExporting = ent.ClassHandler.DXF_Export
+'
+'         If dxfExporting Then               ' La clase esta lista para crear/editar JSON
+'
+'             ' Verifico si la entidad ya existe en cModel, o fue creada por el usuario graficamente
+'             If currentDrawing.cEntities.Exist(ent.Handle) Then
+'
+'                 ' Ya existe, la vacio
+'                 cNewEntity = New Collection
+'                 currentDrawing.cEntities.Add(cNewEntity, ent.Handle)
+'
+'                 ent.ClassHandler.ExportDXFCol(ent, currentDrawing.cEntities[ent.Handle])
+'
+'             Else
+'                 ' No existe, debemos crear la entrada
+'                 cNewEntity = New Collection
+'                 sNewHandle = NewHandle()
+'                 ' iHandle = currentDrawing.cModel["AuxHeader"]["HANDSEED"]
+'                 currentDrawing.cEntities.Add(cNewEntity, sNewHandle)
+'                 ent.Handle = sNewHandle
+'
+'                 ent.ClassHandler.ExportDXFCol(ent, currentDrawing.cEntities[sNewHandle])
+'
+'             End If
+'         End If
+'
+'     Next
+'
+' End
 
 Public Function iHeader(VarName As String) As Integer
 

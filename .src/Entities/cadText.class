@@ -1,1 +1,397 @@
-../../../GauchoCAD/.src/Entities/cadText.class
+' Gambas class file
+
+' m-designer
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+Create Static
+' Fast
+Inherits EntityBase
+
+Public Const Gender As String = "Text"
+Public Const DrawingOrder As Integer = 100 ' 1 a 32.724 esto debe Drawse primero y ser sobreescrito por el resto
+Public Const PointsToDraw As Integer = 1             ' minimal point requered for drawing something usefull
+Public Const HelperTrabajo As String = ("Inserts a text")
+Public Const ParamType As String = "PAFT"
+Public Const ParamHelper As String = "Start point;Angle;Heigth;"      ' a little text that is shown at the prompt waiting for user input during build
+Public Const ParamDefault As String = " ; 0 ; 10 ; "
+
+' fParam helpers
+Public Const TotalParams As Integer = 13
+Public Const ipaTextHeight As Integer = 0
+Public Const ipaTextAngle As Integer = 1
+Public Const ipaGenerationFlags As Integer = 2
+Public Const ipaHorizJustif As Integer = 3
+Public Const ipaVertJustif As Integer = 4
+Public Const ipaRelativeFactor As Integer = 5
+Public Const ipaHorizAngle As Integer = 6
+Public Const ipaTextVisibility As Integer = 7
+Public Const ipaAttchmPoint As Integer = 8
+Public Const ipaRectangleWidth As Integer = 9
+Public Const ipaDrawingDirec As Integer = 10
+Public Const ipaBackFillType As Integer = 11
+Public Const ipaBackColor As Integer = 12
+
+' stringdata helpers
+Public Const sdaTotalParams As Integer = 2
+Public Const sdaText As Integer = 0
+Public Const sdaStyle As Integer = 1
+Public Const TotalPoints As Integer = 1 ' 2021 cambie esto
+
+' The entity handler receives a user action, and returns the number of expected parameter
+' If definitive = true, means the parameter is set
+Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
+
+  Dim f As Float
+  Dim ip As Integer
+
+  If Me.StepsDone = 0 Then  '  posicion
+
+    If vParam[0] <> "point" Then Return Me.StepsDone
+
+    Try eBuild.P[0] = vParam[1]
+    Try eBuild.P[1] = vParam[2]
+
+    If definitive Then
+
+      Return True
+    End If
+  Else If Me.StepsDone = 1 Then ' angulo del texto
+
+    If vParam[0] <> "float" Then Return False
+
+    eBuild.fParam[Me.ipaTextAngle] = vParam[1]
+
+    If definitive Then Return True
+
+  Else If Me.StepsDone = 2 Then   ' altura
+
+    If vParam[0] <> "float" Then Return False
+
+    eBuild.fParam[Me.ipaTextHeight] = vParam[1]
+
+    If definitive Then Return True
+
+  Else If Me.StepsDone = 3 Then    ' texto
+
+    If vParam[0] <> "text" Then Return False
+
+    eBuild.StringData[0] = vParam[1]
+
+    If definitive Then Return True
+
+  Else
+    Return False
+  End If
+
+End
+
+Public Sub Translate(e As Entity, dX As Float, dY As Float, Optional OnlySelected As Boolean = False)
+
+  Dim i As Integer
+
+  If OnlySelected Then
+
+    For i = 0 To e.Psel.Max
+      If e.Psel[i] Then
+
+        e.P[i * 2] += dx
+        e.P[i * 2 + 1] += dy
+
+      Endif
+    Next
+
+  Else
+
+    puntos.Translate(e.p, dx, dy)
+  Endif
+
+  'CreatePolygon(e)
+  BuildPOI(e)
+
+End
+
+Public Sub Rotate(e As Entity, radians As Float)
+
+  puntos.Rotate(e.P, radians)
+
+  ' el parametro lo tengo que pasar a grados porque la rutina que dibuja el texto usa eso
+  E.fParam[Me.ipaTextAngle] += radians * 180 / Pi
+
+  'CreatePolygon(e)
+  BuildPOI(e)
+
+End
+
+Public Sub Scale(e As Entity, sX As Float, sY As Float)
+
+  Dim i As Integer
+
+  E.fParam[Me.ipaTextHeight] *= sY
+  For i = 0 To e.p.max Step 2
+
+    e.P[i] = e.P[i] * sX
+    e.P[i + 1] = e.P[i + 1] * sY
+
+  Next
+
+  'CreatePolygon(e)
+  BuildPOI(e)
+
+End
+
+Public Sub Draw(oE As Entity)
+
+  If Not oE.Visible Then Return
+
+  ' Debug oE.stringdata[0]
+  Dim s2 As String
+
+  s2 = oE.stringdata[Me.sdaText]
+  s2 = Replace(s2, "%%D", "°", gb.IgnoreCase)
+  s2 = Replace(s2, "%%P", "±", gb.IgnoreCase)
+  s2 = Replace(s2, "%%C", "∅", gb.IgnoreCase)
+
+  glPlus.DrawText(s2, oE.p[0], oE.p[1], oE.fParam[Me.ipaTextAngle], oE.fParam[Me.ipaTextHeight], gcd.GetGBColor(oE.Colour, oe.pLayer))
+
+End
+
+'' A fat version of the line
+Public Sub DrawSelected(oE As Entity)
+
+  GLplus.Polygon(oE.Polygon, config.ColorForSelected, oE.LineWidth, gcd.stiDashed)
+
+End
+
+'' A fat version of the line
+Public Sub DrawRemark(oE As Entity)
+
+  If Not oE.Visible Then Return
+
+  GLplus.Polygon(oE.Polygon, gcd.GetGBColor(oE.Colour, oe.pLayer), oE.LineWidth, gcd.stiDashed)
+
+End
+
+Public Function Draw2(oE As Entity)
+
+  If Not oE.Visible Then Return
+
+  Dim angulo As Float, hText As New PaintExtents, lText As String
+  Dim FontScalePrev As Float
+
+  ' angulo = oE.fParam[Me.ipaTextAngle] / 180 * Pi    ' ojo OPENGL--> GRADOS, GAMBAS-->RADIANESDXF
+  '
+  ' htext = paint.TextExtents(oe.StringData[Me.sdaText])
+  ' paint.save
+  ' paint.Translate(oE.p[0], oE.p[1])
+  ' paint.Rotate(-angulo)
+  ' paint.Scale(1, -1)
+  ' Paint.Font.Size = oe.fParam[Me.ipaTextHeight] / gcd.PrintingScale * 2
+  ' 'paint.DrawText(oe.StringData[Me.sdaText])
+  paintPlus.DrawText(oe.StringData[Me.sdaText], oE.p[0], oE.p[1], -angulo, oe.fParam[Me.ipaTextHeight])
+
+  paint.Stroke
+
+  ' paint.Restore
+
+End
+
+'' Creo los puntos de interes
+'' Build point of interest
+
+Public Function BuildPOI(oE As Entity) As Integer
+
+  ' si este valor no es provisto , estos POI son de la ultima entidad
+
+  oe.PoiPoints.Clear
+  oe.PoiType.Clear
+
+  ' points
+  oe.poiPoints.insert([oE.p[0], oE.p[1]])
+  oe.poiType.Add(gcd.poiBasePoint)
+  'oe.poiEntities.Add(arrIndex)
+
+  ' line
+
+  ' Polygon
+
+  Dim tRect As New Float[], poli As New Float[]
+
+  tRect = glPlus.TextExtends(oE.stringdata[Me.sdaText], oE.fParam[Me.ipaTextHeight])
+  poli.Insert([0, 0, tRect[0], 0, tRect[0], tRect[1], 0, tRect[1]]) ' armo el poligono , que ya tiene la escala
+  puntos.Rotate(Poli, oE.fParam[Me.ipaTextAngle] * Pi / 180)
+  puntos.Translate(Poli, oE.P[0], oE.P[1])
+
+  oe.Polygon.Clear
+  oe.Polygon.Insert(poli)
+
+End
+
+Public Sub ExportDXFCol(e As Entity, ByRef stxExport As String[]) As Boolean
+
+  ' stxExport.insert(["TEXT", dxf.codEntity])
+  ' Los datos comunes a todas las entidades son guardados por la rutina que llama a esta
+  stxExport.insert(["AcDbText", "100"])
+
+  stxExport.insert([CStr(e.p[0]), dxf.codX0])                    ' insertion point
+  stxExport.insert([CStr(e.p[1]), dxf.codY0])
+  stxExport.insert(["0", dxf.codZ0])
+
+  stxExport.insert([CStr(e.fParam[Me.ipaTextHeight]), "40"])      ' heigth
+  stxExport.insert([e.stringdata[Me.sdaText], "1"])             ' Text
+  stxExport.insert([CStr(e.fParam[Me.ipaTextAngle]), "50"])       ' rotation
+
+  stxExport.insert(["1", "41"])
+  stxExport.insert(["0", "51"])
+  stxExport.insert([e.StringData[Me.sdaStyle], "7"])             ' text style
+  stxExport.insert([e.fParam[Me.ipaGenerationFlags], "71"])      ' generation flags
+  stxExport.insert([e.fParam[Me.ipaHorizJustif], "72"])          ' horiz justiff
+
+  If e.P.Count = 4 Then   ' some DXF come with z, some with
+    stxExport.insert([CStr(e.p[2]), dxf.codX1])                    ' second point
+    stxExport.insert([CStr(e.p[3]), dxf.codY1])
+    stxExport.insert(["0", dxf.codZ1])
+  End If
+  stxExport.insert(["0", "210"])                                 ' extrusion direction
+  stxExport.insert(["0", "220"])
+  stxExport.insert(["1", "230"])
+
+  stxExport.insert(["AcDbText", "100"])
+
+  stxExport.insert([e.fParam[Me.ipaVertJustif], "73"])
+
+End
+
+Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
+
+  Dim i As Integer
+
+  For i = 0 To sClaves.Max
+
+    If sClaves[i] = "10" Then e.p[0] = (CFloat(sValues[i]))         ' X0
+    If sClaves[i] = "20" Then e.P[1] = (CFloat(sValues[i]))         ' Y0
+
+    ' el segundo punto es alternativo
+    If sClaves[i] = "11" Then e.p.Add((CFloat(sValues[i])))         ' X1
+    If sClaves[i] = "21" Then e.P.Add((CFloat(sValues[i])))         ' Y1
+
+    If sClaves[i] = "40" Then e.fParam[Me.ipaTextHeight] = CFloat(sValues[i])         ' Altura
+    If sClaves[i] = "1" Then e.StringData[Me.sdaText] &= sValues[i]                ' Texto
+    ' Importante , el TEXT no tiene code 3 para mas texto
+
+    If sClaves[i] = "50" Then e.fParam[Me.ipaTextAngle] = CFloat(sValues[i])      ' rotacion
+    If sClaves[i] = "7" Then e.StringData[Me.sdaStyle] = sValues[i]                ' texy
+    If sClaves[i] = "41" Then e.fParam[Me.ipaRelativeFactor] = CFloat(sValues[i])
+    If sClaves[i] = "51" Then e.fParam[Me.ipaHorizAngle] = CFloat(sValues[i])
+    If sClaves[i] = "71" Then e.fParam[Me.ipaGenerationFlags] = CInt(sValues[i])
+    If sClaves[i] = "72" Then e.fParam[Me.ipaHorizJustif] = CFloat(sValues[i])
+    If sClaves[i] = "73" Then e.fParam[Me.ipaVertJustif] = CFloat(sValues[i])
+  Next
+
+  If e.StringData[Me.sdaStyle] = "" Then e.StringData[Me.sdaStyle] = "STANDARD"
+
+  Return True
+
+  ' catch
+
+  Return False
+
+End
+
+' Importo los datos que puedo procesar de una coleccion y genero un Entity para ser agregado a un array
+Public Function ImportJsonCol(c As Collection, e As Entity) As Boolean
+
+  e.P.Clear
+  e.P.Add(c["ins_pt"][0])
+  e.P.Add(c["ins_pt"][1])
+  e.StringData[Me.sdaText] = c["text_value"]
+
+  ' FIXME: reparar esto
+  e.fParam[Me.ipaTextAngle] = 0 ' CFloat(c["angle"]) ' Angulo en grados
+
+  e.fParam[Me.ipaTextHeight] = CFloat(c["height"])
+
+  Return True
+
+  'Catch
+
+  Return False
+
+End
+
+' "entity": "TEXT",
+'   "index": 4952,
+'   "type": 1,
+'   "handle": [0, 1732338],
+'   "size": 105,
+'   "bitsize": 747,
+'   "eed": [
+'     {
+'       "size": 17,
+'       "handle": [5, 165032],
+'       "code": 70,
+'       "value": 1
+'     },
+'     {
+'       "code": 71,
+'       "value": 3
+'     },
+'     {
+'       "code": 5,
+'       "value": [5, 0]
+'     }
+'   ],
+'   "ownerhandle": [4, 3, 302561, 302561],
+'   "_subclass": "AcDbEntity",
+'   "layer": [5, 3, 302596, 302596],
+'   "preview_exists": 0,
+'   "entmode": 0,
+'   "is_xdic_missing": 1,
+'   "has_ds_data": 0,
+'   "color": {
+'     "index": 8,
+'     "rgb": "c2828282",
+'     "flag": 128
+'   },
+'   "ltype_scale": 1.0,
+'   "ltype_flags": 0,
+'   "plotstyle_flags": 0,
+'   "material_flags": 0,
+'   "shadow_flags": 0,
+'   "has_full_visualstyle": 0,
+'   "has_face_visualstyle": 0,
+'   "has_edge_visualstyle": 0,
+'   "invisible": 0,
+'   "linewt": 4,
+'   "_subclass": "AcDbText",
+'   "dataflags": 238,
+'   "elevation": 0.00000000037563,
+'   "ins_pt": [1214.16570189001459, -1542.31558282515834],
+'   "extrusion": [0.0, 0.0, 1.0],
+'   "thickness": 0.000000,
+'   "height": 1.01828571428571,
+'   "width_factor": 0.8,
+'   "text_value": "FECHA",
+'   "style": [5, 2, 1466, 1466]
+
+'' Return if that position is over the entity within the tolerance
+Public Function OverMe(e As Entity, Xr As Float, Yr As Float, tolerance As Float) As Boolean
+
+  Return False
+
+End

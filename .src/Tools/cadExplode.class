@@ -1,0 +1,132 @@
+' Gambas class file
+
+' m-designer
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+
+Inherits ToolsBase
+Create Static
+Public Const Gender As String = "Explode"
+
+Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer = 0) As Boolean
+
+  ' Aprovechamos para establecer los helpers (comentarios de ayuda en pantalla)
+
+  Dim i As Integer
+  Dim e As Entity
+
+  DrawingAids.HelperTrabajo = ("Explode") & " "
+
+  If gcd.CurrentDrawing.oSelected.Count = 0 Then                                     ' we have no elements in the selection
+
+    DrawingAids.Helper.texto = DrawingAids.HelperTrabajo & ": " & ("Select blocks")
+
+    gcd.clsJobPrevious = Me
+    gcd.clsJob = cadSelection
+
+  Else                                                                    ' EXPLOTA !!!
+
+    For i = 0 To gcd.CurrentDrawing.oEntities
+
+      e = gcd.CurrentDrawing.oEntities[i]
+      If e.Selected Then
+        Select e.Gender
+          Case "Insert", "Dimension"
+            ' tengo q crear todas lass entidades del bloque que lo conforma
+            ' y eliminar el Insert o Dimension
+            ' para ello debo seguir el mismo metodo con que los dibujo
+
+            Me.Explode_List(e.pBlock.entities, e)
+
+            e = Null
+          Case Else
+            ' no tengo que borrarla
+            e.Selected = False
+
+            'e.pBlock = Null
+
+        End Select
+      End If
+    Next
+    clsEntities.DeleteSelected()
+
+    Me.Finish
+
+  Endif
+
+  gcd.ToolActive = True
+
+End
+
+Public Sub Explode_List(eList As Entity[], eParent As Entity, Optional InsertionPlace As Integer = 0, ExplodeInserts As Boolean = False)
+  'insertion place:
+  ' 0 = entity.P[0],[1]
+  ' 1 = entity.pBlock.entities.P[0],[1]
+  ' 2 = entity.pBlock.x0,y0
+
+  Dim et, etnew As Entity
+
+  ' gl.PushMatrix
+  ' If InsertionPlace = 0 Then
+  '     gl.Translatef(fMain.pixels(eParent.p[0]) / gcd.CurrDrawing.ScaleZoom, fMain.pixels(eParent.p[1]) / gcd.CurrDrawing.ScaleZoom, 0)
+  ' Else If InsertionPlace = 1 Then
+  '     ' absolute coordinate, so each entity has its own position
+  '     ' nothing to translate
+  ' Else If InsertionPlace = 2 Then
+  '     gl.Translatef(fMain.pixels(eParent.pBlock.x0) / gcd.CurrDrawing.ScaleZoom, fMain.pixels(eParent.pBlock.y0) / gcd.CurrDrawing.ScaleZoom, 0)
+  '
+  ' End If
+  '
+  ' gl.Rotatef(eParent.fParam[Me.ipaRotacion], 0, 0, 1)
+  '
+  ' gl.Scalef(eParent.fParam[Me.ipaEscX], eParent.fParam[Me.ipaEscY], eParent.fParam[Me.ipaEscZ])
+
+  For Each ET In eList
+
+    If (et.Gender = "Insert") And ExplodeInserts Then
+
+      If et.pBlock Then Explode_List(et.pBlock.entities, et,, ExplodeInserts)
+
+    Else
+
+      If et.Gender <> "EndBlk" Then
+
+        ' creo una entidad nueva
+        etnew = clsEntities.ClonEntity(et)
+        etnew.visible = True
+        etnew.LineType = eParent.LineType
+        etnew.colour = eParent.colour
+        etnew.LineWidth = eParent.LineWidth
+
+        etnew.ClassHandler.Scale(etnew, eParent.fParam[cadInsert.ipaEscX], eParent.fParam[cadInsert.ipaEscY])
+        etnew.ClassHandler.Rotate(etnew, eParent.fParam[cadInsert.ipaRotacion])
+        If InsertionPlace = 0 Then
+          etnew.ClassHandler.translate(etnew, eParent.p[0], eParent.p[1])
+        End If
+
+        etnew.ClassHandler.Finish(etnew)
+
+        gcd.CurrentDrawing.oEntities.Add(etnew)
+      End If
+    End If
+
+  Next
+  ' gl.PopMatrix
+
+End

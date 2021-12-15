@@ -1,1 +1,128 @@
-../../../GauchoCAD/.src/Entities/cadPolygon.class
+' Gambas class file
+
+' m-designer
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+Create Static
+'Fast
+Inherits CadLWpolyline
+
+Public Const Gender As String = "Polygon"
+Public Const DrawingOrder As Integer = 1        ' 1 = draws first
+Public Const HelperTrabajo As String = ("a polygon")
+Public Const ParamType As String = "FPL"
+Public Const ParamHelper As String = "Sides;Start point;End point"
+Public Const GAMBASCADENTITY As String = "EntityBase"
+Public Const USEWITH As String = "EntityBuilder"
+Public Const PointsToDraw As Integer = 1             ' minimal point requered for drawing something usefull
+Public Const OrthogonalIgnored As Boolean = False
+Public Const OrthogonalForced As Boolean = False
+Public Const ParamDefault As String = "5; ; "
+Public Const StretchAble As Boolean = True           ' Si lo puedo deformar
+
+' The entity handler receives a user action, and returns the number of expected parameter
+' If definitive = true, means the parameter is set
+Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
+
+  Dim f As Float
+  Dim ip As Integer
+
+  If Me.StepsDone = 0 Then                    ' lados
+    If vParam[0] <> "float" Then Return
+
+    eBuild.iParam[0] = vParam[1]
+    eBuild.fParam.Add(0)
+    If definitive Then Return True
+
+  Else If Me.StepsDone = 1 Then               ' centro del poligono
+
+    If vParam[0] <> "point" Then Return
+
+    Try eBuild.P[0] = vParam[1]
+    Try eBuild.P[1] = vParam[2]
+
+    If definitive Then Return True
+
+  Else If Me.StepsDone = 2 Then               ' lados
+
+    If vParam[0] <> "float" Then Return False
+
+    eBuild.fParam[0] = vParam[1]
+
+    If definitive Then Return True
+
+  Else
+    Return False
+  End If
+
+End
+
+Public Sub Draw(oE As Entity)
+  ' This entity becomes a LWPolyline after creation.
+
+  If Not oE.Visible Then Return
+
+  Dim angle, xangle, x, y, z, r As Float
+  Dim i As Integer
+
+  If oe.iParam[0] < 3 Then Return
+  r = oe.fParam[0]
+  xangle = 3.1415927 / oe.iParam[0]
+  oe.Polygon.Clear
+  For i = 0 To oe.iParam[0] * 2 - 1 Step 2
+
+    angle = xangle * i
+    oe.Polygon.Add(r * Cos(angle) + oe.P[0])
+    oe.Polygon.Add(r * Sin(angle) + oe.P[1])
+
+  Next
+  oe.Polygon.Add(oe.Polygon[0])
+  oe.Polygon.Add(oe.Polygon[1])
+
+  GLplus.Polygon(oE.Polygon, gcd.GetGBColor(oE.Colour, oe.pLayer), oE.LineWidth, oE.LineType.index)
+
+End
+
+' This function will return False if the element couldn't be created for some reason: bad or incomple user input
+' True means all is good, False will instruct the clsEntityBuilder to delete it
+Public Sub Finish(oE As Entity) As Boolean
+
+  ' aca vamos a trasnformar la entidad en una polilinea
+
+  oe.ClassHandler = cadLWPolyline
+  oe.gender = oe.ClassHandler.Gender
+
+  Dim w, h As Float
+  Dim i As Integer
+  oe.P.Clear
+  For i = 0 To oe.Polygon.Max
+    oe.P.Add(oe.Polygon[i])
+  Next
+
+  cadLWPolyline.BuildPOI(oe)
+
+  ' busco el tipo de linea, si hace falta
+
+  ' tareas finales de armado del objeto
+
+  oE.psel.resize(oE.p.count / 2)
+
+  oE.Selected = False
+
+End

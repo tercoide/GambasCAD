@@ -1,1 +1,168 @@
-../../../GauchoCAD/.src/Entities/cadPolyline.class
+' Gambas class file
+
+' m-designer
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+Create Static
+'Fast
+Inherits CadLWPolyline
+
+Public Const Gender As String = "Polyline"
+Public Const DrawingOrder As Integer = 1        ' 1 = draws first
+Public Const HelperTrabajo As String = ("a polyline of segments")
+
+' The entity handler receives a user action, and returns the number of expected parameter
+' If definitive = true, means the parameter is set
+Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
+
+  If Me.StepsDone = 0 Then
+
+    Try eBuild.P[0] = vParam[1]
+    Try eBuild.P[1] = vParam[2]
+
+    If definitive Then Return True
+
+  Endif
+
+End
+
+Public Sub Draw(oE As Entity)
+
+  Dim ePart As Entity
+
+  If Not oE.Visible Then Return
+
+  ' construyo una poliliea
+  oe.PolyLine.Clear
+  For Each ePart In oe.pBlock.entities
+    If ePart.Gender Like "Vertex*" Then
+      oe.PolyLine.Add(ePart.P[0])
+      oe.PolyLine.Add(ePart.P[1])
+    End If
+  Next
+  ' If oe.PolyLine.Count > 0 Then
+  '   If (oe.PolyLine[oe.PolyLine.max] = oe.PolyLine[1]) And (oe.PolyLine[oe.PolyLine.max - 1] = oe.PolyLine[0]) Then
+  '
+  '     Print "Poly cerradita"
+  '   Else
+  '     Print "Poly abierta"
+  '
+  '   Endif
+  ' End If
+  glPlus.PolyLines(oe.PolyLine, gcd.GetGBColor(oE.Colour, oe.pLayer), oE.LineWidth, oE.LineType.index, oe.iParam[Me.iiiPolylineClosed] And 1)
+
+End
+
+'' The paint version of the entity
+Public Function Draw2(oE As Entity)
+
+  paintPlus.Lines(oe.PolyLine)
+
+End
+
+'' Creo los puntos de interes
+'' Build point of interest
+
+Public Function BuildPOI(oE As Entity) As Integer
+
+  ' si este valor no es provisto , estos POI son de la ultima entidad
+
+  oe.PoiPoints.Clear
+  oe.PoiType.Clear
+
+  ' points: end-mid-end
+  oe.poiPoints.insert([oE.p[0], oE.p[1]])
+  oe.poiType.Add(gcd.poiEndPoint)
+
+End
+
+Public Sub ExportDXFCol(e As Entity, ByRef stxExport As String[]) As Boolean
+
+
+  ' stxExport.insert(["POLYLINE", dxf.codEntity])
+  ' Los datos comunes a todas las entidades son guardados por la rutina que llama a esta
+  stxExport.insert(["AcDb3dPolyline", "100"])
+  stxExport.insert([CStr(e.p[0]), dxf.codX0])
+  stxExport.insert([CStr(e.p[1]), dxf.codY0])
+  stxExport.insert(["0", DXF.codZ0])
+  stxExport.insert([CStr(e.fParam[0]), "39"])
+  stxExport.insert([CStr(e.iParam[Me.iiiPolylineClosed]), "70"])
+
+  ' AHORA VAN LOS PUNTOS
+  Dim e2 As Entity
+  For Each e2 In e.pBlock.entities
+    clsEntities.DXFExportCommonCol(e2, stxExport)
+    e2.ClassHandler.ExportDXFCol(e2, stxExport)
+  Next
+
+End
+
+Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
+
+  Dim i As Integer
+
+  e.P.Clear
+  For i = 0 To sClaves.Max
+
+    If sClaves[i] = "10" Then e.P.Add(CFloat(sValues[i]))
+    If sClaves[i] = "20" Then e.P.Add(CFloat(sValues[i]))
+    'If sClaves[i] = "30" Then e.P.Add(CFloat(sValues[i]))
+    'If sClaves[i] = "39" Then e.fParam.Add(CFloat(sValues[i]))
+
+    If sClaves[i] = "70" Then e.iParam[Me.iiiPolylineClosed] = CInt(sValues[i])
+
+
+  Next
+  Return True
+
+  ' catch
+
+  Return False
+
+End
+
+Public Function ImportJsonCol(c As Collection, e As Entity) As Boolean
+
+  Dim i As Integer
+
+  e.P.Clear
+
+  ' FIXME: esto indica si es abierta o cerrada
+  'If (CInt(c["flag"]) And 1) = 1 Then e.iParam[Me.iiiPolylineClosed] = 1
+
+  Return True
+
+  'Catch
+
+  Return False
+
+End
+
+'' Return if that position is over the entity within the tolerance
+Public Function OverMe(e As Entity, Xr As Float, Yr As Float, tolerance As Float) As Boolean
+
+  Dim i As Integer
+
+  For i = 0 To E.PolyLine.count - 4 Step 2
+    If puntos.doIntersect(xr - tolerance, Yr, Xr + tolerance, Yr, E.PolyLine[i + 0], E.PolyLine[i + 1], E.PolyLine[i + 2], E.PolyLine[i + 3]) Or puntos.doIntersect(xr, Yr - tolerance, Xr, Yr + tolerance, E.PolyLine[i + 0], E.PolyLine[i + 1], E.PolyLine[i + 2], E.PolyLine[i + 3]) Then Return True
+  Next
+
+  Return False
+
+End

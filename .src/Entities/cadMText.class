@@ -1,1 +1,847 @@
-../../../GauchoCAD/.src/Entities/cadMText.class
+' Gambas class file
+
+' m-designer
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+Create Static
+' Fast
+Inherits CadText
+Public Const Gender As String = "MText"
+Public Const DrawingOrder As Integer = 100 ' 1 a 32.724 esto debe Drawse primero y ser sobreescrito por el resto
+Public Const PointsToDraw As Integer = 1             ' minimal point requered for drawing something usefull
+Public Const HelperTrabajo As String = ("Inserts a multiline text")
+Public Const ParamType As String = "PAFT"
+Public Const ParamHelper As String = "Start point;Angle;Heigth;"     ' a little text that is shown at the prompt waiting for user input during build
+Public Const ParamDefault As String = " ; 0 ; 10 ; "
+
+' esto es para texto RTF o complejos
+Private Printing As Boolean
+
+Private TextAngle As Float
+
+Private TextLines As New String[]
+Private TextHeigth As New Float[]
+Private TextPosX As New Float[]
+Private TextBoxWidth As New Float[]
+Private TextPosY As New Float[]
+Private TextBoxHeight As New Float[]
+Private TextAlignment As New Integer[]
+Private TextFont As New String[]
+Private TextBold As New Boolean[]
+
+Private CurrentTextLines As String
+Private CurrentTextHeigth As Float
+Private CurrentTextPosX As Float
+Private CurrentTextBoxWidth As Float
+Private CurrentTextPosY As Float
+Private CurrentTextBoxHeight As Float
+Private CurrentTextAlignment As Integer
+Private CurrentTextFont As String
+Private CurrentTextBold As Boolean
+Private CurrentTextItalic As Boolean
+Private CurrentTextCrossed As Boolean
+Private CurrentTextAngle As Float
+Private CurrentTextColor As Integer
+
+Private LastTextLengh As Integer
+
+' to create the contour
+
+Public MyPolygon As New Float[]
+
+' The entity handler receives a user action, and returns the number of expected parameter
+' If definitive = true, means the parameter is set
+Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
+
+  Dim f As Float
+  Dim ip As Integer
+
+  If Me.StepsDone = 0 Then  '  posicion
+
+    If vParam[0] <> "point" Then Return False
+
+    Try eBuild.P[0] = vParam[1]
+    Try eBuild.P[1] = vParam[2]
+
+    If definitive Then Return True
+
+  Else If Me.StepsDone = 1 Then ' angulo del texto
+
+    If vParam[0] <> "float" Then Return False
+
+    eBuild.fParam[Me.ipaTextAngle] = vParam[1]
+    eBuild.fParam[Me.ipaAttchmPoint] = 0
+    eBuild.fParam[Me.ipaDrawingDirec] = 0
+
+    If definitive Then Return True
+
+  Else If Me.StepsDone = 2 Then   ' altura
+
+    If vParam[0] <> "float" Then Return False
+
+    eBuild.fParam[Me.ipaTextHeight] = vParam[1]
+
+    If definitive Then Return True
+
+  Else If Me.StepsDone = 3 Then    ' texto
+
+    If vParam[0] <> "text" Then Return False
+
+    eBuild.stringdata[Me.sdaText] = vParam[1]
+
+    If definitive Then Return True
+
+  Else
+    Return False
+  End If
+
+End
+
+Public Sub Translate(e As Entity, dX As Float, dY As Float, Optional OnlySelected As Boolean = False)
+
+  Dim i As Integer
+
+  If OnlySelected Then
+
+    For i = 0 To e.Psel.Max
+      If e.Psel[i] Then
+
+        e.P[i * 2] += dx
+        e.P[i * 2 + 1] += dy
+
+      Endif
+    Next
+
+  Else
+
+    puntos.Translate(e.p, dx, dy)
+  Endif
+
+  CreatePolygon(e)
+  BuildPOI(e)
+
+End
+
+Public Sub Rotate(e As Entity, radians As Float)
+
+  puntos.Rotate(e.P, radians)
+
+  ' el parametro lo tengo que pasar a grados porque la rutina que dibuja el texto usa eso
+  E.fParam[Me.ipaTextAngle] += radians * 180 / Pi
+
+  CreatePolygon(e)
+  BuildPOI(e)
+
+End
+
+Public Sub Scale(e As Entity, sX As Float, sY As Float)
+
+  Dim i As Integer
+
+  E.fParam[Me.ipaTextHeight] *= sY
+  For i = 0 To e.p.max Step 2
+
+    e.P[i] = e.P[i] * sX
+    e.P[i + 1] = e.P[i + 1] * sY
+
+  Next
+
+  CreatePolygon(e)
+  BuildPOI(e)
+
+End
+
+'' A fat version of the line
+Public Sub DrawSelected(oE As Entity)
+
+  GLplus.Polygon(oE.Polygon, config.ColorForSelected, oE.LineWidth, gcd.stiDashed)
+
+End
+
+'' A fat version of the line
+Public Sub DrawRemark(oE As Entity)
+
+  If Not oE.Visible Then Return
+
+  GLplus.Polygon(oE.Polygon, gcd.GetGBColor(oE.Colour, oe.pLayer), oE.LineWidth, gcd.stiDashed)
+
+End
+
+Public Function Draw2(oE As Entity)
+
+  Printing = True
+  Draw(oe)
+  Printing = False
+
+End
+
+Public Sub CreatePolygon(oE As Entity)
+
+  Dim tRect As New Float[]
+
+  oE.Polygon.Clear
+
+  ' tRect = glPlus.MTextExtends(oE.stringdata[Me.sdaText], oE.p[0], oE.p[1], oE.fParam[Me.ipaTextHeight])
+
+  ' armo el poligono , que ya tiene la escala
+  If Abs(Me.MyPolygon[0]) > 1e9 Then Return
+  oE.Polygon.Insert([Me.MyPolygon[0], Me.MyPolygon[1]])
+  oE.Polygon.Insert([Me.MyPolygon[0], Me.MyPolygon[3]])
+  oE.Polygon.Insert([Me.MyPolygon[2], Me.MyPolygon[3]])
+  oE.Polygon.Insert([Me.MyPolygon[2], Me.MyPolygon[1]])
+
+  ' puntos.Rotate(oE.Polygon, oE.fParam[0] * Pi / 180)
+  ' puntos.Translate(oE.Polygon, oE.P[0], oE.P[1])
+
+End
+'' Creo los puntos de interes
+'' Build point of interest
+
+Public Function BuildPOI(oE As Entity) As Integer
+
+  ' points
+
+  oe.PoiPoints.Clear
+  oe.PoiType.Clear
+
+  oe.poiPoints.insert([oE.p[0], oE.p[1]])
+  oe.poiType.Add(gcd.poiBasePoint)
+  'oe.poiEntities.Add(arrIndex)
+
+End
+
+Public Sub Draw(oE As Entity)
+
+  If Not oE.Visible Then Return
+  'If oe.Handle = "7BD36" Then Stop
+  TextAngle = oe.fParam[Me.ipaTextAngle]
+  ' voy a procesar texto
+  CurrentTextPosX = oE.p[0]
+  CurrentTextPosY = oE.p[1]
+  CurrentTextHeigth = oE.fParam[Me.ipaTextHeight]
+  If CurrentTextHeigth = 0 Then CurrentTextHeigth = 1
+  If oe.fParam[Me.ipaAttchmPoint] <= 3 Then
+    CurrentTextPosY -= CurrentTextHeigth
+  Else If oe.fParam[Me.ipaAttchmPoint] <= 6 Then
+    CurrentTextPosY -= CurrentTextHeigth / 2
+  End If
+
+  CurrentTextAngle = oE.fParam[Me.ipaTextAngle] * 180 / Pi
+  CurrentTextColor = gcd.GetGBColor(oE.Colour, oe.pLayer)
+
+  'If InStr(oE.stringdata[0], "Cristia") > 0 Then Stop
+
+  MyPolygon.Clear
+  MyPolygon.insert([1e10, 1e10, -1e10, -1e10])
+
+  ' https://ezdxf.readthedocs.io/en/stable/tutorials/mtext.html
+  ' https://ezdxf.readthedocs.io/en/stable/dxfentities/mtext.html#mtext-inline-codes
+
+  ' MTEXT tiene in-line formatting, ver esa web
+  ProcessText(oE.stringdata[Me.sdaText])
+
+  CreatePolygon(oe)
+
+  'glPlus.DrawMultilineText(oE.stringdata[0], oE.p[0], oE.p[1], oE.fParam[0], oE.fParam[1], gcd.GetGBColor(oE.Colour, oe.pLayer))
+
+  'If oE.stringdata[0] <> "" Then CreatePolygon(oe)
+
+End
+
+Public Sub ProcessText(RTF As String)
+
+  ' hay 3 posibilidades , empieza con:
+  ' {
+  ' \
+  ' TEXTO cualquiera
+
+  ' busco lo que esta entre {}
+  Dim p1, p2 As Integer
+
+  'Debug rtf
+  'If InStr(LCase(rtf), "plano de instalacion electrica") > 0 Then Stop
+  p1 = InStr(rtf, "{")
+  If p1 > 0 Then
+    p2 = InStr(rtf, "}")
+    ProcessPart(Mid(rtf, p1 + 1, p2 - p1 - 1))
+  Else
+    ProcessPart(rtf)
+  Endif
+  ' Code   Description
+  ' \L   Start underline
+  ' \l   Stop underline
+  ' \O   Start overline
+  ' \o   Stop overline
+  ' \K   Start strike-through
+  ' \k   Stop strike-through
+  ' \P   New paragraph (new line)
+  ' \p   Paragraphs properties: indentation, alignment, tabulator stops
+  ' \X   Paragraph wrap on the dimension line (only in dimensions)
+  ' \Q   Slanting (oblique) text by angle - e.g. \Q30;
+  ' \H   Text height - e.g. relative \H3x; absolut \H3;
+  ' \W   Text width - e.g. relative \W0.8x; absolut \W0.8;
+  ' \T   Tracking, character spacing - e.g. relative \T0.5x; absolut \T2;
+  ' \F   Font selection e.g. \Fgdt;o - GDT-tolerance
+  ' \S   Stacking, fractions e.g. \SA^ B; space after “^” is required to avoid caret decoding, \SX/Y; \S1#4;
+  ' \A   Alignment
+  '
+  '     \A0; = bottom
+  '     \A1; = center
+  '     \A2; = top
+  '
+  ' \C   Color change
+  '
+  '     \C1; = red
+  '     \C2; = yellow
+  '     \C3; = green
+  '     \C4; = cyan
+  '     \C5; = blue
+  '     \C6; = magenta
+  '     \C7; = white
+  '
+  ' \~   Non breaking space
+  ' {}   Braces - define the text area influenced by the code, codes and braces can be nested up to 8 levels deep
+  ' \   Escape character - e.g. \{ = “{”
+
+End
+
+Public Sub ProcessPart(s As String)
+  ' aca viene lo que esta ente {}, sin esos simbolos
+
+  Dim s2, sFont, s3, s4, sTab, sPrint As String
+  Dim p1, p2, p3, p4 As Integer
+  Dim fAlign, fAlignR, fRect As New Float[]
+
+  Dim angulo As Float, hText As New PaintExtents, lText As String
+  Dim FontScalePrev As Float
+
+  s2 = s
+
+  s2 = Replace(s2, "%%D", "U+00B0")
+  s2 = Replace(s2, "%%P", "U+00B1")
+  s2 = Replace(s2, "%%C", "U+2205")
+
+  'If Left$(s2, 1) = "\\" Then
+  's2 = Mid(s2, 2)
+  Select Case Mid$(s2, 1, 2)
+
+    Case "\\U" ' ej \U+0045
+
+    Case "\\U" ' ej \U+0045
+
+      ' es un caracter utf
+
+    Case "\\f"            ' esta indicado un cambio en la fuente
+      '  \fVerdana|b0|i0|cxxx|p34;
+      p1 = InStr(s2, "|")
+      CurrentTextFont = Mid$(s2, 2, p1 - 2)
+      p1 = InStr(s2, "|b")
+      If p1 > 0 Then
+        CurrentTextBold = Mid$(s2, p1 + 2, 1) = "1"
+      End If
+      p1 = InStr(s2, "|i")
+      If p1 > 0 Then
+
+        CurrentTextItalic = Mid$(s2, p1 + 2, 1) = "1"
+      End If
+
+      p1 = InStr(s2, "|c")    ' esto para no ser el color
+      If p1 > 0 Then
+
+        p2 = InStr(s2, "|", p1 + 1)
+        ' Try CurrentTextColor = Mid$(s2, p1 + 2, p2 - p1 - 1) = "1"
+      End If
+      p1 = p2 + 1
+
+      p1 = InStr(s2, "|p")
+      p2 = InStr(s2, ";", p1)
+      If p1 > 0 Then
+
+        'CurrentTextHeigth = CFloat(Mid$(s2, p1 + 2, p2 - p1 - 2)) / 100
+      End If
+
+      s2 = Mid(s2, p2 + 1)
+
+      If Len(s2) > 0 Then ProcessPart(s2)
+    Case "\\C"            ' cambio de color
+
+      p2 = InStr(s2, ";", p1)
+
+      CurrentTextColor = gcd.GetGBColor(CInt(Mid(s2, 3, p2 - 3)))
+
+      s2 = Mid(s2, p2 + 1)
+
+      If Len(s2) > 0 Then ProcessPart(s2)
+
+    Case "\\P"            ' New line
+      CurrentTextPosY -= glPlus.TextExtends("XXX", CurrentTextHeigth)[1] * 1.2
+      s2 = Mid(s2, 3)
+      If Len(s2) > 0 Then ProcessPart(s2)
+
+    Case "\\p"            ' no se que significa esto, suele venir \p12.55;
+      p2 = InStr(s2, ";", p1)
+      s2 = Mid(s2, p2 + 1)
+      If Len(s2) > 0 Then ProcessPart(s2)
+
+      ' Case "\\t", "^I"            ' tab avanzo 4-texto anterior
+      '   ' TODO: verificar sin Tab=4 espacios
+      '   If LastTextLengh > 4 Then sTab = "    " Else sTab = Space(4 - LastTextLengh)
+      '   s2 = stab & Mid(s2, 3)
+      '   If Len(s2) > 0 Then ProcessPart(s2)
+      '   LastTextLengh = 0
+
+    Case "\\T" 'Adjusts the space between characters. Valid values range from a minimum of .75 to 4 times the original spacing between characters.
+
+    Case "\\Q"  '\Qangle; changes obliquing angle
+
+    Case "\\O"  '\O changes to overline
+
+    Case "\\L"  '\O changes to underline
+
+    Case "\\W"            ' \Wvalue; changes width factor To produce wide text
+      p2 = InStr(s2, ";", p1)
+      CurrentTextPosX += CFloat(Mid(s2, 3, p2 - 3))
+      s2 = Mid(s2, p2 + 1)
+      If Len(s2) > 0 Then ProcessPart(s2)
+
+    Case "\\A"            ' Sets the alignment value; valid values: 0, 1, 2(bottom, center, top)
+
+      If Mid(s2, 3, 1) = "1" Then ' es mid
+
+        ' extraigo el texto puro para poder calcular bien el centrado
+        p2 = InStr(s2, ";", p1)
+        s2 = Mid(s2, p2 + 1)
+
+        fAlign = glPlus.TextExtends(s2, CurrentTextHeigth)
+        'fAlign[0] *= -1
+        'fAlign[1] *= 1
+
+        puntos.Rotate(fAlign, CurrentTextAngle / 180 * Pi)
+        CurrentTextPosX -= fAlign[0] * 0.5
+
+        ' alineo Y
+        'CurrentTextPosY += fAlign[1] * 0.5
+
+        ' pero , y si esta rotado el texto???
+
+        ' Else
+        '   Stop
+
+      End If
+
+
+      If Len(s2) > 0 Then ProcessPart(s2)
+    Case "\\H"            ' cambia la altura del texto
+
+      p2 = InStr(s2, ";", p1)
+      s3 = Mid(s2, 3, p2 - 3)
+      If InStr(s3, "x") > 0 Then  ' cambia x veces la altura actual
+        CurrentTextHeigth *= CFloat(Left(s3, -1))
+      Else
+        CurrentTextHeigth = CFloat(s3)
+      Endif
+      s2 = Mid(s2, p2 + 1)
+
+      If Len(s2) > 0 Then ProcessPart(s2)
+
+    Case Like "\\*"            ' codigo no imprementado, lo paso de largo;
+      p2 = InStr(s2, ";", p1)
+      s2 = Mid(s2, p2 + 1)
+      If Len(s2) > 0 Then ProcessPart(s2)
+    Case Else ' es texto
+
+      ' es un texto, pero puede terminar en un scape
+      p2 = InStr(s2, "\\")
+      ' p3 = InStr(s2, "^I")
+      '
+      ' If (p3 > 0) And (p3 < p2) Then p2 = p3
+      '
+      If p2 = 1 Then ' es un escape desconocido
+        p2 = InStr(s2, ";")
+        If p2 = 0 Then
+          s2 = Mid(s2, 3)
+        Else
+          s2 = Mid(s2, p2 + 1)
+        End If
+        If Len(s2) > 0 Then ProcessPart(s2)
+
+      Else If p2 > 0 Then
+
+        s4 = Utils.ProcessTabs(Mid(s2, 1, p2 - 1))
+        If CurrentTextFont <> "" Then glPlus.SelectFont(CurrentTextFont)
+
+        glPlus.DrawText(s4, CurrentTextPosX, CurrentTextPosY, CurrentTextangle, CurrentTextHeigth, CurrentTextColor)
+        If Printing Then
+          sPrint = s4
+          GoSub PrintText2
+        End If
+
+        fRect = glPlus.TextExtends(s4, CurrentTextHeigth)
+        puntos.Rotate(fRect, CurrentTextAngle)
+        If Me.MyPolygon[0] > (CurrentTextPosX) Then Me.MyPolygon[0] = (CurrentTextPosX)
+        If Me.MyPolygon[1] > (CurrentTextPosY) Then Me.MyPolygon[1] = (CurrentTextPosY)
+        If Me.MyPolygon[2] < (CurrentTextPosX + fRect[0]) Then Me.MyPolygon[2] = (CurrentTextPosX + fRect[0])
+        If Me.MyPolygon[3] < (CurrentTextPosY + fRect[1]) Then Me.MyPolygon[3] = (CurrentTextPosY + fRect[1])
+
+        ProcessPart(Mid(s2, p2))
+      Else
+
+        s2 = Utils.ProcessTabs(s2)
+        If CurrentTextFont <> "" Then glPlus.SelectFont(CurrentTextFont)
+        'If Left(s2, 2) = "24" Then Stop
+
+        glPlus.DrawText(s2, CurrentTextPosX, CurrentTextPosY, CurrentTextAngle, CurrentTextHeigth, CurrentTextColor)
+        If Printing Then
+          sPrint = s2
+          GoSub PrintText2
+        End If
+
+        fRect = glPlus.TextExtends(s2, CurrentTextHeigth)
+        puntos.Rotate(fRect, CurrentTextAngle)
+        If Me.MyPolygon[0] > (CurrentTextPosX) Then Me.MyPolygon[0] = (CurrentTextPosX)
+        If Me.MyPolygon[1] > (CurrentTextPosY) Then Me.MyPolygon[1] = (CurrentTextPosY)
+        If Me.MyPolygon[2] < (CurrentTextPosX + fRect[0]) Then Me.MyPolygon[2] = (CurrentTextPosX + fRect[0])
+        If Me.MyPolygon[3] < (CurrentTextPosY + fRect[1]) Then Me.MyPolygon[3] = (CurrentTextPosY + fRect[1])
+
+      Endif
+
+  End Select
+  ' primero separo en diferentes partes
+
+  Return
+
+PrintText:
+
+  htext = paint.TextExtents(sPrint)
+  paint.save
+  paint.Translate(CurrentTextPosX, CurrentTextPosY)
+  paint.Rotate(-CurrentTextangle * Pi / 180)
+  paint.Scale(1, -1)
+  Paint.Font.Size = CurrentTextHeigth / gcd.PrintingScale * 2
+  paint.DrawText(sPrint)
+  paint.Stroke
+  paint.Restore
+
+  Return
+
+PrintText2:
+
+  paintPlus.DrawText(sPrint, CurrentTextPosX, CurrentTextPosY, CurrentTextAngle, CurrentTextHeigth, CurrentTextColor)
+
+  Return
+
+End
+
+'
+'  {\fVerdana|b0|i0|c0|p34;Firma:}
+'  {\fVerdana|b0|i0|c0|p34;Ing. Marcos Kupervaser }
+'  {\fVerdana|b0|i0|c0|p34;Domicilio:}
+'  {\fVerdana|b0|i0|c0|p34;Firma:}
+'  {\fVerdana|b0|i0|c0|p34;Domicilio: C. Pellegrini 627}
+'  {\fVerdana|b0|i0|c0|p34;Firma:}
+'  {\fVerdana|b0|i0|c0|p34;Domicilio:      Perú 1015}
+'  {\fVerdana|b0|i0|c0|p34;Ing. Marcos Kupervaser\P }
+'  {\fVerdana|b0|i0|c0|p34; Construquen SRL}
+'  {\fVerdana|b0|i0|c0|p34;Ing. Martín Cristia}
+'  {\fVerdana|b0|i0|c0|p34;MMN°:3549  MCPN°:2207 }
+'  {\fVerdana|b0|i0|c0|p34;MMN°:3549  MCPN°:2207 }
+'  {\fVerdana|b0|i0|c0|p34;Firma:}
+'  {\fVerdana|b0|i0|c0|p34;Domicilio:}
+'  {\fVerdana|b0|i0|c0|p34;Firma:}
+'  {\fVerdana|b0|i0|c0|p34;Domicilio:}
+'  {\fVerdana|b0|i0|c0|p34;Expte N°: 77}
+'  {\fVerdana|b0|i0|c0|p34;\W2.0681; \W1;Letra: "T"}
+'  {\fVerdana|b0|i0|c0|p34;Año: 2014}
+'  {\fVerdana|b0|i0|c0|p34;Dígito}
+'  {\fVerdana|b0|i0|c0|p34;Folio}
+'  \pt14.35; {\fVerdana|b0|i0|c0|p34;Destino: \fVerdana|b1|i0|c0|p34;Viviendas Colectivas, Oficinas y Local Comercial}
+'  {\fVerdana|b0|i0|c0|p34;Propietario: \fVerdana|b1|i0|c0|p34; Valeria Sara Titioski, Pablo Andrés Titiosky y Rolando Simón Titioski.}
+'  \pt2.45; {\fVerdana|b0|i0|c0|p34;Calle: \fVerdana|b1|i0|c0|p34;Paraguay 940}
+'  {\fVerdana|b0|i0|c0|p34;Entre: \fVerdana|b1|i0|c0|p34;Junin e H. Irigoyen}
+'  {\fVerdana|b0|i0|c0|p34;Barrio: \fVerdana|b1|i0|c0|p34;Libertad}
+'  {\fVerdana|b0|i0|c0|p34;Escala: \fVerdana|b1|i0|c0|p34;1:100}
+'  {\fVerdana|b0|i0|c0|p34;\LPROPIETARIO\l:  }
+
+' "entity": "MTEXT",
+' "index": 2371,
+' "type": 44,
+' "handle": [0, 1182142],
+' "size": 148,
+' "bitsize": 1115,
+' "eed": [
+'   {
+'     "size": 50,
+'     "handle": [5, 18],
+'     "code": 0,
+'     "value": "MTEXTBEGIN"
+'   },
+'   {
+'     "code": 70,
+'     "value": 73
+'   },
+'   {
+'     "code": 70,
+'     "value": 1
+'   },
+'   {
+'     "code": 70,
+'     "value": 44
+'   },
+'   {
+'     "code": 40,
+'     "value": 1.0
+'   },
+'   {
+'     "code": 70,
+'     "value": 74
+'   },
+'   {
+'     "code": 70,
+'     "value": 0
+'   },
+'   {
+'     "code": 0,
+'     "value": "MTEXTEND"
+'   }
+' ],
+' "ownerhandle": [12, 1, 28, 1182114],
+' "_subclass": "AcDbEntity",
+' "layer": [5, 2, 16840, 16840],
+' "preview_exists": 0,
+' "entmode": 0,
+' "nolinks": 1,
+' "color": 256,
+' "ltype_scale": 0.2,
+' "ltype_flags": 0,
+' "plotstyle_flags": 0,
+' "invisible": 0,
+' "linewt": 29,
+' "_subclass": "AcDbMText",
+' "ins_pt": [2897.30935784301255, 1634.78046156619598, 0.0],
+' "extrusion": [0.0, 0.0, 1.0],
+' "x_axis_dir": [0.0, 1.0, 0.0],
+' "rect_width": 0.0,
+' "text_height": 0.14,
+' "attachment": 5,
+' "flow_dir": 1,
+' "extents_height": 0.14305593451569,
+' "extents_width": 0.35,
+' "text": "\\A1;1.30",
+' "style": [5, 1, 17, 17],
+' "linespace_style": 1,
+' "linespace_factor": 1.0,
+' "unknown_b0": 0
+Public Sub ExportDXFCol(e As Entity, ByRef stxExport As String[]) As Boolean
+
+  Dim i As Integer, sText As String
+
+  ' stxExport.insert(["MTEXT", dxf.codEntity])
+  ' Los datos comunes a todas las entidades son guardados por la rutina que llama a esta
+  stxExport.insert(["AcDbMText", "100"])
+
+  stxExport.insert([CStr(e.p[0]), dxf.codX0])                    ' insertion point
+  stxExport.insert([CStr(e.p[1]), dxf.codY0])
+  stxExport.insert(["0", dxf.codZ0])
+
+  stxExport.insert([CStr(e.fParam[Me.ipaTextHeight]), "40"])       ' heigth
+  stxExport.insert([CStr(e.fParam[Me.ipaRectangleWidth]), "41"])   ' Rectang width
+  stxExport.insert([e.fParam[Me.ipaAttchmPoint], "71"])            ' attchm point
+  stxExport.insert([e.fParam[Me.ipaDrawingDirec], "72"])           ' drawing direction
+
+  If e.StringData[0].Len > 250 Then
+    stxExport.insert([Left(e.stringdata[Me.sdaText], 250), "1"])                ' Texti = 250
+    i = 251         ' next offset
+    Do
+
+      If e.StringData[0].Len - i > 250 Then
+        sText = Mid(e.StringData[0], i, 250)
+        stxExport.insert([sText, "3"])                ' Texti += 250
+        i += 250
+      Else
+        sText = Mid(e.StringData[0], i)
+        stxExport.insert([sText, "3"])                ' Texti += 250
+        Break
+
+      End If
+
+    Loop
+  Else
+    stxExport.insert([e.stringdata[Me.sdaText], "1"])                ' Text
+  Endif
+
+  stxExport.insert([e.StringData[Me.sdaStyle], "7"])               ' text style
+
+  stxExport.insert(["0", "210"])                                   ' extrusion direction
+  stxExport.insert(["0", "220"])
+  stxExport.insert(["1", "230"])
+
+  stxExport.insert([CStr(e.fParam[Me.ipaTextAngle]), "50"])        ' rotation in radians
+
+  stxExport.insert([CStr(e.fParam[Me.ipaBackFillType]), "90"])     ' Background fill style
+
+  stxExport.insert([CStr(e.fParam[Me.ipaBackColor]), "63"])         ' rotation in radians
+
+  stxExport.insert(["0", "75"]) ' Column type
+  stxExport.insert(["0", "76"]) ' Column count
+  stxExport.insert(["0", "78"]) ' Column Flow Reversed
+  stxExport.insert(["0", "79"]) ' Column Autoheight
+  stxExport.insert(["0", "48"]) ' Column width
+  stxExport.insert(["0", "49"]) ' Column gutter
+  stxExport.insert(["0", "50"]) ' Column heights
+
+End
+
+Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
+
+  Dim i As Integer
+  Dim TextHeigthSet As Boolean = False
+  Dim TextAngleSet As Boolean = False
+  Dim ax, ay, az As Single ' angulo del texto
+
+
+  For i = 0 To sClaves.Max
+
+    If sClaves[i] = "10" Then e.p[0] = (CFloat(sValues[i]))                                       ' X1
+    If sClaves[i] = "20" Then e.P[1] = (CFloat(sValues[i]))                                       ' Y1
+    If sClaves[i] = "40" And Not TextHeigthSet Then
+      e.fParam[Me.ipaTextHeight] = CFloat(sValues[i])                                         ' Altura
+      TextHeigthSet = True
+    End If
+    '        If sClaves[i] = "1" And sValues[i] Like "roman*" Then Stop
+    If sClaves[i] = "1" Or sClaves[i] = "3" Then e.StringData[Me.sdaText] &= sValues[i]         ' Texto
+    If sClaves[i] = "50" And Not TextAngleSet Then
+      e.fParam[Me.ipaTextAngle] = CFloat(sValues[i])                                          ' rotacion
+      TextAngleSet = True
+    End If
+    If sClaves[i] = "7" Then e.StringData[Me.sdaStyle] = sValues[i]                             ' texy
+    If sClaves[i] = "41" Then e.fParam[Me.ipaRectangleWidth] = CFloat(sValues[i])
+    If sClaves[i] = "71" Then e.fParam[Me.ipaAttchmPoint] = CInt(sValues[i])
+    If sClaves[i] = "72" Then e.fParam[Me.ipaDrawingDirec] = CFloat(sValues[i])
+    If sClaves[i] = "90" Then e.fParam[Me.ipaBackFillType] = CFloat(sValues[i])
+    If sClaves[i] = "63" Then e.fParam[Me.ipaBackColor] = CFloat(sValues[i])
+
+    If sClaves[i] = "11" Then ax = CFloat(sValues[i])
+    If sClaves[i] = "21" Then ay = CFloat(sValues[i])
+    If sClaves[i] = "31" Then az = CFloat(sValues[i])
+
+  Next
+
+  If (ax <> 0) Or (ay <> 0) Or (az <> 0) Then
+
+    e.fParam[Me.ipaTextAngle] = Ang(ax, ay)
+
+  Endif
+
+  If e.StringData[Me.sdaStyle] = "" Then e.StringData[Me.sdaStyle] = "STANDARD"
+
+  Return True
+
+End
+
+' Importo los datos que puedo procesar de una coleccion y genero un Entity para ser agregado a un array
+Public Function ImportJsonCol(c As Collection, e As Entity) As Boolean
+
+  e.P.Clear
+  e.P.Add(c["ins_pt"][0])
+  e.P.Add(c["ins_pt"][1])
+  e.StringData[Me.sdaText] = c["text"]
+
+  ' FIXME: reparar esto
+  e.fParam[Me.ipaTextAngle] = Ang(CFloat(c["x_axis_dir"][0]), CFloat(c["x_axis_dir"][1])) * 180 / Pi ' Angulo en grados
+
+  e.fParam[Me.ipaTextHeight] = CFloat(c["text_height"])
+
+  e.fParam[Me.ipaAttchmPoint] = CFloat(c["attachment"])
+  Return True
+
+  'Catch
+
+  Return False
+
+End
+
+' "entity": "MTEXT",
+' "index": 2371,
+' "type": 44,
+' "handle": [0, 1182142],
+' "size": 148,
+' "bitsize": 1115,
+' "eed": [
+'   {
+'     "size": 50,
+'     "handle": [5, 18],
+'     "code": 0,
+'     "value": "MTEXTBEGIN"
+'   },
+'   {
+'     "code": 70,
+'     "value": 73
+'   },
+'   {
+'     "code": 70,
+'     "value": 1
+'   },
+'   {
+'     "code": 70,
+'     "value": 44
+'   },
+'   {
+'     "code": 40,
+'     "value": 1.0
+'   },
+'   {
+'     "code": 70,
+'     "value": 74
+'   },
+'   {
+'     "code": 70,
+'     "value": 0
+'   },
+'   {
+'     "code": 0,
+'     "value": "MTEXTEND"
+'   }
+' ],
+' "ownerhandle": [12, 1, 28, 1182114],
+' "_subclass": "AcDbEntity",
+' "layer": [5, 2, 16840, 16840],
+' "preview_exists": 0,
+' "entmode": 0,
+' "nolinks": 1,
+' "color": 256,
+' "ltype_scale": 0.2,
+' "ltype_flags": 0,
+' "plotstyle_flags": 0,
+' "invisible": 0,
+' "linewt": 29,
+' "_subclass": "AcDbMText",
+' "ins_pt": [2897.30935784301255, 1634.78046156619598, 0.0],
+' "extrusion": [0.0, 0.0, 1.0],
+' "x_axis_dir": [0.0, 1.0, 0.0],
+' "rect_width": 0.0,
+' "text_height": 0.14,
+' "attachment": 5,
+' "flow_dir": 1,
+' "extents_height": 0.14305593451569,
+' "extents_width": 0.35,
+' "text": "\\A1;1.30",
+' "style": [5, 1, 17, 17],
+' "linespace_style": 1,
+' "linespace_factor": 1.0,
+' "unknown_b0": 0

@@ -1,1 +1,240 @@
-../../../GauchoCAD/.src/Entities/cadDimension.class
+' Gambas class file
+
+' m-designer
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+'Create Static
+Create Static
+Inherits CadInsert
+
+Public Const Gender As String = "Dimension"
+Public Const USEWITH As String = "EntityBuilder"
+
+Public TextEntry As String
+Public elem As Entity
+Public XYreal As Float[]
+
+' dimstyle: Todas las variables numericas Float estaran multiplicadas por DimScale
+Public DimType As Integer = 0            ' = fParam[0] and &X1111
+Public DimAtatchPoint As Integer = 2     ' = fParam[1]
+Public DimScale As Integer = 1           ' = fParam[2]
+Public DimFormat As String = "0.00"      '
+Public DimFormatAng As String = "0.0"    '
+Public DimArrowSize As Float = 0.3       ' el largo de la flecha
+Public DimArrowWidth As Float = 0.1      ' ancho de la flecha
+Public DimTickSize As Float = 0.3        ' el tamaño de la diagonal
+Public DimArrowOrThick As Boolean = True ' flecha (True) o diagonal (False)
+Public DimTextHeight As Float = 0.3      '
+Public DimSeparation As Float = 0.5      ' la separacion entre el punto que define la cota y el inicio de la linea q marca inicio y fin
+Public DimExtension As Float = 0.5       ' la continuacion de esas lineas
+
+Public extension As Float
+Public iBloque As Integer
+
+Public Const TotalPoints As Integer = 6
+
+' fParam helpers
+Public Const TotalParams As Integer = 12
+Public Const ipaEscX As Integer = 0
+Public Const ipaEscY As Integer = 1         ' usados por cadInsert para dibujar el bloque
+Public Const ipaEscZ As Integer = 2
+Public Const ipaRotacion As Integer = 3
+Public Const ipaVertJustif As Integer = 4
+Public Const ipaRelativeFactor As Integer = 5
+Public Const ipaHorizAngle As Integer = 6
+Public Const ipaExtension As Integer = 7
+Public Const ipaObliqueExtension As Integer = 8
+Public Const ipaRealMeasure As Integer = 9
+' ademas necesito guardar los StyleOverrides que pudieran haberse efectuado
+Public Const ipaStyleTextHeigth As Integer = 10
+Public Const ipaStyleArrowSize As Integer = 11
+' Public Const ipaStyleTextHeigth As Integer = 12
+' Public Const ipaStyleTextHeigth As Integer = 13
+' Public Const ipaStyleTextHeigth As Integer = 14
+
+' iParam helpers
+Public Const iTotalParams As Integer = 3
+Public Const iiiDimType As Integer = 0
+Public Const iiiAtatchPoint As Integer = 1
+Public Const iiiMode As Integer = 2     ' 0 = linear -1 = horiz -2 = vertical , otro = 1000 * angulo en grados de la dimension alineada
+
+' stringdata helpers
+Public Const sdaTotalParams As Integer = 2
+Public Const sdaTextOverride As Integer = 0
+Public Const sdaUNUSED As Integer = 1
+
+Public pointDefPoint1 As New Punto2d
+Public pointDefPoint2 As New Punto2d
+Public pointTextMidPoint As New Punto2d
+Public pointBaselinePoint As New Punto2d
+Public pointDefPoint0 As New Punto2d
+Public pointCenter As New Punto2d
+
+Public StyleOverride As New DimStyle
+
+Public Const DXF_Export As Boolean = False
+
+' ESTA CLASE SE USA SOLAMENTE PARA IMPORT/EXPORT DXF
+
+Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
+
+  Dim i As Integer
+  Dim DimTypeSet As Boolean = False
+  Dim BlockSet As Boolean = False
+  Dim ReadingStyle As Boolean = False
+  Dim NextCode As Integer
+
+  DimTypeSet = False
+  For i = 0 To sClaves.Max
+
+    If sClaves[i] = "2" Then
+      If BlockSet = False Then                                ' this prevents duplicated "2" codes
+        e.pBlock = clsEntities.FIndBlock(sValues[i])   ' this could be null
+        BlockSet = True
+
+      End If
+    End If
+
+    If sClaves[i] = "10" Then e.p[0] = CFloat(sValues[i])         ' X0  first definition point
+    If sClaves[i] = "20" Then e.P[1] = CFloat(sValues[i])         ' Y0
+    If sClaves[i] = "11" Then e.p[2] = CFloat(sValues[i])         ' X1  midpoint of text
+    If sClaves[i] = "21" Then e.P[3] = CFloat(sValues[i])         ' Y1
+
+    If sClaves[i] = "3" Then e.pDimStyle = gcd.FindDimStyle(sValues[i])
+
+    ' ' For DEbug
+    ' If sClaves[i] = "42" Then
+    '   If sValues[i] Like "0.46*" Then Stop
+    ' End If
+    '
+    If sClaves[i] = "70" Then ' Dimension type:
+
+      e.iParam[Me.iiiDimType] = CInt(sValues[i])
+      DimTypeSet = True
+      ' Values 0 - 6 are integer values that represent the dimension type.Values 32, 64, And 128 are bit values, which are added To the integer values(value 32 Is Always set In R13 And later releases)
+
+      ' debo cambiar el handler y enviar al que corresponda
+      Select Case e.iParam[Me.iiiDimType] And 31  'Xor 128 Xor 64 Xor 32
+        Case 0 '= Rotated, horizontal, Or vertical
+
+          e.ClassHandler = cadDIMENSION_LINEAR
+          DimTypeSet = True
+        Case 1 '= Aligned
+
+          e.ClassHandler = cadDIMENSION_ALIGNED
+          DimTypeSet = True
+        Case 2 '= Angular
+
+          e.ClassHandler = cadDIMENSION_ANG3PT
+          DimTypeSet = True
+        Case 3 '= Diameter
+
+          e.ClassHandler = cadDIMENSION_DIAMETER
+          DimTypeSet = True
+        Case 4 ' = Radius
+
+          e.ClassHandler = cadDIMENSION_RADIUS
+          DimTypeSet = True
+        Case 5 ' = Angular 3 - point
+
+          e.ClassHandler = cadDIMENSION_ANG3PT
+          DimTypeSet = True
+        Case 6 ' = Ordinate
+
+          e.ClassHandler = cadDIMENSION_ORDINATE
+          DimTypeSet = True
+          If (CInt(sValues[i]) And 64) = 64 Then e.fParam[Me.ipaHorizAngle] = 1 ' horiz ordinate
+
+      End Select
+
+    End If
+    If sClaves[i] = "71" Then e.iParam[Me.iiiAtatchPoint] = CInt(sValues[i])
+
+    If sClaves[i] = "1000" And sValues[i] = "DSTYLE" Then ' empiezo la lectura del estilo
+      ReadingStyle = True
+      StyleOverride = New DimStyles
+    End If
+
+    If ReadingStyle Then
+
+      If sClaves[i] = "1070" And NextCode = 0 Then
+        NextCode = CInt(sValues[i])
+      Else If NextCode <> 0 Then
+        ' leemos algunos
+        If NextCode = "140" And sValues[i] <> 0 Then e.fParam[Me.ipaStyleTextHeigth] = CFloat(sValues[i])
+        If NextCode = "41" And sValues[i] <> 0 Then e.fParam[Me.ipaStyleArrowSize] = CFloat(sValues[i])
+        NextCode = 0
+      End If
+
+    Endif
+
+  Next
+
+  ' en algunos DXF el codigo 70 no esta
+  If Not DimTypeSet Then e.ClassHandler = cadDIMENSION_LINEAR
+
+  If Not e.pBlock Then e.pBlock = New Block ' esto previene errores cuando no hay un bloque definido para la Dim
+
+  ' tengo q presuponer que las escalas son = 1
+  e.fParam[Me.ipaEscX] = 1    ' esc X
+  e.fParam[Me.ipaEscY] = 1    ' esc Y
+  e.fParam[Me.ipaEscZ] = 1    ' esc Z
+
+  If Not e.pdimStyle Then e.pdimStyle = gcd.CurrentDrawing.odimStyles[gcd.CurrentDrawing.odimStyles.First]
+  If StyleOverride.DIMASZ > 0 Then Me.DimArrowSize = StyleOverride.DIMASZ Else Me.DimArrowSize = e.pdimStyle.DIMASZ
+
+  ' pero puede haber un Style Override que anula el estilo y propone nuevos valores
+
+  ' para definir el alto del texto tengo q ver si no hay un Style referenciado
+  If StyleOverride.DIMTXT > 0 Then Me.DimTextHeight = StyleOverride.DIMTXT Else Me.DimTextHeight = e.pdimStyle.DIMTXT
+
+  Return e.ClassHandler.ImportDXF(e, sClaves, sValues)
+
+  '' catch
+
+  Return False
+
+End
+
+Public Sub ExportDXFCol(e As Entity, ByRef stxExport As String[]) As Boolean
+  '
+  ' stxExport.insert(["DIMENSION", dxf.codEntity])
+  ' Los datos comunes a todas las entidades son guardados por la rutina que llama a esta
+
+  stxExport.insert(["AcDbDimension", "100"])
+
+  stxExport.insert([E.pBlock.name, "2"])                     ' block name
+
+  stxExport.insert([CStr(e.p[0]), dxf.codX0])                ' first def point
+  stxExport.insert([CStr(e.p[1]), dxf.codY0])
+  stxExport.insert(["0", dxf.codz0])
+
+  stxExport.insert([CStr(e.p[2]), dxf.codX1])                ' text att point
+  stxExport.insert([CStr(e.p[3]), dxf.codY1])
+  stxExport.insert(["0", dxf.codz0])
+
+  stxExport.insert([CStr(e.iParam[Me.iiiDimType]), "70"])    ' dim type
+
+  stxExport.insert([CStr(e.iParam[Me.iiiAtatchPoint]), "71"]) ' text att mode
+
+  stxExport.insert([CStr(e.fParam[Me.ipaRealMeasure]), "42"]) ' real measure
+
+  stxExport.insert([e.pStyle.name, "3"])                   ' dimstyle
+
+End

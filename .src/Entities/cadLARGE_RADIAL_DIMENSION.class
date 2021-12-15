@@ -1,1 +1,366 @@
-../../../GauchoCAD/.src/Entities/cadLARGE_RADIAL_DIMENSION.class
+' Gambas class file
+
+' m-designer
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+Create Static
+Inherits Caddimension
+
+Public Const Gender As String = "Dimension_Radius"
+Public Const DrawingOrder As Integer = 100 ' 1 a 32.724 esto debe Drawse primero y ser sobreescrito por el resto
+Public Const PointsToDraw As Integer = 1             ' minimal point requered for drawing something usefull
+Public Const HelperTrabajo As String = ("Insert a linear acotation")
+Public Const ParamType As String = "PPR"                             ' that is Point, Point, Float; could be Color Text, etc
+Public Const ParamHelper As String = "Start point;End point;extension"
+
+Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
+
+  Dim i As Integer
+  Dim DimTypeSet As Boolean
+
+  DimTypeSet = False
+  For i = 0 To sClaves.Max
+
+    If sClaves[i] = "2" Then e.pBlock = clsEntities.FIndBlock(sValues[i])   ' this could be null
+    If sClaves[i] = "10" Then e.p.Add(CFloat(sValues[i]))         ' X0
+    If sClaves[i] = "20" Then e.P.Add(CFloat(sValues[i]))         ' Y0
+
+    '
+  Next
+  '
+  ' ' en algunos DXF el codigo 70 no esta
+  ' If Not DimTypeSet Then e.ClassHandler = cadDIMENSION_LINEAR
+
+  ' tengo q presuponer que las escalas son = 1
+  e.fParam[Me.ipaEscX] = 1    ' esc X
+  e.fParam[Me.ipaEscY] = 1    ' esc Y
+  e.fParam[Me.ipaEscZ] = 1    ' esc Z
+
+  ' TODO: cuando este terminada la entidad, sacar eso
+  e.pBlock.AbsoluteCoords = True
+
+  ' y poner esto
+  ' e.pBlock = Me.ReBuildBlock(e)
+
+  Return True
+
+  '' catch
+
+  Return False
+
+End
+
+Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
+
+  ' la linea solo recibe puntos
+
+  If vParam[0] <> "point" Then Return False
+
+  If Me.StepsDone = 0 Then
+    Me.DimType = gcd.dimAligned
+
+    Try eBuild.P[0] = vParam[1]
+    Try eBuild.P[1] = vParam[2]
+    eBuild.P[2] = eBuild.P[0]
+    eBuild.P[3] = eBuild.P[1]
+    If definitive Then Return True
+  Else If Me.StepsDone = 1 Then
+
+    Try eBuild.P[2] = vParam[1]
+    Try eBuild.P[3] = vParam[2]
+    eBuild.pBlock = ReBuildBlock(eBuild)
+    If definitive Then Return True
+  Else If Me.StepsDone = 2 Then
+    If vParam[0] = "point" Then  ' vino como un punto, entonces la calculo de otra manera
+
+      ' return the angle from horizontal to us
+      eBuild.fParam[Me.ipaExtension] = -puntos.PointToLineDistance([vParam[1], vParam[2]], [eBuild.p[0], eBuild.p[1], eBuild.p[2], eBuild.p[3]]) ' / puntos.distancia(eBuild.p[0], eBuild.p[1], eBuild.p[2], eBuild.p[3]
+
+    Else If vParam[0] = "float" Then  ' vino como un punto, entonces la calculo de otra manera
+      eBuild.fParam[Me.ipaExtension] = vParam[1]
+
+    End If
+
+    eBuild.pBlock = ReBuildBlock(eBuild)
+    If definitive Then
+      'Stop
+      Return True
+    End If
+  Endif
+
+End
+
+Public Sub ReBuildBlock(E As Entity) As Block
+
+  Dim d As Float, flxTextExt As Float[]
+  Dim fRotXY As Float[]
+
+  Dim newBlock As New Block
+  Dim f1, f2 As New Float[]
+
+  newBlock.entities = New Collection
+
+  Return newBlock
+
+  ' para definir este bloque necesito 6 entidades
+  Dim eLineaPpal As Entity
+  Dim eOblique1 As Entity       ' tambien pueden ser flechas Solid
+  Dim eOblique2 As Entity
+  Dim eExtension1 As Entity
+  Dim eExtension2 As Entity
+  Dim eDot1 As Entity
+  Dim eDot2 As Entity
+  Dim eText As Entity
+  Dim ePoint2 As Entity
+
+  ' vemos los estilos
+  If E.fParam[Me.ipaStyleTextHeigth] > 0 Then Me.DimTextHeight = E.fParam[Me.ipaStyleTextHeigth] Else Me.DimTextHeight = E.pStyle.DIMTXT
+  If E.fParam[Me.ipaStyleArrowSize] > 0 Then Me.DimArrowSize = E.fParam[Me.ipaStyleArrowSize] Else Me.DimArrowSize = E.pStyle.DIMASZ
+  Me.DimArrowWidth = Me.DimArrowSize / 3
+
+  ' linea principal
+  clsEntities.AddLine(newBlock.entities, [0.0, 0.0, 0.0, 0.0], E.colour, E.LineWidth, E.LineType.Index, E.pLayer)
+  eLineaPpal = newBlock.entities.Last
+
+  ' flechas
+
+  f1.Insert([0, 0, Me.DimArrowSize, Me.DimArrowWidth, Me.DimArrowSize, -Me.DimArrowWidth, 0, 0])
+  f2.Insert([0, 0, -Me.DimArrowSize, Me.DimArrowWidth, -Me.DimArrowSize, -Me.DimArrowWidth, 0, 0])
+
+  clsEntities.Addsolid(newBlock.entities, f2, E.colour, E.LineWidth, E.LineType.Index, E.pLayer)
+  eOblique2 = newBlock.entities.Last
+
+  ' texto
+  clsEntities.AddMText(newBlock.entities, [0.0, 0.0, 0.0, 0.0], 0, Me.DimTextHeight, "0.00", E.colour, E.LineWidth, E.LineType.Index, E.pLayer)
+  eText = newBlock.entities.Last
+
+  ' -> el bloque
+
+  E.fParam[cadInsert.ipaEscX] = 1      ' ScaleX del inserto
+  E.fParam[cadInsert.ipaEscY] = 1      ' ScaleY del inserto
+  E.fParam[cadInsert.ipaEscZ] = 1      ' ScaleY del inserto
+
+  '  If stage = 0 Then     ' marco el primer punto
+
+  '    Else If stage = 1 Then ' marco el segundo punto, lo que modifica los parametros del bloque
+  E.Visible = True
+
+  ' el largo de la linea principal viene dado por la distancia entre ambos puntos
+  d = puntos.distancia(E.P[0], E.P[1], E.P[2], E.P[3])
+
+  ' con este click calculo el angulo
+  E.fParam[cadInsert.ipaRotacion] = Ang(E.p[2] - E.P[0], E.p[3] - E.P[1]) * 180 / Pi
+
+  ' la primer entidad del bloque es la linea principal
+  eLineaPpal.P[0] = 0           ' X0
+  eLineaPpal.P[1] = 0           ' Y0
+
+  eLineaPpal.P[2] = d           ' X1
+  eLineaPpal.P[3] = 0           ' Y1
+
+  ' el largo de la linea principal viene dado por la distancia entre ambos puntos
+  d = puntos.distancia(E.P[0], E.P[1], E.P[2], E.P[3])
+
+  ' con este click calculo el angulo
+  E.fParam[cadInsert.ipaRotacion] = Ang(E.p[2] - E.P[0], E.p[3] - E.P[1]) * 180 / Pi
+
+  ' la primer entidad del bloque es la linea principal
+  eLineaPpal.P[0] = 0           ' X0
+  eLineaPpal.P[1] = 0           ' Y0
+
+  eLineaPpal.P[2] = d           ' X1
+  eLineaPpal.P[3] = 0           ' Y1
+
+  ' el texto
+  eText.StringData[cadMText.sdaText] = "R " & Format(d, Me.DimFormat)
+
+  E.fParam[cadDimension.ipaRealMeasure] = d
+
+  flxTextExt = glPlus.TextExtends(eText.StringData[0], 0, 0, eText.fParam[1])
+
+  ' la cuarta y quinta son las flechas , tengo que verificar si entran, o el texto
+  If flxTextExt[2] * 1.1 > d Then                      ' no entra
+
+    eOblique2.P[0] = 0           ' X0
+    eOblique2.P[2] = -Me.DimArrowSize
+    eOblique2.P[4] = -Me.DimArrowSize
+    eOblique2.P[6] = 0           ' X0
+
+    ' el texto va afuera
+    eText.P[0] = d + Me.DimArrowSize / 2
+    eText.P[1] = Me.DimArrowWidth
+
+  Else                                                                ' entra
+
+    eOblique2.P[0] = d           ' X0
+    eOblique2.P[2] = -Me.DimArrowSize + d           ' X0
+    eOblique2.P[4] = -Me.DimArrowSize + d           ' X0
+    eOblique2.P[6] = d           ' X0
+
+    ' el texto va adentro
+    eText.P[0] = d / 2 - flxTextExt[2] / 2
+    eText.P[1] = Me.DimArrowWidth
+
+  End If
+
+  ' linea principal
+  eLineaPpal.P[1] = Me.extension           ' Y0
+  eLineaPpal.P[3] = Me.extension           ' Y1
+
+  ' texto
+  eText.P[1] = Me.DimArrowWidth + Me.extension
+
+  eOblique2.P[1] = Me.extension           ' X0
+  eOblique2.P[3] = Me.extension + Me.DimArrowWidth
+  eOblique2.P[5] = Me.extension - Me.DimArrowWidth
+  eOblique2.P[7] = Me.extension           ' X0
+
+  ' End If
+  Return newBlock
+
+End
+
+' Importo los datos que puedo procesar de una coleccion y genero un Entity para ser agregado a un array
+Public Function ImportJsonCol(c As Collection, e As Entity) As Boolean
+
+  ' "entity": "LARGE_RADIAL_DIMENSION",
+  ' "index": 312,
+  ' "type": 516,
+  ' "handle": [0, 4860],
+  ' "size": 1500,
+  ' "bitsize": 11864,
+  ' "preview_exists": 1,
+  ' "eed": [
+  '   {
+  '     "size": 26,
+  '     "handle": [5, 23],
+  '     "code": 0,
+  '     "value": "DSTYLE"
+  '   },
+  '   {
+  '     "code": 2,
+  '     "value": 0
+  '   },
+  '   {
+  '     "code": 70,
+  '     "value": 50
+  '   },
+  '   {
+  '     "code": 40,
+  '     "value": 0.78539816339745
+  '   },
+  '   {
+  '     "code": 2,
+  '     "value": 1
+  '   },
+  '   {
+  '     "size": 30,
+  '     "handle": [5, 4701],
+  '     "code": 70,
+  '     "value": 387
+  '   },
+  '   {
+  '     "code": 70,
+  '     "value": 1
+  '   },
+  '   {
+  '     "code": 70,
+  '     "value": 388
+  '   },
+  '   {
+  '     "code": 40,
+  '     "value": 0.0
+  '   },
+  '   {
+  '     "code": 70,
+  '     "value": 390
+  '   },
+  '   {
+  '     "code": 40,
+  '     "value": 0.0
+  '   }
+  ' ],
+  ' "reactors": [
+  '   [4, 2, 4862, 4862]
+  ' ],
+  ' "xdicobjhandle": [3, 2, 4861, 4861],
+  ' "_subclass": "AcDbEntity",
+  ' "prev_entity": [8, 0, 0, 4859],
+  ' "next_entity": [10, 1, 75, 4935],
+  ' "layer": [5, 2, 5261, 5261],
+  ' "preview_exists": 1,
+  ' "preview_is_proxy": 0,
+  ' "preview_size": 1288,
+  ' "preview": "080500002A0000000C0000001300000000000000880000001D000000000000000000F03F0000000000000000000000000000000000000000000000000000000000000000000000000000F03F0000000000000000000000000000000000000000000000000000000000000000000000000000F03F0000000000000000000000000000000000000000000000000000000000000000000000000000F03F0C000000160000000A0000C30C00000017000000FDFFFFFF0C00000012000000FF7F0000540000002000000002000000BAD9F6F6E2467740449CA6B8251169400000000000000000E1FDE8858BC8764085F71FF956C06940000000000000000000000000000000000000000000000000000000000000F03F0C000000160000000A0000C30C00000017000000FDFFFFFF0C00000012000000FF7F0000540000002000000002000000E1FDE8858BC8764085F71FF956C06940000000000000000086F371713C417840AEC75419C8486A40000000000000000000000000000000000000000000000000000000000000F03F0C000000160000000A0000C30C00000017000000FDFFFFFF0C00000012000000FF7F000054000000200000000200000086F371713C417840AEC75419C8486A400000000000000000AC176400E5C27740F822CE59F9F76A40000000000000000000000000000000000000000000000000000000000000F03F0C000000160000000A0000C30C00000017000000FDFFFFFF0C00000012000000FE7F0000540000002000000002000000F7BB26F306CE774078AA9EA201FC6A4000000000000000006173A10DC3B77740789BFD10F1F36A40000000000000000000000000000000000000000000000000000000000000F03F0C00000016000000090000C30C00000017000000FDFFFFFF0C00000012000000FF7F00000C00000016000000090000C3A40000000B00000011461B2804A67740F6FFB729DA2E6B40000000000000000000000000000000000000000000000000000000000000F03F3116D0552E4CEA3FB816C1B49C3BE2BF00000000000000005231302C35300000060000000100000000000000000000409A9999999999E93F0000000000000000000000000000F03F0000000000000000000000000000000000000000726F6D616E732E736878005C000000C00C00000016000000020000C30C00000017000000FDFFFFFF0C00000012000000FF7F00000C00000012000000000000000C0000001400000002000000540000002000000002000000AC176400E5C27740F822CE59F9F76A400000000000000000AC176400E5C27740F822CE59F9F76A40000000000000000000000000000000000000000000000000000000000000F03F0C00000016000000020000C30C00000017000000FDFFFFFF0C00000012000000FF7F00000C00000012000000000000000C0000001400000002000000540000002000000002000000BAD9F6F6E2467740449CA6B8251169400000000000000000BAD9F6F6E2467740449CA6B825116940000000000000000000000000000000000000000000000000000000000000F03F0C00000016000000020000C30C00000017000000FDFFFFFF0C00000012000000FF7F00000C00000012000000000000000C0000001400000002000000540000002000000002000000B478ADFBE3847740995F3A898F046A400000000000000000B478ADFBE3847740995F3A898F046A40000000000000000000000000000000000000000000000000000000000000F03F080000001F000000",
+  ' "entmode": 2,
+  ' "nolinks": 0,
+  ' "color": 256,
+  ' "ltype_scale": 1.0,
+  ' "ltype_flags": 0,
+  ' "plotstyle_flags": 0,
+  ' "invisible": 0,
+  ' "linewt": 29,
+  ' "_subclass": "AcDbDimension",
+  ' "extrusion": [0.0, 0.0, 1.0],
+  ' "text_midpt": [381.6653012244023, 214.72001678258115],
+  ' "elevation": 0.0,
+  ' "flag1": 10,
+  ' "user_text": "",
+  ' "text_rotation": 0.0,
+  ' "horiz_dir": 0.0,
+  ' "ins_scale": [1.0, 1.0, 1.0],
+  ' "ins_rotation": 0.0,
+  ' "attachment": 5,
+  ' "lspace_style": 1,
+  ' "lspace_factor": 1.0,
+  ' "act_measurement": 10.50494238347625,
+  ' "clone_ins_pt": [0.0, 0.0],
+  ' "flag": 128,
+  ' "_subclass": "AcDbRadialDimensionLarge",
+  ' "def_pt": [388.81386432399268, 209.7637151214733, 0.0],
+  ' "first_arc_pt": [380.1809085759985, 215.74918833027891, 0.0],
+  ' "leader_len": 0.0,
+  ' "ovr_center": [372.43041130472159, 200.53585464993569, 0.0],
+  ' "jog_point": [376.3056599403601, 208.14252149010716, 0.0],
+  ' "dimstyle": [5, 1, 57, 57],
+  ' "block": [5, 2, 4863, 4863]
+  e.P.Add(0)    ' TODO: cuando este terminada la entidad, remover esto
+  e.P.Add(0)
+
+  e.P.Add(c["def_pt"][0])
+  e.P.Add(c["def_pt"][1])
+
+  e.P.Add(c["first_arc_pt"][0])
+  e.P.Add(c["first_arc_pt"][1])
+
+  e.fParam[Me.ipaEscX] = 1
+  e.fParam[Me.ipaEscY] = 1
+  e.fParam[Me.ipaEscZ] = 1
+
+  'e.fParam[Me.ipaRotacion] = CFloat(c["text_rotation"]) * 180 / Pi
+
+  e.pBlock = gcd.CurrentDrawing.oBlocks[gcd.CurrentDrawing.cmodel["BLOCKS"][c["block"][3]]["block_entity"][3]]
+
+  Return True
+
+  'Catch
+
+  Return False
+
+End
