@@ -1,1 +1,182 @@
-../../../GauchoCAD/.src/Library/paintPlus.module
+' Gambas module file
+
+Public Function picCirculito(iRadio As Integer, iColorRelleno As Integer, Optional iColorBorder As Integer = -1, iColorBackGround As Integer = -1) As Picture
+
+  Dim imgCirculito As Image
+  'Dim i, iColor As Integer
+
+  If iColorBackGround < 0 Then iColorBackGround = Color.SetAlpha(Color.ButtonBackground, 255)
+  If iColorBorder < 0 Then iColorBorder = iColorRelleno
+  imgCirculito = New Image(iradio * 2, iRadio * 2, iColorBackGround)
+  Paint.Begin(imgCirculito)
+  Paint.LineWidth = 2
+  Paint.Arc(iRadio, iRadio, iradio - 1, 0, 2 * Pi)
+  Paint.Brush = Paint.Color(iColorRelleno)
+  Paint.Fill(True)
+  Paint.Brush = Paint.Color(iColorBorder)
+  Paint.Stroke()
+  Paint.End
+
+  Return imgCirculito.Picture
+
+End
+
+Public Function picTexto(sText As String, iTextHeigth As Integer, iBoxWidth As Integer, iBoxHeigth As Integer, iColor As Integer, Optional iColorBackGround As Integer = -1, iAlignment As Integer = 0) As Picture
+
+  Dim imgTexto As Image
+  'Dim i, iColor As Integer
+
+  If iColorBackGround < 0 Then iColorBackGround = Color.SetAlpha(Color.ButtonBackground, 255)
+
+  imgTexto = New Image(iBoxWidth, iBoxHeigth, iColorBackGround)
+  Paint.Begin(imgTexto)
+  Paint.LineWidth = 1
+  Paint.Brush = Paint.Color(iColor)
+  Paint.Text(sText, 0, 0, iBoxWidth, iBoxHeigth, iAlignment)
+  Paint.Fill()
+  Paint.End
+
+  Return imgTexto.Picture
+
+End
+
+Public Sub Lines(flxPoints As Float[])
+
+  Dim i As Integer
+
+  If flxPoints.Count < 3 Then Return
+  paint.moveto(flxPoints[0], flxPoints[1])
+  For i = 2 To flxPoints.Max Step 2
+    paint.lineto(flxPoints[i], flxPoints[i + 1])
+
+  Next
+
+  paint.Stroke
+
+End
+
+Public Sub RelLines(flxPoints As Float[])
+
+  Dim i As Integer
+
+  If flxPoints.Count < 3 Then Return
+  paint.Relmoveto(flxPoints[0], flxPoints[1])
+  For i = 2 To flxPoints.Max Step 2
+    paint.Rellineto(flxPoints[i], flxPoints[i + 1])
+
+  Next
+
+  paint.Stroke
+
+End
+
+'' Grafica un texto en el contexto actual de acuerdo a los parametros pasados
+'' Debe estar definida la Font con nombre y altura
+''
+'Fast Unsafe
+Public Function DrawText(UTFstring As String, posX As Float, posY As Float, Optional angle As Float = 0, textH As Float = 1, colour As Integer = -14, linewidth As Float = 1, rectW As Float = 0, rectH As Float = 0, alignHoriz As Integer = 0, alignVert As Integer = 0) As Boolean
+
+  Dim i, iii, i2, UTFcode, LetterIndex As Integer, Xadvance As Float
+  Dim fArcParams As New Float[]
+  Dim Glyps, Bulges As New Float[]
+  Dim TGlyps, TBulges As Float[][]
+  Dim Ang, m1, m2, b, bx, by, mx, my, ang1, lt As Float
+  Dim iBulge As Integer
+
+  Paint.Save 'gl.PushMatrix                                                               ' para evitar peleas, guardo la matriz de trnasformacion
+  Paint.Translate(posX, posY) ' gl.Translatef(posX, posY, 0)
+  Paint.Rotate(angle * Pi / 180) 'gl.Rotatef(angle, 0, 0, 1)                                                  ' en grados
+  Paint.Scale(textH * glPlus.FontScale) ' gl.Scalef(textH * FontScale, textH * FontScale, 1)
+  'If colour <> -14 Then Me.glColorRGB(colour)
+  For i = 1 To String.Len(UTFstring)                                                 ' para cada letra
+    UTFcode = String.Code(UTFstring, i)                                     ' obtengo el UTF code
+    If UTFcode = 32 Then                                                    ' es un espacio
+      Paint.Translate(glplus.actualfont.LetterSpacing, 0)'  gl.Translatef(glplus.actualfont.LetterSpacing, 0, 0)                       ' muevo el puntero a la siguiente posicion
+    Else
+      ' DEPRE LetterIndex = GetCodeIndex(glplus.actualfont, UTFcode)                     ' obtengo el indice de la letra
+      If glplus.actualfont.Letter.Exist(UTFcode) Then
+        TGlyps = glplus.actualfont.Letter[UTFcode].FontGlyps
+        TBulges = glplus.actualfont.Letter[UTFcode].FontBulges
+
+      Else If glplus.unicodefont.Letter.Exist(UTFcode) Then ' is unicode
+        TGlyps = glplus.unicodefont.Letter[UTFcode].FontGlyps
+        TBulges = glplus.unicodefont.Letter[UTFcode].FontBulges
+
+      Else
+        ' descarto la letra
+        Continue
+
+      End If
+
+      ' con bulges
+      '============================================================================
+      iBulge = 0
+
+      For Each Glyps In TGlyps
+        Bulges = TBulges[iBulge]
+
+        For i2 = 0 To Glyps.Count / 2 - 2
+
+          ' no todos los tramos pueden tener bulges
+          If Abs(Bulges[i2 + 1]) > 0.001 Then
+            ang1 = Ang(Glyps[(i2 + 1) * 2] - Glyps[i2 * 2], Glyps[(i2 + 1) * 2 + 1] - Glyps[i2 * 2 + 1])    ' angulo del tramo
+            Lt = puntos.distancia(Glyps[i2 * 2], Glyps[i2 * 2 + 1], Glyps[(i2 + 1) * 2], Glyps[(i2 + 1) * 2 + 1])
+            If Lt = 0 Then Continue
+            mx = (Glyps[(i2 + 1) * 2] + Glyps[i2 * 2]) / 2          ' punto medio del tramo
+            my = (Glyps[(i2 + 1) * 2 + 1] + Glyps[i2 * 2 + 1]) / 2
+            B = Bulges[i2 + 1] * Lt / 2
+            bx = mx + B * Sin(ang1)                             ' Tercer punto del Bulge
+            by = my - B * Cos(ang1)
+
+            ' aqui podria usar una rutina de arco entre 3 puntos
+            fArcParams = puntos.Arc3Point(Glyps[i2 * 2], Glyps[i2 * 2 + 1], bx, by, Glyps[(i2 + 1) * 2], Glyps[(i2 + 1) * 2 + 1])
+            ' traslado el centro
+
+            Paint.Translate(fArcParams[0], fArcParams[1]) '  gl.Translatef(fArcParams[0], fArcParams[1], 0)
+
+            ' verifico Start_Angle y End_Angle (esta parte esta intimamente ligada a Arc3Point)
+            ' las combinaciones de angulos son diversas, Arc3Point puede no funcionar bien en otra circunstancia
+
+            If fArcParams[3] > 0 And fArcParams[4] > 0 Then
+
+            Else If fArcParams[3] > 0 And fArcParams[4] < 0 Then
+
+              Swap fArcParams[3], fArcParams[4]
+
+            Else If fArcParams[3] < 0 And fArcParams[4] < 0 Then
+              fArcParams[3] += 2 * Pi
+              fArcParams[4] += 2 * Pi
+
+            Else If fArcParams[3] < 0 And fArcParams[4] > 0 Then
+              fArcParams[3] += 2 * Pi
+
+            Endif
+
+            If fArcParams[3] > fArcParams[4] Then Swap fArcParams[3], fArcParams[4]
+
+            Paint.Arc(fArcParams[0], fArcParams[1], fArcParams[2], fArcParams[3], fArcParams[4] - fArcParams[3]) 'glPlus.Arc(fArcParams[2], fArcParams[3], fArcParams[4] - fArcParams[3], colour)
+            Paint.Translate(-fArcParams[0], -fArcParams[1])' gl.Translatef(-fArcParams[0], -fArcParams[1], 0)
+            fArcParams = Null
+
+          Else    ' dibujo la linea normalmente
+
+            paintPlus.Lines([Glyps[i2 * 2], Glyps[i2 * 2 + 1], Glyps[(i2 + 1) * 2], Glyps[(i2 + 1) * 2 + 1]])
+          End If
+
+        Next
+        For iii = 0 To Glyps.Max Step 2  ' calculo cuanto tiene que avanzar el puntero
+          If Glyps[iii] > Xadvance Then Xadvance = Glyps[iii]
+        Next
+
+        Inc iBulge
+      Next
+      Paint.Translate(Xadvance + glplus.actualfont.LetterSpacing, 0)'  gl.Translatef(Xadvance + glplus.actualfont.LetterSpacing, 0, 0)                                       ' muevo el puntero a la siguiente posicion
+      'Debug Xadvance
+      Xadvance = 0
+      '================================================================================
+
+    End If
+  Next
+  Paint.Restore() 'gl.PopMatrix
+
+End

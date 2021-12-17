@@ -1,1 +1,1919 @@
-../../../GauchoCAD/.src/Library/dxf.module
+' Gambas module file
+
+Public LoadingPercent As Single
+Private LoadLastPercent As Single
+Private LoadTotalBytes As Integer
+Private LoadedBytes As Integer
+
+Private fp As File
+Private hFile As File
+
+Public LastHandle As Integer
+
+Private lpCode As String
+Private lpValue As String
+
+Private eExports As Boolean
+
+Public cEntitiesUnread As Collection
+Public nEntitiesUnread As Integer
+Public nEntitiesRead As Integer
+Private iLastHandle As Integer
+
+' Codigos del DXF
+Public Const codEntity As String = "0"
+Public Const codHandle As String = "5"
+Public Const codHandleOwner As String = "330"
+Public Const codColor As String = "62"
+Public Const codLType As String = "6"
+Public Const codLayer As String = "8"
+Public Const codLWht As String = "370"
+Public Const codName As String = "2"
+Public Const codX0 As String = "10"
+Public Const codY0 As String = "20"
+Public Const codZ0 As String = "30"
+Public Const codX1 As String = "11"
+Public Const codY1 As String = "21"
+Public Const codZ1 As String = "31"
+Public Const codX2 As String = "12"
+Public Const codY2 As String = "22"
+Public Const codZ2 As String = "32"
+Public Const codX3 As String = "13"
+Public Const codY3 As String = "23"
+Public Const codZ3 As String = "33"
+Public Const codCenterX As String = "10"
+Public Const codCenterY As String = "20"
+Public Const codCenterZ As String = "30"
+Public Const codRadius As String = "40"
+Public Const codAngleStart As String = "50"
+Public Const codAngleEnd As String = "51"
+
+Public Function DWGtoDXF(sDwgFile As String) As String
+
+    Dim str, tmpfile As String
+    ' elimino el archivo temporal que hubiese creado
+    tmpfile = sDwgFile & ".tmp"
+    If Exist(tmpfile) Then Kill tmpfile
+    ' convierte DWG a DXF version 2010
+    Shell "/usr/local/bin/dwgread '" & sDwgFile & "' -O DXF -a r2010 -o '" & tmpfile & "'" Wait To str
+    gcd.debuginfo("Resultados de la conversion DWG a DXF " & Str)
+    Return tmpfile
+
+End
+
+'' Carga el DXF y lo mete en cModel del dibujo actual
+' Verbose=0 nada, 1=minimo, 2=grupos, 3=todo
+Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables As Boolean = False, IgnoreBlocks As Boolean = False, IgnoreHeader As Boolean = False, VerboseLevel As Integer = 0, UpdateGraphics As Boolean = True) As Integer
+
+    Dim t As Float = Timer
+    Dim cLlaveActual, cSectionActual, cTable As Collection
+    Dim cToFill As New Collection
+
+    iLastHandle = 0
+
+    fp = Open sFile For Read
+
+    If Not fp Then Error.Raise("Error !")
+
+    LoadedBytes = 0
+    LoadTotalBytes = Lof(fp)
+
+    cEntitiesUnread = New Collection
+    nEntitiesUnread = 0
+    nEntitiesRead = 0
+
+    While Not Eof(fp)
+        'Wait 0.0001
+        ReadData
+        If lpCode = "0" And lpValue = "SECTION" Then
+
+            ' vemos que seccion es
+            ReadData
+            If lpCode = "2" And lpValue = "HEADER" And Not IgnoreHeader Then
+                ' creo la llave, pero solo si es necesario
+                If Not cToFill.Exist("HEADER") Then
+                    cLlaveActual = New Collection
+                    cToFill.Add(cLlaveActual, "HEADER")
+                Else
+                    cLlaveActual = cToFill["HEADER"]
+                End If
+
+                Load1HeadersDirect(drw.oHeader)
+
+            End If
+
+            If lpCode = "2" And lpValue = "CLASSES" Then
+
+                Load2Classes(drw)
+
+            End If
+
+            If lpCode = "2" And lpValue = "TABLES" And Not IgnoreTables Then
+                If Not cToFill.Exist("TABLES") Then
+                    cLlaveActual = New Collection
+                    cToFill.Add(cLlaveActual, "TABLES")
+                Else
+                    cLlaveActual = cToFill["TABLES"]
+                End If
+                Load3Tables(cLlaveActual)
+
+                ' con las tablas cargadas, llenamoslas colecciones de objetos
+
+                ReadLTypes(cToFill, drw)
+                ReadStyles(cToFill, drw)
+                ReadLayers(cToFill, drw)
+            End If
+
+
+
+            '
+            If lpCode = "2" And lpValue = "BLOCKS" And Not IgnoreBlocks Then
+                ' creo la llave
+                cLlaveActual = New Collection
+                cToFill.Add(cLlaveActual, "BLOCKS")
+                Load4Blocks(cLlaveActual)
+
+            End If
+
+            If lpCode = "2" And lpValue = "ENTITIES" Then
+                ' creo la llave
+                cLlaveActual = New Collection
+                cToFill.Add(cLlaveActual, "ENTITIES")
+
+                Load5Entities(cLlaveActual)
+
+            End If
+            '
+            If lpCode = "2" And lpValue = "OBJECTS" Then
+
+                If Not cToFill.Exist("OBJECTS") Then
+                    cLlaveActual = New Collection
+                    cToFill.Add(cLlaveActual, "OBJECTS")
+                Else
+                    cLlaveActual = cToFill["OBJECTS"]
+                End If
+
+                Load6Objects(cLlaveActual)
+
+            End If
+
+            If lpCode = "2" And lpValue = "THUMBNAILIMAGE" Then
+
+                If Not cToFill.Exist("THUMBNAILIMAGE") Then
+                    cLlaveActual = New Collection
+                    cToFill.Add(cLlaveActual, "THUMBNAILIMAGE")
+                Else
+                    cLlaveActual = cToFill["THUMBNAILIMAGE"]
+                End If
+
+                Load7Thumbnail(cLlaveActual)
+
+            End If
+
+        Endif
+    Wend
+
+    If UpdateGraphics Then UpdateGraphicsFromDXF(cToFill, drw)
+
+    If VerboseLevel > 1 Then
+        If VerboseLevel > 2 Then
+            gcd.debuginfo("DXF: Leidas " & nEntitiesread & " entidades")
+            If cEntitiesUnread.Count > 0 Then
+                gcd.debuginfo("DXF: Un total de" & nEntitiesUnread & " entidades no pudieron ser leidas:")
+                For Each unread As String In cEntitiesUnread
+                    Print unread
+                Next
+            Endif
+            Print
+        End If
+        gcd.debuginfo("DXF: fin lectura en " & Str(Timer - t))
+    End If
+    Return 0
+
+End
+
+Private Sub ReadData()
+
+    Line Input #fp, lpcode
+    Line Input #fp, lpValue
+
+    LoadedBytes += Len(lpcode)
+    LoadedBytes += Len(lpvalue)
+
+    If Right(lpcode, 1) = gb.Cr Then lpcode = Left(lpcode, -1)
+    If Right(lpvalue, 1) = gb.cr Then lpvalue = Left(lpvalue, -1)
+
+    lpcode = Trim$(lpcode)
+    lpvalue = Trim$(lpvalue)
+
+    ' updating percentage
+
+    LoadingPercent = LoadedBytes / LoadTotalBytes
+
+    If LoadingPercent - LoadLastPercent > 0.01 Then
+        gcd.debugInfo("Loging file " & CInt(LoadingPercent * 100) & "%", True, True)
+        LoadLastPercent = LoadingPercent
+    End If
+
+End
+
+' Private Sub Load1Headers(cVars As Collection)
+'
+'   ' Los header se guardan asi
+'   '   9                     Indica que es una variable
+'   ' $EXTMAX                 Nombre de la variable
+'   '  10                     Tipo de dato1
+'   ' 198.0411690635561       Dato1
+'   '  20                     Tipo de dato2
+'   ' 178.7767572407179       Dato2
+'   '  30                     etc
+'   '   0
+'
+'   ' Yo usare dos colecciones
+'
+'   Dim sVarName As String
+'   Dim cVariable As Collection
+'
+'   ReadData
+'   Do
+'
+'     If lpCode = "0" And lpValue = "ENDSEC" Then Break
+'
+'     If lpcode = "9" Then ' nueva variable
+'       cVariable = New Collection
+'       cVars.Add(cVariable, lpValue)
+'       Do                          ' este bucle es por si la variable es un array
+'         ReadData
+'         If lpcode = "0" Or lpCode = "9" Then Break
+'         cVariable.Add(lpvalue, lpcode)
+'
+'       Loop
+'
+'     Endif
+'
+'   Loop
+'
+'   'gcd.debuginfo("DXF: Leidas", gcd.CurrDrawing.cModel["HEADER"].Count, "variables de ambiente"
+'
+' End
+
+Private Sub Load1HeadersDirect(oHeader As Headers)
+
+    ' Los header se guardan asi
+    '   9                     Indica que es una variable
+    ' $EXTMAX                 Nombre de la variable
+    '  10                     Tipo de dato1
+    ' 198.0411690635561       Dato1
+    '  20                     Tipo de dato2
+    ' 178.7767572407179       Dato2
+    '  30                     etc
+    '   0
+
+    ' Yo usare dos colecciones
+
+    Dim sVarName As String
+    Dim cVariable As Variant[]
+    Dim v As Variant
+    Dim slx As New Single[]
+    Dim inx As New Integer[]
+    Dim i As Integer
+
+    ReadData
+    Do
+
+        If lpCode = "0" And lpValue = "ENDSEC" Then Break
+
+        If lpcode = "9" Then ' nueva variable
+            cVariable = New Variant[]
+            sVarName = Mid(lpvalue, 2)
+
+            Do                          ' este bucle es por si la variable es un array
+                ReadData
+                If lpcode = "0" Or lpCode = "9" Then Break
+                cVariable.Add(lpvalue)
+            Loop
+            If Not oHeader.SetValues(sVarName, cVariable) Then gcd.debugInfo("Var " & sVarName & " not found.")
+            Inc i
+
+        Endif
+
+    Loop
+
+    gcd.debuginfo("DXF: Leidas " & i & " variables de ambiente")
+
+End
+
+Private Sub Load2Classes(drwLoading As Drawing)
+
+    Dim cClass As CadClass
+
+
+    Do
+
+        If lpValue = "CLASSES" Then ReadData
+        If lpValue = "ENDSEC" Then Return
+
+
+        cClass = New CadClass
+        drwLoading.oClasses.Add(cClass)
+
+
+
+        ReadData
+
+        While (lpcode <> "0") And Not Eof(fp)
+            If lpcode = "0" Then cClass.recordtype = lpValue
+            If lpcode = "1" Then cClass.recordname = lpValue
+            If lpcode = "2" Then cClass.CPPName = lpValue
+            If lpcode = "3" Then cClass.AppName = lpValue
+            If lpcode = "90" Then cClass.ProxyCapp = CInt(lpValue)
+            If lpcode = "91" Then cClass.InstanceCount = CInt(lpValue)
+            If lpcode = "280" Then cClass.ProxyFlag = CInt(lpValue)
+            If lpcode = "281" Then cClass.EntityFlag = CInt(lpValue)
+
+
+            ReadData
+
+        Wend
+
+    Loop
+
+End
+
+Private Sub Load3Tables(cTables As Collection)
+
+    Dim sTableName As String
+    Dim sTableHandle As String  ' in hex
+    Dim sTableOwner As String   ' in hex , 0 = nobody
+    Dim iTableEntries As Integer
+    Dim cTable As Collection
+
+    ' creamos una table inicial con los handles de las tables
+    cTable = New Collection
+    cTables.Add(cTable, "__AuxData__")
+
+    ReadData
+    Do
+        If Eof(fp) Then Break
+
+        If lpCode = "0" And lpValue = "ENDSEC" Then Break
+
+        If lpCode = "0" And lpValue = "TABLE" Then
+
+            ' OBTENGO DATOS DE LA TABLA
+            ' -1 APP: entity name(changes Each Time a drawing Is Opened)
+            ' 0 Object type(TABLE)
+            ' 2 Table name
+            ' 5 Handle
+            ' 330 Soft - pointer ID / handle To owner object
+            ' 100 Subclass marker(AcDbSymbolTable)
+            ' 70 Maximum number Of entries In table
+            ReadData
+            While lpcode <> "0"
+
+                If lpcode = "5" Then sTableHandle = lpvalue
+
+                If lpcode = "2" Then sTableName = lpvalue
+                If lpcode = "330" Then sTableOwner = lpvalue
+
+                'If sTableName = "VIEW" Then Stop
+
+                ' WARNING: este dato no es valido para todas las versiones de DXF
+                ' en algunos archivos hay mas tablas que lo que indica este numero
+                ' No hay que darle importancia a este numero!!!
+                If lpcode = "70" Then iTableEntries = CInt(lpvalue)
+
+                ReadData
+            Wend
+
+            ' agrego datos a la tabla auxiliar del dibujo
+            cTables["__AuxData__"].Add(sTableHandle, sTableName)
+
+            cTable = New Collection
+
+            cTables.Add(cTable, sTableName)
+
+            ' verifico que la tabla no tenga entradas, lo que me altera la carga
+            If lpvalue <> "ENDTAB" Then
+                NewObject(cTable, sTableHandle)
+                Load31Table(cTable, iTableEntries)
+            End If
+        End If
+        ReadData
+    Loop
+
+    ' FIXME: esto no anda en Gauncho, es necesario en m-designer?
+
+
+    Try gcd.debuginfo("DXF: Leidas" & gcd.CurrentDrawing.cModel["LAYERS"].count & " tablas")
+
+
+
+End
+'' Lee todas las tables de esta table
+
+Private Sub Load31Table(cVars As Collection, iEntries As Integer)
+
+    ' Yo usare dos colecciones
+
+    Dim sTableName, sHandle As String
+    Dim cTable As Collection
+    Dim i As Integer
+
+    Dim iCode As Integer, NewKey As String
+
+    ' Tengo q leer iEntries
+    'For i = 1 To iEntries
+    Do
+        Inc i
+        cTable = New Collection
+        sTableName = ""
+        iCode = 0
+
+        ReadData
+
+        ' esto lee todas las tables en la table
+
+        'If lpCode = "0" Then Break
+
+        While lpcode <> "0"
+            NewKey = lpcode
+            If cTable.Exist(NewKey) Then
+                Do
+                    iCode += 1
+                    NewKey = lpcode & "_" & CStr(iCode)
+
+                    If Not cTable.Exist(NewKey) Then Break
+                Loop
+            Endif
+            cTable.Add(lpvalue, NewKey)
+
+            If lpcode = Me.codName Then sTableName = lpvalue
+            ReadData
+
+        Wend
+        'If cTable.Count = 1 Then Stop
+        If cTable.Count > 0 Then
+            If sTableName = "" Then sTableName = CStr(i)
+            cVars.Add(cTable, sTableName)
+
+        Endif
+
+        If lpcode = "0" And lpValue = "ENDTAB" Then Break
+
+    Loop
+
+    If cTable.Exist("5") Then
+        sHandle = cTable["5"]
+    Else If cTable.Exist("105") Then
+        sHandle = cTable["105"]
+    Else If cTable.Exist("2") Then
+        sHandle = cTable["2"]
+    Else
+        sHandle = gcd.NewHandle()
+
+    Endif
+    NewObject(cTable, sHandle)
+
+    'gcd.JSONtoLayers
+
+    Try gcd.debuginfo("DXF: Leidas" & gcd.CurrentDrawing.cModel["LAYERS"].count & " tablas")
+
+End
+
+Private Sub Load4Blocks(cBlocks As Collection)
+
+    Dim mBlock As Block
+    Dim unread As Variant
+    Dim i As Integer
+
+    Dim sTableName As String
+
+    Dim cTable, cEntities As Collection
+
+    Dim iCode As Integer, NewKey As String
+
+    ReadData
+    Do
+
+        mBlock = New Block
+
+        If lpCode = "0" And lpValue = "ENDSEC" Then Break
+
+        If (lpcode = "0") And (lpvalue = "BLOCK") Then
+            Inc i
+            cTable = New Collection
+
+            ReadData
+
+            While lpcode <> "0"
+                NewKey = lpcode
+                If cTable.Exist(NewKey) Then
+                    Do
+                        iCode += 1
+                        NewKey = lpcode & "_" & CStr(iCode)
+
+                        If Not cTable.Exist(NewKey) Then Break
+                    Loop
+                Endif
+
+                If lpcode = Me.codName Then sTableName = lpvalue
+                cTable.Add(lpvalue, NewKey)
+                ReadData
+
+            Wend    ' fin del encabezado del Block, siguen sus entidades
+            NewObject(cTable, cTable["5"])
+            ' si estoy leyendo bloques, significa que estoy abriendo un plano
+            cEntities = New Collection
+            cTable.Add(cEntities, "entities")
+
+            Load5Entities(cEntities)
+
+            If sTableName = "" Then sTableName = CStr(i)
+
+            cBlocks.Add(cTable, sTableName)
+
+        Endif
+    Loop
+
+    gcd.debuginfo("DXF: Leidos " & gcd.CurrentDrawing.oBlocks.Count & " bloques")
+
+End
+
+Private Sub Load5Entities(cEntities As Collection)
+
+    Dim sClave As String[]
+    Dim sValue As String[]
+    Dim sEntidad, sKey As String
+    Dim clsHandler As Object
+    Dim eNueva As Entity
+    Dim Reads As Boolean
+
+    Dim cEntity As Collection
+    Dim iEntity As Integer
+
+    Dim iCode As Integer, NewKey As String
+
+    Do
+        'Debug lpcode, lpvalue
+        sClave = New String[]
+
+        sValue = New String[]
+
+        If lpValue = "ENTITIES" Then ReadData
+        If lpValue = "ENDSEC" Then Return
+
+        sEntidad = lpValue
+        Inc iEntity
+        cEntity = New Collection
+
+        cEntity.Add(sEntidad, "0")
+        iCode = 0
+
+        ' Leo descentralizadamente las entidades
+        ReadData
+
+        'If sEntidad = "HATCH" Then Stop
+        While (lpcode <> "0") And Not Eof(fp)
+
+            NewKey = lpcode
+            If cEntity.Exist(NewKey) Then
+                Do
+                    iCode += 1
+                    NewKey = lpcode & "_" & CStr(iCode)
+
+                    If Not cEntity.Exist(NewKey) Then Break
+                Loop
+            Endif
+
+            If sEntidad <> "ENDSEC" Then cEntity.Add(lpvalue, NewKey)
+            ReadData
+
+        Wend
+
+        NewObject(cEntity, cEntity[dxf.codHandle])
+
+        If cEntity.Exist(dxf.codHandle) Then
+            sKey = cEntity[dxf.codHandle]
+        Else
+            sKey = CStr(iLastHandle)
+            Inc iLastHandle
+
+        End If
+
+        cEntities.Add(cEntity, sKey)
+
+        If sEntidad = "ENDBLK" Or sEntidad = "ENDSEC" Then Return
+
+    Loop
+
+End
+
+Private Sub Load6Objects(cObjects As Collection)
+
+    Dim sClave As String[]
+    Dim sValue As String[]
+    Dim sEntidad As String
+    Dim clsHandler As Object
+    Dim eNueva As Entity
+    Dim Reads As Boolean
+
+    Dim cObject As Collection
+    Dim iObject As Integer
+
+    Dim iCode As Integer, NewKey As String
+
+    Do
+        'Debug lpcode, lpvalue
+        sClave = New String[]
+
+        sValue = New String[]
+
+        If lpValue = "OBJECTS" Then ReadData
+        If lpValue = "ENDSEC" Then Return
+
+        sEntidad = lpValue
+        Inc iObject
+        cObject = New Collection
+        cObjects.Add(cObject, CStr(iObject))
+        cObject.Add(sEntidad, "0")
+        iCode = 0
+
+        ' Leo descentralizadamente las entidades
+        ReadData
+
+        'If sEntidad = "HATCH" Then Stop
+        While (lpcode <> "0") And Not Eof(fp)
+
+            NewKey = lpcode
+            If cObject.Exist(NewKey) Then
+                Do
+                    iCode += 1
+                    NewKey = lpcode & "_" & CStr(iCode)
+
+                    If Not cObject.Exist(NewKey) Then Break
+                Loop
+            Endif
+            cObject.Add(lpvalue, NewKey)
+            ReadData
+
+        Wend
+        NewObject(cObject, cObject["5"])
+
+        If sEntidad = "ENDBLK" Or sEntidad = "" Then Return
+
+    Loop
+
+End
+
+Private Sub Load7Thumbnail(cThumbnail As Collection)
+
+    Dim iCode As Integer, NewKey As String
+
+    Do
+
+        If lpValue = "ENDSEC" Then Return
+
+        ' Leo descentralizadamente las entidades
+        ReadData
+
+        While (lpcode <> "0") And Not Eof(fp)
+
+            NewKey = lpcode
+            If cThumbnail.Exist(NewKey) Then
+                Do
+                    iCode += 1
+                    NewKey = lpcode & "_" & CStr(iCode)
+
+                    If Not cThumbnail.Exist(NewKey) Then Break
+                Loop
+            Endif
+            cThumbnail.Add(lpvalue, NewKey)
+            ReadData
+
+        Wend
+
+    Loop
+
+End
+
+Public Function SaveFile(sName As String, Optional cDrwData As Collection, drwToSAve As Drawing, LoadMinimal As Boolean = False) As Integer
+
+    Dim cData As Collection
+    Dim f As String
+
+    ' If Not cDrwData Then ' necesito cargar el minimal para tener los datos basicos
+    '   cData = New Collection              ' instanciamos la coleccion
+    '   f = "./minimal/minimal.dxf"
+    '   If Not Exist(f) Then Goto Error1
+    '   LoadFile(f, cData)
+    '
+    ' Else
+    '   cData = cDrwData
+    ' End If
+
+    hFile = Open sName For Write Create
+
+    LastHandle = 0          ' creamos las handles desde cero
+
+    If Save1HeadersAndVarsDirect(drwToSAve.oHeader) Then Goto Error1
+    If Save2Classes(drwToSAve) Then Goto Error1
+    If Save3TablesDirect(drwToSAve) Then Goto Error1
+    If Save4BlocksDirect(drwToSAve.oBlocks) Then Goto Error1
+    If Save5EntitiesDirect(drwToSAve.oEntities) Then Goto Error1
+    'If Save6Objects(cData["OBJECTS"]) Then Return False
+    Save7ThumbNail(Null)
+
+    hFile.Close
+    Return gcd.CurrentDrawing.oEntities.Count
+    'Catch
+Error1:
+    hFile.Close
+
+    Message.Error(("Error saving file"))
+    Return -1
+
+End
+
+Private Function Save1HeadersAndVarsDirect(oHeader As Headers) As Integer
+
+    Dim sValues As String
+    Dim stxHeaders As String[]
+
+    Print #hFIle, "999"
+    Print #hFIle, "GauchoCAD"
+    Print #hFIle, "  0"
+    Print #hFIle, "SECTION"
+    Print #hFIle, "2"
+    Print #hFIle, "HEADER"
+
+    stxHeaders = oHeader.ExportDXF()
+
+    For Each sValues In stxHeaders
+        Print #hFile, sValues
+    Next
+    Print #hFIle, "  0"
+    Print #hFIle, "ENDSEC"
+
+End
+
+' Las classes de cad no las usamos. En teoria, no tienen ninguna utilidad fuera de AutoCAD.
+' Abriendo un DXF, se guadaran todas las classes a efectos de recosntruir el DXF.
+Private Function Save2Classes(drwSaving As Drawing) As Integer
+
+    Dim cClass As CadClass
+    Dim lpValue, lpclave As String
+    ' Dim i As Integer
+
+    Print #hFIle, "  0"
+    Print #hFIle, "SECTION"
+    Print #hFIle, "  2"
+    Print #hFIle, "CLASSES"
+
+    ' here go all entities
+    For Each cClass In drwSaving.oClasses
+        Print #hFIle, "  0"
+        Print #hFIle, "CLASS"
+
+        ' lpclave = "0"
+        ' lpvalue = cClass.RecordType
+        ' Print #hFile, lpclave
+        ' Print #hFIle, lpvalue
+
+        Print #hFile, "  1"
+        Print #hFIle, cClass.RecordName
+
+        Print #hFile, "  2"
+        Print #hFIle, cClass.CPPName
+
+        Print #hFile, "  3"
+        Print #hFIle, cClass.AppName
+
+        Print #hFile, " 90"
+        Print #hFIle, CStr(cClass.ProxyCapp)
+
+        Print #hFile, " 91"
+        Print #hFIle, CStr(cClass.InstanceCount)
+
+        Print #hFile, "280"
+        Print #hFIle, CStr(cClass.ProxyFlag)
+
+        Print #hFile, "281"
+        Print #hFIle, CStr(cClass.EntityFlag)
+
+    Next
+    ' end section code
+    Print #hFIle, "  0"
+    Print #hFIle, "ENDSEC"
+
+End
+
+' Private Function Save3Tables(cTables As Collection, drw As Drawing) As Integer
+'
+'   Dim cTable, cTableEntry, cVar, cVars As Collection
+'   Dim sValues, lpclave As String
+'   Dim sTableName As String
+'   Dim i As Integer
+'
+'   Print #hFIle, "  0"
+'   Print #hFIle, "SECTION"
+'   Print #hFIle, "2"
+'   Print #hFIle, "TABLES"
+'   For Each cTable In cTables
+'     sTableName = cTables.Key
+'     If sTableName = "__AuxData__" Then Continue
+'
+'     Print #hFIle, "  0"
+'     Print #hFIle, "TABLE"
+'     Print #hFIle, "  2"
+'     Print #hFIle, sTableName
+'     Print #hFIle, "  5"         ' handle
+'     ' Else
+'     '   Print #hFIle, "105"         ' handle
+'     ' End If
+'     Print #hFIle, cTables["__AuxData__"][sTableName]           ' valor de la handle
+'     Print #hFIle, "  330"
+'     Print #hFIle, "0"
+'     Print #hFIle, "  100"
+'     Print #hFIle, "AcDbSymbolTable"
+'     Print #hFIle, "  70"
+'     Print #hFIle, CStr(cTable.Count)
+'     ' otra particularidad
+'     If sTableName = "DIMSTYLE" Then
+'       Print #hFIle, "  100"
+'       Print #hFIle, "AcDbDimStyleTable"
+'       Print #hFIle, "  71"
+'       Print #hFIle, CStr(cTable.Count)
+'     End If
+'     If sTableName = "BLOCK_RECORD" Then
+'       save31BlockRecord(drw.oBlocks)
+'
+'     Else
+'
+'       If cTable.Count > 0 Then
+'         For Each cTableEntry In cTable
+'           Print #hFIle, "  0"
+'           Print #hFIle, sTableName
+'           ' Print #hFIle, "  2"
+'           ' Print #hFIle, cTable.Key
+'           For Each sValues In cTableEntry
+'             lpclave = cTableEntry.Key
+'             I = InStr(lpclave, "_")
+'             If i > 0 Then lpclave = Left(lpclave, i - 1)
+'             Print #hFile, lpclave
+'             Print #hFIle, sValues
+'           Next
+'         Next
+'       Endif
+'     End If
+'     Print #hFIle, "  0"
+'     Print #hFIle, "ENDTAB"
+'   Next
+'   Print #hFIle, "  0"
+'   Print #hFIle, "ENDSEC"
+'
+' End
+
+Private Function Save3TablesDirect(drw As Drawing) As Integer
+
+    Dim cTable, cTableEntry, cVar, cVars As Collection
+    Dim sValues, lpclave As String
+    Dim sTableHandle As String
+    Dim i As Integer
+    ' Empiezo la seccion tables
+    Print #hFIle, "  0"
+    Print #hFIle, "SECTION"
+    Print #hFIle, "2"
+    Print #hFIle, "TABLES"
+
+    Save3TableViewPorts(drw)
+    Save3TableViews(drw)
+    Save3TableLineTypes(drw)
+    Save3TableLayers(drw)
+    Save3TableTextStyles(drw)
+    Save3TableUCSs(drw)
+    Save3TableAppID(drw)
+    Save3TableDimStyles(drw)
+    save31BlockRecord(drw)
+
+    Print #hFIle, "  0"
+    Print #hFIle, "ENDSEC"
+
+End
+
+Private Function Save3TableAppID(drw As Drawing) As Integer
+
+
+    Print #hFIle, "  0"
+    Print #hFIle, "TABLE"
+    Print #hFIle, "  2"
+    Print #hFIle, "APPID"
+    Print #hFIle, "  5"         ' handle
+    Print #hFIle, drw.oAppID["__handle__"] ' un registro especial que contiene la handle de la tabla, cargado al leer
+    Print #hFIle, "  330"   ' handle al padre de esta tabla, que es 0 porque pertenece al drawing
+    Print #hFIle, "0"
+    Print #hFIle, "  100"
+    Print #hFIle, "AcDbSymbolTable"
+    Print #hFIle, "  70"
+    Print #hFIle, CStr(drw.oAppID.Count)
+
+    ' APPID
+    Dim oneAppid As APPID
+    For Each oneAppid In drw.oAppID
+        Print #hFIle, "  0"
+        Print #hFIle, "APPID"
+        Print #hFIle, "  5"                     ' handle propio
+        Print #hFIle, drw.oAppID.Key            ' la key es la handle
+        Print #hFIle, "  330"                   ' handle del padre
+        Print #hFIle, drw.oAppID["__handle__"]  ' apunta al handle de esta tabla
+        Print #hFIle, "  100"
+        Print #hFIle, "AcDbSymbolTableRecord"
+        Print #hFIle, "  100"
+        Print #hFIle, "AcDbRegAppTableRecord"
+        Print #hFIle, "  2"
+        Print #hFIle, oneAppid.APPName_2
+        Print #hFIle, " 70"
+        Print #hFIle, CStr(oneAppid.Flags_70)
+    Next
+    Print #hFIle, "  0"
+    Print #hFIle, "ENDTAB"
+
+End
+
+Private Function Save3TableLayers(drw As Drawing) As Integer
+
+    Print #hFIle, "  0"
+    Print #hFIle, "TABLE"
+    Print #hFIle, "  2"
+    Print #hFIle, "LAYER"
+    Print #hFIle, "  5"         ' handle
+    Print #hFIle, drw.oLayers["__handle__"] ' un registro especial que contiene la handle de la tabla, cargado al leer
+    Print #hFIle, "  330"   ' handle al padre de esta tabla, que es 0 porque pertenece al drawing
+    Print #hFIle, "0"
+    Print #hFIle, "  100"
+    Print #hFIle, "AcDbSymbolTable"
+    Print #hFIle, "  70"
+    Print #hFIle, CStr(drw.oLayers.Count)
+
+    Dim oneLayer As Layer
+    For Each oneLayer In drw.oLayers
+        Print #hFIle, "  0"
+        Print #hFIle, "LAYER"
+        Print #hFIle, "  5"                     ' handle propio
+        Print #hFIle, drw.oLayers.Key            ' la key es la handle
+        Print #hFIle, "  330"                   ' handle del padre
+        Print #hFIle, drw.oLayers["__handle__"]  ' apunta al handle de esta tabla
+        Print #hFIle, "  100"
+        Print #hFIle, "AcDbSymbolTableRecord"
+        Print #hFIle, "  100"
+        Print #hFIle, "AcDbLayerTableRecord"
+        Print #hFIle, "  2"
+        Print #hFIle, oneLayer.Name
+        Print #hFIle, " 70"                       ' layer flags, bit coded
+        Print #hFIle, CStr(-oneLayer.Frozen - oneLayer.Locked * 4)
+        Print #hFIle, " 62"
+        Print #hFIle, oneLayer.Colour * IIf(oneLayer.Visible, 1, -1)
+        Print #hFIle, "  6"
+        Print #hFIle, oneLayer.LineType
+        Print #hFIle, "290"                   ' plotting flag
+        Print #hFIle, IIf(oneLayer.Printable, "1", "0")
+        Print #hFIle, "370"                   ' linewt
+        Print #hFIle, CStr(oneLayer.LineWt)
+        Print #hFIle, "390"                   ' plotstyle object
+        Print #hFIle, " "
+        Print #hFIle, "347"                   ' material
+        Print #hFIle, " "
+
+    Next
+    Print #hFIle, "  0"
+    Print #hFIle, "ENDTAB"
+
+End
+
+Private Function Save3TableTextStyles(drw As Drawing) As Integer
+
+    Print #hFIle, "  0"
+    Print #hFIle, "TABLE"
+    Print #hFIle, "  2"
+    Print #hFIle, "STYLE"
+    Print #hFIle, "  5"         ' handle
+    Print #hFIle, drw.oTextStyles["__handle__"] ' un registro especial que contiene la handle de la tabla, cargado al leer
+    Print #hFIle, "  330"   ' handle al padre de esta tabla, que es 0 porque pertenece al drawing
+    Print #hFIle, "0"
+    Print #hFIle, "  100"
+    Print #hFIle, "AcDbSymbolTable"
+    Print #hFIle, "  70"
+    Print #hFIle, CStr(drw.oTextStyles.Count)
+
+    Dim oneTextStyle As TextStyle
+    For Each oneTextStyle In drw.oTextStyles
+        Print #hFIle, "  0"
+        Print #hFIle, "STYLE"
+        Print #hFIle, "  5"                     ' handle propio
+        Print #hFIle, drw.oTextStyles.Key            ' la key es la handle
+        Print #hFIle, "  330"                   ' handle del padre
+        Print #hFIle, drw.oTextStyles["__handle__"]  ' apunta al handle de esta tabla
+        Print #hFIle, "  100"
+        Print #hFIle, "AcDbSymbolTableRecord"
+        Print #hFIle, "  100"
+        Print #hFIle, "AcDbTextStyleTableRecord"
+        Print #hFIle, "  2"
+        Print #hFIle, oneTextStyle.name
+        Print #hFIle, " 70"                       ' flags, bit coded
+        Print #hFIle, oneTextStyle.Flags
+        Print #hFIle, " 40"
+        Print #hFIle, CStr(oneTextStyle.FixedH_40)
+        Print #hFIle, " 41"
+        Print #hFIle, CStr(oneTextStyle.WidthFactor)
+        Print #hFIle, " 50"
+        Print #hFIle, CStr(oneTextStyle.ObliqueAngle)
+        Print #hFIle, " 71"
+        Print #hFIle, CStr(oneTextStyle.Direction)
+        Print #hFIle, " 42"
+        Print #hFIle, CStr(oneTextStyle.fLastHeightUsed_42)
+        Print #hFIle, "  3"
+        Print #hFIle, oneTextStyle.sFont_3
+        Print #hFIle, "  4"
+        Print #hFIle, oneTextStyle.sBigFont_4
+
+    Next
+    Print #hFIle, "  0"
+    Print #hFIle, "ENDTAB"
+
+End
+
+Private Function Save3TableDimStyles(drw As Drawing) As Integer
+
+    Print #hFIle, "  0"
+    Print #hFIle, "TABLE"
+    Print #hFIle, "  2"
+    Print #hFIle, "DIMSTYLE"
+    Print #hFIle, "  5"         ' handle
+    Print #hFIle, drw.oDimStyles["__handle__"] ' un registro especial que contiene la handle de la tabla, cargado al leer
+    Print #hFIle, "  330"   ' handle al padre de esta tabla, que es 0 porque pertenece al drawing
+    Print #hFIle, "0"
+    Print #hFIle, "  100"
+    Print #hFIle, "AcDbSymbolTable"
+    Print #hFIle, "  70"
+    Print #hFIle, CStr(drw.oDimStyles.Count)
+
+    Dim oneDimtStyle As DimStyle
+    For Each oneDimtStyle In drw.oDimStyles
+        Print #hFIle, "  0"
+        Print #hFIle, "DIMSTYLE"
+        Print #hFIle, " 105"                     ' handle propio
+        Print #hFIle, drw.oDimStyles.Key            ' la key es la handle
+        Print #hFIle, " 330"                   ' handle del padre
+        Print #hFIle, drw.oDimStyles["__handle__"]  ' apunta al handle de esta tabla
+        Print #hFIle, " 100"
+        Print #hFIle, "AcDbSymbolTableRecord"
+        Print #hFIle, " 100"
+        Print #hFIle, "AcDbDimStyleTableRecord"
+        Print #hFIle, "  2"
+        Print #hFIle, oneDimtStyle.name
+        Print #hFIle, " 70"                       ' flags, bit coded
+        Print #hFIle, "0"                         ' no lo usamos
+        SaveCode(3, oneDimtStyle.DIMPOST)
+        SaveCode(4, oneDimtStyle.DIMAPOST)
+        SaveCode(5, oneDimtStyle.DIMBLK)
+        SaveCode(6, oneDimtStyle.DIMBLK1)
+        SaveCode(7, oneDimtStyle.DIMBLK2)
+        SaveCode(40, oneDimtStyle.DIMSCALE)
+        SaveCode(41, oneDimtStyle.DIMASZ)
+        SaveCode(42, oneDimtStyle.DIMEXO)
+        SaveCode(43, oneDimtStyle.DIMDLI)
+        SaveCode(44, oneDimtStyle.DIMEXE)
+        SaveCode(45, oneDimtStyle.DIMRND)
+        SaveCode(46, oneDimtStyle.DIMDLE)
+        SaveCode(47, oneDimtStyle.DIMTP)
+        SaveCode(48, oneDimtStyle.DIMTM)
+        SaveCode(140, oneDimtStyle.DIMTXT)
+        SaveCode(141, oneDimtStyle.DIMCEN)
+        SaveCode(142, oneDimtStyle.DIMTSZ)
+        SaveCode(143, oneDimtStyle.DIMALTF)
+        SaveCode(144, oneDimtStyle.DIMLFAC)
+        SaveCode(145, oneDimtStyle.DIMTVP)
+        SaveCode(146, oneDimtStyle.DIMTFAC)
+        SaveCode(147, oneDimtStyle.DIMGAP)
+        SaveCode(148, oneDimtStyle.DIMALTRND)
+        SaveCode(71, oneDimtStyle.DIMTOL)
+        SaveCode(72, oneDimtStyle.DIMLIM)
+        SaveCode(73, oneDimtStyle.DIMTIH)
+        SaveCode(74, oneDimtStyle.DIMTOH)
+        SaveCode(75, oneDimtStyle.DIMSE1)
+        SaveCode(76, oneDimtStyle.DIMSE2)
+        SaveCode(77, oneDimtStyle.DIMTAD)
+        SaveCode(78, oneDimtStyle.DIMZIN)
+        SaveCode(79, oneDimtStyle.DIMAZIN)
+        SaveCode(170, oneDimtStyle.DIMALT)
+        SaveCode(171, oneDimtStyle.DIMALTD)
+        SaveCode(172, oneDimtStyle.DIMTOFL)
+        SaveCode(173, oneDimtStyle.DIMSAH)
+        SaveCode(174, oneDimtStyle.DIMTIX)
+        SaveCode(175, oneDimtStyle.DIMSOXD)
+        SaveCode(176, oneDimtStyle.DIMCLRD)
+        SaveCode(177, oneDimtStyle.DIMCLRE)
+        SaveCode(178, oneDimtStyle.DIMCLRT)
+        SaveCode(179, oneDimtStyle.DIMADEC)
+        SaveCode(270, oneDimtStyle.DIMUNIT)
+        SaveCode(271, oneDimtStyle.DIMDEC)
+        SaveCode(272, oneDimtStyle.DIMTDEC)
+        SaveCode(273, oneDimtStyle.DIMALTU)
+        SaveCode(274, oneDimtStyle.DIMALTTD)
+        SaveCode(275, oneDimtStyle.DIMAUNIT)
+        SaveCode(276, oneDimtStyle.DIMFRAC)
+        SaveCode(277, oneDimtStyle.DIMLUNIT)
+        SaveCode(278, oneDimtStyle.DIMDSEP)
+        SaveCode(279, oneDimtStyle.DIMTMOVE)
+        SaveCode(280, oneDimtStyle.DIMJUST)
+        SaveCode(281, oneDimtStyle.DIMSD1)
+        SaveCode(282, oneDimtStyle.DIMSD2)
+        SaveCode(283, oneDimtStyle.DIMTOLJ)
+        SaveCode(284, oneDimtStyle.DIMTZIN)
+        SaveCode(285, oneDimtStyle.DIMALTZ)
+        SaveCode(286, oneDimtStyle.DIMALTTZ)
+        SaveCode(287, oneDimtStyle.DIMFIT)
+        SaveCode(288, oneDimtStyle.DIMUPT)
+        SaveCode(289, oneDimtStyle.DIMATFIT)
+        SaveCode(340, oneDimtStyle.DIMTXSTY)
+        SaveCode(341, oneDimtStyle.DIMLDRBLK)
+        SaveCode(342, oneDimtStyle.DIMBLK)
+        SaveCode(343, oneDimtStyle.DIMBLK1)
+        SaveCode(344, oneDimtStyle.DIMBLK2)
+        SaveCode(371, oneDimtStyle.DIMLWD)
+        SaveCode(372, oneDimtStyle.DIMLWE)
+
+
+    Next
+    Print #hFIle, "  0"
+    Print #hFIle, "ENDTAB"
+
+End
+
+Private Function Save3TableLineTypes(drw As Drawing) As Integer
+
+    Print #hFIle, "  0"
+    Print #hFIle, "TABLE"
+    Print #hFIle, "  2"
+    Print #hFIle, "LTYPE"
+    Print #hFIle, "  5"         ' handle
+    Print #hFIle, drw.oLTYpes["__handle__"] ' un registro especial que contiene la handle de la tabla, cargado al leer
+    Print #hFIle, "  330"   ' handle al padre de esta tabla, que es 0 porque pertenece al drawing
+    Print #hFIle, "0"
+    Print #hFIle, "  100"
+    Print #hFIle, "AcDbSymbolTable"
+    Print #hFIle, "  70"
+    Print #hFIle, CStr(drw.oLTYpes.Count)
+
+    Dim oneLtype As LineType
+    For Each oneLtype In drw.oLTYpes
+        Print #hFIle, "  0"
+        Print #hFIle, "LTYPE"
+        Print #hFIle, "  5"                     ' handle propio
+        Print #hFIle, drw.oLTYpes.Key            ' la key es la handle
+        Print #hFIle, "  330"                   ' handle del padre
+        Print #hFIle, drw.oLTYpes["__handle__"]  ' apunta al handle de esta tabla
+        Print #hFIle, "  100"
+        Print #hFIle, "AcDbSymbolTableRecord"
+        Print #hFIle, "  100"
+        Print #hFIle, "AcDbLinetypeTableRecord"
+        SaveCode(2, oneLtype.Name)
+        SaveCode(70, oneLtype.Flags)
+        SaveCode(3, oneLtype.Description)
+        SaveCode(72, 65)                    ' para compatibilidad
+        SaveCode(73, oneLtype.nTrames)
+        SaveCode(40, CStr(oneLtype.Length))
+        For Each fLenght As Float In oneLtype.TrameLength
+            SaveCode(49, CStr(fLenght))
+        Next
+
+        ' Hay tipos de linea mas complejos, que se generan con codigos que GauchoCAD no maneja de momento
+
+
+    Next
+    Print #hFIle, "  0"
+    Print #hFIle, "ENDTAB"
+
+End
+
+
+Private Function Save3TableUCSs(drw As Drawing) As Integer
+
+    Print #hFIle, "  0"
+    Print #hFIle, "TABLE"
+    Print #hFIle, "  2"
+    Print #hFIle, "UCS"
+    Print #hFIle, "  5"         ' handle
+    Print #hFIle, drw.oUCSs["__handle__"] ' un registro especial que contiene la handle de la tabla, cargado al leer
+    Print #hFIle, "  330"   ' handle al padre de esta tabla, que es 0 porque pertenece al drawing
+    Print #hFIle, "0"
+    Print #hFIle, "  100"
+    Print #hFIle, "AcDbSymbolTable"
+    Print #hFIle, "  70"
+    Print #hFIle, CStr(drw.oUCSs.Count)
+
+    Dim oneUCS As UCS
+    For Each oneUCS In drw.oUCSs
+        Print #hFIle, "  0"
+        Print #hFIle, "UCS"
+        Print #hFIle, "  5"                     ' handle propio
+        Print #hFIle, drw.oUCSs.Key            ' la key es la handle
+        Print #hFIle, "  330"                   ' handle del padre
+        Print #hFIle, drw.oUCSs["__handle__"]  ' apunta al handle de esta tabla
+        Print #hFIle, "  100"
+        Print #hFIle, "AcDbSymbolTableRecord"
+        Print #hFIle, "  100"
+        Print #hFIle, "AcDbUCSTableRecord"
+        SaveCode(2, oneUCS.Name_2)
+        SaveCode(70, oneUCS.Flags_70)
+        SaveCode(10, oneUCS.OriginX_10)
+        SaveCode(20, oneUCS.OriginY_20)
+        SaveCode(30, oneUCS.OriginZ_30)
+
+        SaveCode(11, oneUCS.XAxisX_11)
+        SaveCode(21, oneUCS.XAxisY_21)
+        SaveCode(31, oneUCS.XAxisZ_31)
+
+        SaveCode(12, oneUCS.YAxisX_12)
+        SaveCode(22, oneUCS.YAxisY_22)
+        SaveCode(32, oneUCS.YAxisZ_32)
+
+        SaveCode(79, 0)
+
+        SaveCode(146, oneUCS.Elevation_146)
+        SaveCode(346, oneUCS.BaseUCS_346)
+
+        SaveCode(13, oneUCS.OriginForThisOrthographicTypeX_13)
+        SaveCode(23, oneUCS.OriginForThisOrthographicTypeY_23)
+        SaveCode(33, oneUCS.OriginForThisOrthographicTypeZ_33)
+
+
+
+    Next
+    Print #hFIle, "  0"
+    Print #hFIle, "ENDTAB"
+
+End
+
+Private Function Save3TableViews(drw As Drawing) As Integer
+
+    Print #hFIle, "  0"
+    Print #hFIle, "TABLE"
+    Print #hFIle, "  2"
+    Print #hFIle, "VIEW"
+    Print #hFIle, "  5"         ' handle
+    Print #hFIle, drw.oViews["__handle__"] ' un registro especial que contiene la handle de la tabla, cargado al leer
+    Print #hFIle, "  330"   ' handle al padre de esta tabla, que es 0 porque pertenece al drawing
+    Print #hFIle, "0"
+    Print #hFIle, "  100"
+    Print #hFIle, "AcDbSymbolTable"
+    Print #hFIle, "  70"
+    Print #hFIle, CStr(drw.oViews.Count)
+
+    Dim oneView As View, sData As String
+    For Each oneView In drw.oViews
+        Print #hFIle, "  0"
+        Print #hFIle, "VIEW"
+        Print #hFIle, "  5"                     ' handle propio
+        Print #hFIle, drw.oViews.Key            ' la key es la handle
+        Print #hFIle, "  330"                   ' handle del padre
+        Print #hFIle, drw.oViews["__handle__"]  ' apunta al handle de esta tabla
+        Print #hFIle, "  100"
+        Print #hFIle, "AcDbSymbolTableRecord"
+        Print #hFIle, "  100"
+        Print #hFIle, "AcDbViewTableRecord"
+        For Each sData In oneView.Datos
+            Print #hFIle, sData
+        Next
+
+    Next
+    Print #hFIle, "  0"
+    Print #hFIle, "ENDTAB"
+
+End
+
+Private Function Save3TableViewPorts(drw As Drawing) As Integer
+
+    Print #hFIle, "  0"
+    Print #hFIle, "TABLE"
+    Print #hFIle, "  2"
+    Print #hFIle, "VIEWPORT"
+    Print #hFIle, "  5"         ' handle
+    Print #hFIle, drw.oViewports["__handle__"] ' un registro especial que contiene la handle de la tabla, cargado al leer
+    Print #hFIle, "  330"   ' handle al padre de esta tabla, que es 0 porque pertenece al drawing
+    Print #hFIle, "0"
+    Print #hFIle, "  100"
+    Print #hFIle, "AcDbSymbolTable"
+    Print #hFIle, "  70"
+    Print #hFIle, CStr(drw.oViewports.Count)
+
+    Dim oneViewport As Viewport, sData As String
+    For Each oneViewport In drw.oViewports
+        Print #hFIle, "  0"
+        Print #hFIle, "VIEW"
+        Print #hFIle, "  5"                     ' handle propio
+        Print #hFIle, drw.oViewports.Key            ' la key es la handle
+        Print #hFIle, "  330"                   ' handle del padre
+        Print #hFIle, drw.oViewports["__handle__"]  ' apunta al handle de esta tabla
+        Print #hFIle, "  100"
+        Print #hFIle, "AcDbSymbolTableRecord"
+        Print #hFIle, "  100"
+        Print #hFIle, "AcDbViewportTableRecord"
+        For Each sData In oneViewport.Datos
+            Print #hFIle, sData
+        Next
+
+    Next
+    Print #hFIle, "  0"
+    Print #hFIle, "ENDTAB"
+
+End
+
+Private Function save31BlockRecord(drw As Drawing) As Integer
+
+    Dim eBlock As Block
+
+    Print #hFIle, "  0"
+    Print #hFIle, "TABLE"
+    Print #hFIle, "  2"
+    Print #hFIle, "BLOCK_RECORD"
+    Print #hFIle, "  5"         ' handle
+    Print #hFIle, drw.oBlocks["__handle__"] ' un registro especial que contiene la handle de la tabla, cargado al leer
+    Print #hFIle, "  330"   ' handle al padre de esta tabla, que es 0 porque pertenece al drawing
+    Print #hFIle, "0"
+    Print #hFIle, "  100"
+    Print #hFIle, "AcDbSymbolTable"
+    Print #hFIle, "  70"
+    Print #hFIle, CStr(drw.oBlocks.Count)
+
+
+    For Each eBlock In drw.oBlocks
+        Print #hFIle, "  0"
+        Print #hFIle, "BLOCK_RECORD"
+        Print #hFIle, "  5"         ' handle
+        Print #hFIle, eBlock.HandleOwner          ' valor de la handle
+        Print #hFIle, codHandleOwner
+        Print #hFIle, eBlock.HandleOwnerParent
+        Print #hFIle, " 100"
+        Print #hFIle, "AcDbSymbolTableRecord"
+        Print #hFIle, " 100"
+        Print #hFIle, "AcDbBlockTableRecord"
+        Print #hFIle, "  2"
+        Print #hFIle, eBlock.name
+        Print #hFIle, " 340"
+        Print #hFIle, "0" 'eBlock.HandleAsociatedLayout
+        Print #hFIle, "  70"
+        Print #hFIle, eBlock.InsertUnits
+        Print #hFIle, " 280"
+        Print #hFIle, eBlock.Explotability
+        Print #hFIle, " 281"
+        Print #hFIle, eBlock.Scalability
+
+    Next
+    Print #hFIle, "  0"
+    Print #hFIle, "ENDTAB"
+
+End
+
+
+
+Private Function Save4BlocksDirect(eBlocks As Collection) As Integer
+
+    Dim i As Integer, bCan As Boolean
+    Dim iii As Integer
+    Dim eBlock As Block, stxEnty As New String[], eEnty As Entity
+    Dim sValues, lpclave As String
+
+    Print #hFIle, "  0"
+    Print #hFIle, "SECTION"
+    Print #hFIle, "2"
+    Print #hFIle, "BLOCKS"
+    For Each eBlock In eBlocks
+        Print #hFIle, "  0"
+        Print #hFIle, "BLOCK"
+        Print #hFIle, "  5"         ' handle
+        Print #hFIle, eBlock.handle          ' valor de la handle
+        Print #hFIle, "  330"
+        Print #hFIle, eBlock.HandleOwner    ' el owner es el BLOCK_RECORD
+        Print #hFIle, "  100"
+        Print #hFIle, "AcDbEntity"
+        Print #hFIle, " 8"          ' layer name
+        Print #hFIle, eBlock.layer
+        Print #hFIle, "100"
+        Print #hFIle, "AcDbBlockBegin"
+        Print #hFIle, "  2"
+        Print #hFIle, eBlock.name
+        Print #hFIle, "  70"
+        Print #hFIle, eBlock.Flags
+        Print #hFIle, codX0
+        Print #hFIle, eBlock.x0
+        Print #hFIle, cody0
+        Print #hFIle, eBlock.y0
+        Print #hFIle, codz0
+        Print #hFIle, eBlock.z0
+        Print #hFIle, "  3"
+        Print #hFIle, eBlock.name
+        Print #hFIle, "  1"
+        Print #hFIle, ""            ' X ref path
+        If eBlock.entities.Count > 0 Then
+
+            For Each eEnty In eBlock.entities
+                stxEnty = New String[]
+
+                If eEnty.ClassHandler.DXF_export Then
+                    clsEntities.DXFExportCommonCol(eEnty, stxEnty)
+                    eEnty.ClassHandler.ExportDXFCol(eEnty, stxEnty)
+                Else    ' trato de exportar como vino
+                    ' cEnty = gcd.CurrentDrawing.cModel["BLOCKS"][eBlock.name]["entities"][eEnty.Handle]
+                    gcd.debugInfo(("No puedo guardar este tipo de entidades") & eEnty.Gender,,, True)
+                End If
+                For i = 0 To stxEnty.max Step 2
+                    lpclave = stxEnty[i + 1]
+                    sValues = stxEnty[i]
+                    Print #hFile, lpclave
+                    Print #hFIle, sValues
+                Next
+            Next
+
+            ' que pasa con el ENDBLK?
+            ' Al leer, lo guardo como una entidad y, por lo tanto lo tengo en el bloque, pero...corresponde?
+            ' no seria mejor generarlo? al fin y al cabo es solo una señal para el lector de archivos (como el SEQEND)
+
+        Endif
+
+    Next
+    Print #hFIle, "  0"
+    Print #hFIle, "ENDSEC"
+
+End
+
+
+
+Private Function Save5EntitiesDirect(eEntys As Collection) As Integer
+
+    Dim stxEnty As String[]
+    Dim eEnty As Entity
+    Dim sValues, lpclave As String
+    Dim i As Integer, bCan As Boolean
+
+    Print #hFIle, "  0"
+    Print #hFIle, "SECTION"
+    Print #hFIle, "  2"
+    Print #hFIle, "ENTITIES"
+
+    ' here go all entities
+    For Each eEnty In eEntys
+        stxEnty = New String[]
+        ' veo si lo tengo
+
+        bCan = eEnty.ClassHandler.DXF_export
+        If bCan Then
+            clsEntities.DXFExportCommonCol(eEnty, stxEnty)
+            eEnty.ClassHandler.ExportDXFCol(eEnty, stxEnty)
+        Else    ' trato de exportar como vino
+            '  cEnty = gcd.CurrentDrawing.cModel["ENTITIES"][eEnty.Handle]
+            gcd.debugInfo(("No puedo guardar este tipo de entidades") & eEnty.Gender,,, True)
+        End If
+        For i = 0 To stxEnty.max Step 2
+            lpclave = stxEnty[i + 1]
+            sValues = stxEnty[i]
+            Print #hFile, lpclave
+            Print #hFIle, sValues
+        Next
+
+    Next
+    ' end section code
+    Print #hFIle, "  0"
+    Print #hFIle, "ENDSEC"
+
+End
+
+Public Function CheckRepeatedHandles()
+
+End
+
+Private Function Save6Objects(cObjects As Collection) As Integer
+
+    Dim sValues, lpclave As String
+    Dim i As Integer
+
+    Dim cObject As Collection
+
+    Print #hFIle, "  0"
+    Print #hFIle, "SECTION"
+    Print #hFIle, "2"
+    Print #hFIle, "OBJECTS"
+    For Each cObject In cObjects
+        For Each sValues In cObject
+            lpclave = cObject.Key
+            I = InStr(lpclave, "_")
+            If i > 0 Then lpclave = Left(lpclave, i - 1)
+            Print #hFile, lpclave
+            Print #hFIle, sValues
+        Next
+    Next
+    ' end section code
+    Print #hFIle, "  0"
+    Print #hFIle, "ENDSEC"
+
+End
+
+Private Function Save7ThumbNail(imgGLArea As Image) As Integer
+
+    Dim sValues, lpclave As String
+    Dim i As Integer
+    Dim cThumbs As Collection
+
+
+
+    Print #hFIle, "  0"
+    Print #hFIle, "SECTION"
+    Print #hFIle, "2"
+    Print #hFIle, "THUMBNAILIMAGE"
+    ' cThumbs = cData["THUMBNAILIMAGE"]
+    ' If Not IsNull(cThumbs) Then
+    '   For Each sValues In cThumbs
+    '     lpclave = cThumbs.Key
+    '     I = InStr(lpclave, "_")
+    '     If i > 0 Then lpclave = Left(lpclave, i - 1)
+    '     Print #hFile, lpclave
+    '     Print #hFIle, sValues
+    '   Next
+    ' End If
+    ' ' end section code
+    Print #hFIle, "  0"
+    Print #hFIle, "ENDSEC"
+
+    ' end file code
+    Print #hFIle, "  0"
+    Print #hFIle, "EOF"
+
+End
+
+Private Function NextHandle() As String
+
+    Inc LastHandle
+    Return CStr(LastHandle)
+
+End
+
+'   Helper para leer DXF: retorna la posicion en la que encontro la clave o -1 si no la encontro
+'   iCode = el codigo DXF
+'   stxClaves = array de claves DXF
+'   stxValues = array de valores DXF
+'   RetValue = el valor a retornar, pasado por referencia
+'   iStartPos = la posivion inicial en los array para la busqueda (def = 0)
+'   ExactPos = si se busca solo en la posicion inicial (def = false)
+Public Function ReadCode(iCode As Integer, stxClaves As String[], stxValues As String[], ByRef RetValue As Variant, Optional iStartPos As Integer = 0, ExactPos As Boolean = False) As Integer
+
+    Dim i, iMax As Integer
+
+    If stxClaves.max <> stxValues.max Then
+        Debug "ReadCode: error, bad lists"
+        Return -1
+    Endif
+    If ExactPos Then iMax = iStartPos Else imax = stxClaves.Max
+    For i = iStartPos To iMax
+        If CInt(stxClaves[i]) = iCode Then
+            Select Case TypeOf(RetValue)
+                Case gb.Integer
+                    RetValue = CInt(stxValues[i])
+                    Return i
+                Case gb.Float
+                    RetValue = CFloat(stxValues[i])
+                    Return i
+                Case gb.String
+                    RetValue = stxValues[i]
+                    Return i
+            End Select
+
+        Endif
+    Next
+    Return -1
+
+End
+
+Private Sub SaveCode(sCode As Variant, sValue As Variant)
+
+    Dim sToPrint As String
+
+    Print #hFIle, Format(sCode, "###0")
+    ' If IsFloat(sValue) Then
+    '   sToPrint = CStr(svalue)
+    ' Else
+    '   sToPrint = svalue
+    ' Endif
+    Print #hFIle, CStr(svalue)
+
+End Sub
+
+'' Adds a new object to object by handle collection
+Private Sub NewObject(oNew As Variant, sHandle As String)
+
+    If sHandle = "" Then Return
+
+    If gcd.CurrentDrawing.Handles.Exist(sHandle) Then
+        gcd.debugInfo("WARNING: Handle repedida " & sHandle)
+    Else
+
+        gcd.CurrentDrawing.handles.Add(oNew, sHandle)
+    End If
+
+End
+
+'' Reads layers collection and puts data in oLayers
+Public Sub ReadLayers(cLaydata As Collection, drw As Drawing)
+
+    Dim hLay As Layer
+
+    ' If Not drw Then drw = gcd.currentDrawing
+    ' ' primero eliminamos lo q haya
+    Drw.oLayers.Clear
+    For Each cLay As Collection In cLayData["TABLES"]["LAYER"]
+        hLay = New Layer
+        hLay.Name = cLay[dxf.codName]
+        hLay.Visible = CInt(cLay[dxf.codColor]) >= 0
+        hLay.Colour = Abs(CInt(cLay[dxf.codColor]))
+        hLay.handle = cLay[dxf.codHandle]
+        If hLay.handle = "" Then hLay.handle = gcd.NewHandle()
+        Drw.oLayers.Add(hLay, hLay.handle)
+    Next
+
+    ' aprovecho para setear el layer actual
+    Drw.CurrLayer = Drw.oLayers[Drw.oLayers.First]
+
+End
+'' Reads Styles and DimStyles collection and puts data in arrStyles
+
+Public Sub ReadStyles(cData As Collection, drw As Drawing)
+
+    Dim hlty As TextStyle
+    Dim t, i As Integer
+    Dim fTrameLength As Float
+    Dim sH2, sNextKey As String
+    Dim RefStyle As TextStyle
+    Dim hdim As DimStyle
+
+    ' primero eliminamos lo q haya
+    Drw.otextStyles.Clear
+    ' Leo los styles de texto
+    For Each c As Collection In cData["TABLES"]["STYLE"]
+        hlty = New TextStyle
+
+        hlty.Name = c[dxf.codName]
+        hlty.handle = c[dxf.codHandle]
+
+        hlty.sFont_3 = c["3"]
+
+        hlty.FixedH_40 = CFloat(c["40"])
+
+        ' Esto no puede usarse asi, LastHeightUsed_2 es solo un dato de historial
+        ' If hlty.FixedH_40 = 0 Then hlty.FixedH_40 = CFloat(c["42"])
+
+        If hlty.handle = "" Then sH2 = hlty.name Else sH2 = hlty.handle
+        Drw.otextStyles.Add(hlty, sh2)
+
+    Next
+
+    ' Leo lo styles de dimensiones
+    If cData["TABLES"].Exist("DIMSTYLE") Then
+        For Each c As Collection In cData["TABLES"]["DIMSTYLE"]
+            hdim = New DimStyle
+
+            hdim.Name = c[dxf.codName]
+            If IsNull(c[dxf.codHandle]) Then
+                hdim.handle = c["105"]
+            Else
+                hdim.handle = c[dxf.codHandle]
+            Endif
+
+            Try hdim.DIMASZ = CFloat(c["41"])
+            If hdim.DIMASZ = 0 Then hdim.DIMASZ = 1
+
+            Try hdim.DIMTXT = CFloat(c["140"])
+            If hdim.DIMTXT = 0 Then hdim.DIMTXT = 1
+
+            Try hdim.DIMTXSTY = c["340"]
+
+            If hdim.DIMTXSTY <> "" Then
+                RefStyle = gcd.FindStyleByHandle(hdim.DIMTXSTY)
+                If Not IsNull(RefStyle) Then
+                    If RefStyle.FixedH_40 > 0 Then hdim.DIMTXT = RefStyle.FixedH_40
+                    hdim.DIMTXSTY = RefStyle.sFont_3
+                Endif
+            Endif
+
+            Drw.oDimStyles.Add(hdim, hdim.name)
+
+        Next
+    End If
+
+End
+'' Reads LineTypes collection and puts data in arrLTypes
+
+Public Sub ReadLTypes(cData As Collection, drw As Drawing)
+
+    Dim hlty As LineType
+    Dim t, i As Integer
+    Dim fTrameLength As Float
+    Dim sNextKey As String
+
+    ' primero eliminamos lo q haya
+    Drw.oLTYpes.Clear
+    For Each c As Collection In cData["TABLES"]["LTYPE"]
+        hlty = New LineType
+        hlty.Name = c[dxf.codName]
+        hlty.Description = c["3"]
+        hlty.handle = c[dxf.codHandle]
+        If hLty.handle = "" Then hLty.handle = gcd.NewHandle()
+        hlty.nTrames = CInt(c["73"])
+        If hlty.nTrames > 0 Then hlty.Length = c["40"]
+        i = 0
+        For t = 1 To hlty.nTrames
+            Do
+                If t > 1 Then
+                    sNextKey = "49_" & CStr(i)
+                Else
+                    sNextKey = "49"
+                Endif
+                If c.Exist(sNextKey) Then
+                    Inc i
+                    hlty.TrameLength.Add(Abs(CFloat(c[sNextKey])) * 2.5) ' TODO: verificar este valor arbitrario
+                    If hlty.TrameLength.Last = 0 Then hlty.TrameLength.Last = 1
+
+                    Break
+                Endif
+                Inc i
+                If i = 1000 Then Return
+            Loop
+
+        Next
+
+        Drw.oLTYpes.Add(hlty, hlty.handle)
+
+    Next
+
+    Drw.CurrLineType = Drw.oLTYpes[Drw.oLTYpes.First]
+
+End
+
+Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEntities As Entity[]) As Integer
+
+    Dim iTotalEntities As Integer, colent, colBlk As Collection, flxPoints As New Float[], P As Float[]
+    Dim hBlock As String
+    Dim cParent As Collection, cEntyList As New Collection
+    Dim hEnty As Variant, iEnty As Integer
+    Dim cEnty As Variant[]
+    Dim i As Integer
+
+    If Not colData.Exist("BLOCKS") Then Return
+    ' For Each colBlk In colData["TABLES"]["BLOCK_RECORD"]
+    '     Dim newBlock As New Block
+    '     newBlock.entities = New Collection
+    '     newBlock.name = colBlk[dxf.codName]
+    '     newBlock.handle = colBlk[dxf.codHandle]
+    '     newBlock.HandleOwnerParent = colBlk[dxf.codHandleOwner]
+    '     newBlock.HandleAsociatedLayout = colBlk["340"]
+    '     Try newBlock.InsertUnits = colBlk["70"]
+    '     Try newBlock.Explotability = colBlk["280"]
+    '     Try newBlock.Scalability = colBlk["281"]
+    '     gcd.currentDrawing.oBlocks.Add(newBlock, newBlock.handle)
+    '
+    ' Next
+
+    For Each colBlk In colData["BLOCKS"]
+        Dim newBlock As New Block
+        newBlock.entities = New Collection
+        newBlock.name = colBlk[dxf.codName]
+
+        ' en ciertos DXF no hay la tabla BLOCK_RECORD
+        If colData["TABLES"].Exist("BLOCK_RECORD") Then cParent = colData["TABLES"]["BLOCK_RECORD"][newBlock.name]
+        newBlock.handle = colBlk[dxf.codHandle]
+        If cParent Then
+            newBlock.HandleOwner = cParent[dxf.codHandle]
+            newBlock.HandleOwnerParent = cParent[dxf.codHandleOwner]
+        Else
+            newBlock.HandleOwner = 0
+            newBlock.HandleOwnerParent = 0
+        End If
+        'newBlock = clsEntities.FIndBlock(colBlk[dxf.codName])
+        newBlock.layer = colBlk[dxf.codLayer]
+        Try newBlock.x0 = colBlk[dxf.codX0]
+        Try newBlock.y0 = colBlk[dxf.codY0]
+        If colBlk.Exist(dxf.codZ0) Then newBlock.z0 = colBlk[dxf.codZ0]
+        newBlock.flags = colBlk["70"]
+        Drw.oBlocks.Add(newBlock, newBlock.handle)
+
+    Next
+    For Each colBlk In colData["BLOCKS"]
+
+        If colBlk.Exist("entities") Then
+
+            DXFtoEntity(colBlk["entities"], Drw.oBlocks[colBlk[dxf.codHandle]].entities)
+            'If gcd.currentDrawing.arrBlocks[i].entities.Count = 0 Then Stop
+
+        Else
+
+            Debug "Error loading block", newBlock.name
+
+        End If
+        Inc i
+
+    Next
+
+End
+
+'' Importa las cosas de manera descentralizada
+Public Sub DXFtoEntity(cEny As Collection, obx As Collection, Optional NewHandles As Boolean = False)
+
+    Dim e As Collection               ' current Entity
+    Dim entNueva As Entity
+    Dim flgIsPolyline, IsDummy As Boolean
+    Dim pBlockPolyline As Block
+    Dim sHandle As String
+
+    For Each e In cEny                                              ' Para cada Coleccion de datos de vrx
+        If e.Exist(dxf.codEntity) Then                                     ' es una entidad?
+            ' entonces, creamos una nueva
+            ' poner en minuscula para anular la entidad
+            If InStr("HATCH POLYLINE ENDBLK SEQEND VERTEX POINT ATTDEF ATTRIB LINE LWPOLYLINE CIRCLE ELLIPSE ARC TEXT MTEXT SPLINE SOLID INSERT DIMENSION DIMENSION_LINEAR DIMENSION_DIAMETEr DIMENSION_RADIUs DIMENSION_ANG3Pt DIMENSION_ALIGNED DIMENSION_ORDINATE LARGE_RADIAL_DIMENSION ARC_DIMENSION", UCase(e[dxf.codEntity])) = 0 Then IsDummy = True Else IsDummy = False
+            'If UCase(e[dxf.codEntity]) = "INSERT" Then Stop
+
+            entNueva = clsEntities.DXFImportToEntity(e, IsDummy)
+            If IsDummy Then
+                ' no esta implementada
+                gcd.debuginfo("Entidad no implementada o con errores: " & e[dxf.codHandle] & "," & e[dxf.codEntity])
+
+            Else
+
+                If Not IsNull(entNueva) Then         ' si esta implementada, llenamos los datos
+                    If NewHandles Or (entNueva.Handle = "") Then
+                        sHandle = gcd.NewHandle()
+                        entNueva.Handle = sHandle
+                    Else
+                        sHandle = entNueva.Handle
+                    End If
+                    If flgIsPolyline Then
+                        pBlockPolyline.entities.Add(entNueva, sHandle)
+                    Else
+                        obx.Add(entNueva, sHandle)
+                    End If
+
+                    If e[dxf.codEntity] = "POLYLINE" Then
+                        flgIsPolyline = True
+                        pBlockPolyline = New Block
+                        pBlockPolyline.entities = New Collection
+                        gcd.currentDrawing.oPolyLines.Add(pBlockPolyline, entNueva.Handle)
+                        entNueva.pBlock = pBlockPolyline
+                    End If
+                    If e[dxf.codEntity] = "SEQEND" And flgIsPolyline = True Then
+                        flgIsPolyline = False
+                        pBlockPolyline = Null
+                    End If
+                    entNueva = Null                                           ' limpiamos
+
+                Endif
+            End If
+        End If
+    Next
+
+End
+
+
+Public Function UpdateGraphicsFromDXF(cData As Collection, drw As Drawing, Optional handles As String[] = [], DoRegen As Boolean = True)
+
+    Dim cEntity As Collection, entNueva As Entity
+
+    gcd.debugInfo("Importing DXF data",,, True)
+
+    ImportBlocksFromDXF(cData, drw)
+
+    If handles.Count = 0 Then                   ' Update all entities
+
+        DXFtoEntity(cData["ENTITIES"], drw.oEntities, False)
+
+    Else                                        ' Update only entities with handles provided
+
+        For Each sHandle As String In handles
+
+            If cData["ENTITIES"].Exist(sHandle) Then  ' la actualizo
+
+                entNueva = New Entity                                       ' entonces, creamos una nueva
+                If clsEntities.ImportJsonToEntity(cData["ENTITIES"][sHandle], entNueva) Then         ' si esta implementada, llenamos los datos
+
+                    drw.oEntities.Add(entNueva)
+                    entNueva = Null                                           ' limpiamos
+
+                Endif
+            Endif
+
+        Next
+
+    End If
+
+    gcd.FillLayers            ' esto necesita que arrLayers y arrEntities esten cargados
+    clsEntities.BuildPoi()
+
+    If DoRegen Then gcd.Regen
+
+End

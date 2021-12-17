@@ -94,147 +94,147 @@ Public Const DXF_Export As Boolean = False
 
 Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
 
-  Dim i As Integer
-  Dim DimTypeSet As Boolean = False
-  Dim BlockSet As Boolean = False
-  Dim ReadingStyle As Boolean = False
-  Dim NextCode As Integer
+    Dim i As Integer
+    Dim DimTypeSet As Boolean = False
+    Dim BlockSet As Boolean = False
+    Dim ReadingStyle As Boolean = False
+    Dim NextCode As Integer
 
-  DimTypeSet = False
-  For i = 0 To sClaves.Max
+    DimTypeSet = False
+    For i = 0 To sClaves.Max
 
-    If sClaves[i] = "2" Then
-      If BlockSet = False Then                                ' this prevents duplicated "2" codes
-        e.pBlock = clsEntities.FIndBlock(sValues[i])   ' this could be null
-        BlockSet = True
+        If sClaves[i] = "2" Then
+            If BlockSet = False Then                                ' this prevents duplicated "2" codes
+                e.pBlock = clsEntities.FIndBlock(sValues[i])   ' this could be null
+                BlockSet = True
 
-      End If
-    End If
+            End If
+        End If
 
-    If sClaves[i] = "10" Then e.p[0] = CFloat(sValues[i])         ' X0  first definition point
-    If sClaves[i] = "20" Then e.P[1] = CFloat(sValues[i])         ' Y0
-    If sClaves[i] = "11" Then e.p[2] = CFloat(sValues[i])         ' X1  midpoint of text
-    If sClaves[i] = "21" Then e.P[3] = CFloat(sValues[i])         ' Y1
+        If sClaves[i] = "10" Then e.p[0] = CFloat(sValues[i])         ' X0  first definition point
+        If sClaves[i] = "20" Then e.P[1] = CFloat(sValues[i])         ' Y0
+        If sClaves[i] = "11" Then e.p[2] = CFloat(sValues[i])         ' X1  midpoint of text
+        If sClaves[i] = "21" Then e.P[3] = CFloat(sValues[i])         ' Y1
 
-    If sClaves[i] = "3" Then e.pDimStyle = gcd.FindDimStyle(sValues[i])
+        If sClaves[i] = "3" Then e.pDimStyle = gcd.CurrentDrawing.oDimStyles[sValues[i]]
 
-    ' ' For DEbug
-    ' If sClaves[i] = "42" Then
-    '   If sValues[i] Like "0.46*" Then Stop
-    ' End If
-    '
-    If sClaves[i] = "70" Then ' Dimension type:
+        ' ' For DEbug
+        ' If sClaves[i] = "42" Then
+        '   If sValues[i] Like "0.46*" Then Stop
+        ' End If
+        '
+        If sClaves[i] = "70" Then ' Dimension type:
 
-      e.iParam[Me.iiiDimType] = CInt(sValues[i])
-      DimTypeSet = True
-      ' Values 0 - 6 are integer values that represent the dimension type.Values 32, 64, And 128 are bit values, which are added To the integer values(value 32 Is Always set In R13 And later releases)
+            e.iParam[Me.iiiDimType] = CInt(sValues[i])
+            DimTypeSet = True
+            ' Values 0 - 6 are integer values that represent the dimension type.Values 32, 64, And 128 are bit values, which are added To the integer values(value 32 Is Always set In R13 And later releases)
 
-      ' debo cambiar el handler y enviar al que corresponda
-      Select Case e.iParam[Me.iiiDimType] And 31  'Xor 128 Xor 64 Xor 32
-        Case 0 '= Rotated, horizontal, Or vertical
+            ' debo cambiar el handler y enviar al que corresponda
+            Select Case e.iParam[Me.iiiDimType] And 31  'Xor 128 Xor 64 Xor 32
+                Case 0 '= Rotated, horizontal, Or vertical
 
-          e.ClassHandler = cadDIMENSION_LINEAR
-          DimTypeSet = True
-        Case 1 '= Aligned
+                    e.ClassHandler = cadDIMENSION_LINEAR
+                    DimTypeSet = True
+                Case 1 '= Aligned
 
-          e.ClassHandler = cadDIMENSION_ALIGNED
-          DimTypeSet = True
-        Case 2 '= Angular
+                    e.ClassHandler = cadDIMENSION_ALIGNED
+                    DimTypeSet = True
+                Case 2 '= Angular
 
-          e.ClassHandler = cadDIMENSION_ANG3PT
-          DimTypeSet = True
-        Case 3 '= Diameter
+                    e.ClassHandler = cadDIMENSION_ANG3PT
+                    DimTypeSet = True
+                Case 3 '= Diameter
 
-          e.ClassHandler = cadDIMENSION_DIAMETER
-          DimTypeSet = True
-        Case 4 ' = Radius
+                    e.ClassHandler = cadDIMENSION_DIAMETER
+                    DimTypeSet = True
+                Case 4 ' = Radius
 
-          e.ClassHandler = cadDIMENSION_RADIUS
-          DimTypeSet = True
-        Case 5 ' = Angular 3 - point
+                    e.ClassHandler = cadDIMENSION_RADIUS
+                    DimTypeSet = True
+                Case 5 ' = Angular 3 - point
 
-          e.ClassHandler = cadDIMENSION_ANG3PT
-          DimTypeSet = True
-        Case 6 ' = Ordinate
+                    e.ClassHandler = cadDIMENSION_ANG3PT
+                    DimTypeSet = True
+                Case 6 ' = Ordinate
 
-          e.ClassHandler = cadDIMENSION_ORDINATE
-          DimTypeSet = True
-          If (CInt(sValues[i]) And 64) = 64 Then e.fParam[Me.ipaHorizAngle] = 1 ' horiz ordinate
+                    e.ClassHandler = cadDIMENSION_ORDINATE
+                    DimTypeSet = True
+                    If (CInt(sValues[i]) And 64) = 64 Then e.fParam[Me.ipaHorizAngle] = 1 ' horiz ordinate
 
-      End Select
+            End Select
 
-    End If
-    If sClaves[i] = "71" Then e.iParam[Me.iiiAtatchPoint] = CInt(sValues[i])
+        End If
+        If sClaves[i] = "71" Then e.iParam[Me.iiiAtatchPoint] = CInt(sValues[i])
 
-    If sClaves[i] = "1000" And sValues[i] = "DSTYLE" Then ' empiezo la lectura del estilo
-      ReadingStyle = True
-      StyleOverride = New DimStyles
-    End If
+        If sClaves[i] = "1000" And sValues[i] = "DSTYLE" Then ' empiezo la lectura del estilo
+            ReadingStyle = True
+            StyleOverride = New DimStyles
+        End If
 
-    If ReadingStyle Then
+        If ReadingStyle Then
 
-      If sClaves[i] = "1070" And NextCode = 0 Then
-        NextCode = CInt(sValues[i])
-      Else If NextCode <> 0 Then
-        ' leemos algunos
-        If NextCode = "140" And sValues[i] <> 0 Then e.fParam[Me.ipaStyleTextHeigth] = CFloat(sValues[i])
-        If NextCode = "41" And sValues[i] <> 0 Then e.fParam[Me.ipaStyleArrowSize] = CFloat(sValues[i])
-        NextCode = 0
-      End If
+            If sClaves[i] = "1070" And NextCode = 0 Then
+                NextCode = CInt(sValues[i])
+            Else If NextCode <> 0 Then
+                ' leemos algunos
+                If NextCode = "140" And sValues[i] <> 0 Then e.fParam[Me.ipaStyleTextHeigth] = CFloat(sValues[i])
+                If NextCode = "41" And sValues[i] <> 0 Then e.fParam[Me.ipaStyleArrowSize] = CFloat(sValues[i])
+                NextCode = 0
+            End If
 
-    Endif
+        Endif
 
-  Next
+    Next
 
-  ' en algunos DXF el codigo 70 no esta
-  If Not DimTypeSet Then e.ClassHandler = cadDIMENSION_LINEAR
+    ' en algunos DXF el codigo 70 no esta
+    If Not DimTypeSet Then e.ClassHandler = cadDIMENSION_LINEAR
 
-  If Not e.pBlock Then e.pBlock = New Block ' esto previene errores cuando no hay un bloque definido para la Dim
+    If Not e.pBlock Then e.pBlock = New Block ' esto previene errores cuando no hay un bloque definido para la Dim
 
-  ' tengo q presuponer que las escalas son = 1
-  e.fParam[Me.ipaEscX] = 1    ' esc X
-  e.fParam[Me.ipaEscY] = 1    ' esc Y
-  e.fParam[Me.ipaEscZ] = 1    ' esc Z
+    ' tengo q presuponer que las escalas son = 1
+    e.fParam[Me.ipaEscX] = 1    ' esc X
+    e.fParam[Me.ipaEscY] = 1    ' esc Y
+    e.fParam[Me.ipaEscZ] = 1    ' esc Z
 
-  If Not e.pdimStyle Then e.pdimStyle = gcd.CurrentDrawing.odimStyles[gcd.CurrentDrawing.odimStyles.First]
-  If StyleOverride.DIMASZ > 0 Then Me.DimArrowSize = StyleOverride.DIMASZ Else Me.DimArrowSize = e.pdimStyle.DIMASZ
+    If Not e.pdimStyle Then e.pdimStyle = gcd.CurrentDrawing.odimStyles[gcd.CurrentDrawing.odimStyles.First]
+    If StyleOverride.DIMASZ > 0 Then Me.DimArrowSize = StyleOverride.DIMASZ Else Me.DimArrowSize = e.pdimStyle.DIMASZ
 
-  ' pero puede haber un Style Override que anula el estilo y propone nuevos valores
+    ' pero puede haber un Style Override que anula el estilo y propone nuevos valores
 
-  ' para definir el alto del texto tengo q ver si no hay un Style referenciado
-  If StyleOverride.DIMTXT > 0 Then Me.DimTextHeight = StyleOverride.DIMTXT Else Me.DimTextHeight = e.pdimStyle.DIMTXT
+    ' para definir el alto del texto tengo q ver si no hay un Style referenciado
+    If StyleOverride.DIMTXT > 0 Then Me.DimTextHeight = StyleOverride.DIMTXT Else Me.DimTextHeight = e.pdimStyle.DIMTXT
 
-  Return e.ClassHandler.ImportDXF(e, sClaves, sValues)
+    Return e.ClassHandler.ImportDXF(e, sClaves, sValues)
 
-  '' catch
+    '' catch
 
-  Return False
+    Return False
 
 End
 
 Public Sub ExportDXFCol(e As Entity, ByRef stxExport As String[]) As Boolean
-  '
-  ' stxExport.insert(["DIMENSION", dxf.codEntity])
-  ' Los datos comunes a todas las entidades son guardados por la rutina que llama a esta
+    '
+    ' stxExport.insert(["DIMENSION", dxf.codEntity])
+    ' Los datos comunes a todas las entidades son guardados por la rutina que llama a esta
 
-  stxExport.insert(["AcDbDimension", "100"])
+    stxExport.insert(["AcDbDimension", "100"])
 
-  stxExport.insert([E.pBlock.name, "2"])                     ' block name
+    stxExport.insert([E.pBlock.name, "2"])                     ' block name
 
-  stxExport.insert([CStr(e.p[0]), dxf.codX0])                ' first def point
-  stxExport.insert([CStr(e.p[1]), dxf.codY0])
-  stxExport.insert(["0", dxf.codz0])
+    stxExport.insert([CStr(e.p[0]), dxf.codX0])                ' first def point
+    stxExport.insert([CStr(e.p[1]), dxf.codY0])
+    stxExport.insert(["0", dxf.codz0])
 
-  stxExport.insert([CStr(e.p[2]), dxf.codX1])                ' text att point
-  stxExport.insert([CStr(e.p[3]), dxf.codY1])
-  stxExport.insert(["0", dxf.codz0])
+    stxExport.insert([CStr(e.p[2]), dxf.codX1])                ' text att point
+    stxExport.insert([CStr(e.p[3]), dxf.codY1])
+    stxExport.insert(["0", dxf.codz0])
 
-  stxExport.insert([CStr(e.iParam[Me.iiiDimType]), "70"])    ' dim type
+    stxExport.insert([CStr(e.iParam[Me.iiiDimType]), "70"])    ' dim type
 
-  stxExport.insert([CStr(e.iParam[Me.iiiAtatchPoint]), "71"]) ' text att mode
+    stxExport.insert([CStr(e.iParam[Me.iiiAtatchPoint]), "71"]) ' text att mode
 
-  stxExport.insert([CStr(e.fParam[Me.ipaRealMeasure]), "42"]) ' real measure
+    stxExport.insert([CStr(e.fParam[Me.ipaRealMeasure]), "42"]) ' real measure
 
-  stxExport.insert([e.pStyle.name, "3"])                   ' dimstyle
+    stxExport.insert([e.pStyle.name, "3"])                   ' dimstyle
 
 End
