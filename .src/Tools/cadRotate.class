@@ -30,91 +30,92 @@ Private Radianes As Float
 Private glSelectedList As Integer
 
 Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer = 0) As Boolean
-  ' Llamada por FCAD al inicio de la aplicacion de esta herramienta
+    ' Llamada por FCAD al inicio de la aplicacion de esta herramienta
 
-  Dim i As Integer
-  ' Aprovechamos para establecer los helpers (comentarios de ayuda en pantalla)
-  Me.PointsDone = 0
-  Me.PointsTotal = 2
+    Dim i As Integer
+    ' Aprovechamos para establecer los helpers (comentarios de ayuda en pantalla)
+    Me.PointsDone = 0
+    Me.PointsTotal = 2
 
-  DrawingAids.HelperTrabajo = ("Rotate") & " "
+    DrawingAids.HelperTrabajo = ("Rotate") & " "
 
-  If gcd.CurrentDrawing.oSelected.Count = 0 Then                                     ' we have no elements in the selection
+    If gcd.CurrentDrawing.oSelected.Count = 0 Then                                     ' we have no elements in the selection
 
-    DrawingAids.Helper.texto = DrawingAids.HelperTrabajo & ": " & ("Select entities")
+        DrawingAids.Helper.texto = DrawingAids.HelperTrabajo & ": " & ("Select entities")
 
-    gcd.clsJobPrevious = Me
-    gcd.clsJob = cadSelection
+        gcd.clsJobPrevious = Me
+        gcd.clsJob = cadSelection
 
-  Else                                                                    ' need the first point
+    Else                                                                    ' need the first point
 
-    DrawingAids.Helper.texto = DrawingAids.HelperTrabajo & ": " & ("Base point")
-    DrawingAids.HelperTrabajo = DrawingAids.HelperTrabajo & Str(Me.SelectionCount) & " " & ("elements")
+        DrawingAids.Helper.texto = DrawingAids.HelperTrabajo & ": " & ("Base point")
+        DrawingAids.HelperTrabajo = DrawingAids.HelperTrabajo & Str(Me.SelectionCount) & " " & ("elements")
 
-    clsEntities.GLGenDrawListAll(True)
-    gcd.Redraw
+        clsEntities.GLGenDrawListAll(True)
+        gcd.Redraw
 
-  Endif
-  Me.Active = True
-  gcd.ToolActive = True
+    Endif
+    Me.Active = True
+    gcd.ToolActive = True
+    DrawingAids.Refresh
 
 End
 
 Public Function NewParameter(vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
 
-  If Me.PointsDone = 0 Then
-    If vParam[0] = "point" Then
+    If Me.PointsDone = 0 Then
+        If vParam[0] = "point" Then
 
-      ' enganio al evento mouse
-      MouseMove(gcd.Xpix(vParam[1]), gcd.Ypix(vParam[2]))
-      MouseUp(gcd.Xpix(vParam[1]), gcd.Ypix(vParam[2]))
+            ' enganio al evento mouse
+            MouseMove(gcd.Xpix(vParam[1]), gcd.Ypix(vParam[2]))
+            MouseUp(gcd.Xpix(vParam[1]), gcd.Ypix(vParam[2]))
 
-    Endif
-  End If
+        Endif
+    End If
 
 End
 
 Public Function MouseUp()
 
-  Dim i As Integer, E As Entity
+    Dim i As Integer, E As Entity
 
-  Inc Me.PointsDone
+    Inc Me.PointsDone
 
-  If Me.PointsDone = 1 Then ' acabo de marcar el punto base
+    If Me.PointsDone = 1 Then ' acabo de marcar el punto base
 
-    ' ya tengo cosas seleccionadas
-    DrawingAids.Helper.texto = DrawingAids.HelperTrabajo & ": " & ("Angle") & " [90]"
+        ' ya tengo cosas seleccionadas
+        DrawingAids.Helper.texto = DrawingAids.HelperTrabajo & ": " & ("Angle") & " [90]"
 
-    ' punto real base
-    Me.SelStartXr = gcd.Near(gcd.Xreal(mouse.x))
-    Me.SelStartYr = gcd.Near(gcd.Yreal(mouse.y))
+        ' punto real base
+        Me.SelStartXr = gcd.Near(gcd.Xreal(mouse.x))
+        Me.SelStartYr = gcd.Near(gcd.Yreal(mouse.y))
 
-    Me.glTranslate[0] = Me.SelStartXr
-    Me.glTranslate[1] = Me.SelStartYr
-    Me.glTranslate[2] = 0
+        Me.glTranslate[0] = Me.SelStartXr
+        Me.glTranslate[1] = Me.SelStartYr
+        Me.glTranslate[2] = 0
 
-    gl.PushMatrix
-    gl.NewList(gcd.CurrentDrawing.GlListSelectedEntities, gl.COMPILE)                      ' genero los graficos dentro de la lista
-    gl.Translatef(-Me.SelStartXr, -Me.SelStartYr, 0)
-    For Each E In gcd.CurrentDrawing.oSelected
-      gl.CallList(E.glDrwList)
-    Next
-    gl.EndList
-    gl.PopMatrix
+        gl.PushMatrix
+        gl.NewList(gcd.CurrentDrawing.GlListSelectedEntities, gl.COMPILE)                      ' genero los graficos dentro de la lista
+        gl.Translatef(-Me.SelStartXr, -Me.SelStartYr, 0)
+        For Each E In gcd.CurrentDrawing.oSelected
+            gl.CallList(E.glDrwList)
+        Next
+        gl.EndList
+        gl.PopMatrix
 
-    ' prevenir acciones tontas como hacer click en otro elemento antes de terminar con el actual
-    ' TODO: reparar -> gcd.CurrDrawing.DesHabilitarBotones
-  Else If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
-    '     ' permitir otros trabajos
-    '     ' TODO: reparar -> gcd.CurrDrawing.HabilitarBotones
-    'Me.SelEndXr = puntos.Near(fMain.Xreal(mouse.x)
-    'Me.SelEndyr = puntos.Near(fMain.Yreal(mouse.y))
+        ' prevenir acciones tontas como hacer click en otro elemento antes de terminar con el actual
+        ' TODO: reparar -> gcd.CurrDrawing.DesHabilitarBotones
+    Else If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
+        '     ' permitir otros trabajos
+        '     ' TODO: reparar -> gcd.CurrDrawing.HabilitarBotones
+        'Me.SelEndXr = puntos.Near(fMain.Xreal(mouse.x)
+        'Me.SelEndyr = puntos.Near(fMain.Yreal(mouse.y))
 
-    'Radianes = Ang(Me.SelEndXr - Me.SelStartXr, Me.SelEndYr - Me.SelStartYr)
-    '
-    Me.Finish()
+        'Radianes = Ang(Me.SelEndXr - Me.SelStartXr, Me.SelEndYr - Me.SelStartYr)
+        '
+        Me.Finish()
 
-  Endif
+    Endif
 
 End
 
@@ -134,73 +135,73 @@ End
 
 Public Function MouseMove() ' called by FCAD-> DrawingArea_MouseMove
 
-  If Me.PointsDone = 1 Then
-    '     ' we compare Real values from the starting point to the location
-    '     ' represente by the mouse now, taking account that the drawing
-    '     ' could have being moved by the mouse wheel
-    '
-    '     ' new Real position is
-    Me.SelEndXr = gcd.Near(gcd.Xreal(mouse.x))
-    Me.SelEndyr = gcd.Near(gcd.Yreal(mouse.y))
+    If Me.PointsDone = 1 Then
+        '     ' we compare Real values from the starting point to the location
+        '     ' represente by the mouse now, taking account that the drawing
+        '     ' could have being moved by the mouse wheel
+        '
+        '     ' new Real position is
+        Me.SelEndXr = gcd.Near(gcd.Xreal(mouse.x))
+        Me.SelEndyr = gcd.Near(gcd.Yreal(mouse.y))
 
-    Radianes = Ang(Me.SelEndXr - Me.SelStartXr, Me.SelEndYr - Me.SelStartYr)
+        Radianes = Ang(Me.SelEndXr - Me.SelStartXr, Me.SelEndYr - Me.SelStartYr)
 
-    Me.glAngle = Radianes * 180 / Pi
+        Me.glAngle = Radianes * 180 / Pi
 
-    DrawingAids.Helper.texto = DrawingAids.HelperTrabajo & ": " & ("Angle") & " [90]" & Format$(Me.glAngle, "0.0")
+        DrawingAids.Helper.texto = DrawingAids.HelperTrabajo & ": " & ("Angle") & " [90]" & Format$(Me.glAngle, "0.0")
 
-  End If
+    End If
 
-  gcd.Redraw
+    gcd.Redraw
 
 End
 
 Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD en el evento FCAD_KeyPress cuando recibe una texto + <Enter>
 
-  If Me.PointsDone = 1 Then
+    If Me.PointsDone = 1 Then
 
-    If EnteredText = "" Then                        ' enter es Ortogonal
-      Radianes = 90 / 180 * Pi
-      Inc Me.PointsDone
-      Me.Finish
+        If EnteredText = "" Then                        ' enter es Ortogonal
+            Radianes = 90 / 180 * Pi
+            Inc Me.PointsDone
+            Me.Finish
 
-    Else
-      Radianes = CFloat(EnteredText) / 180 * Pi
-      Inc Me.PointsDone
-      Me.Finish
+        Else
+            Radianes = CFloat(EnteredText) / 180 * Pi
+            Inc Me.PointsDone
+            Me.Finish
+        End If
+
     End If
 
-  End If
+    ' catch
 
-  ' catch
-
-  DrawingAids.ErrorMessage = ("Bad input")
+    DrawingAids.ErrorMessage = ("Bad input")
 
 End
 
 Public Sub Finish()
 
-  Dim E As Entity, ip As Integer, Prot As New Float[]
+    Dim E As Entity, ip As Integer, Prot As New Float[]
 
-  If Me.PointsDone = Me.PointsTotal Then
+    If Me.PointsDone = Me.PointsTotal Then
 
-    For Each E In gcd.CurrentDrawing.oSelected
+        For Each E In gcd.CurrentDrawing.oSelected
 
-      E.ClassHandler.Rotate(E, radianes)
+            E.ClassHandler.Rotate(E, radianes)
 
-    Next
+        Next
 
-    clsEntities.Finish
+        clsEntities.Finish
 
-  Endif
+    Endif
 
-  gl.DeleteLists(glSelectedList, 1)
-  gcd.clsJobPrevious = Me
-  gcd.clsJob = cadSelection
-  DrawingAids.CleanTexts
-  clsEntities.DeSelection()
-  gcd.regen
-  Me.Active = False
-  gcd.ToolActive = False
+    gl.DeleteLists(glSelectedList, 1)
+    gcd.clsJobPrevious = Me
+    gcd.clsJob = cadSelection
+    DrawingAids.CleanTexts
+    clsEntities.DeSelection()
+    gcd.regen
+    Me.Active = False
+    gcd.ToolActive = False
 
 End
