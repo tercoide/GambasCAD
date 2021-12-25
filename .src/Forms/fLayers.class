@@ -54,13 +54,15 @@ Public Sub Form_Open()
         ' name
         tblLayers[i, 0].Text = l.Name
         tblLayers[i, 0].Tag = l.handle
+        If gcd.currentDrawing.CurrLayer.handle = l.handle Then tblLayers[i, 0].Font.Bold = True Else tblLayers[i, 0].Font.Bold = False
 
         ' show
-        If l.Visible Then
+        If l.Visible Then   ' establecemos la imagen adecuada
             tblLayers[i, 1].Picture = gcd.picVisibleOn
         Else
             tblLayers[i, 1].Picture = gcd.picVisibleOff
         Endif
+        tblLayers[i, 1].Tag = l.Visible ' guardamos el estado original
 
         ' frozen
         If l.Frozen Then
@@ -68,6 +70,7 @@ Public Sub Form_Open()
         Else
             tblLayers[i, 2].Picture = gcd.picFrozenOff
         Endif
+        tblLayers[i, 2].Tag = l.frozen ' guardamos el estado original
 
         ' locked
         If l.Locked Then
@@ -75,15 +78,19 @@ Public Sub Form_Open()
         Else
             tblLayers[i, 3].Picture = gcd.picLockedOff
         Endif
+        tblLayers[i, 3].Tag = l.locked ' guardamos el estado original
 
         ' color
         tblLayers[i, 4].Picture = paintPlus.picCirculito(8, gcd.gColor[l.Colour], Color.ButtonForeground)
+        tblLayers[i, 4].Tag = l.colour ' guardamos el estado original
 
         ' linewt
         tblLayers[i, 5].Text = Format(l.LineWt, "0.00")
+        tblLayers[i, 5].Tag = l.LineWt ' guardamos el estado original
 
         ' linetype
         tblLayers[i, 6].Text = l.LineType
+        tblLayers[i, 6].Tag = l.LineType ' guardamos el estado original
 
         ' printable
 
@@ -92,8 +99,122 @@ Public Sub Form_Open()
         Else
             tblLayers[i, 7].Picture = gcd.picPrintOff
         Endif
+        tblLayers[i, 7].Tag = l.Printable ' guardamos el estado original
 
         Inc i
     Next
+
+End
+
+Public Sub tblLayers_DblClick()
+
+    Dim i As Integer
+    Dim iRet As Integer
+
+    i = tblLayers.Row
+
+    Select Case tblLayers.Column
+        Case 0, 5  'name , linewt
+
+            tblLayers.Edit
+
+        Case 1  'visible
+
+            If tblLayers[i, 1].Tag = "False" Then   ' establecemos la imagen adecuada
+                tblLayers[i, 1].Picture = gcd.picVisibleOn
+                tblLayers[i, 1].Tag = "True"
+            Else
+                tblLayers[i, 1].Picture = gcd.picVisibleOff
+                tblLayers[i, 1].Tag = "False"
+                If gcd.currentDrawing.CurrLayer.handle = tblLayers[i, 0].tag Then Message.Warning(("El Layer actual sera invisible"))
+            Endif
+
+        Case 2  'frozen
+            If tblLayers[i, 2].Tag = "False" Then   ' establecemos la imagen adecuada
+                tblLayers[i, 2].Picture = gcd.picFrozenOn
+                tblLayers[i, 2].Tag = "True"
+            Else
+                tblLayers[i, 2].Picture = gcd.picFrozenOff
+                tblLayers[i, 2].Tag = "False"
+            Endif
+
+        Case 3  ' locked
+            If tblLayers[i, 3].Tag = "False" Then   ' establecemos la imagen adecuada
+                tblLayers[i, 3].Picture = gcd.picLockedOn
+                tblLayers[i, 3].Tag = "True"
+            Else
+                tblLayers[i, 3].Picture = gcd.picLockedOff
+                tblLayers[i, 3].Tag = "False"
+            Endif
+
+        Case 4 ' color
+
+            iRet = fColors.ShowModal() - 1
+            If iRet >= 0 Then
+                ' color
+                tblLayers[i, 4].Picture = paintPlus.picCirculito(8, gcd.gColor[iRet], Color.ButtonForeground)
+                tblLayers[i, 4].Tag = iRet ' guardamos el estado original
+
+            Endif
+
+        Case 7  ' printable
+            If tblLayers[i, 7].Tag = "False" Then   ' establecemos la imagen adecuada
+                tblLayers[i, 7].Picture = gcd.picPrintOn
+                tblLayers[i, 7].Tag = "True"
+            Else
+                tblLayers[i, 7].Picture = gcd.picPrintOff
+                tblLayers[i, 7].Tag = "False"
+            Endif
+
+    End Select
+
+End
+
+Public Sub tblLayers_Save(Row As Integer, Column As Integer, Value As String)
+
+    If Column = 0 Then
+        tblLayers[row, Column].Text = Value
+    Else If Column = 5 Then
+        Try tblLayers[row, Column].Text = Format(Value, "0.00")
+    Endif
+
+End
+
+Public Sub btnCurrent_Click()
+
+    Dim i As Integer
+
+    If tblLayers.Row < 0 Then Return
+    gcd.currentDrawing.CurrLayer = gcd.currentDrawing.oLayers[tblLayers[tblLayers.Row, 0].tag]
+
+    For i = 0 To tblLayers.Rows.Max
+        If tblLayers[i, 0].tag = gcd.currentDrawing.CurrLayer.handle Then
+
+            ' name
+            tblLayers[i, 0].Font.Bold = True
+        Else
+            tblLayers[i, 0].Font.Bold = False
+        End If
+    Next
+    tblLayers.Refresh
+
+End
+
+Public Sub btnEliminar_Click()
+
+    If tblLayers.Row < 0 Then Return
+    If tblLayers[tblLayers.Row, 0].Font.bold Then
+        Message.Error(("No se puede eliminar el Layer actual"))
+        Return
+    Endif
+
+    If gcd.currentDrawing.oLayers[tblLayers[tblLayers.Row, 0].tag].entities.count > 0 Then
+        Message.Error(("No se puede eliminar un Layer que contiene graficos"))
+        Return
+    Endif
+
+    tblLayers[tblLayers.Row, 0].Font.Strikeout = Not tblLayers[tblLayers.Row, 0].Font.Strikeout
+
+    tblLayers.Refresh
 
 End
