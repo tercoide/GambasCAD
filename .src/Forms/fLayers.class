@@ -1,6 +1,6 @@
 ' Gambas class file
 
-Public Sub btnClose_Click()
+Public Sub btnCancel_Click()
 
     Me.Close
 
@@ -55,6 +55,8 @@ Public Sub Form_Open()
         tblLayers[i, 0].Text = l.Name
         tblLayers[i, 0].Tag = l.handle
         If gcd.currentDrawing.CurrLayer.handle = l.handle Then tblLayers[i, 0].Font.Bold = True Else tblLayers[i, 0].Font.Bold = False
+
+        tblLayers[i, 0].Font.Strikeout = False
 
         ' show
         If l.Visible Then   ' establecemos la imagen adecuada
@@ -120,31 +122,31 @@ Public Sub tblLayers_DblClick()
 
         Case 1  'visible
 
-            If tblLayers[i, 1].Tag = "False" Then   ' establecemos la imagen adecuada
+            If tblLayers[i, 1].Tag = False Then   ' establecemos la imagen adecuada
                 tblLayers[i, 1].Picture = gcd.picVisibleOn
-                tblLayers[i, 1].Tag = "True"
+                tblLayers[i, 1].Tag = True
             Else
                 tblLayers[i, 1].Picture = gcd.picVisibleOff
-                tblLayers[i, 1].Tag = "False"
+                tblLayers[i, 1].Tag = False
                 If gcd.currentDrawing.CurrLayer.handle = tblLayers[i, 0].tag Then Message.Warning(("El Layer actual sera invisible"))
             Endif
 
         Case 2  'frozen
-            If tblLayers[i, 2].Tag = "False" Then   ' establecemos la imagen adecuada
+            If tblLayers[i, 2].Tag = False Then   ' establecemos la imagen adecuada
                 tblLayers[i, 2].Picture = gcd.picFrozenOn
-                tblLayers[i, 2].Tag = "True"
+                tblLayers[i, 2].Tag = True
             Else
                 tblLayers[i, 2].Picture = gcd.picFrozenOff
-                tblLayers[i, 2].Tag = "False"
+                tblLayers[i, 2].Tag = False
             Endif
 
         Case 3  ' locked
-            If tblLayers[i, 3].Tag = "False" Then   ' establecemos la imagen adecuada
+            If tblLayers[i, 3].Tag = False Then   ' establecemos la imagen adecuada
                 tblLayers[i, 3].Picture = gcd.picLockedOn
-                tblLayers[i, 3].Tag = "True"
+                tblLayers[i, 3].Tag = True
             Else
                 tblLayers[i, 3].Picture = gcd.picLockedOff
-                tblLayers[i, 3].Tag = "False"
+                tblLayers[i, 3].Tag = False
             Endif
 
         Case 4 ' color
@@ -158,12 +160,12 @@ Public Sub tblLayers_DblClick()
             Endif
 
         Case 7  ' printable
-            If tblLayers[i, 7].Tag = "False" Then   ' establecemos la imagen adecuada
+            If tblLayers[i, 7].Tag = False Then   ' establecemos la imagen adecuada
                 tblLayers[i, 7].Picture = gcd.picPrintOn
-                tblLayers[i, 7].Tag = "True"
+                tblLayers[i, 7].Tag = True
             Else
                 tblLayers[i, 7].Picture = gcd.picPrintOff
-                tblLayers[i, 7].Tag = "False"
+                tblLayers[i, 7].Tag = False
             Endif
 
     End Select
@@ -172,7 +174,15 @@ End
 
 Public Sub tblLayers_Save(Row As Integer, Column As Integer, Value As String)
 
+    Dim i As Integer
+
     If Column = 0 Then
+        For i = 0 To tblLayers.Rows.Max
+            If tblLayers[i, 0].Text = Value Then
+                Message.Error(("Ya existe un Layer con ese nombre"))
+                Return
+            Endif
+        Next
         tblLayers[row, Column].Text = Value
     Else If Column = 5 Then
         Try tblLayers[row, Column].Text = Format(Value, "0.00")
@@ -185,11 +195,11 @@ Public Sub btnCurrent_Click()
     Dim i As Integer
 
     If tblLayers.Row < 0 Then Return
-    gcd.currentDrawing.CurrLayer = gcd.currentDrawing.oLayers[tblLayers[tblLayers.Row, 0].tag]
+    ' gcd.currentDrawing.CurrLayer = gcd.currentDrawing.oLayers[tblLayers[tblLayers.Row, 0].tag]
 
     For i = 0 To tblLayers.Rows.Max
-        If tblLayers[i, 0].tag = gcd.currentDrawing.CurrLayer.handle Then
-
+        'If tblLayers[i, 0].tag = gcd.currentDrawing.CurrLayer.handle Then
+        If tblLayers.Row = i Then
             ' name
             tblLayers[i, 0].Font.Bold = True
         Else
@@ -216,5 +226,90 @@ Public Sub btnEliminar_Click()
     tblLayers[tblLayers.Row, 0].Font.Strikeout = Not tblLayers[tblLayers.Row, 0].Font.Strikeout
 
     tblLayers.Refresh
+
+End
+
+Public Sub Button1_Click()
+
+    Dim sName As String
+    Dim i As Integer
+
+    sName = InputBox(("Nombre del nuevo Layer"), ("Nuevo Layer"), "")
+
+    If sName = "" Then Return
+
+    ' verifico que no haya otro Layer con el mismo nombre
+
+    For i = 0 To tblLayers.Rows.Max
+        If tblLayers[i, 0].Text = sName Then
+            Message.Error(("Ya existe un Layer con ese nombre"))
+            Return
+        Endif
+    Next
+
+    tblLayers.Rows.Count += 1
+    i = tblLayers.Rows.Max
+    tblLayers[i, 0].Text = sName
+    tblLayers[i, 0].Tag = ""
+
+    tblLayers[i, 1].Picture = gcd.picVisibleOn
+    tblLayers[i, 1].Tag = True
+
+    tblLayers[i, 2].Picture = gcd.picFrozenOff
+    tblLayers[i, 2].Tag = False
+
+    tblLayers[i, 3].Picture = gcd.picLockedOff
+    tblLayers[i, 3].Tag = False
+
+    ' color
+    tblLayers[i, 4].Picture = paintPlus.picCirculito(8, gcd.gColor[0], Color.ButtonForeground)
+    tblLayers[i, 4].Tag = 0
+
+    ' linewt
+    tblLayers[i, 5].Text = Format(1, "0.00")
+    tblLayers[i, 5].Tag = 1
+
+    ' linetype
+    tblLayers[i, 6].Text = "CONTINUOUS"
+    tblLayers[i, 6].Tag = "CONTINUOUS"
+
+    ' printable
+    tblLayers[i, 7].Picture = gcd.picPrintOn
+    tblLayers[i, 7].Tag = True
+
+End
+
+Public Sub btnApply_Click()
+
+    Dim i As Integer, l As Layer
+
+    ' intento aplicar los cambios
+    For i = 0 To tblLayers.Rows.Max
+        ' veo si es nuevo
+        If tblLayers[i, 0].Tag = "" Then ' es un Layer nuevo
+            l = New Layer
+            l.Handle = gcd.NewHandle()
+
+            gcd.currentDrawing.oLayers.Add(l, l.Handle)
+        Else
+            l = gcd.currentDrawing.oLayers[tblLayers[i, 0].Tag]
+        End If
+        l.Name = tblLayers[i, 0].Text
+        l.Visible = tblLayers[i, 1].Tag
+        l.Frozen = tblLayers[i, 2].Tag
+        l.Locked = tblLayers[i, 3].Tag
+        l.Colour = tblLayers[i, 4].Tag
+        l.LineWt = tblLayers[i, 5].Tag
+        l.LineType = tblLayers[i, 6].Tag
+        l.Printable = tblLayers[i, 7].Tag
+
+        If tblLayers[i, 0].Font.Bold Then gcd.currentDrawing.CurrLayer = l
+        If tblLayers[i, 0].Font.Strikeout Then gcd.currentDrawing.oLayers.Remove(l.handle)
+
+    Next
+
+    gcd.UpdateLayersCombo()
+
+    Me.Close
 
 End
