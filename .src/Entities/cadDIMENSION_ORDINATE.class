@@ -1,6 +1,6 @@
 ' Gambas class file
 
-' m-designer
+' GambasCAD
 ' A simple CAD made in Gambas
 '
 ' Copyright (C) Ing Martin P Cristia
@@ -31,203 +31,202 @@ Public Const ParamHelper As String = "Start point;End point;extension"
 
 Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
 
-  ' 10,20,30 -> Baseline              '
-  ' 11,21,31 -> Text mid point
-  ' 12,22,32 -> UNUSED
-  ' 13,23,33 -> Def point, o sea el que determina el valor de la dimension D=Def-Baseline
-  ' 14,24,34 -> Leader endpoint, largo de la linea de definicion
+    ' 10,20,30 -> Baseline              '
+    ' 11,21,31 -> Text mid point
+    ' 12,22,32 -> UNUSED
+    ' 13,23,33 -> Def point, o sea el que determina el valor de la dimension D=Def-Baseline
+    ' 14,24,34 -> Leader endpoint, largo de la linea de definicion
 
-  Dim i As Integer
-  Dim AfterSubclassmarker As Boolean
-  ' revisamos lo que viene del importador comun
+    Dim i As Integer
+    Dim AfterSubclassmarker As Boolean
+    ' revisamos lo que viene del importador comun
 
-  For i = 0 To sClaves.Max
-    If sClaves[i] = "100" And sValues[i] = "AcDbOrdinateDimension" Then AfterSubclassmarker = True
-    If AfterSubclassmarker Then ' lo siguientes codigos
+    For i = 0 To sClaves.Max
+        If sClaves[i] = "100" And sValues[i] = "AcDbOrdinateDimension" Then AfterSubclassmarker = True
+        If AfterSubclassmarker Then ' lo siguientes codigos
 
-      If sClaves[i] = "13" Then e.P[6] = CFloat(sValues[i])
-      If sClaves[i] = "23" Then e.P[7] = CFloat(sValues[i])
+            If sClaves[i] = "13" Then e.P[6] = CFloat(sValues[i])
+            If sClaves[i] = "23" Then e.P[7] = CFloat(sValues[i])
 
-      If sClaves[i] = "14" Then e.P[8] = CFloat(sValues[i])
-      If sClaves[i] = "24" Then e.P[9] = CFloat(sValues[i])
+            If sClaves[i] = "14" Then e.P[8] = CFloat(sValues[i])
+            If sClaves[i] = "24" Then e.P[9] = CFloat(sValues[i])
 
-    End If
+        End If
 
-  Next
+    Next
 
-  ' TODO: cuando este terminada la entidad, sacar eso
-  'e.pBlock.AbsoluteCoords = True
-  ' y dejar esto
-  If e.fParam[Me.ipaStyleTextHeigth] > 0 Then Me.DimTextHeight = e.fParam[Me.ipaStyleTextHeigth]
-  Debug "cadDimension.DimTextHeight", cadDimension.DimTextHeight
-  ' TODO: cuando este terminada la entidad, sacar eso
-  ' tengo q presuponer que las escalas son = 1
-  e.fParam[Me.ipaEscX] = 1    ' esc X
-  e.fParam[Me.ipaEscY] = 1    ' esc Y
-  e.fParam[Me.ipaEscZ] = 1    ' esc Z
-  e.pBlock.AbsoluteCoords = True
+    ' TODO: cuando este terminada la entidad, sacar eso
+    'e.pBlock.AbsoluteCoords = True
+    ' y dejar esto
+    If e.fParam[Me.ipaStyleTextHeigth] > 0 Then Me.DimTextHeight = e.fParam[Me.ipaStyleTextHeigth]
+    Debug "cadDimension.DimTextHeight", cadDimension.DimTextHeight
+    ' TODO: cuando este terminada la entidad, sacar eso
+    ' tengo q presuponer que las escalas son = 1
+    e.fParam[Me.ipaEscX] = 1    ' esc X
+    e.fParam[Me.ipaEscY] = 1    ' esc Y
+    e.fParam[Me.ipaEscZ] = 1    ' esc Z
+    e.pBlock.AbsoluteCoords = True
 
-  ' y poner esto
-  ' e.pBlock = Me.ReBuildBlock(e)
+    ' y poner esto
+    ' e.pBlock = Me.ReBuildBlock(e)
 
-  Return True
+    Return True
 
-  ' catch
+    ' catch
 
-  Return False
+    Return False
 
 End
 
 Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
 
-  ' la linea solo recibe puntos
+    ' la linea solo recibe puntos
 
-  If vParam[0] <> "point" Then Return False
+    If vParam[0] <> "point" Then Return False
 
-  If Me.StepsDone = 0 Then
-    Me.DimType = gcd.dimAligned
+    If Me.StepsDone = 0 Then
+        Me.DimType = gcd.dimAligned
 
-    Try eBuild.P[0] = vParam[1]
-    Try eBuild.P[1] = vParam[2]
-    eBuild.P[2] = eBuild.P[0]
-    eBuild.P[3] = eBuild.P[1]
-    If definitive Then Return True
-  Else If Me.StepsDone = 1 Then
+        Try eBuild.P[0] = vParam[1]
+        Try eBuild.P[1] = vParam[2]
+        eBuild.P[2] = eBuild.P[0]
+        eBuild.P[3] = eBuild.P[1]
+        If definitive Then Return True
+    Else If Me.StepsDone = 1 Then
 
-    Try eBuild.P[2] = vParam[1]
-    Try eBuild.P[3] = vParam[2]
-    eBuild.pBlock = ReBuildBlock(eBuild)
-    If definitive Then Return True
-  Else If Me.StepsDone = 2 Then
-    If vParam[0] = "point" Then  ' vino como un punto, entonces la calculo de otra manera
+        Try eBuild.P[2] = vParam[1]
+        Try eBuild.P[3] = vParam[2]
+        eBuild.pBlock = ReBuildBlock(eBuild)
+        If definitive Then Return True
+    Else If Me.StepsDone = 2 Then
+        If vParam[0] = "point" Then  ' vino como un punto, entonces la calculo de otra manera
 
-      ' return the angle from horizontal to us
-      eBuild.fParam[Me.ipaExtension] = -puntos.PointToLineDistance([vParam[1], vParam[2]], [eBuild.p[0], eBuild.p[1], eBuild.p[2], eBuild.p[3]]) ' / puntos.distancia(eBuild.p[0], eBuild.p[1], eBuild.p[2], eBuild.p[3]
+            ' return the angle from horizontal to us
+            eBuild.fParam[Me.ipaExtension] = -puntos.PointToLineDistance([vParam[1], vParam[2]], [eBuild.p[0], eBuild.p[1], eBuild.p[2], eBuild.p[3]]) ' / puntos.distancia(eBuild.p[0], eBuild.p[1], eBuild.p[2], eBuild.p[3]
 
-    Else If vParam[0] = "float" Then  ' vino como un punto, entonces la calculo de otra manera
-      eBuild.fParam[Me.ipaExtension] = vParam[1]
+        Else If vParam[0] = "float" Then  ' vino como un punto, entonces la calculo de otra manera
+            eBuild.fParam[Me.ipaExtension] = vParam[1]
 
-    End If
-    ' TODO: cuando este terminada la entidad, sacar eso
-    ebuild.pBlock.AbsoluteCoords = True
-    ' y dejar esto
-    ' eBuild.pBlock = ReBuildBlock(eBuild)
-    If definitive Then
-      'Stop
-      Return True
-    End If
-  Endif
+        End If
+        ' TODO: cuando este terminada la entidad, sacar eso
+        ebuild.pBlock.AbsoluteCoords = True
+        ' y dejar esto
+        ' eBuild.pBlock = ReBuildBlock(eBuild)
+        If definitive Then
+            'Stop
+            Return True
+        End If
+    Endif
 
 End
 
 Public Sub ReBuildBlock(E As Entity) As Block
 
-  Dim d As Float, flxTextExt As Float[]
-  Dim fRotXY As Float[]
+    Dim d As Float, flxTextExt As Float[]
+    Dim fRotXY As Float[]
 
-  Dim newBlock As New Block
-  Dim f1, f2 As New Float[]
+    Dim newBlock As New Block
+    Dim f1, f2 As New Float[]
 
-  newBlock.entities = New Collection
+    newBlock.entities = New Collection
 
-  ' para definir este bloque necesito 6 entidades
-  Dim eLineaPpal As Entity
-  Dim eOblique1 As Entity       ' tambien pueden ser flechas Solid
-  Dim eOblique2 As Entity
-  Dim eExtension1 As Entity
-  Dim eExtension2 As Entity
-  Dim eDot1 As Entity
-  Dim eDot2 As Entity
-  Dim eText As Entity
-  Dim ePoint2 As Entity
+    ' para definir este bloque necesito 6 entidades
+    Dim eLineaPpal As Entity
+    Dim eOblique1 As Entity       ' tambien pueden ser flechas Solid
+    Dim eOblique2 As Entity
+    Dim eExtension1 As Entity
+    Dim eExtension2 As Entity
+    Dim eDot1 As Entity
+    Dim eDot2 As Entity
+    Dim eText As Entity
+    Dim ePoint2 As Entity
 
-  ' vemos los estilos
-  If E.fParam[Me.ipaStyleTextHeigth] > 0 Then Me.DimTextHeight = E.fParam[Me.ipaStyleTextHeigth] Else Me.DimTextHeight = E.pStyle.DIMTXT
-  If E.fParam[Me.ipaStyleArrowSize] > 0 Then Me.DimArrowSize = E.fParam[Me.ipaStyleArrowSize] Else Me.DimArrowSize = E.pStyle.DIMASZ
-  Me.DimArrowWidth = Me.DimArrowSize / 3
+    ' vemos los estilos
+    If E.fParam[Me.ipaStyleTextHeigth] > 0 Then Me.DimTextHeight = E.fParam[Me.ipaStyleTextHeigth] Else Me.DimTextHeight = E.pStyle.DIMTXT
+    If E.fParam[Me.ipaStyleArrowSize] > 0 Then Me.DimArrowSize = E.fParam[Me.ipaStyleArrowSize] Else Me.DimArrowSize = E.pStyle.DIMASZ
+    Me.DimArrowWidth = Me.DimArrowSize / 3
 
-  '               (P23=Text mid)
-  '         (p67) 12.23
-  '         --+--.-----
-  '           ^   (P89=Leader endpoint)
-  '           !
-  '  + (P01=baseline)
+    '               (P23=Text mid)
+    '         (p67) 12.23
+    '         --+--.-----
+    '           ^   (P89=Leader endpoint)
+    '           !
+    '  + (P01=baseline)
 
-  ' Comun para Horiz y Vert
-  ' -> el bloque
+    ' Comun para Horiz y Vert
+    ' -> el bloque
 
-  E.fParam[cadInsert.ipaEscX] = 1      ' ScaleX del inserto
-  E.fParam[cadInsert.ipaEscY] = 1      ' ScaleY del inserto
-  E.fParam[cadInsert.ipaEscZ] = 1      ' ScaleY del inserto
-  E.Visible = True
-  ' lineas de demarcacion
-  eExtension2 = cAdLine.NewEntity([0, 0, 0, E.P[9] - E.P[7]])
-
-  ' puntos base
-  ePoint2 = cadPoint.NewEntity([E.P[0], E.P[1]])
-
-  ' flechas
-  ' la flecha va rotada 90*
-  f2.Insert([Me.DimExtension, 0, Me.DimExtension - Me.DimArrowWidth, -Me.DimArrowSize, Me.DimExtension + Me.DimArrowWidth, -Me.DimArrowSize, Me.DimExtension, 0])
-
-  eOblique2 = cAdsolid.NewEntity(f2)
-
-  ' texto
-  eText = cAdMText.NewEntity([E.p[2] - E.p[6], E.p[3] - E.p[7]])
-  eText.fParam[cadMText.ipaTextHeight] = Me.DimTextHeight
-
-  ' agrego todo al bloque
-  newBlock.entities.Add(eExtension2, gcd.NewHandle())
-  newBlock.entities.Add(eOblique2, gcd.NewHandle())
-  newBlock.entities.Add(ePoint2, gcd.NewHandle())
-  newBlock.entities.Add(eText, gcd.NewHandle())
-
-  ' Armo directamente de acuerdo a lo que necesito
-  If E.fParam[Me.ipaHorizAngle] = 1 Then                               ' Ordenada X Horizontal (texto y lineas verticales)
-    E.fParam[cadDimension.ipaRealMeasure] = E.P[6] - E.P[0]
-
-    ' esto no cambia la posicion, ya sea mayor o menor que cero
+    E.fParam[cadInsert.ipaEscX] = 1      ' ScaleX del inserto
+    E.fParam[cadInsert.ipaEscY] = 1      ' ScaleY del inserto
+    E.fParam[cadInsert.ipaEscZ] = 1      ' ScaleY del inserto
+    E.Visible = True
     ' lineas de demarcacion
+    eExtension2 = cAdLine.NewEntity([0, 0, 0, E.P[9] - E.P[7]])
 
-    'If elem.fParam[cadDimension.ipaRealMeasure] >= 0 Then
+    ' puntos base
+    ePoint2 = cadPoint.NewEntity([E.P[0], E.P[1]])
 
-    ' cuadrante superior
-    ' el texto
-    eText.StringData[cadMText.sdaText] = "\\A1;" & Format(E.fParam[cadDimension.ipaRealMeasure], Me.DimFormat)
+    ' flechas
+    ' la flecha va rotada 90*
+    f2.Insert([Me.DimExtension, 0, Me.DimExtension - Me.DimArrowWidth, -Me.DimArrowSize, Me.DimExtension + Me.DimArrowWidth, -Me.DimArrowSize, Me.DimExtension, 0])
 
-    'eText.StringData[cadMText.sdaText] = Format(elem.fParam[cadDimension.ipaRealMeasure], Me.DimFormat)
-    ' esta ordenada es horiz, entonces el texto se rota
-    eText.fParam[cadMText.ipaTextAngle] = 90
+    eOblique2 = cAdsolid.NewEntity(f2)
 
-    flxTextExt = glPlus.TextExtends(eText.StringData[cadMText.sdaText], 0, 0, eText.fParam[cadMText.ipaTextHeight])
-    eExtension2.P[3] = E.P[9] - E.P[7] + flxTextExt[2] / 2
+    ' texto
+    eText = cAdMText.NewEntity([E.p[2] - E.p[6], E.p[3] - E.p[7]])
+    eText.fParam[cadMText.ipaTextHeight] = Me.DimTextHeight
 
-    eOblique2.ClassHandler.rotate(eOblique2, -Pi / 2 * IIf(E.fParam[cadDimension.ipaRealMeasure] >= 0, 1, -1))
-    eOblique2.ClassHandler.translate(eOblique2, 0, 3 * Me.DimExtension * IIf(E.fParam[cadDimension.ipaRealMeasure] >= 0, 1, -1))
+    ' agrego todo al bloque
+    newBlock.entities.Add(eExtension2, gcd.NewHandle())
+    newBlock.entities.Add(eOblique2, gcd.NewHandle())
+    newBlock.entities.Add(ePoint2, gcd.NewHandle())
+    newBlock.entities.Add(eText, gcd.NewHandle())
 
-    'End If
-  Else ' es vertical
-    E.fParam[cadDimension.ipaRealMeasure] = E.P[7] - E.P[1]
+    ' Armo directamente de acuerdo a lo que necesito
+    If E.fParam[Me.ipaHorizAngle] = 1 Then                               ' Ordenada X Horizontal (texto y lineas verticales)
+        E.fParam[cadDimension.ipaRealMeasure] = E.P[6] - E.P[0]
 
-    eText.StringData[cadMText.sdaText] = "\\A1;" & Format(E.fParam[cadDimension.ipaRealMeasure], Me.DimFormat)
-    ' esta ordenada es vertical, entonces el texto no se rota
-    eText.fParam[cadMText.ipaTextAngle] = 0
+        ' esto no cambia la posicion, ya sea mayor o menor que cero
+        ' lineas de demarcacion
 
-    flxTextExt = glPlus.TextExtends(eText.StringData[cadMText.sdaText], 0, 0, eText.fParam[cadMText.ipaTextHeight])
-    eExtension2.P[2] = E.P[8] - E.P[6] + flxTextExt[2] / 2
-    eOblique2.ClassHandler.rotate(eOblique2, Pi * IIf(E.fParam[cadDimension.ipaRealMeasure] >= 0, 0, 1))
-    eOblique2.ClassHandler.translate(eOblique2, Me.DimExtension * IIf(E.fParam[cadDimension.ipaRealMeasure] >= 0, 1, -1), 0)
+        'If elem.fParam[cadDimension.ipaRealMeasure] >= 0 Then
 
-  End If
+        ' cuadrante superior
+        ' el texto
+        eText.StringData[cadMText.sdaText] = "\\A1;" & Format(E.fParam[cadDimension.ipaRealMeasure], Me.DimFormat)
 
-  ' texto
+        'eText.StringData[cadMText.sdaText] = Format(elem.fParam[cadDimension.ipaRealMeasure], Me.DimFormat)
+        ' esta ordenada es horiz, entonces el texto se rota
+        eText.fParam[cadMText.ipaTextAngle] = 90
 
-  newBlock.x0 = E.P[6] ' el inserto se mete en el def point
-  newBlock.y0 = E.P[7]
+        flxTextExt = glPlus.TextExtends(eText.StringData[cadMText.sdaText], 0, 0, eText.fParam[cadMText.ipaTextHeight])
+        eExtension2.P[3] = E.P[9] - E.P[7] + flxTextExt[2] / 2
 
-  newBlock.AbsoluteCoords = 2
+        eOblique2.ClassHandler.rotate(eOblique2, -Pi / 2 * IIf(E.fParam[cadDimension.ipaRealMeasure] >= 0, 1, -1))
+        eOblique2.ClassHandler.translate(eOblique2, 0, 3 * Me.DimExtension * IIf(E.fParam[cadDimension.ipaRealMeasure] >= 0, 1, -1))
 
-  Return newBlock
+        'End If
+    Else ' es vertical
+        E.fParam[cadDimension.ipaRealMeasure] = E.P[7] - E.P[1]
+
+        eText.StringData[cadMText.sdaText] = "\\A1;" & Format(E.fParam[cadDimension.ipaRealMeasure], Me.DimFormat)
+        ' esta ordenada es vertical, entonces el texto no se rota
+        eText.fParam[cadMText.ipaTextAngle] = 0
+
+        flxTextExt = glPlus.TextExtends(eText.StringData[cadMText.sdaText], 0, 0, eText.fParam[cadMText.ipaTextHeight])
+        eExtension2.P[2] = E.P[8] - E.P[6] + flxTextExt[2] / 2
+        eOblique2.ClassHandler.rotate(eOblique2, Pi * IIf(E.fParam[cadDimension.ipaRealMeasure] >= 0, 0, 1))
+        eOblique2.ClassHandler.translate(eOblique2, Me.DimExtension * IIf(E.fParam[cadDimension.ipaRealMeasure] >= 0, 1, -1), 0)
+
+    End If
+
+    ' texto
+
+    newBlock.x0 = E.P[6] ' el inserto se mete en el def point
+    newBlock.y0 = E.P[7]
+
+    newBlock.AbsoluteCoords = 2
+
+    Return newBlock
 
 End
-

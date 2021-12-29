@@ -1,6 +1,6 @@
 ' Gambas class file
 
-' m-designer
+' GambasCAD
 ' A simple CAD made in Gambas
 '
 ' Copyright (C) Ing Martin P Cristia
@@ -31,208 +31,207 @@ Public Const ParamHelper As String = "Start point;End point;extension"
 
 Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
 
-  Dim i As Integer
-  Dim DimTypeSet As Boolean
+    Dim i As Integer
+    Dim DimTypeSet As Boolean
 
-  DimTypeSet = False
-  For i = 0 To sClaves.Max
+    DimTypeSet = False
+    For i = 0 To sClaves.Max
 
-    If sClaves[i] = "2" Then e.pBlock = clsEntities.FIndBlock(sValues[i])   ' this could be null
-    If sClaves[i] = "10" Then e.p.Add(CFloat(sValues[i]))         ' X0
-    If sClaves[i] = "20" Then e.P.Add(CFloat(sValues[i]))         ' Y0
+        If sClaves[i] = "2" Then e.pBlock = clsEntities.FIndBlock(sValues[i])   ' this could be null
+        If sClaves[i] = "10" Then e.p.Add(CFloat(sValues[i]))         ' X0
+        If sClaves[i] = "20" Then e.P.Add(CFloat(sValues[i]))         ' Y0
 
+        '
+    Next
     '
-  Next
-  '
-  ' ' en algunos DXF el codigo 70 no esta
-  ' If Not DimTypeSet Then e.ClassHandler = cadDIMENSION_LINEAR
+    ' ' en algunos DXF el codigo 70 no esta
+    ' If Not DimTypeSet Then e.ClassHandler = cadDIMENSION_LINEAR
 
-  ' tengo q presuponer que las escalas son = 1
-  e.fParam[Me.ipaEscX] = 1    ' esc X
-  e.fParam[Me.ipaEscY] = 1    ' esc Y
-  e.fParam[Me.ipaEscZ] = 1    ' esc Z
+    ' tengo q presuponer que las escalas son = 1
+    e.fParam[Me.ipaEscX] = 1    ' esc X
+    e.fParam[Me.ipaEscY] = 1    ' esc Y
+    e.fParam[Me.ipaEscZ] = 1    ' esc Z
 
-  ' TODO: cuando este terminada la entidad, sacar eso
-  e.pBlock.AbsoluteCoords = True
+    ' TODO: cuando este terminada la entidad, sacar eso
+    e.pBlock.AbsoluteCoords = True
 
-  ' y poner esto
-  ' e.pBlock = Me.ReBuildBlock(e)
+    ' y poner esto
+    ' e.pBlock = Me.ReBuildBlock(e)
 
-  Return True
+    Return True
 
-  '' catch
+    '' catch
 
-  Return False
+    Return False
 
 End
 
 Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
 
-  ' la linea solo recibe puntos
+    ' la linea solo recibe puntos
 
-  If vParam[0] <> "point" Then Return False
+    If vParam[0] <> "point" Then Return False
 
-  If Me.StepsDone = 0 Then
-    Me.DimType = gcd.dimAligned
+    If Me.StepsDone = 0 Then
+        Me.DimType = gcd.dimAligned
 
-    Try eBuild.P[0] = vParam[1]
-    Try eBuild.P[1] = vParam[2]
-    eBuild.P[2] = eBuild.P[0]
-    eBuild.P[3] = eBuild.P[1]
-    If definitive Then Return True
-  Else If Me.StepsDone = 1 Then
+        Try eBuild.P[0] = vParam[1]
+        Try eBuild.P[1] = vParam[2]
+        eBuild.P[2] = eBuild.P[0]
+        eBuild.P[3] = eBuild.P[1]
+        If definitive Then Return True
+    Else If Me.StepsDone = 1 Then
 
-    Try eBuild.P[2] = vParam[1]
-    Try eBuild.P[3] = vParam[2]
-    eBuild.pBlock = ReBuildBlock(eBuild)
-    If definitive Then Return True
-  Else If Me.StepsDone = 2 Then
-    If vParam[0] = "point" Then  ' vino como un punto, entonces la calculo de otra manera
+        Try eBuild.P[2] = vParam[1]
+        Try eBuild.P[3] = vParam[2]
+        eBuild.pBlock = ReBuildBlock(eBuild)
+        If definitive Then Return True
+    Else If Me.StepsDone = 2 Then
+        If vParam[0] = "point" Then  ' vino como un punto, entonces la calculo de otra manera
 
-      ' return the angle from horizontal to us
-      eBuild.fParam[Me.ipaExtension] = -puntos.PointToLineDistance([vParam[1], vParam[2]], [eBuild.p[0], eBuild.p[1], eBuild.p[2], eBuild.p[3]]) ' / puntos.distancia(eBuild.p[0], eBuild.p[1], eBuild.p[2], eBuild.p[3]
+            ' return the angle from horizontal to us
+            eBuild.fParam[Me.ipaExtension] = -puntos.PointToLineDistance([vParam[1], vParam[2]], [eBuild.p[0], eBuild.p[1], eBuild.p[2], eBuild.p[3]]) ' / puntos.distancia(eBuild.p[0], eBuild.p[1], eBuild.p[2], eBuild.p[3]
 
-    Else If vParam[0] = "float" Then  ' vino como un punto, entonces la calculo de otra manera
-      eBuild.fParam[Me.ipaExtension] = vParam[1]
+        Else If vParam[0] = "float" Then  ' vino como un punto, entonces la calculo de otra manera
+            eBuild.fParam[Me.ipaExtension] = vParam[1]
 
-    End If
+        End If
 
-    eBuild.pBlock = ReBuildBlock(eBuild)
-    If definitive Then
-      'Stop
-      Return True
-    End If
-  Endif
+        eBuild.pBlock = ReBuildBlock(eBuild)
+        If definitive Then
+            'Stop
+            Return True
+        End If
+    Endif
 
 End
 
 Public Sub ReBuildBlock(E As Entity) As Block
 
-  Dim d As Float, flxTextExt As Float[]
-  Dim fRotXY As Float[]
+    Dim d As Float, flxTextExt As Float[]
+    Dim fRotXY As Float[]
 
-  Dim newBlock As New Block
-  Dim f1, f2 As New Float[]
+    Dim newBlock As New Block
+    Dim f1, f2 As New Float[]
 
-  newBlock.entities = New Collection
+    newBlock.entities = New Collection
 
-  Return newBlock
+    Return newBlock
 
-  ' para definir este bloque necesito 6 entidades
-  Dim eLineaPpal As Entity
-  Dim eOblique1 As Entity       ' tambien pueden ser flechas Solid
-  Dim eOblique2 As Entity
-  Dim eExtension1 As Entity
-  Dim eExtension2 As Entity
-  Dim eDot1 As Entity
-  Dim eDot2 As Entity
-  Dim eText As Entity
-  Dim ePoint2 As Entity
+    ' para definir este bloque necesito 6 entidades
+    Dim eLineaPpal As Entity
+    Dim eOblique1 As Entity       ' tambien pueden ser flechas Solid
+    Dim eOblique2 As Entity
+    Dim eExtension1 As Entity
+    Dim eExtension2 As Entity
+    Dim eDot1 As Entity
+    Dim eDot2 As Entity
+    Dim eText As Entity
+    Dim ePoint2 As Entity
 
-  ' vemos los estilos
-  If E.fParam[Me.ipaStyleTextHeigth] > 0 Then Me.DimTextHeight = E.fParam[Me.ipaStyleTextHeigth] Else Me.DimTextHeight = E.pStyle.DIMTXT
-  If E.fParam[Me.ipaStyleArrowSize] > 0 Then Me.DimArrowSize = E.fParam[Me.ipaStyleArrowSize] Else Me.DimArrowSize = E.pStyle.DIMASZ
-  Me.DimArrowWidth = Me.DimArrowSize / 3
+    ' vemos los estilos
+    If E.fParam[Me.ipaStyleTextHeigth] > 0 Then Me.DimTextHeight = E.fParam[Me.ipaStyleTextHeigth] Else Me.DimTextHeight = E.pStyle.DIMTXT
+    If E.fParam[Me.ipaStyleArrowSize] > 0 Then Me.DimArrowSize = E.fParam[Me.ipaStyleArrowSize] Else Me.DimArrowSize = E.pStyle.DIMASZ
+    Me.DimArrowWidth = Me.DimArrowSize / 3
 
-  ' linea principal
-  clsEntities.AddLine(newBlock.entities, [0.0, 0.0, 0.0, 0.0], E.colour, E.LineWidth, E.LineType.Index, E.pLayer)
-  eLineaPpal = newBlock.entities.Last
+    ' linea principal
+    clsEntities.AddLine(newBlock.entities, [0.0, 0.0, 0.0, 0.0], E.colour, E.LineWidth, E.LineType.Index, E.pLayer)
+    eLineaPpal = newBlock.entities.Last
 
-  ' flechas
+    ' flechas
 
-  f1.Insert([0, 0, Me.DimArrowSize, Me.DimArrowWidth, Me.DimArrowSize, -Me.DimArrowWidth, 0, 0])
-  f2.Insert([0, 0, -Me.DimArrowSize, Me.DimArrowWidth, -Me.DimArrowSize, -Me.DimArrowWidth, 0, 0])
+    f1.Insert([0, 0, Me.DimArrowSize, Me.DimArrowWidth, Me.DimArrowSize, -Me.DimArrowWidth, 0, 0])
+    f2.Insert([0, 0, -Me.DimArrowSize, Me.DimArrowWidth, -Me.DimArrowSize, -Me.DimArrowWidth, 0, 0])
 
-  clsEntities.Addsolid(newBlock.entities, f2, E.colour, E.LineWidth, E.LineType.Index, E.pLayer)
-  eOblique2 = newBlock.entities.Last
+    clsEntities.Addsolid(newBlock.entities, f2, E.colour, E.LineWidth, E.LineType.Index, E.pLayer)
+    eOblique2 = newBlock.entities.Last
 
-  ' texto
-  clsEntities.AddMText(newBlock.entities, [0.0, 0.0, 0.0, 0.0], 0, Me.DimTextHeight, "0.00", E.colour, E.LineWidth, E.LineType.Index, E.pLayer)
-  eText = newBlock.entities.Last
+    ' texto
+    clsEntities.AddMText(newBlock.entities, [0.0, 0.0, 0.0, 0.0], 0, Me.DimTextHeight, "0.00", E.colour, E.LineWidth, E.LineType.Index, E.pLayer)
+    eText = newBlock.entities.Last
 
-  ' -> el bloque
+    ' -> el bloque
 
-  E.fParam[cadInsert.ipaEscX] = 1      ' ScaleX del inserto
-  E.fParam[cadInsert.ipaEscY] = 1      ' ScaleY del inserto
-  E.fParam[cadInsert.ipaEscZ] = 1      ' ScaleY del inserto
+    E.fParam[cadInsert.ipaEscX] = 1      ' ScaleX del inserto
+    E.fParam[cadInsert.ipaEscY] = 1      ' ScaleY del inserto
+    E.fParam[cadInsert.ipaEscZ] = 1      ' ScaleY del inserto
 
-  '  If stage = 0 Then     ' marco el primer punto
+    '  If stage = 0 Then     ' marco el primer punto
 
-  '    Else If stage = 1 Then ' marco el segundo punto, lo que modifica los parametros del bloque
-  E.Visible = True
+    '    Else If stage = 1 Then ' marco el segundo punto, lo que modifica los parametros del bloque
+    E.Visible = True
 
-  ' el largo de la linea principal viene dado por la distancia entre ambos puntos
-  d = puntos.distancia(E.P[0], E.P[1], E.P[2], E.P[3])
+    ' el largo de la linea principal viene dado por la distancia entre ambos puntos
+    d = puntos.distancia(E.P[0], E.P[1], E.P[2], E.P[3])
 
-  ' con este click calculo el angulo
-  E.fParam[cadInsert.ipaRotacion] = Ang(E.p[2] - E.P[0], E.p[3] - E.P[1]) * 180 / Pi
+    ' con este click calculo el angulo
+    E.fParam[cadInsert.ipaRotacion] = Ang(E.p[2] - E.P[0], E.p[3] - E.P[1]) * 180 / Pi
 
-  ' la primer entidad del bloque es la linea principal
-  eLineaPpal.P[0] = 0           ' X0
-  eLineaPpal.P[1] = 0           ' Y0
+    ' la primer entidad del bloque es la linea principal
+    eLineaPpal.P[0] = 0           ' X0
+    eLineaPpal.P[1] = 0           ' Y0
 
-  eLineaPpal.P[2] = d           ' X1
-  eLineaPpal.P[3] = 0           ' Y1
+    eLineaPpal.P[2] = d           ' X1
+    eLineaPpal.P[3] = 0           ' Y1
 
-  ' el largo de la linea principal viene dado por la distancia entre ambos puntos
-  d = puntos.distancia(E.P[0], E.P[1], E.P[2], E.P[3])
+    ' el largo de la linea principal viene dado por la distancia entre ambos puntos
+    d = puntos.distancia(E.P[0], E.P[1], E.P[2], E.P[3])
 
-  ' con este click calculo el angulo
-  E.fParam[cadInsert.ipaRotacion] = Ang(E.p[2] - E.P[0], E.p[3] - E.P[1]) * 180 / Pi
+    ' con este click calculo el angulo
+    E.fParam[cadInsert.ipaRotacion] = Ang(E.p[2] - E.P[0], E.p[3] - E.P[1]) * 180 / Pi
 
-  ' la primer entidad del bloque es la linea principal
-  eLineaPpal.P[0] = 0           ' X0
-  eLineaPpal.P[1] = 0           ' Y0
+    ' la primer entidad del bloque es la linea principal
+    eLineaPpal.P[0] = 0           ' X0
+    eLineaPpal.P[1] = 0           ' Y0
 
-  eLineaPpal.P[2] = d           ' X1
-  eLineaPpal.P[3] = 0           ' Y1
+    eLineaPpal.P[2] = d           ' X1
+    eLineaPpal.P[3] = 0           ' Y1
 
-  ' el texto
-  eText.StringData[cadMText.sdaText] = "R " & Format(d, Me.DimFormat)
+    ' el texto
+    eText.StringData[cadMText.sdaText] = "R " & Format(d, Me.DimFormat)
 
-  E.fParam[cadDimension.ipaRealMeasure] = d
+    E.fParam[cadDimension.ipaRealMeasure] = d
 
-  flxTextExt = glPlus.TextExtends(eText.StringData[0], 0, 0, eText.fParam[1])
+    flxTextExt = glPlus.TextExtends(eText.StringData[0], 0, 0, eText.fParam[1])
 
-  ' la cuarta y quinta son las flechas , tengo que verificar si entran, o el texto
-  If flxTextExt[2] * 1.1 > d Then                      ' no entra
+    ' la cuarta y quinta son las flechas , tengo que verificar si entran, o el texto
+    If flxTextExt[2] * 1.1 > d Then                      ' no entra
 
-    eOblique2.P[0] = 0           ' X0
-    eOblique2.P[2] = -Me.DimArrowSize
-    eOblique2.P[4] = -Me.DimArrowSize
-    eOblique2.P[6] = 0           ' X0
+        eOblique2.P[0] = 0           ' X0
+        eOblique2.P[2] = -Me.DimArrowSize
+        eOblique2.P[4] = -Me.DimArrowSize
+        eOblique2.P[6] = 0           ' X0
 
-    ' el texto va afuera
-    eText.P[0] = d + Me.DimArrowSize / 2
-    eText.P[1] = Me.DimArrowWidth
+        ' el texto va afuera
+        eText.P[0] = d + Me.DimArrowSize / 2
+        eText.P[1] = Me.DimArrowWidth
 
-  Else                                                                ' entra
+    Else                                                                ' entra
 
-    eOblique2.P[0] = d           ' X0
-    eOblique2.P[2] = -Me.DimArrowSize + d           ' X0
-    eOblique2.P[4] = -Me.DimArrowSize + d           ' X0
-    eOblique2.P[6] = d           ' X0
+        eOblique2.P[0] = d           ' X0
+        eOblique2.P[2] = -Me.DimArrowSize + d           ' X0
+        eOblique2.P[4] = -Me.DimArrowSize + d           ' X0
+        eOblique2.P[6] = d           ' X0
 
-    ' el texto va adentro
-    eText.P[0] = d / 2 - flxTextExt[2] / 2
-    eText.P[1] = Me.DimArrowWidth
+        ' el texto va adentro
+        eText.P[0] = d / 2 - flxTextExt[2] / 2
+        eText.P[1] = Me.DimArrowWidth
 
-  End If
+    End If
 
-  ' linea principal
-  eLineaPpal.P[1] = Me.extension           ' Y0
-  eLineaPpal.P[3] = Me.extension           ' Y1
+    ' linea principal
+    eLineaPpal.P[1] = Me.extension           ' Y0
+    eLineaPpal.P[3] = Me.extension           ' Y1
 
-  ' texto
-  eText.P[1] = Me.DimArrowWidth + Me.extension
+    ' texto
+    eText.P[1] = Me.DimArrowWidth + Me.extension
 
-  eOblique2.P[1] = Me.extension           ' X0
-  eOblique2.P[3] = Me.extension + Me.DimArrowWidth
-  eOblique2.P[5] = Me.extension - Me.DimArrowWidth
-  eOblique2.P[7] = Me.extension           ' X0
+    eOblique2.P[1] = Me.extension           ' X0
+    eOblique2.P[3] = Me.extension + Me.DimArrowWidth
+    eOblique2.P[5] = Me.extension - Me.DimArrowWidth
+    eOblique2.P[7] = Me.extension           ' X0
 
-  ' End If
-  Return newBlock
+    ' End If
+    Return newBlock
 
 End
-

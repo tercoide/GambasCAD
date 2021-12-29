@@ -1,6 +1,6 @@
 ' Gambas class file
 
-' m-designer
+' GambasCAD
 ' A simple CAD made in Gambas
 '
 ' Copyright (C) Ing Martin P Cristia
@@ -26,122 +26,122 @@ Create Static
 Public Const Gender As String = "Move"
 
 Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer = 0) As Boolean
-  ' Llamada por FCAD al inicio de la aplicacion de esta herramienta
+    ' Llamada por FCAD al inicio de la aplicacion de esta herramienta
 
-  ' Aprovechamos para establecer los helpers (comentarios de ayuda en pantalla)
-  Dim i As Integer, E As Entity
+    ' Aprovechamos para establecer los helpers (comentarios de ayuda en pantalla)
+    Dim i As Integer, E As Entity
 
-  Me.PointsDone = 0
-  Me.PointsTotal = 2
+    Me.PointsDone = 0
+    Me.PointsTotal = 2
 
-  DrawingAids.HelperTrabajo = ("Move ")
-  ' this affects the gl Drawing list
+    DrawingAids.HelperTrabajo = ("Move ")
+    ' this affects the gl Drawing list
 
-  If gcd.CurrentDrawing.oSelected.Count = 0 Then                                     ' we have no elements in the selection
+    If gcd.CurrentDrawing.oSelected.Count = 0 Then                                     ' we have no elements in the selection
 
-    DrawingAids.Helper.texto = DrawingAids.HelperTrabajo & ": " & ("Select entities")
+        DrawingAids.Helper.texto = DrawingAids.HelperTrabajo & ": " & ("Select entities")
 
-    gcd.clsJobPrevious = Me
-    gcd.clsJob = cadSelection
+        gcd.clsJobPrevious = Me
+        gcd.clsJob = cadSelection
 
-  Else                                                                    ' need the first point
+    Else                                                                    ' need the first point
 
-    DrawingAids.Helper.texto = DrawingAids.HelperTrabajo & ": " & ("Base point")
-    DrawingAids.HelperTrabajo = DrawingAids.HelperTrabajo & Str(Me.SelectionCount) & " " & ("elements")
+        DrawingAids.Helper.texto = DrawingAids.HelperTrabajo & ": " & ("Base point")
+        DrawingAids.HelperTrabajo = DrawingAids.HelperTrabajo & Str(Me.SelectionCount) & " " & ("elements")
 
-    ' genero drawing lists
+        ' genero drawing lists
 
-    clsEntities.GLGenDrawListSel(0)
-    clsEntities.GLGenDrawListAll(True)
+        clsEntities.GLGenDrawListSel(0)
+        clsEntities.GLGenDrawListAll(True)
 
-    gcd.CurrentDrawing.uUndo.OpenUndoStage("Move entities", Undo.TypeModify)
-    For Each E In gcd.CurrentDrawing.oSelected
-      gcd.CurrentDrawing.uUndo.AddUndoItem(clsEntities.ClonEntity(E, False))
-    Next
-    gcd.Redraw
+        gcd.CurrentDrawing.uUndo.OpenUndoStage("Move entities", Undo.TypeModify)
+        For Each E In gcd.CurrentDrawing.oSelected
+            gcd.CurrentDrawing.uUndo.AddUndoItem(clsEntities.ClonEntity(E, False))
+        Next
+        gcd.Redraw
 
-  Endif
-  Me.Active = True
-  gcd.ToolActive = True
-  DrawingAids.Refresh
+    Endif
+    Me.Active = True
+    gcd.ToolActive = True
+    DrawingAids.Refresh
 
 End
 
 Public Function NewParameter(vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
 
-  If vParam[0] = "point" Then
+    If vParam[0] = "point" Then
 
-    ' enganio al evento mouse
-    MouseMove(gcd.Xpix(vParam[1]), gcd.Ypix(vParam[2]))
-    MouseUp(gcd.Xpix(vParam[1]), gcd.Ypix(vParam[2]))
+        ' enganio al evento mouse
+        MouseMove(gcd.Xpix(vParam[1]), gcd.Ypix(vParam[2]))
+        MouseUp(gcd.Xpix(vParam[1]), gcd.Ypix(vParam[2]))
 
-  Endif
+    Endif
 
 End
 
 Public Function MouseUp() ' called by FCAD-> DrawingArea_MouseUp
 
-  Inc Me.PointsDone
+    Inc Me.PointsDone
 
-  If Me.PointsDone = 1 Then ' acabo de marcar el punto base
+    If Me.PointsDone = 1 Then ' acabo de marcar el punto base
 
-    ' ya tengo cosas seleccionadas
-    DrawingAids.Helper.texto = ("Final point")
+        ' ya tengo cosas seleccionadas
+        DrawingAids.Helper.texto = ("Final point")
 
-    ' punto real base
-    Me.SelStartXr = gcd.Near(gcd.Xreal(mouse.x))
-    Me.SelStartYr = gcd.Near(gcd.Yreal(mouse.y))
+        ' punto real base
+        Me.SelStartXr = gcd.Near(gcd.Xreal(mouse.x))
+        Me.SelStartYr = gcd.Near(gcd.Yreal(mouse.y))
 
-    ' prevenir acciones tontas como hacer click en otro elemento antes de terminar con el actual
-    ' TODO: reparar -> gcd.CurrDrawing.DesHabilitarBotones
-  Else If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
-    ' permitir otros trabajos
-    ' TODO: reparar -> gcd.CurrDrawing.HabilitarBotones
+        ' prevenir acciones tontas como hacer click en otro elemento antes de terminar con el actual
+        ' TODO: reparar -> gcd.CurrDrawing.DesHabilitarBotones
+    Else If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
+        ' permitir otros trabajos
+        ' TODO: reparar -> gcd.CurrDrawing.HabilitarBotones
 
-    ' job finished correctly
+        ' job finished correctly
 
-    ' and now we move
-    clsEntities.Move(Me.SelEndXr - Me.SelStartXr, Me.SelEndyr - Me.SelStartYr, True)
-    '
+        ' and now we move
+        clsEntities.Move(Me.SelEndXr - Me.SelStartXr, Me.SelEndyr - Me.SelStartYr, True)
+        '
 
-    clsEntities.Finish
-    gcd.CurrentDrawing.uUndo.CloseUndoStage()
+        clsEntities.Finish
+        gcd.CurrentDrawing.uUndo.CloseUndoStage()
 
-    Me.Finish
+        Me.Finish
 
-  Endif
+    Endif
 
 End
 
 Public Function MouseMove() ' called by FCAD-> DrawingArea_MouseMove
 
-  If Me.PointsDone = 1 Then
-    ' we compare Real values from the starting point to the location
-    ' represente by the mouse now, taking account that the drawing
-    ' could have being moved by the mouse wheel
+    If Me.PointsDone = 1 Then
+        ' we compare Real values from the starting point to the location
+        ' represente by the mouse now, taking account that the drawing
+        ' could have being moved by the mouse wheel
 
-    ' new Real position is
-    Me.SelEndXr = gcd.Near(gcd.Xreal(mouse.x))
-    Me.SelEndyr = gcd.Near(gcd.Yreal(mouse.y))
+        ' new Real position is
+        Me.SelEndXr = gcd.Near(gcd.Xreal(mouse.x))
+        Me.SelEndyr = gcd.Near(gcd.Yreal(mouse.y))
 
-    If gcd.Orthogonal Then
+        If gcd.Orthogonal Then
 
-      If Abs(Me.SelEndXr - Me.SelStartXr) > Abs(Me.SelEndyr - Me.SelStartYr) Then ' X prevails
+            If Abs(Me.SelEndXr - Me.SelStartXr) > Abs(Me.SelEndyr - Me.SelStartYr) Then ' X prevails
 
-        Me.SelEndyr = Me.SelStartYr
+                Me.SelEndyr = Me.SelStartYr
 
-      Else
+            Else
 
-        Me.SelEndXr = Me.SelStartXr
+                Me.SelEndXr = Me.SelStartXr
 
-      Endif
+            Endif
+
+        End If
+
+        Me.glTranslate[0] = Me.SelEndXr - Me.SelStartXr
+        Me.glTranslate[1] = Me.SelEndyr - Me.SelStartYr
 
     End If
-
-    Me.glTranslate[0] = Me.SelEndXr - Me.SelStartXr
-    Me.glTranslate[1] = Me.SelEndyr - Me.SelStartYr
-
-  End If
-  gcd.Redraw
+    gcd.Redraw
 
 End

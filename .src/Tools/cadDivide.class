@@ -1,6 +1,6 @@
 ' Gambas class file
 
-' m-designer
+' GambasCAD
 ' A simple CAD made in Gambas
 '
 ' Copyright (C) Ing Martin P Cristia
@@ -32,126 +32,126 @@ Public EntitySelected As Entity
 '   3 Goto 1
 
 Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer = 0) As Boolean
-  ' Llamada por FCAD al inicio de la aplicacion de esta herramienta
+    ' Llamada por FCAD al inicio de la aplicacion de esta herramienta
 
-  ' Aprovechamos para establecer los helpers (comentarios de ayuda en pantalla)
-  Me.PointsDone = 0
-  Me.PointsTotal = 3
+    ' Aprovechamos para establecer los helpers (comentarios de ayuda en pantalla)
+    Me.PointsDone = 0
+    Me.PointsTotal = 3
 
-  DrawingAids.HelperTrabajo = ("Divide") & " "
+    DrawingAids.HelperTrabajo = ("Divide") & " "
 
-  ' chequeamos si hubo seleccion previa
+    ' chequeamos si hubo seleccion previa
 
-  If gcd.CurrentDrawing.oSelected.Count <> 1 Then
-    clsEntities.DeSelection()
-    DrawingAids.Helper.texto = DrawingAids.HelperTrabajo & ": " & ("Select only one entity")
-    gcd.clsJobPrevious = Me
-    gcd.clsJob = cadSelection
+    If gcd.CurrentDrawing.oSelected.Count <> 1 Then
+        clsEntities.DeSelection()
+        DrawingAids.Helper.texto = DrawingAids.HelperTrabajo & ": " & ("Select only one entity")
+        gcd.clsJobPrevious = Me
+        gcd.clsJob = cadSelection
 
-  Else
-    ' verificamos si la entidad puede ser partida
-    Me.EntitySelected = gcd.CurrentDrawing.oSelected[gcd.CurrentDrawing.oSelected.First]
+    Else
+        ' verificamos si la entidad puede ser partida
+        Me.EntitySelected = gcd.CurrentDrawing.oSelected[gcd.CurrentDrawing.oSelected.First]
 
-    Select Me.EntitySelected.Gender
-      Case "Line", "LWPolyline", "Circle", "Arc", "Ellipse", "Spline"
-        clsEntities.SelectElem(Me.EntitySelected)
-        DrawingAids.Helper.texto = ("First breakpoint of entity")
-        Me.PointsDone = 1
-      Case Else
-        Me.EntitySelected = Null
-        DrawingAids.ErrorMessage = ("Can't break that entity")
-    End Select
+        Select Me.EntitySelected.Gender
+            Case "Line", "LWPolyline", "Circle", "Arc", "Ellipse", "Spline"
+                clsEntities.SelectElem(Me.EntitySelected)
+                DrawingAids.Helper.texto = ("First breakpoint of entity")
+                Me.PointsDone = 1
+            Case Else
+                Me.EntitySelected = Null
+                DrawingAids.ErrorMessage = ("Can't break that entity")
+        End Select
 
-  Endif
+    Endif
 
 End
 
 Public Function MouseUp() ' called by FCAD-> DrawingArea_MouseUp
 
-  Dim d, dx, dy, m1, m2, angle As Float
-  Dim flxIntersec As Float[]
-  Dim e, e2 As Entity
+    Dim d, dx, dy, m1, m2, angle As Float
+    Dim flxIntersec As Float[]
+    Dim e, e2 As Entity
 
-  ' si llegue aca es porque ya tengo una entidad seleccionada
-  e = Me.EntitySelected       ' esto lo hago para reducir el largo del codigo
+    ' si llegue aca es porque ya tengo una entidad seleccionada
+    e = Me.EntitySelected       ' esto lo hago para reducir el largo del codigo
 
-  ' verifico que este sobre la entidad a romper
-  If Me.PointsDone = 1 Then ' marco el primer punto
-    Me.SelStartXr = gcd.Xreal(mouse.x)
-    Me.SelStartYr = gcd.Yreal(mouse.y)
+    ' verifico que este sobre la entidad a romper
+    If Me.PointsDone = 1 Then ' marco el primer punto
+        Me.SelStartXr = gcd.Xreal(mouse.x)
+        Me.SelStartYr = gcd.Yreal(mouse.y)
 
-    If gcd.CurrentDrawing.HoveredEntity <> Me.EntitySelected Then ' el mouse se fue de la entidad a romper
-      DrawingAids.ErrorMessage = ("Invalid breakpoint")
-      Return
-    End If
-
-    Select e.Gender
-      Case "Line"
-        flxIntersec = clsMouseTracking.GetNearestPoint(e, Me.SelStartXr, Me.SelStartYr)
-        Me.SelStartXr = flxIntersec[0]
-        Me.SelStartYr = flxIntersec[1]
-        DrawingAids.Helper.texto = ("Second breakpoint of entity")
-        Me.PointsDone = 2
-
-      Case Else
-        Me.iEntitySelected = Null
-        DrawingAids.ErrorMessage = ("Can't offset that entity")
-    End Select
-
-  Else If Me.PointsDone = 2 Then ' acabo de marcar el segundo punto
-    Me.SelendXr = gcd.Xreal(mouse.x)
-    Me.SelEndYr = gcd.Yreal(mouse.y)
-    If gcd.CurrentDrawing.HoveredEntity <> Me.EntitySelected Then ' el mouse se fue de la entidad a romper
-      DrawingAids.ErrorMessage = ("Invalid breakpoint")
-      Return
-    End If
-
-    Select e.Gender
-      Case "Line"
-        flxIntersec = clsMouseTracking.GetNearestPoint(e, Me.SelendXr, Me.SelendYr)
-        Me.SelendXr = flxIntersec[0]
-        Me.Selendyr = flxIntersec[1]
-
-        ' ahora tengo que partir la entidad, pero puede ocurrir que el punto sea uno de los dos endpoints
-        ' If (flxIntersec[0] = e.P[0] And flxIntersec[1] = e.P[1]) Or (flxIntersec[0] = e.P[2] And flxIntersec[1] = e.P[3]) Then
-        '     DrawingAids.ErrorMessage = "Invalid breakpoint"
-        '     Return
-        ' Endif
-        ' entonces parto la entidad
-        e2 = clsEntities.ClonEntity(e, True)          ' primero la clono
-
-        ' veo cual esta mas cerca del punto inicial
-        If puntos.distancia(e.P[0], e.P[1], Me.SelStartXr, Me.SelStartYr) > puntos.distancia(e.P[0], e.P[1], Me.SelendXr, Me.SelEndYr) Then
-
-          e2.P[2] = Me.SelendXr                   ' corrijo los puntos
-          e2.P[3] = Me.SelendYr
-
-          e.P[0] = Me.SelstartXr                 ' y ahora recorto la entidad original
-          e.P[1] = Me.Selstartyr
-        Else
-          e2.P[0] = Me.SelendXr                   ' corrijo los puntos
-          e2.P[1] = Me.SelendYr
-
-          e.P[2] = Me.SelstartXr                 ' y ahora recorto la entidad original
-          e.P[3] = Me.Selstartyr
-
+        If gcd.CurrentDrawing.HoveredEntity <> Me.EntitySelected Then ' el mouse se fue de la entidad a romper
+            DrawingAids.ErrorMessage = ("Invalid breakpoint")
+            Return
         End If
 
-        ' tareas finales en las entidades
-        e2.ClassHandler.finish(e2)
-        gcd.CurrentDrawing.oEntities.Add(e2, e2.Handle)       ' la agrego al dibujo
-        e.ClassHandler.finish(e)                ' para regenerar los POI
+        Select e.Gender
+            Case "Line"
+                flxIntersec = clsMouseTracking.GetNearestPoint(e, Me.SelStartXr, Me.SelStartYr)
+                Me.SelStartXr = flxIntersec[0]
+                Me.SelStartYr = flxIntersec[1]
+                DrawingAids.Helper.texto = ("Second breakpoint of entity")
+                Me.PointsDone = 2
 
-        ' regenro las listas openGL de ambas entidades
-        clsEntities.glGenDrawList(Me.EntitySelected)
-        clsEntities.glGenDrawList(gcd.CurrentDrawing.oEntities)
+            Case Else
+                Me.iEntitySelected = Null
+                DrawingAids.ErrorMessage = ("Can't offset that entity")
+        End Select
 
-        Me.Finish
+    Else If Me.PointsDone = 2 Then ' acabo de marcar el segundo punto
+        Me.SelendXr = gcd.Xreal(mouse.x)
+        Me.SelEndYr = gcd.Yreal(mouse.y)
+        If gcd.CurrentDrawing.HoveredEntity <> Me.EntitySelected Then ' el mouse se fue de la entidad a romper
+            DrawingAids.ErrorMessage = ("Invalid breakpoint")
+            Return
+        End If
 
-      Case Else
-        Me.iEntitySelected = Null
-        DrawingAids.ErrorMessage = ("Can't offset that entity")
-    End Select
-  End If
+        Select e.Gender
+            Case "Line"
+                flxIntersec = clsMouseTracking.GetNearestPoint(e, Me.SelendXr, Me.SelendYr)
+                Me.SelendXr = flxIntersec[0]
+                Me.Selendyr = flxIntersec[1]
+
+                ' ahora tengo que partir la entidad, pero puede ocurrir que el punto sea uno de los dos endpoints
+                ' If (flxIntersec[0] = e.P[0] And flxIntersec[1] = e.P[1]) Or (flxIntersec[0] = e.P[2] And flxIntersec[1] = e.P[3]) Then
+                '     DrawingAids.ErrorMessage = "Invalid breakpoint"
+                '     Return
+                ' Endif
+                ' entonces parto la entidad
+                e2 = clsEntities.ClonEntity(e, True)          ' primero la clono
+
+                ' veo cual esta mas cerca del punto inicial
+                If puntos.distancia(e.P[0], e.P[1], Me.SelStartXr, Me.SelStartYr) > puntos.distancia(e.P[0], e.P[1], Me.SelendXr, Me.SelEndYr) Then
+
+                    e2.P[2] = Me.SelendXr                   ' corrijo los puntos
+                    e2.P[3] = Me.SelendYr
+
+                    e.P[0] = Me.SelstartXr                 ' y ahora recorto la entidad original
+                    e.P[1] = Me.Selstartyr
+                Else
+                    e2.P[0] = Me.SelendXr                   ' corrijo los puntos
+                    e2.P[1] = Me.SelendYr
+
+                    e.P[2] = Me.SelstartXr                 ' y ahora recorto la entidad original
+                    e.P[3] = Me.Selstartyr
+
+                End If
+
+                ' tareas finales en las entidades
+                e2.ClassHandler.finish(e2)
+                gcd.CurrentDrawing.oEntities.Add(e2, e2.Handle)       ' la agrego al dibujo
+                e.ClassHandler.finish(e)                ' para regenerar los POI
+
+                ' regenro las listas openGL de ambas entidades
+                clsEntities.glGenDrawList(Me.EntitySelected)
+                clsEntities.glGenDrawList(gcd.CurrentDrawing.oEntities)
+
+                Me.Finish
+
+            Case Else
+                Me.iEntitySelected = Null
+                DrawingAids.ErrorMessage = ("Can't offset that entity")
+        End Select
+    End If
 
 End
