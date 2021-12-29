@@ -152,10 +152,6 @@ Public Function ReconstruirBloques() As Boolean
 
 End
 
-Public Sub _new()
-
-End
-
 '' Genera las listas GL de cada entidad individual, y la version seleccionada
 '' Borra la lista anterior y genera una nueva
 Public Sub glGenBuffers(Optional eEntity As Entity = Null)
@@ -582,20 +578,20 @@ Public Function DeSelection(Optional elementos As String = "todo", Accion As Str
 
 End
 
-Public Function GetSelectionCount() As Integer
-
-    Dim e As Entity
-
-    gcd.CurrentDrawing.oSelected.Clear
-    For Each e In gcd.CurrentDrawing.oEntities
-        If e.Selected Then
-
-            gcd.CurrentDrawing.oSelected.Add(e, e.handle)
-        End If
-    Next
-    Return gcd.CurrentDrawing.oSelected.Count
-
-End Function
+' Public Function GetSelectionCount() As Integer
+'
+'     Dim e As Entity
+'
+'     gcd.CurrentDrawing.oSelected.Clear
+'     For Each e In gcd.CurrentDrawing.oEntities
+'         If e.Selected Then
+'
+'             gcd.CurrentDrawing.oSelected.Add(e, e.handle)
+'         End If
+'     Next
+'     Return gcd.CurrentDrawing.oSelected.Count
+'
+' End Function
 
 Public Function DeleteSelected() As Integer
 
@@ -836,7 +832,7 @@ Public Function SelectionSquare(X1real As Float, Y1real As Float, X2real As Floa
 
         End If
     Next
-    GetSelectionCount()
+    ' GetSelectionCount()
 
     ' deprecada
     ' GetSelectionHandles(gcd.CurrentDrawing.hSelection)
@@ -903,26 +899,6 @@ Public Function CollectDetectableEntities()
 
 End
 
-Public Function GetSelectionHandles(sHandles As String[]) As Integer
-
-    Dim i As Integer
-    Dim itotal As Integer
-
-    Dim t As Float = Timer
-
-    sHandles.Clear
-    'sHandles.Resize
-    For i = 0 To gcd.CurrentDrawing.oEntities
-        If gcd.CurrentDrawing.oEntities[i].Selected Then
-            sHandles.Add(gcd.CurrentDrawing.oEntities[i].Handle)
-            Inc itotal
-        End If
-    Next
-    Debug itotal, " en ", t - Timer, " seg"
-    Return itotal
-
-End
-
 'Return bound limits for all verices in the array of entities
 Public Sub BuildPoi(Optional entities As Collection, OnlyVisibles As Boolean = True)
 
@@ -940,6 +916,7 @@ Public Sub BuildPoi(Optional entities As Collection, OnlyVisibles As Boolean = T
     Next
 
 End
+
 'Return bound limits for all verices in the array of entities
 
 Public Function ComputeLimits(Optional entities As Collection, OnlyVisibles As Boolean = True) As Float[]
@@ -1265,68 +1242,76 @@ Public Function GetEntityIndex(dDrawing As Drawing, sHandle As String, Optional 
 
 End
 
-Public Sub DXFExportCommonCol(e As Entity, ByRef cExported As Collection)
+Public Sub DXFExportCommonCol(e As Entity, ByRef cExported As String[])
 
-    cExported.Add(UCase(e.Gender), dxf.codEntity)
-    cExported.add(e.Handle, dxf.codHandle)
-    cExported.add(e.HandleOwner, dxf.codHandleOwner)
-    cExported.Add("AcDbEntity", "100_1")
-    cExported.Add(e.pLayer.Name, dxf.codLayer)
-    Try cExported.Add(e.LineType.Name, dxf.codLType)
-    cExported.Add(e.colour, dxf.codColor)
-    cExported.Add(CStr(e.LineWidth), dxf.codLWht)
-
-End
-
-'' Imports data from a collection to an entity. True if the entity is handled by GauchoCAD at this version,
-'' False if entity couldn't be created for some reason.
-Public Function ImportJsonToEntity(c As JSONCollection, Optional IsDummy As Boolean = False) As Entity
-
-    Dim clsHandler As Object
-    Dim e As Entity
-
-    ' If Not c.Exist("entity") Then Return False
-    ' If Not c "entity") Then Return False
-    If IsDummy Then
-        clsHandler = cadDummy
-    Else
-        clsHandler = Object.New("cad" & c["entity"])  ' obtenemos el tipo de entidad y buscamos su clase. Si no manjemos esa entidad, esto de error.
-
-    End If
-
-    e = clsHandler.newEntity() ' le pedimos a la clase que arme un objeto Entity para agregar al Drawing actual
-    If clsHandler.ImportJSONCol(c, e) Then
-        ' llenamos Common data:
-        e.player = GetLayerByHandle(c["layer"][3])  ' busco el layer por nombre
-        e.Handle = c["handle"][1]
-        If e.pLayer = Null Then Stop
-        If TypeOf(c["color"]) = gb.Object Then
-            Try e.colour = c["color"]["index"]    ' FIXME: esto sigue dando error
-        Else
-            Try e.colour = c["color"]
-        Endif
-        e.LineWidth = c["linewt"] / 100
-        If e.LineWidth < 1 Then e.LineWidth = 1
-        e.LineType = GetLTypeByIndex(c["ltype_flags"])
-        If Not e.LineType Then
-            e.LineType = gcd.CurrentDrawing.oLTypes[gcd.CurrentDrawing.oLTypes.First]
-        End If
-
-        clsHandler.Finish(e)
-
-        Return e
-
-    Else
-
-        Return Null
-
-    End If
-
-    'Catch
-    'e.ClassHandler = cadDummy
-    Return False
+    cExported.Add(UCase(e.Gender))
+    cExported.Add(dxf.codEntity)
+    cExported.add(e.Handle)
+    cExported.Add(dxf.codHandle)
+    cExported.add(e.HandleOwner)
+    cExported.Add(dxf.codHandleOwner)
+    cExported.Add("AcDbEntity")
+    cExported.Add("100")
+    cExported.Add(e.pLayer.Name)
+    cExported.Add(dxf.codLayer)
+    cExported.Add(e.LineType.Name)
+    cExported.Add(dxf.codLType)
+    cExported.Add(e.colour)
+    cExported.Add(dxf.codColor)
+    cExported.Add(CStr(e.LineWidth))
+    cExported.Add(dxf.codLWht)
 
 End
+
+' '' Imports data from a collection to an entity. True if the entity is handled by GauchoCAD at this version,
+' '' False if entity couldn't be created for some reason.
+' Public Function ImportJsonToEntity(c As JSONCollection, Optional IsDummy As Boolean = False) As Entity
+'
+'     Dim clsHandler As Object
+'     Dim e As Entity
+'
+'     ' If Not c.Exist("entity") Then Return False
+'     ' If Not c "entity") Then Return False
+'     If IsDummy Then
+'         clsHandler = cadDummy
+'     Else
+'         clsHandler = Object.New("cad" & c["entity"])  ' obtenemos el tipo de entidad y buscamos su clase. Si no manjemos esa entidad, esto de error.
+'
+'     End If
+'
+'     e = clsHandler.newEntity() ' le pedimos a la clase que arme un objeto Entity para agregar al Drawing actual
+'     If clsHandler.ImportJSONCol(c, e) Then
+'         ' llenamos Common data:
+'         e.player = GetLayerByHandle(c["layer"][3])  ' busco el layer por nombre
+'         e.Handle = c["handle"][1]
+'         If e.pLayer = Null Then Stop
+'         If TypeOf(c["color"]) = gb.Object Then
+'             Try e.colour = c["color"]["index"]    ' FIXME: esto sigue dando error
+'         Else
+'             Try e.colour = c["color"]
+'         Endif
+'         e.LineWidth = c["linewt"] / 100
+'         If e.LineWidth < 1 Then e.LineWidth = 1
+'         e.LineType = GetLTypeByIndex(c["ltype_flags"])
+'         If Not e.LineType Then
+'             e.LineType = gcd.CurrentDrawing.oLTypes[gcd.CurrentDrawing.oLTypes.First]
+'         End If
+'
+'         clsHandler.Finish(e)
+'
+'         Return e
+'
+'     Else
+'
+'         Return Null
+'
+'     End If
+'
+'     'Catch
+'     'e.ClassHandler = cadDummy
+'     Return False
+'
+' End
 
 Public Function GetLTypeByName(sName As String) As LineType
 

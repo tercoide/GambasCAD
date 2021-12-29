@@ -441,72 +441,71 @@ Public Function Action_Activate(sAction As String) As Boolean
 
             actions.FileOpen(sWName)
 
-            ' Case "file_save"
-            '
-            '     f = gcd.currentDrawing.FileName
-            '
-            '     fbas = File.Dir(f) &/ File.BaseName(f)
-            '     fBak = "'" & fbas & ".bak'"
-            '     If gcd.currentDrawing.RequiresFileRename Then
-            '         Me.Action_Activate("file_saveas")
-            '         Return
-            '     Else
-            '         If Exist(f) Then
-            '             If Exist(fBak) Then Shell "rm " & fBak Wait
-            '             Shell "mv '" & f & "' '" & fbas & ".bak'" Wait
-            '         End If
-            '
-            '         If File.Ext(f) = "dxf" Then
-            '             Dxf.SaveFile(f, gcd.currentDrawing.cModel, gcd.currentDrawing)
-            '         Else If File.Ext(f) = "dwg" Then
-            '             ' guardamos la version DXF en el dir adecuado, con el nombre elegido
-            '             't = main.dirDxfOut &/ Utils.FileWithoutExtension(Utils.FileFromPath(f)) & ".dxf"
-            '             t = Temp & ".dxf"
-            '             Dxf.SaveFile(t, gcd.currentDrawing.cModel)
-            '             t = gcd.oda_dxftodwg(t)
-            '             ' como el proceso de grabado pudo resultar en error, chequeo la existencia primero
-            '
-            '             If Exist(t) Then Move t To f
-            '
-            '         End If
-            '
-            '     Endif
+        Case "file_save"
 
-            ' Case "file_saveas"
-            '
-            '     f = gcd.currentDrawing.FileName
-            '     fbas = File.Dir(f) &/ File.BaseName(f)
-            '     fBak = "'" & fbas & ".bak'"
-            '
-            '     Dialog.AutoExt = True
-            '     Dialog.Filter = ["*.dxf", "DXF Drawing exchange 2010", "*.dwg", "DWG AutoCAD Drawing file 2010"]
-            '     If Dialog.SaveFile() Then Return ' cancel saving
-            '
-            '     f = Dialog.Path
-            '
-            '     If Exist(f) Then
-            '         If Message.Question(("The file exist"), ("Replace"), ("Cancel")) = 2 Then
-            '             f = ""
-            '         Endif
-            '     Endif
-            '
-            '     If f = "" Then
-            '         Print "Cancel"
-            '     Else
-            '
-            '         'If LCase(File.Ext(f)) <> "dxf" Then f &= ".dxf"
-            '         If Exist(f) Then
-            '             If Exist(fBak) Then Shell "rm " & fBak Wait
-            '             Shell "mv '" & f & "' '" & fbas & ".bak'" Wait
-            '         End If
-            '
-            '         gcd.currentDrawing.FileName = f
-            '         gcd.currentDrawing.RequiresFileRename = False
-            '         Action_Activate("file_save")
-            '
-            '         Me.Text = f
-            '
-            '     Endif
+            f = gcd.currentDrawing.FileName
+            fbas = File.Dir(f) &/ File.BaseName(f)
+            fBak = "'" & fbas & ".bak'"
+            If gcd.currentDrawing.RequiresFileRename Then
+                Me.Action_Activate("file_saveas")
+                Return
+            Else
+                If Exist(f) Then
+                    If Exist(fBak) Then Shell "rm " & fBak Wait
+                    Shell "mv '" & f & "' '" & fbas & ".bak'" Wait
+                End If
+
+                If File.Ext(f) = "dxf" Then
+                    Dxf.SaveFile(f, gcd.currentDrawing)
+                Else If File.Ext(f) = "dwg" Then
+                    ' guardamos la version DXF en el dir adecuado, con el nombre elegido
+                    't = main.dirDxfOut &/ Utils.FileWithoutExtension(Utils.FileFromPath(f)) & ".dxf"
+                    t = Temp & ".dxf"
+                    Dxf.SaveFile(t, gcd.currentDrawing)
+                    t = gcd.oda_dxftodwg(t)
+                    ' como el proceso de grabado pudo resultar en error, chequeo la existencia primero
+
+                    If Exist(t) Then Move t To f
+
+                End If
+
+            Endif
+
+        Case "file_saveas"
+
+            f = gcd.currentDrawing.FileName
+            fbas = File.Dir(f) &/ File.BaseName(f)
+            fBak = "'" & fbas & ".bak'"
+
+            Dialog.AutoExt = True
+            Dialog.Filter = ["*.dxf", "DXF Drawing exchange 2010", "*.dwg", "DWG AutoCAD Drawing file 2010"]
+            If Dialog.SaveFile() Then Return ' cancel saving
+
+            f = Dialog.Path
+
+            If Exist(f) Then
+                If Message.Question(("The file exist"), ("Replace"), ("Cancel")) = 2 Then
+                    f = ""
+                Endif
+            Endif
+
+            If f = "" Then
+                Print "Cancel"
+            Else
+
+                'If LCase(File.Ext(f)) <> "dxf" Then f &= ".dxf"
+                If Exist(f) Then
+                    If Exist(fBak) Then Shell "rm " & fBak Wait
+                    Shell "mv '" & f & "' '" & fbas & ".bak'" Wait
+                End If
+
+                gcd.currentDrawing.FileName = f
+                gcd.currentDrawing.RequiresFileRename = False
+                Action_Activate("file_save")
+
+                Me.Text = f
+
+            Endif
 
         Case Like "cad*"
 
@@ -625,7 +624,7 @@ Public Sub LeerRecientes()
 
 End
 
-Public Sub GuardarParametros()
+Public Sub GuardarParaMetros()
 
     If main.setting.lastopen1 <> "" Then config.LastOpen1 = main.setting.lastopen1
     If main.setting.lastopen2 <> "" Then config.LastOpen2 = main.setting.lastopen2
@@ -698,8 +697,6 @@ Public Sub VerifLastOpen(sA_Abrir As String)
 End
 
 Public Sub form_Close()
-
-    Me.Close
 
     actions.ExitProgram
 
@@ -786,19 +783,19 @@ Public Sub GLArea1_draw()
 
         Select gcd.currentDrawing.iEntity[2]
             Case gcd.poiMidPoint
-                glPlus.PolygonFilled([gcd.currentDrawing.iEntity[0] - Metros(4), gcd.currentDrawing.iEntity[1], gcd.currentDrawing.iEntity[0], gcd.currentDrawing.iEntity[1] + Metros(4), gcd.currentDrawing.iEntity[0] + Metros(4), gcd.currentDrawing.iEntity[1], gcd.currentDrawing.iEntity[0], gcd.currentDrawing.iEntity[1] - Metros(4)], Color.Blue, Color.Green)
+                glPlus.PolygonFilled([gcd.currentDrawing.iEntity[0] - gcd.Metros(4), gcd.currentDrawing.iEntity[1], gcd.currentDrawing.iEntity[0], gcd.currentDrawing.iEntity[1] + gcd.Metros(4), gcd.currentDrawing.iEntity[0] + gcd.Metros(4), gcd.currentDrawing.iEntity[1], gcd.currentDrawing.iEntity[0], gcd.currentDrawing.iEntity[1] - gcd.Metros(4)], Color.Blue, Color.Green)
             Case gcd.poiQuadrant
-                glPlus.PolygonFilled([gcd.currentDrawing.iEntity[0] - Metros(6), gcd.currentDrawing.iEntity[1], gcd.currentDrawing.iEntity[0], gcd.currentDrawing.iEntity[1] + Metros(6), gcd.currentDrawing.iEntity[0] + Metros(6), gcd.currentDrawing.iEntity[1], gcd.currentDrawing.iEntity[0], gcd.currentDrawing.iEntity[1] - Metros(6)], Color.Cyan, Color.Cyan)
+                glPlus.PolygonFilled([gcd.currentDrawing.iEntity[0] - gcd.Metros(6), gcd.currentDrawing.iEntity[1], gcd.currentDrawing.iEntity[0], gcd.currentDrawing.iEntity[1] + gcd.Metros(6), gcd.currentDrawing.iEntity[0] + gcd.Metros(6), gcd.currentDrawing.iEntity[1], gcd.currentDrawing.iEntity[0], gcd.currentDrawing.iEntity[1] - gcd.Metros(6)], Color.Cyan, Color.Cyan)
 
             Case -1
                 ' nada
             Case gcd.poiCenter, gcd.poiBasePoint
 
-                glPlus.Circle([gcd.currentDrawing.iEntity[0], gcd.currentDrawing.iEntity[1]], Metros(4), Color.Cyan, True, False)
-                'glPlus.Rectangle2D(gcd.currentDrawing.iEntity[0] - Metros(4), gcd.currentDrawing.iEntity[1] - Metros(4), Metros(8), Metros(8), Color.Blue,,,, Color.Blue, 1, 1)
+                glPlus.Circle([gcd.currentDrawing.iEntity[0], gcd.currentDrawing.iEntity[1]], gcd.Metros(4), Color.Cyan, True, False)
+                'glPlus.Rectangle2D(gcd.currentDrawing.iEntity[0] - gcd.Metros(4), gcd.currentDrawing.iEntity[1] - gcd.Metros(4), gcd.Metros(8), gcd.Metros(8), Color.Blue,,,, Color.Blue, 1, 1)
 
             Case Else
-                glPlus.Rectangle2D(gcd.currentDrawing.iEntity[0] - Metros(4), gcd.currentDrawing.iEntity[1] - Metros(4), Metros(8), Metros(8), Color.Blue,,,, Color.Blue, 1, 1)
+                glPlus.Rectangle2D(gcd.currentDrawing.iEntity[0] - gcd.Metros(4), gcd.currentDrawing.iEntity[1] - gcd.Metros(4), gcd.Metros(8), gcd.Metros(8), Color.Blue,,,, Color.Blue, 1, 1)
 
         End Select
 
@@ -809,8 +806,8 @@ Public Sub GLArea1_draw()
         gcd.flgNewPosition = False
     End If
 
+    ' en este momento le damos la posibilidad a la clase actuante a que dibuje lo que quiera
     gcd.clsJob.Draw()
-    ' Debug "Drawn", cint(Rnd(0, 1000))
 
 End
 
@@ -864,68 +861,6 @@ End
 Public Sub GLArea1_MouseWheel()
 
     gcd.clsJob.MouseWHEEL()
-
-End
-
-Public Function Xreal(ScreenX As Float) As Float
-
-    Return Metros((screenx - glarea1.w / 2 - gcd.currentDrawing.PanX))
-
-End
-
-Public Function Yreal(ScreenY As Float) As Float
-
-    Return Metros((-ScreenY + glarea1.h / 2 - gcd.currentDrawing.PanY))
-
-End
-
-Public Function XPix(X As Float) As Float
-
-    'Return Metros((screenx - glarea1.w / 2 - gcd.currentDrawing.PanX))
-    Return Me.Pixels(X) + glarea1.w / 2 + gcd.currentDrawing.PanX
-
-End
-
-Public Function YPix(Y As Float) As Float
-
-    'Return Metros((-ScreenY + glarea1.h / 2 - gcd.currentDrawing.PanY))
-    Return -(Me.Pixels(Y) - glarea1.h / 2 + gcd.currentDrawing.PanY)
-
-End
-
-Public Function Pixels(distancia As Float) As Float  ' converts meters to pixels
-    ' transforma Metros en Pixeles sin tener en cuenta el Pan
-
-    Return distancia * gcd.currentDrawing.ScaleZoom
-
-End
-
-Public Function Metros(pixeles As Integer) As Float  ' converts pixels to meters
-
-    Return pixeles / gcd.currentDrawing.ScaleZoom
-
-End
-
-Public Function Near(xyzReal As Float) As Float
-    ' return the nearest point to the grid
-    ' this is a world to world points (not pixels)
-
-    ' Example:
-    ' if                    GridSpacing = 0.2
-    ' we pass               xyzReal = 1.35
-    ' function will give    NearReal = 1.40
-
-    Dim n As Integer, r As Float
-
-    If Not Gridactive Then Return xyzReal
-
-    r = xyzReal / GridSpacing
-    n = Int(r)
-    r = r - Int(r)
-
-    If r > 0.5 Then n += 1
-
-    Return n * GridSpacing
 
 End
 

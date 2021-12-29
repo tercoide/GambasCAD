@@ -32,96 +32,96 @@ Public iEntitySelected As Integer
 '   3 Goto 1
 
 Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer = 0) As Boolean
-  ' Llamada por FCAD al inicio de la aplicacion de esta herramienta
+    ' Llamada por FCAD al inicio de la aplicacion de esta herramienta
 
-  ' Aprovechamos para establecer los helpers (comentarios de ayuda en pantalla)
-  Me.PointsDone = 0
-  Me.PointsTotal = 2
+    ' Aprovechamos para establecer los helpers (comentarios de ayuda en pantalla)
+    Me.PointsDone = 0
+    Me.PointsTotal = 2
 
-  DrawingAids.HelperTrabajo = ("Break") & " "
+    DrawingAids.HelperTrabajo = ("Break") & " "
 
-  ' chequeamos si hubo seleccion previa
-  Me.SelectionCount = clsEntities.GetSelectionCount()
+    ' chequeamos si hubo seleccion previa
+    Me.SelectionCount = gcd.currentdrawing.oSelected.Count
 
-  If Me.SelectionCount <> 1 Then
-    clsEntities.DeSelection()
-    DrawingAids.Helper.texto = DrawingAids.HelperTrabajo & ": " & ("Select only one entity")
-    gcd.clsJobPrevious = Me
-    gcd.clsJob = cadSelection
+    If Me.SelectionCount <> 1 Then
+        clsEntities.DeSelection()
+        DrawingAids.Helper.texto = DrawingAids.HelperTrabajo & ": " & ("Select only one entity")
+        gcd.clsJobPrevious = Me
+        gcd.clsJob = cadSelection
 
-  Else
-    ' verificamos si la entidad puede ser partida
-    Me.iEntitySelected = gcd.CurrentDrawing.arrSelecIndex[0]
+    Else
+        ' verificamos si la entidad puede ser partida
+        Me.iEntitySelected = gcd.CurrentDrawing.arrSelecIndex[0]
 
-    Select Case gcd.CurrentDrawing.oEntities[Me.iEntitySelected].Gender
-      Case "Line", "LWPolyline", "Circle", "Arc", "Ellipse", "Spline"
-        clsEntities.SelectElem(Me.iEntitySelected)
-        DrawingAids.Helper.texto = ("Breakpoint of entity")
-        Me.PointsDone = 1
-      Case Else
-        Me.iEntitySelected = -1
-        DrawingAids.ErrorMessage = ("Can't break that entity")
-    End Select
+        Select Case gcd.CurrentDrawing.oEntities[Me.iEntitySelected].Gender
+            Case "Line", "LWPolyline", "Circle", "Arc", "Ellipse", "Spline"
+                clsEntities.SelectElem(Me.iEntitySelected)
+                DrawingAids.Helper.texto = ("Breakpoint of entity")
+                Me.PointsDone = 1
+            Case Else
+                Me.iEntitySelected = -1
+                DrawingAids.ErrorMessage = ("Can't break that entity")
+        End Select
 
-  Endif
+    Endif
 
 End
 
 Public Function MouseUp() ' called by FCAD-> DrawingArea_MouseUp
 
-  Dim d, dx, dy, m1, m2, angle As Float
-  Dim flxIntersec As Float[]
-  Dim e, e2 As Entity
+    Dim d, dx, dy, m1, m2, angle As Float
+    Dim flxIntersec As Float[]
+    Dim e, e2 As Entity
 
-  Me.SelStartXr = gcd.Xreal(mouse.x)
-  Me.SelStartYr = gcd.Yreal(mouse.y)
-
-  ' si llegue aca es porque ya tengo una entidad seleccionada
-
-  ' verifico que este sobre la entidad a romper
-  If Me.PointsDone = 1 Then ' estoy intentando seleccionar una entidad
-
-    If gcd.CurrentDrawing.iEntity[3] <> Me.iEntitySelected Then ' el mouse se fue de la entidad a romper
-      DrawingAids.ErrorMessage = ("Invalid breakpoint")
-      Return
-    End If
-    e = gcd.CurrentDrawing.oEntities[Me.iEntitySelected]       ' esto lo hago para reducir el largo del codigo
-    Select Case e.Gender
-      Case "Line"
-        flxIntersec = clsMouseTracking.GetNearestPoint(e, Me.SelStartXr, Me.SelStartYr)
-
-        ' ahora tengo que partir la entidad, pero puede ocurrir que el punto sea uno de los dos endpoints
-        If (flxIntersec[0] = e.P[0] And flxIntersec[1] = e.P[1]) Or (flxIntersec[0] = e.P[2] And flxIntersec[1] = e.P[3]) Then
-          DrawingAids.ErrorMessage = ("Invalid breakpoint")
-          Return
-        Endif
-
-        ' entonces parto la entidad
-        e2 = clsEntities.ClonEntity(e)          ' primero la clono
-        e2.P[2] = flxIntersec[0]                ' corrijo los puntos
-        e2.P[3] = flxIntersec[1]
-        e2.ClassHandler.finish(e2)
-        ' la agrego al dibujo
-        gcd.CurrentDrawing.oEntities.Add(e2)
-
-        e.P[0] = flxIntersec[0]                ' y ahora recorto la entidad original
-        e.P[1] = flxIntersec[1]
-        e.ClassHandler.finish(e)                ' para regenerar los POI
-
-        ' regenro las listas openGL de ambas entidades
-        clsEntities.glGenDrawList(Me.iEntitySelected)
-        clsEntities.glGenDrawList(gcd.CurrentDrawing.oEntities)
-
-        Me.Finish
-
-      Case Else
-        Me.iEntitySelected = -1
-        DrawingAids.ErrorMessage = ("Can't offset that entity")
-    End Select
-
-    ' punto real base
     Me.SelStartXr = gcd.Xreal(mouse.x)
     Me.SelStartYr = gcd.Yreal(mouse.y)
-  End If
+
+    ' si llegue aca es porque ya tengo una entidad seleccionada
+
+    ' verifico que este sobre la entidad a romper
+    If Me.PointsDone = 1 Then ' estoy intentando seleccionar una entidad
+
+        If gcd.CurrentDrawing.iEntity[3] <> Me.iEntitySelected Then ' el mouse se fue de la entidad a romper
+            DrawingAids.ErrorMessage = ("Invalid breakpoint")
+            Return
+        End If
+        e = gcd.CurrentDrawing.oEntities[Me.iEntitySelected]       ' esto lo hago para reducir el largo del codigo
+        Select Case e.Gender
+            Case "Line"
+                flxIntersec = clsMouseTracking.GetNearestPoint(e, Me.SelStartXr, Me.SelStartYr)
+
+                ' ahora tengo que partir la entidad, pero puede ocurrir que el punto sea uno de los dos endpoints
+                If (flxIntersec[0] = e.P[0] And flxIntersec[1] = e.P[1]) Or (flxIntersec[0] = e.P[2] And flxIntersec[1] = e.P[3]) Then
+                    DrawingAids.ErrorMessage = ("Invalid breakpoint")
+                    Return
+                Endif
+
+                ' entonces parto la entidad
+                e2 = clsEntities.ClonEntity(e)          ' primero la clono
+                e2.P[2] = flxIntersec[0]                ' corrijo los puntos
+                e2.P[3] = flxIntersec[1]
+                e2.ClassHandler.finish(e2)
+                ' la agrego al dibujo
+                gcd.CurrentDrawing.oEntities.Add(e2)
+
+                e.P[0] = flxIntersec[0]                ' y ahora recorto la entidad original
+                e.P[1] = flxIntersec[1]
+                e.ClassHandler.finish(e)                ' para regenerar los POI
+
+                ' regenro las listas openGL de ambas entidades
+                clsEntities.glGenDrawList(Me.iEntitySelected)
+                clsEntities.glGenDrawList(gcd.CurrentDrawing.oEntities)
+
+                Me.Finish
+
+            Case Else
+                Me.iEntitySelected = -1
+                DrawingAids.ErrorMessage = ("Can't offset that entity")
+        End Select
+
+        ' punto real base
+        Me.SelStartXr = gcd.Xreal(mouse.x)
+        Me.SelStartYr = gcd.Yreal(mouse.y)
+    End If
 
 End
