@@ -150,16 +150,44 @@ Public Sub Run() As Boolean
     tmrAutosave.Delay = config.AutoSaveDelayMin * 1000 * 60
     'tmrAutosave.Enabled = True
 
-    ' FIXME: en GTK no se puede cambiar el color del background de textboxes
-    'Me.txtCmd.Background = Color.White
     Me.Visible = False
 
     LeerRecientes
+    SetButtonPics(Me)
 
     Me.Show()
     Wait
     Me.Visible = True
     glPlus.ClearColor(Config.BackgroundColor)
+
+End
+
+'' Escanea el control Padre y busca en el Path SVGs cuyo nombre coincidan con los controles hijos
+'' excluidos las tres primeras letras, luego asigna la imagen Ej: tbnCopy <-- copy.svg
+Public Sub SetButtonPics(padre As Object)
+
+    Dim c As Control, o As Object
+    Dim sName As String, svgNames As String[]
+    Dim p As Picture
+    Dim i As Integer
+
+    For Each o In padre.Children
+        i = 0
+        Try i = o.Children.Count
+        If i > 0 Then               ' el control tiene hijos
+            SetButtonPics(o)
+        Else                        ' busco si hay una imagen SVG
+            sName = Mid(o.name, 4)
+            svgNames = Dir(gcd.dirResources &/ "svg", sName & ".svg")
+
+            If svgNames.Count > 0 Then
+                o.w = Config.ButtonSize
+                o.h = Config.ButtonSize
+                o.Picture = Image.Load(gcd.dirResources &/ "svg" &/ svgNames[0]).Stretch(Config.ButtonSize, Config.ButtonSize).Picture
+                o.text = ""
+            Endif
+        Endif
+    Next
 
 End
 
