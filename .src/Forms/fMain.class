@@ -154,6 +154,7 @@ Public Sub Run() As Boolean
 
     LeerRecientes
     SetButtonPics(Me)
+    SetButtonPics(tblLines)
 
     Me.Show()
     Wait
@@ -164,12 +165,14 @@ End
 
 '' Escanea el control Padre y busca en el Path SVGs cuyo nombre coincidan con los controles hijos
 '' excluidos las tres primeras letras, luego asigna la imagen Ej: tbnCopy <-- copy.svg
-Public Sub SetButtonPics(padre As Object)
+Public Sub SetButtonPics(padre As Object, Optional sSvgPath As String = "")
 
     Dim c As Control, o As Object
     Dim sName As String, svgNames As String[]
     Dim p As Picture
     Dim i As Integer
+
+    If sSvgPath = "" Then sSvgPath = gcd.dirResources &/ "svg"
 
     For Each o In padre.Children
         i = 0
@@ -178,12 +181,12 @@ Public Sub SetButtonPics(padre As Object)
             SetButtonPics(o)
         Else                        ' busco si hay una imagen SVG
             sName = Mid(o.name, 4)
-            svgNames = Dir(gcd.dirResources &/ "svg", sName & ".svg")
+            svgNames = Dir(sSvgPath, sName & ".svg")
 
             If svgNames.Count > 0 Then
                 o.w = Config.ButtonSize
                 o.h = Config.ButtonSize
-                o.Picture = Image.Load(gcd.dirResources &/ "svg" &/ svgNames[0]).Stretch(Config.ButtonSize, Config.ButtonSize).Picture
+                o.Picture = Image.Load(sSvgPath &/ svgNames[0]).Stretch(Config.ButtonSize, Config.ButtonSize).Picture
                 o.text = ""
             Endif
         Endif
@@ -798,13 +801,13 @@ Public Sub GLArea1_draw()
 
     DrawingAids.DibujaHelper
 
+    gl.CallList(gcd.currentDrawing.GlListSelectedEntities)
+
     For Each L In gcd.currentDrawing.oLayers
         If L.Visible Then gl.CallList(L.glList)
     Next
     '
     'clsEntities.DrawArrays()
-
-    'gl.CallList(gcd.currentDrawing.GlListAllEntities)
 
     ' POI dinamicos
     If gcd.currentDrawing.flgShowPOIinfo Then
