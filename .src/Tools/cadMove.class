@@ -34,20 +34,20 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
     Me.PointsDone = 0
     Me.PointsTotal = 2
 
-    DrawingAids.HelperTrabajo = ("Move") & " "
+    DrawingAids.CmdLineHelper = ("Move") & " "
     ' this affects the gl Drawing list
 
     If gcd.CurrentDrawing.oSelected.Count = 0 Then                                     ' we have no elements in the selection
 
-        DrawingAids.Helper.texto = DrawingAids.HelperTrabajo & ": " & ("Select entities")
+        DrawingAids.Helper.texto = DrawingAids.CmdLineHelper & ": " & ("Select entities")
 
         gcd.clsJobPrevious = Me
         gcd.clsJob = cadSelection
 
     Else                                                                    ' need the first point
 
-        DrawingAids.Helper.texto = DrawingAids.HelperTrabajo & ": " & ("Base point")
-        DrawingAids.HelperTrabajo = DrawingAids.HelperTrabajo & Str(gcd.CurrentDrawing.oSelected.Count) & " " & ("elements") & ": " & ("Base point")
+        DrawingAids.Helper.texto = DrawingAids.CmdLineHelper & ": " & ("Base point")
+        DrawingAids.CmdLineHelper = ("Move") & " " & Str(gcd.CurrentDrawing.oSelected.Count) & " " & ("elements") & ": " & ("Base point")
 
         ' genero drawing lists
 
@@ -63,7 +63,6 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
     Endif
     Me.Active = True
     gcd.ToolActive = True
-    DrawingAids.Refresh
 
 End
 
@@ -79,37 +78,43 @@ Public Function NewParameter(vParam As Variant[], Optional Definitive As Boolean
 
 End
 
-Public Function MouseUp() ' called by FCAD-> DrawingArea_MouseUp
+Public Function MouseUp()
 
-    Inc Me.PointsDone
+    If Mouse.Right Then
+        Me.Cancel()
 
-    If Me.PointsDone = 1 Then ' acabo de marcar el punto base
+    Else If Mouse.Left Then
+        Inc Me.PointsDone
 
-        ' ya tengo cosas seleccionadas
-        DrawingAids.Helper.texto = ("Final point")
+        If Me.PointsDone = 1 Then ' acabo de marcar el punto base
 
-        ' punto real base
-        Me.SelStartXr = gcd.Near(gcd.Xreal(mouse.x))
-        Me.SelStartYr = gcd.Near(gcd.Yreal(mouse.y))
+            ' ya tengo cosas seleccionadas
+            DrawingAids.Helper.texto = ("Final point")
+            DrawingAids.CmdLineHelper = ("Move") & " " & Str(gcd.CurrentDrawing.oSelected.Count) & " " & ("elements") & ": " & ("Final point")
 
-        ' prevenir acciones tontas como hacer click en otro elemento antes de terminar con el actual
-        ' TODO: reparar -> gcd.CurrDrawing.DesHabilitarBotones
-    Else If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
-        ' permitir otros trabajos
-        ' TODO: reparar -> gcd.CurrDrawing.HabilitarBotones
+            ' punto real base
+            Me.SelStartXr = gcd.Near(gcd.Xreal(mouse.x))
+            Me.SelStartYr = gcd.Near(gcd.Yreal(mouse.y))
 
-        ' job finished correctly
+            ' prevenir acciones tontas como hacer click en otro elemento antes de terminar con el actual
+            ' TODO: reparar -> gcd.CurrDrawing.DesHabilitarBotones
+        Else If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
+            ' permitir otros trabajos
+            ' TODO: reparar -> gcd.CurrDrawing.HabilitarBotones
 
-        ' and now we move
-        clsEntities.Move(Me.SelEndXr - Me.SelStartXr, Me.SelEndyr - Me.SelStartYr, True)
-        '
+            ' job finished correctly
 
-        clsEntities.Finish
-        gcd.CurrentDrawing.uUndo.CloseUndoStage()
+            ' and now we move
+            clsEntities.Move(Me.SelEndXr - Me.SelStartXr, Me.SelEndyr - Me.SelStartYr, True)
+            '
 
-        Me.Finish
+            clsEntities.Finish
+            gcd.CurrentDrawing.uUndo.CloseUndoStage()
 
-    Endif
+            Me.Finish
+
+        Endif
+    End If
 
 End
 
