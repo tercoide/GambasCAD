@@ -24,8 +24,8 @@ Inherits ToolsBase
 Public Const Gender As String = "Chamfer"
 
 Public EntityForEdit As Entity
-Public iEntity1 As Integer
-Public iEntity2 As Integer
+Public E1 As Entity
+Public E2 As Entity
 Public GripPoint As Integer = -1
 Public dX As Float
 Public dY As Float
@@ -68,7 +68,7 @@ Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD
 
 End
 
-Public Function MouseDown() ' esta rutina es llamada por FCAD en el evento DrawingArea_MouseDown
+Public Function MouseDown() ' esta rutina es llamada por fMain en el evento GLArea_MouseDown
 
     Dim i As Integer
 
@@ -93,27 +93,28 @@ Public Function MouseDown() ' esta rutina es llamada por FCAD en el evento Drawi
 
         If Mouse.Left Then
 
-            If gcd.CurrentDrawing.iEntity[3] >= 0 Then                         ' 1.1.2 el mouse no esta enganchado, pero esta arriba de una entidad
+            Me.EntityForEdit = clsMouseTracking.CheckAboveEntity(gcd.Xreal(Mouse.x), gcd.Yreal(Mouse.y), gcd.Metros(9))
 
-                Me.iEntity1 = gcd.CurrentDrawing.iEntity[3]
-                clsEntities.SelectElem(gcd.CurrentDrawing.iEntity[3])                 '   -> la selecciono
-                DrawingAids.CmdLineHelper = ("Select second line")
-                Me.PointsDone = 2
+            If IsNull(Me.EntityForEdit) Then Return                         ' 1.1.2 el mouse no esta enganchado, pero esta arriba de una entidad
 
-                Me.Active = False
-                clsEntities.GLGenDrawListSel(0)
+            Me.E1 = Me.EntityForEdit
+            clsEntities.SelectElem(Me.EntityForEdit)                 '   -> la selecciono
+            DrawingAids.CmdLineHelper = ("Select second line")
+            Me.PointsDone = 2
 
-            Else
+            Me.Active = False
+            clsEntities.GLGenDrawListSel(0)
 
-                Me.Active = True
-            End If
         End If
     Else If Me.PointsDone = 2 Then       ' estamos seleccionando la segunda entidad
         If Mouse.Left Then
 
-            If (gcd.CurrentDrawing.iEntity[3] >= 0) And (Me.iEntity1 <> gcd.CurrentDrawing.iEntity[3]) Then
+            Me.EntityForEdit = clsMouseTracking.CheckAboveEntity(gcd.Xreal(Mouse.x), gcd.Yreal(Mouse.y), gcd.Metros(9))
 
-                Me.iEntity2 = gcd.CurrentDrawing.iEntity[3]
+            If IsNull(Me.EntityForEdit) Then Return                         ' 1.1.2 el mouse no
+            If (Me.EntityForEdit <> Me.E1) Then
+
+                Me.E2 = Me.EntityForEdit
                 DoFillet
                 Me.Active = False
 
@@ -121,45 +122,6 @@ Public Function MouseDown() ' esta rutina es llamada por FCAD en el evento Drawi
 
                 Me.Active = True
             End If
-        End If
-
-    End If
-
-End
-
-Public Function MouseUp() ' esta rutina es llamada por FCAD en el evento DrawingArea_MouseUp
-
-    Me.SelEndX = mouse.x
-    Me.SelEndy = mouse.y
-
-    If Me.Active Then
-        Dim Crossing As Boolean = False
-        ' corrijo para start<end
-        Me.Active = False
-        Me.PoiChecking = True
-        If Me.SelStartX > Me.SelEndX Then
-            crossing = True
-            Swap Me.SelStartX, Me.SelEndX
-        Else
-            crossing = False
-        End If
-        If Me.SelStartY < Me.SelEndy Then Swap Me.SelStartY, Me.SelEndy                     ' this is FLIPPED
-
-        ' Paso a coordenadas reales
-        Me.SelStartXr = gcd.Xreal(Me.SelStartX)
-        Me.SelStartYr = gcd.Yreal(Me.SelStartY)
-        Me.SelEndXr = gcd.Xreal(Me.SelEndX)
-        Me.SelEndyr = gcd.Yreal(Me.SelEndy)
-
-        ' veo si el rectangulo es suficientemente grande como para representar una seleccion por rectangulo
-        If (Me.SelEndX - Me.SelStartX + (-Me.SelEndy + Me.SelStartY)) > 10 Then
-
-            Dim t As Float = Timer
-            Me.selectionCount = clsEntities.SelectionSquare(Me.SelStartXr, Me.SelStartYr, Me.SelEndXr, Me.SelEndyr,, crossing)
-            Debug "Select parsing time ", Timer - t
-
-            clsEntities.GLGenDrawListSel(0)
-
         End If
 
     End If
@@ -180,33 +142,8 @@ Public Function MouseMove() ' esta rutina es llamada por FCAD en el evento Drawi
 
 End
 
-Public Sub Draw() ' esta rutina es llamada por FCAD en el evento DrawingArea_Draw
-    ' por ultimo, y para que se vea arriba, la seleccion
-
-    If Me.Active Then
-
-        If Me.SelStartX > Me.SelEndX Then                               ' Seleccion crossing, o sea que si cualquier arista del rectangulo cruza el bounding poligon, queda seleccionado
-
-            GLplus.Rectangle2D(Me.SelStartXr, Me.SelStartYr, Me.SelEndXr - Me.SelStartXr, Me.SelEndyr - Me.SelStartYr, Color.RGB(224, 220, 207, 215),,,, Color.red, 1, 1, 2)
-
-        Else                                                            ' seleccion full, todos los puntos deben estar adentro
-
-            GLplus.Rectangle2D(Me.SelStartXr, Me.SelStartYr, Me.SelEndXr - Me.SelStartXr, Me.SelEndyr - Me.SelStartYr, Color.RGB(224, 220, 207, 215),,,, Color.Green, 1, 1, 2)
-
-        End If
-    Else
-
-        ' gl.CallList(gcd.CurrDrawing.GlListSelectedEntities)
-        ' clsEntities.DrawPoiSymbolsAll
-
-    End If
-
-End
-
 Public Function DoFillet() As Boolean
 
-    Dim e1 As Entity
-    Dim e2 As Entity
     Dim d, dx, dy, m1, m2, angle As Float
     Dim flxIntersec As New Float[]
     Dim hr1 As Float
@@ -214,10 +151,9 @@ Public Function DoFillet() As Boolean
     Dim l1, l2, lc, lc2 As Float
     Dim alpha, StartAngle As Float
     Dim EndAngle As Float
+    Dim eLine As Entity
 
     ' intenta hacer el fillet entre las dos entidades seleccionadas, devuelve True si tiene exito
-    e1 = gcd.CurrentDrawing.oEntities[Me.iEntity1]
-    e2 = gcd.CurrentDrawing.oEntities[Me.iEntity2]
 
     Select Case e1.Gender
         Case "Line"
@@ -282,16 +218,9 @@ Public Function DoFillet() As Boolean
                     ' creo otra linea
                     ' para ello veo cual angulo es el inicial
 
-                    Dim eLine As New Entity
-                    eLine.Gender = "Line"
-                    eLine.ClassHandler = cadLine
-                    eLine.P.Insert([e1.P[2], e1.P[3], e2.P[2], e2.P[3]])
-
-                    eLine.colour = gcd.CurrentDrawing.CurrColor
-                    eLine.LineType = gcd.CurrentDrawing.CurrLtype
-                    eLine.pLayer = gcd.CurrentDrawing.CurrLayer
+                    eLine = cadLine.NewEntity([e1.P[2], e1.P[3], e2.P[2], e2.P[3]])
                     cadLine.Finish(eLine)
-                    gcd.CurrentDrawing.oEntities.Add(eLine)
+                    gcd.CurrentDrawing.oEntities.Add(eLine, eLine.Handle)
 
                     Me.Finish
 
