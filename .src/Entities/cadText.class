@@ -162,13 +162,55 @@ Public Sub Draw(oE As Entity)
     ' Debug oE.stringdata[0]
     Dim s2 As String
 
-
     s2 = oE.stringdata[Me.sdaText]
     s2 = Replace(s2, "%%D", "°", gb.IgnoreCase)
     s2 = Replace(s2, "%%P", "±", gb.IgnoreCase)
     s2 = Replace(s2, "%%C", "∅", gb.IgnoreCase)
 
-    glPlus.DrawText(s2, oE.p[0], oE.p[1], oE.fParam[Me.ipaTextAngle], oE.fParam[Me.ipaTextHeight], gcd.GetGBColor(oE.Colour, oe.pLayer))
+    ' Vamos a trbajar un poco en la alineacion, obtenemos el tamanio del texto:
+    Dim rText As Float[]
+    Dim dY As Float     ' correccion de Y debido a la alineacion
+    Dim dX As Float     ' correccion de X debido a la alineacion
+
+    rText = glPlus.TextExtends(s2, oE.fParam[Me.ipaTextHeight])
+
+    If oe.P.Count = 2 Then          ' hay solo un punto, la alineacion es Baseline/Left
+
+        dX = 0    ' nada que corregir
+        dY = 0
+
+    Else    ' tengo dos puntos
+
+        ' veo la alineacion vertical
+        If oe.fParam[Me.ipaVertJustif] <= 1 Then       'es Baseline/Bottom que es casi lo mismo
+
+            dY = 0
+        Else If oe.fParam[Me.ipaVertJustif] = 2 Then   'Center
+            ' TODO: verificar si mejor no debiera usar rText[1]
+            dY = (oe.P[3] - oe.P[1]) / 2 - oe.fParam[Me.ipaTextHeight] / 2
+
+        Else                                            'top
+            dY = oe.P[3] - oe.fParam[Me.ipaTextHeight]
+        End If
+
+        ' veo la alineacion horizontal
+        If oe.fParam[Me.ipaHorizJustif] = 0 Then       'es Left
+
+            dX = 0
+        Else If oe.fParam[Me.ipaHorizJustif] = 1 Then   'Center
+            dX = (oe.P[2] - oe.P[0]) / 2 - rText[0] / 2
+        Else If oe.fParam[Me.ipaHorizJustif] = 2 Then   'Right
+            dX = oe.P[2] - rText[0]
+        Else If oe.fParam[Me.ipaHorizJustif] = 3 Then   'Aligned , pero no se que es
+            dX = (oe.P[2] - oe.P[0]) / 2 - rText[0] / 2
+
+        Else If oe.fParam[Me.ipaHorizJustif] = 4 Then   ' Middle, supongo = Center
+            dX = (oe.P[2] - oe.P[0]) / 2 - rText[0] / 2
+        Else If oe.fParam[Me.ipaHorizJustif] = 5 Then   ' Fit, pero no tengo esta capability en glPlus.DrawTExt
+
+        End If
+    End If
+    glPlus.DrawText(s2, oE.p[0] + dX, oE.p[1] + dY, oE.fParam[Me.ipaTextAngle], oE.fParam[Me.ipaTextHeight], gcd.GetGBColor(oE.Colour, oe.pLayer))
 
 End
 
@@ -313,6 +355,14 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     Return False
 
 End
+
+' Group 72 and 73 integer codes
+'
+' Group 73/72         0     1       2       3       4     5
+' 3 (top)          TLeft TCenter TRight
+' 2 (middle)       MLeft MCenter MRight
+' 1 (bottom)       BLeft BCenter BRight
+' 0 (baseline)     Left  Center  Right  Aligned  Middle Fit
 
 '' Return if that position is over the entity within the tolerance
 Public Function OverMe(e As Entity, Xr As Float, Yr As Float, tolerance As Float) As Boolean
