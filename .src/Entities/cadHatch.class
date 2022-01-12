@@ -557,8 +557,8 @@ Public Sub MakeBorder2(oPath As Boundary)
                 Else
                     drwPath.Insert([eborder.P[2], eborder.P[3]])
 
-                    If FirstX = eborder.P[2] Then
-                        If FirstY = eborder.P[3] Then ' se cerro el contorno
+                    If puntos.Equal(FirstX, eborder.P[2]) Then
+                        If puntos.Equal(FirstY, eborder.P[3]) Then ' se cerro el contorno
                             BoundaryGotClosed = True
 
                         End If
@@ -665,7 +665,16 @@ Public Sub FillEntityWithHatch2(entToFill As Entity)
 
     If oloop.Polylines.Count = 0 Then Return
 
-    GetBoundLimits2(oloop.Polylines[0])    ' veo los limites del contorno exterior
+    ' veo los limites del contorno exterior
+    Xmenor = 1e10
+    Ymenor = 1e10
+    Xmayor = -1e10
+    Ymayor = -1e10
+
+    For Each flxContorno In oloop.Polylines
+
+        GetBoundLimits2(flxContorno)
+    Next
 
     ' vamos a mentir un poco
     ' xmenor -= 1
@@ -740,12 +749,17 @@ Public Sub FillEntityWithHatch2(entToFill As Entity)
     ' limpio los huecos
     'Else If (oloop.Flag And 16) = 16 Then ' es outermost
     If oLoop.Holes.Count > 0 Then
+
         For Each flxContorno In oLoop.Holes
+
+            entToFill.PolyLine.Clear
 
             For i = 0 To flxFirstPass.Max - 3 Step 4
                 entToFill.PolyLine.Insert(puntos.LineholeIntersection(flxFirstPass.Copy(i, 4), flxContorno))
 
             Next
+            flxFirstPass.Clear
+            flxFirstPass.Insert(entToFill.PolyLine.copy())
 
         Next
 
@@ -763,10 +777,10 @@ Public Sub GetBoundLimits2(fxlPoints As Float[])
 
     Dim i As Integer
 
-    Xmenor = 1e10
-    Ymenor = 1e10
-    Xmayor = -1e10
-    Ymayor = -1e10
+
+
+
+
 
     For i = 0 To fxlPoints.max Step 2
 
