@@ -31,7 +31,7 @@
 
 Create Static       ' This two preposition are the same as creating a module instead of a
 Create Private      ' class in Gambas.
-Fast Unsafe        ' TODO: alwways set this after debugging
+'Fast Unsafe        ' TODO: alwways set this after debugging
 Public HookSize As Integer = 16                       ' for use with poi
 Public NumericTolerance As Float = 1e-7
 
@@ -695,23 +695,62 @@ Public Function LinePolyIntersection2(flxLine As Float[], flxPoly As Float[]) As
 
 End
 
+Public Function InvertPolyline(flxPoly As Float[]) As Float[]
+
+    Dim i As Integer
+    Dim flxRet As New Float[]
+    Dim i2 As Integer
+
+    flxRet.Resize(flxPoly.Count)
+    For i = flxPoly.max To 1 Step -2
+        flxRet[i2] = flxPoly[i - 1]
+        Inc i2
+        flxRet[i2] = flxPoly[i]
+        Inc i2
+    Next
+    Return flxRet
+
+
+End
+
+
 '' es la inversa de LinePolyIntersection
 Public Function LineHoleIntersection(flxLine As Float[], flxPoly As Float[]) As Float[]
 
     Dim tmpIntersection, flxResult As New Float[]
     Dim FirstAdded, LastAdded As Boolean
+    Dim tmpIntersection2 As Float[]
 
-    tmpIntersection = LinePolyIntersection(flxLine, flxPoly)
+    tmpIntersection2 = LinePolyIntersection(flxLine, flxPoly)
 
-    If tmpIntersection.count = 0 Then ' la linea esta completamente afuera, la devuelvo
+    If tmpIntersection2.count = 0 Then ' la linea esta completamente afuera, la devuelvo
         Return flxLine
 
     End If
 
+    ' los puntos de tmpIntersection pueden venir invertidos, por ello debo verificar bien
+
+
+
+    If puntos.distancia(tmpIntersection2[0], tmpIntersection2[1], flxLine[0], flxLine[1]) > puntos.distancia(tmpIntersection2[2], tmpIntersection2[3], flxLine[0], flxLine[1]) Then
+        tmpIntersection = puntos.InvertPolyline(tmpIntersection2)
+    Else
+        tmpIntersection = tmpIntersection2
+    End If
+
+
+
+
+
     If Not ((tmpIntersection[0] = flxLine[0]) And (tmpIntersection[1] = flxLine[1])) Then
+        ' el primer punto no esta en la interseccion
         tmpIntersection.insert(flxLine.Copy(0, 2), 0)
         FirstAdded = True
-    End If
+
+    Endif
+
+
+
 
     If Not ((tmpIntersection[tmpIntersection.Max - 1] = flxLine[2]) And (tmpIntersection[tmpIntersection.max] = flxLine[3])) Then
 
@@ -768,12 +807,19 @@ Public Function LinePolyIntersection(flxLine As Float[], flxPoly As Float[]) As 
 
     If flxIntersections.Count > 0 Then
 
+        ' enderezo las intereccione
+        If puntos.distancia(flxLine[0], flxLine[1], flxIntersections[0], flxIntersections[1]) > puntos.distancia(flxLine[0], flxLine[1], flxIntersections[flxIntersections.Max - 1], flxIntersections[flxIntersections.Max]) Then flxIntersections = puntos.InvertPolyline(flxIntersections)
+
+
+
         If FirstInside Then
             If Not EqualPoints(flxLine[0], flxLine[1], flxIntersections[0], flxIntersections[1]) Then
 
                 If Not EqualPoints(flxLine[0], flxLine[1], flxIntersections[flxIntersections.Max - 1], flxIntersections[flxIntersections.Max]) Then
 
-                    flxRta.Insert(flxLine.Copy(0, 2))
+
+                    flxRta.Insert(flxLine.Copy(0, 2), 0)
+
                 End If
             End If
         End If
@@ -785,6 +831,8 @@ Public Function LinePolyIntersection(flxLine As Float[], flxPoly As Float[]) As 
         If LastInside Then
             If Not EqualPoints(flxLine[2], flxLine[3], flxIntersections[flxIntersections.Max - 1], flxIntersections[flxIntersections.Max]) Then
                 If Not EqualPoints(flxLine[2], flxLine[3], flxIntersections[0], flxIntersections[1]) Then
+
+
                     flxRta.Insert(flxLine.Copy(2, 2))
                 End If
             End If
@@ -792,8 +840,9 @@ Public Function LinePolyIntersection(flxLine As Float[], flxPoly As Float[]) As 
 
     Else
 
-        If FirstInside Then flxRta.Insert(flxLine.Copy(0, 2))
-        If LastInside Then flxRta.Insert(flxLine.Copy(2, 2))
+        If FirstInside And LastInside Then flxRta.Insert(flxLine.Copy(0, 4))
+
+        'If LastInside Then flxRta.Insert(flxLine.Copy(2, 2))
 
     End If
 
@@ -801,6 +850,7 @@ Public Function LinePolyIntersection(flxLine As Float[], flxPoly As Float[]) As 
         ' tengo un punto repetido, posiblemente porque haya una interseccion en un
         ' punto definitorio de la poligonal
         ' trato de eliminar puntos iguales
+
         For i = 0 To flxRta.Max - 2 Step 2
             If i > flxRta.Max - 3 Then Break
             If EqualPoints(flxRta[i], flxRta[i + 1], flxRta[i + 2], flxRta[i + 3]) Then
