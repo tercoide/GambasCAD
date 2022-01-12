@@ -695,6 +695,43 @@ Public Function LinePolyIntersection2(flxLine As Float[], flxPoly As Float[]) As
 
 End
 
+Public Function SortLineSegments(flxPoly As Float[])
+
+    Dim i As Integer
+    Dim flxRet As New Float[]
+    Dim i2, iInicial As Integer
+    Dim d1, d2 As Float
+    Dim Swaped As Boolean
+
+    iInicial = 2
+
+    ' supongo que el punto 1 es un extremo
+    Do
+        Swaped = False
+
+        For i = iInicial To flxPoly.max - 3 Step 2
+            d1 = puntos.distancia(flxPoly[iInicial - 2], flxPoly[iInicial - 1], flxPoly[iInicial], flxPoly[iInicial + 1])
+            d2 = puntos.distancia(flxPoly[iInicial - 2], flxPoly[iInicial - 1], flxPoly[i + 2], flxPoly[i + 3])
+            If d1 > d2 Then
+                Swap flxPoly[iInicial], flxPoly[i + 2]
+                Swap flxPoly[iInicial + 1], flxPoly[i + 3]
+                Dec i
+                Dec i
+                Swaped = True
+            Endif
+
+
+        Next
+
+        iInicial += 2
+
+    Loop Until Swaped = False
+
+    Return
+
+
+End
+
 Public Function InvertPolyline(flxPoly As Float[]) As Float[]
 
     Dim i As Integer
@@ -783,6 +820,9 @@ Public Function LinePolyIntersection(flxLine As Float[], flxPoly As Float[]) As 
 
     If flxPoly.Count < 6 Then Return flxLine.Copy()
 
+    ' TEst
+    If flxLine[1] > 74 And flxLine[1] < 77 Then Stop
+
     ' fuera de los casos triviales, entonces armo el array de intersecciones
     Dim flxIntersections As New Float[]
 
@@ -798,6 +838,8 @@ Public Function LinePolyIntersection(flxLine As Float[], flxPoly As Float[]) As 
             flxIntersections.Insert(puntos.lineLineIntersection2(flxLine[0], flxLine[1], flxLine[2], flxLine[3], flxPoly[i + 0], flxPoly[i + 1], flxPoly[i + 2], flxPoly[i + 3]))
         Endif
     Next
+
+    SortLineSegments(flxIntersections)
     ' y el cierre de la poly
     If puntos.doIntersect(flxLine[0], flxLine[1], flxLine[2], flxLine[3], flxPoly[flxPoly.Max - 1], flxPoly[flxPoly.Max], flxPoly[0], flxPoly[1]) Then
         flxIntersections.Insert(puntos.lineLineIntersection2(flxLine[0], flxLine[1], flxLine[2], flxLine[3], flxPoly[flxPoly.Max - 1], flxPoly[flxPoly.Max], flxPoly[0], flxPoly[1]))
@@ -840,9 +882,9 @@ Public Function LinePolyIntersection(flxLine As Float[], flxPoly As Float[]) As 
 
     Else
 
-        If FirstInside And LastInside Then flxRta.Insert(flxLine.Copy(0, 4))
+        If FirstInside Then flxRta.Insert(flxLine.Copy(0, 2), 0)
 
-        'If LastInside Then flxRta.Insert(flxLine.Copy(2, 2))
+        If LastInside Then flxRta.Insert(flxLine.Copy(2, 2))
 
     End If
 
