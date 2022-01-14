@@ -40,6 +40,10 @@ Public SelEndZr As Float
 Public LastX As Float               ' change in MouseMove/MouseUp
 Public LastY As Float
 
+Public LastMouseX As Integer               ' change in MouseMove/MouseUp
+Public LastMouseY As Integer
+
+
 ' indicadores
 'Public elem.ClassHandler.StepsDone As Integer = 0          ' La cantidad de puntos que marco para el trabajo actual--->Gurdado en la entidad
 Public StepsTotal As Integer = 0          ' Tomado de la lista de tipo de paramtros
@@ -141,7 +145,8 @@ Public Function Start(Optional ElemToBuild As Variant, Optional Mode As Integer 
 
     Try elem.iParam[elem.ClassHandler.iiiMode] = mode
 
-    DrawingAids.CmdLineHelper = elem.ClassHandler.CmdLineHelper
+    fMain.KeysAccumulator = ""
+    DrawingAids.CmdLineHelper = elem.ClassHandler.CmdLineHelper & ": "
 
 End
 
@@ -271,15 +276,30 @@ Public Sub AdvanceStep()
         End If
 
     Endif
+    Me.MouseMove
+
+    gcd.redraw
 
 End
 
 Public Sub MouseMove()
 
     Dim X, Y, f As Float
+    Dim MouseTry As Integer = -1000000
 
-    X = gcd.Near(gcd.Xreal(mouse.x))
-    Y = gcd.Near(gcd.Yreal(mouse.y))
+    Try MouseTry = Mouse.X
+    If MouseTry >= 0 Then ' mouse is active
+
+        LastMouseX = Mouse.X
+        LastMouseY = Mouse.Y
+
+
+    Endif
+
+
+
+    X = gcd.Near(gcd.Xreal(LastMouseX))
+    Y = gcd.Near(gcd.Yreal(LastMouseY))
 
     If InStr("LAPR", NextParamType) = 0 Then Return ' we are expecting a parameter
 
@@ -290,7 +310,7 @@ Public Sub MouseMove()
     If NextParamType = "A" Then
 
         ' return the angle from horizontal to us
-        f = Ang(gcd.Xreal(mouse.x) - Me.LastX, gcd.Yreal(mouse.y) - Me.lastY)
+        f = Ang(gcd.Xreal(LastMouseX) - Me.LastX, gcd.Yreal(LastMouseY) - Me.lastY)
         f *= 180 / Pi
         elem.ClassHandler.NewParameter(elem, ["float", f])
 
@@ -310,7 +330,7 @@ Public Sub MouseMove()
     If NextParamType = "L" Then
 
         ' return the angle from horizontal to us
-        f = puntos.distancia(gcd.Xreal(mouse.x), gcd.Yreal(mouse.y), Me.LastX, Me.lastY)
+        f = puntos.distancia(gcd.Xreal(LastMouseX), gcd.Yreal(LastMouseY), Me.LastX, Me.lastY)
 
         elem.ClassHandler.NewParameter(elem, ["float", f])
 
@@ -345,8 +365,12 @@ Public Sub MouseMove()
     End If
 
     elem.ClassHandler.NewParameter(elem, ["point", x, y])
+    ' LastMouseX = Mouse.X
+    ' LastMouseY = Mouse.Y
 
     gcd.redraw
+
+
 
 End
 
@@ -485,6 +509,8 @@ Public Sub Finish()
 
     ' y renuevo la lista para este layer
     clsEntities.glGenDrawListLayers(elem.pLayer)
+
+    gcd.redraw
 
 End
 
