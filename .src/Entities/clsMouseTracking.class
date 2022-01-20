@@ -106,12 +106,13 @@ Public Sub ReBuildPOI()
 End
 
 '' Veo si estoy sobre una entidad y la devuelvo
-Public Function CheckAboveEntity(xr As Float, Yr As Float, tolerance As Float) As Entity
+Public Function CheckAboveEntity(xr As Float, Yr As Float, Optional iTolerance As Integer = 16) As Entity
 
     Dim iVisible As Integer
     Dim Found As Boolean = True
     Dim eVisible As Entity
     Dim T As Float = Timer
+    Dim Tolerance As Float = gcd.Metros(iTolerance)
 
     gcd.flgSearchingEntity = True
     Dec iVisible
@@ -145,9 +146,9 @@ End
 
 '' This is called by MouseMove events, so make sure its fast
 '' and its called form there
-Public Sub CheckPOI(xr As Float, Yr As Float) As Float[]
+Public Sub CheckPOI(xr As Float, Yr As Float, Optional e As Entity) As Float[]
 
-    Dim rData As New Float[], e, e2 As Entity
+    Dim rData As New Float[], e2 As Entity
     Dim indexEntity, i, i2, iPoligon, iLine, iPoint As Integer
     Dim pend1, base1, pend2, base2 As Float ' vars para las ecuacionesde las rectas
     Dim puntoB, puntoA, pInter As New Float[]
@@ -196,11 +197,13 @@ Public Sub CheckPOI(xr As Float, Yr As Float) As Float[]
     ' Return rdata
     'Debug "total poi check time ", Timer - t, gcd.CurrDrawing.poiPoligons.Count + gcd.CurrDrawing.poiLines.Count + gcd.CurrDrawing.poiPoints.Count, " points parsed"
 
-    e = CheckAboveEntity(xr, yr, tolerance)
+    If Not e Then
 
+        e = CheckAboveEntity(xr, yr, tolerance)
+    End If
     ' If iLine > 0 Then e = gcd.CurrDrawing.arrEntities[gcd.CurrDrawing.poiLinesEntities[iLine]]
     ' If iPoligon > 0 Then e = gcd.CurrDrawing.arrEntities[iPoligon]
-    rdata.Insert([0, 0, -1, -1])
+    rdata.Insert([0, 0, -1])
 
     If e Then                                               ' ofrezco opciones de enganche
         ' e = gcd.CurrentDrawing.oEntities[indexEntity]
@@ -257,7 +260,7 @@ Public Sub CheckPOI(xr As Float, Yr As Float) As Float[]
                 End If
 
                 ' busco tambien intersecciones
-                For Each e2 In gcd.CurrentDrawing.oEntities
+                For Each e2 In gcd.CurrentDrawing.oVisibleEntities
                     Select Case e2.Gender
 
                         Case "Line"
