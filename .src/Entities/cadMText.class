@@ -48,6 +48,7 @@ Private TextBold As New Boolean[]
 Private CurrentTextLines As String
 Private CurrentTextHeigth As Float
 Private CurrentTextPosX As Float
+Private OriginalTextPosX As Float
 Private CurrentTextBoxWidth As Float
 Private CurrentTextPosY As Float
 Private CurrentTextBoxHeight As Float
@@ -270,6 +271,9 @@ Public Sub Draw(oE As Entity)
 
     End Select
 
+    ' guardo
+    OriginalTextPosX = CurrentTextPosX
+
     CurrentTextAngle = oE.fParam[Me.ipaTextAngle] * 180 / Pi
     CurrentTextColor = gcd.GetGBColor(oE.Colour, oe.pLayer)
 
@@ -301,16 +305,31 @@ Public Sub ProcessText(RTF As String)
 
     ' busco lo que esta entre {}
     Dim p1, p2 As Integer
+    Dim sRemains, sToProcess As String
 
+    sRemains = rtf
     'Debug rtf
     'If InStr(LCase(rtf), "plano de instalacion electrica") > 0 Then Stop
-    p1 = InStr(rtf, "{")
-    If p1 > 0 Then
-        p2 = InStr(rtf, "}")
-        ProcessPart(Mid(rtf, p1 + 1, p2 - p1 - 1))
-    Else
-        ProcessPart(rtf)
-    Endif
+    Do
+        p1 = InStr(rtf, "{")
+        If p1 > 1 Then
+            sToProcess = Left$(sRemains, p1 - 1)
+            sRemains = Mid$(sRemains, p1 + 1)
+            ProcessPart(sToProcess)
+            p2 = InStr(sRemains, "}")
+            ProcessText(Mid(sRemains, 1, p2 - 1))
+            sRemains = Mid(sRemains, p2 + 1)
+        Else
+            p2 = InStr(sRemains, "}")
+            If p2 > 0 Then
+                Processtext(Mid(sRemains, 2, p2 - 1))
+                sRemains = Mid(sRemains, p2 + 1)
+            Else
+                ProcessPart(sRemains)
+                Break
+            End If
+        Endif
+    Loop Until Len(sRemains) = 0
     ' Code   Description
     ' \L   Start underline
     ' \l   Stop underline
@@ -320,6 +339,9 @@ Public Sub ProcessText(RTF As String)
     ' \k   Stop strike-through
     ' \P   New paragraph (new line)
     ' \p   Paragraphs properties: indentation, alignment, tabulator stops
+    ' \pi \pxi \pxt    Control codes for bullets, numbered paragraphs, tab stops and columns - e.g. bullets: \pxi-3,l3,t3;, tab stops: \pxt10,t12;
+    ' \X    Paragraph wrap on the dimension line (only in dimensions)
+
     ' \X   Paragraph wrap on the dimension line (only in dimensions)
     ' \Q   Slanting (oblique) text by angle - e.g. \Q30;
     ' \H   Text height - e.g. relative \H3x; absolut \H3;
@@ -419,6 +441,7 @@ Public Sub ProcessPart(s As String)
 
         Case "\\P"            ' New line
             CurrentTextPosY -= glPlus.TextExtends("XXX", CurrentTextHeigth)[1] * 1.2
+            CurrentTextPosX = OriginalTextPosX
             s2 = Mid(s2, 3)
             If Len(s2) > 0 Then ProcessPart(s2)
 
@@ -522,6 +545,7 @@ Public Sub ProcessPart(s As String)
                 If CurrentTextAlignment = 1 Then CurrentTextPosX -= fRect[0] / 2
                 If CurrentTextAlignment = 2 Then CurrentTextPosX -= fRect[0]
                 glPlus.DrawText(s4, CurrentTextPosX, CurrentTextPosY, CurrentTextangle, CurrentTextHeigth, CurrentTextColor)
+                CurrentTextPosX += fRect[0]
                 If Printing Then
                     sPrint = s4
                     GoSub PrintText2
@@ -543,6 +567,7 @@ Public Sub ProcessPart(s As String)
                 If CurrentTextAlignment = 2 Then CurrentTextPosX -= fRect[0]
 
                 glPlus.DrawText(s2, CurrentTextPosX, CurrentTextPosY, CurrentTextAngle, CurrentTextHeigth, CurrentTextColor)
+                CurrentTextPosX += fRect[0]
                 If Printing Then
                     sPrint = s2
                     GoSub PrintText2

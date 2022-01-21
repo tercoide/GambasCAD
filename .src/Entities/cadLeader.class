@@ -52,6 +52,9 @@ Public Const sdaStyle As Integer = 1            ' Dimension style name
 
 Public Const TotalPoints As Integer = 1 ' 2021 cambie esto
 
+Public DimArrowSize As Float = 0.3       ' el largo de la flecha
+Public DimArrowWidth As Float = 0.1      ' ancho de la flecha
+
 ' The entity handler receives a user action, and returns the number of expected parameter
 ' If definitive = true, means the parameter is set
 Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
@@ -134,7 +137,8 @@ Public Sub Draw(oE As Entity)
     If oe.P.Count < 4 Then Return
 
     Dim tRect As New Float[], poli As New Float[]
-
+    Dim arrow As New Float[]
+    Dim ArrowW, ArrowH As Float
     eText = gcd.currentDrawing.oEntities[oe.StringData[Me.sdaTextRefData]]
 
     If eText Then etext.ClassHandler.Draw(eText)
@@ -144,6 +148,13 @@ Public Sub Draw(oE As Entity)
     If oe.fParam[Me.ipaArrowHead] = 1 Then ' va flecha
 
         myStyle = gcd.currentDrawing.oDimStyles[oe.StringData[Me.sdaStyle]]
+        Me.DimArrowSize = myStyle.DIMASZ
+        Me.DimArrowWidth = Me.DimArrowSize / 4
+        arrow = [0, 0, Me.DimArrowSize, Me.DimArrowWidth, Me.DimArrowSize, -Me.DimArrowWidth, 0, 0]
+        puntos.Rotate(arrow, Ang(oe.p[2] - oe.P[0], oe.p[3] - oe.P[1]))
+        puntos.Translate(arrow, oe.P[0], oe.P[1])
+
+        GLplus.Triangles(arrow, gcd.GetGBColor(oE.Colour, oe.pLayer), oE.LineWidth, oE.LineType.index)
 
 
 
