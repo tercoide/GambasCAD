@@ -236,6 +236,7 @@ Public Sub Draw(oE As Entity)
     CurrentTextPosX = oE.p[0]
     CurrentTextPosY = oE.p[1]
     CurrentTextHeigth = oE.fParam[Me.ipaTextHeight]
+    CurrentTextBoxWidth = oE.fParam[Me.ipaRectangleWidth]
 
     If CurrentTextHeigth = 0 Then CurrentTextHeigth = 1
 
@@ -277,7 +278,9 @@ Public Sub Draw(oE As Entity)
     CurrentTextAngle = oE.fParam[Me.ipaTextAngle] * 180 / Pi
     CurrentTextColor = gcd.GetGBColor(oE.Colour, oe.pLayer)
 
-    'If InStr(oE.stringdata[0], "Cristia") > 0 Then Stop
+    If InStr(oE.stringdata[0], "C(1)") > 0 Then Stop
+
+    If InStr(oE.stringdata[0], "Madera Blanda ") > 0 Then Stop
 
     MyPolygon.Clear
     MyPolygon.insert([1e10, 1e10, -1e10, -1e10])
@@ -371,7 +374,7 @@ Public Sub ProcessText(RTF As String)
 
 End
 
-Public Sub ProcessPart(s As String)
+Public Function ProcessPart(s As String) As String
     ' aca viene lo que esta ente {}, sin esos simbolos
 
     Dim s2, sFont, s3, s4, sTab, sPrint As String
@@ -380,6 +383,9 @@ Public Sub ProcessPart(s As String)
 
     Dim angulo As Float, hText As New PaintExtents, lText As String
     Dim FontScalePrev As Float
+    Dim iSpace As Integer
+    Dim s5 As String
+    Dim stxWords As String[]
 
     s2 = s
 
@@ -536,7 +542,30 @@ Public Sub ProcessPart(s As String)
                 s4 = Utils.ProcessTabs(Mid(s2, 1, p2 - 1))
                 If CurrentTextFont <> "" Then glPlus.SelectFont(CurrentTextFont)
 
-                fRect = glPlus.TextExtends(s4, CurrentTextHeigth)
+                stxWords = Split(s4, " ")
+                For iSpace = 0 To stxWords.Max - 1
+                    stxWords[iSpace] &= " "
+                Next
+                If (CurrentTextBoxWidth > 0) And (stxWords.Count > 1) Then ' debo trimar
+                    iSpace = 0
+                    ' nuevo:  tengo que ver si no excede el ancho del rectangulo
+
+                    Do
+                        s5 &= stxWords[iSpace]
+                        fRect = glPlus.TextExtends(s5, CurrentTextHeigth)
+
+                        If fRect[0] < CurrentTextBoxWidth Then ' debo trimar
+                            Inc iSpace
+                        Else
+                            Break
+                        End If
+                    Loop Until iSpace = stxWords.Count
+                    s4 = Mid(s4, Len(s5))
+                Else
+                    s5 = s4
+                    fRect = glPlus.TextExtends(s5, CurrentTextHeigth)
+                    s4 = ""
+                End If
                 puntos.Rotate(fRect, CurrentTextAngle)
                 If Me.MyPolygon[0] > (CurrentTextPosX) Then Me.MyPolygon[0] = (CurrentTextPosX)
                 If Me.MyPolygon[1] > (CurrentTextPosY) Then Me.MyPolygon[1] = (CurrentTextPosY)
@@ -544,20 +573,50 @@ Public Sub ProcessPart(s As String)
                 If Me.MyPolygon[3] < (CurrentTextPosY + fRect[1]) Then Me.MyPolygon[3] = (CurrentTextPosY + fRect[1])
                 If CurrentTextAlignment = 1 Then CurrentTextPosX -= fRect[0] / 2
                 If CurrentTextAlignment = 2 Then CurrentTextPosX -= fRect[0]
-                glPlus.DrawText(s4, CurrentTextPosX, CurrentTextPosY, CurrentTextangle, CurrentTextHeigth, CurrentTextColor)
+                glPlus.DrawText(s5, CurrentTextPosX, CurrentTextPosY, CurrentTextangle, CurrentTextHeigth, CurrentTextColor)
                 CurrentTextPosX += fRect[0]
                 If Printing Then
-                    sPrint = s4
+                    sPrint = s5
                     GoSub PrintText2
                 End If
+                s2 = s4 & Mid(s2, p2)
+
                 ProcessPart(Mid(s2, p2))
             Else
 
                 s2 = Utils.ProcessTabs(s2)
-                If CurrentTextFont <> "" Then glPlus.SelectFont(CurrentTextFont)
-                'If Left(s2, 2) = "24" Then Stop
 
-                fRect = glPlus.TextExtends(s2, CurrentTextHeigth)
+                If CurrentTextFont <> "" Then glPlus.SelectFont(CurrentTextFont)
+                stxWords = Split(s2, " ")
+                For iSpace = 0 To stxWords.Max - 1
+                    stxWords[iSpace] &= " "
+                Next
+
+                If (CurrentTextBoxWidth > 0) And (stxWords.Count > 1) Then ' debo trimar
+
+
+
+                    'If Left(s2, 2) = "24" Then Stop
+                    iSpace = 0
+                    ' nuevo:  tengo que ver si no excede el ancho del rectangulo
+
+                    Do
+                        s5 &= stxWords[iSpace]
+                        fRect = glPlus.TextExtends(s5, CurrentTextHeigth)
+
+                        If fRect[0] < CurrentTextBoxWidth Then ' debo trimar
+                            Inc iSpace
+                        Else
+                            Break
+                        End If
+                    Loop Until iSpace = stxWords.Count
+                    s4 = Mid(s2, Len(s5))
+                Else
+                    s5 = s2
+                    fRect = glPlus.TextExtends(s5, CurrentTextHeigth)
+                    s4 = ""
+                End If
+
                 puntos.Rotate(fRect, CurrentTextAngle)
                 If Me.MyPolygon[0] > (CurrentTextPosX) Then Me.MyPolygon[0] = (CurrentTextPosX)
                 If Me.MyPolygon[1] > (CurrentTextPosY) Then Me.MyPolygon[1] = (CurrentTextPosY)
@@ -566,7 +625,12 @@ Public Sub ProcessPart(s As String)
                 If CurrentTextAlignment = 1 Then CurrentTextPosX -= fRect[0] / 2
                 If CurrentTextAlignment = 2 Then CurrentTextPosX -= fRect[0]
 
-                glPlus.DrawText(s2, CurrentTextPosX, CurrentTextPosY, CurrentTextAngle, CurrentTextHeigth, CurrentTextColor)
+                glPlus.DrawText(s5, CurrentTextPosX, CurrentTextPosY, CurrentTextAngle, CurrentTextHeigth, CurrentTextColor)
+                If Len(s4) > 0 Then
+                    CurrentTextPosY -= fRect[1]
+                    ProcessPart(s4)
+                End If
+
                 CurrentTextPosX += fRect[0]
                 If Printing Then
                     sPrint = s2
@@ -709,11 +773,13 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
         End If
         '        If sClaves[i] = "1" And sValues[i] Like "roman*" Then Stop
         If sClaves[i] = "1" Or sClaves[i] = "3" Then e.StringData[Me.sdaText] &= sValues[i]         ' Texto
+
         If sClaves[i] = "50" And Not TextAngleSet Then
             e.fParam[Me.ipaTextAngle] = CFloat(sValues[i])                                          ' rotacion
             TextAngleSet = True
         End If
         If sClaves[i] = "7" Then e.StringData[Me.sdaStyle] = sValues[i]                             ' texy
+        If sClaves[i] = "41" Then e.fParam[Me.ipaRectangleWidth] = CFloat(sValues[i])
         If sClaves[i] = "41" Then e.fParam[Me.ipaRectangleWidth] = CFloat(sValues[i])
         If sClaves[i] = "71" Then e.fParam[Me.ipaAttchmPoint] = CInt(sValues[i])
         If sClaves[i] = "72" Then e.fParam[Me.ipaDrawingDirec] = CFloat(sValues[i])
