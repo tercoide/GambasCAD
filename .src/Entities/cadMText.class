@@ -48,6 +48,7 @@ Private TextBold As New Boolean[]
 Private CurrentTextLines As String
 Private CurrentTextHeigth As Float
 Private CurrentTextPosX As Float
+Private OriginalTextPosX As Float
 Private CurrentTextBoxWidth As Float
 Private CurrentTextPosY As Float
 Private CurrentTextBoxHeight As Float
@@ -235,6 +236,7 @@ Public Sub Draw(oE As Entity)
     CurrentTextPosX = oE.p[0]
     CurrentTextPosY = oE.p[1]
     CurrentTextHeigth = oE.fParam[Me.ipaTextHeight]
+    CurrentTextBoxWidth = oE.fParam[Me.ipaRectangleWidth]
 
     If CurrentTextHeigth = 0 Then CurrentTextHeigth = 1
 
@@ -270,10 +272,15 @@ Public Sub Draw(oE As Entity)
 
     End Select
 
+    ' guardo
+    OriginalTextPosX = CurrentTextPosX
+
     CurrentTextAngle = oE.fParam[Me.ipaTextAngle] * 180 / Pi
     CurrentTextColor = gcd.GetGBColor(oE.Colour, oe.pLayer)
 
-    'If InStr(oE.stringdata[0], "Cristia") > 0 Then Stop
+    'If InStr(oE.Handle, "1C1DD12D") > 0 Then Stop
+    '
+    ' If InStr(oE.stringdata[0], "Madera Blanda ") > 0 Then Stop
 
     MyPolygon.Clear
     MyPolygon.insert([1e10, 1e10, -1e10, -1e10])
@@ -300,17 +307,46 @@ Public Sub ProcessText(RTF As String)
     ' TEXTO cualquiera
 
     ' busco lo que esta entre {}
-    Dim p1, p2 As Integer
+    Dim p1, p2, p3 As Integer
+    Dim sRemains, sToProcess As String
 
+    sRemains = rtf
+    If SRemains = "" Then Return
+    If Left$(sRemains, 1) = "}" Then                    '}more4}{more5}
+        ProcessText(Mid(sRemains, 2))
+        Return
+    Endif
     'Debug rtf
     'If InStr(LCase(rtf), "plano de instalacion electrica") > 0 Then Stop
+    'Do
     p1 = InStr(rtf, "{")
-    If p1 > 0 Then
-        p2 = InStr(rtf, "}")
-        ProcessPart(Mid(rtf, p1 + 1, p2 - p1 - 1))
+    If p1 > 1 Then                              'sToProcess{sRemains}{more{more here}}
+        sToProcess = Left$(sRemains, p1 - 1)
+        sRemains = Mid$(sRemains, p1)
+        ProcessPart(sToProcess)
+        ProcessText(sRemains)
+
     Else
-        ProcessPart(rtf)
+        p3 = InStr(rtf, "{", p1 + 1)
+        p2 = InStr(sRemains, "}")
+        If (p3 > 0) And (p3 > p2) Then          '{sRemains}{more{more here}}
+            sToProcess = Mid$(sRemains, 2, p2 - 2) 'sRemains
+            sRemains = Mid$(sRemains, p2 + 1)       '{more{more here}}
+            ProcessPart(sToProcess)
+            ProcessText(sRemains)
+
+        Else If p2 > 0 Then                                            '{more1{more here2{and more3}}more4}{more5}
+            sToProcess = Mid$(sRemains, 2, p2 - 2)     'more1
+            sRemains = Mid$(sRemains, p2 + 1)           'more here2{and more3}}more4}{more5}
+            ProcessPart(sToProcess)
+            ProcessText(sRemains)
+        Else
+            ProcessPart(sRemains)
+
+        Endif
+
     Endif
+    'Loop Until Len(sRemains) = 0
     ' Code   Description
     ' \L   Start underline
     ' \l   Stop underline
@@ -320,6 +356,9 @@ Public Sub ProcessText(RTF As String)
     ' \k   Stop strike-through
     ' \P   New paragraph (new line)
     ' \p   Paragraphs properties: indentation, alignment, tabulator stops
+    ' \pi \pxi \pxt    Control codes for bullets, numbered paragraphs, tab stops and columns - e.g. bullets: \pxi-3,l3,t3;, tab stops: \pxt10,t12;
+    ' \X    Paragraph wrap on the dimension line (only in dimensions)
+
     ' \X   Paragraph wrap on the dimension line (only in dimensions)
     ' \Q   Slanting (oblique) text by angle - e.g. \Q30;
     ' \H   Text height - e.g. relative \H3x; absolut \H3;
@@ -349,7 +388,56 @@ Public Sub ProcessText(RTF As String)
 
 End
 
-Public Sub ProcessPart(s As String)
+Public Sub ProcessText2(RTF As String)
+
+    ' busco lo que esta entre {} y anidaciones
+
+    Dim p1, p2 As Integer
+    Dim sRemains, sToProcess As String
+    Dim Abro, Cierro As New Integer[]
+    Dim stxEnviar As New String[]
+    Dim partes As Integer
+    Dim iAbro As Integer
+    Dim iCierro As Integer
+    Dim iProf As Integer
+
+    sRemains = rtf
+    'Debug rtf
+    'If InStr(LCase(rtf), "plano de instalacion electrica") > 0 Then Stop
+    p1 = 0
+    Do
+        p1 = InStr(rtf, "{", P1 + 1)
+        If p1 > 0 Then Abro.Add(p1)
+    Loop Until p1 = 0
+
+    p1 = 0
+    Do
+        p1 = InStr(rtf, "}", P1 + 1)
+        If p1 > 0 Then Cierro.Add(p1)
+    Loop Until p1 = 0
+
+    If Abro.Max <> Cierro.Max Then Stop
+
+    iAbro = 0
+    iCierro = 0
+    iProf = 0
+
+    If Abro.Count = 0 Then
+        ProcessPart(sRemains)
+    Endif
+
+    Do
+
+
+        If Abro[iAbro] > Cierro[iCierro] Then
+
+        Endif
+    Loop
+
+
+End
+
+Public Function ProcessPart(s As String) As String
     ' aca viene lo que esta ente {}, sin esos simbolos
 
     Dim s2, sFont, s3, s4, sTab, sPrint As String
@@ -358,6 +446,10 @@ Public Sub ProcessPart(s As String)
 
     Dim angulo As Float, hText As New PaintExtents, lText As String
     Dim FontScalePrev As Float
+    Dim iSpace As Integer
+    Dim s5 As String
+    Dim stxWords As String[]
+    Dim i4 As Integer
 
     s2 = s
 
@@ -419,6 +511,7 @@ Public Sub ProcessPart(s As String)
 
         Case "\\P"            ' New line
             CurrentTextPosY -= glPlus.TextExtends("XXX", CurrentTextHeigth)[1] * 1.2
+            CurrentTextPosX = OriginalTextPosX
             s2 = Mid(s2, 3)
             If Len(s2) > 0 Then ProcessPart(s2)
 
@@ -492,6 +585,8 @@ Public Sub ProcessPart(s As String)
             s2 = Mid(s2, p2 + 1)
             If Len(s2) > 0 Then ProcessPart(s2)
         Case Else ' es texto
+            ' test
+            If InStr(s2, "HALL") > 0 Then Stop
 
             ' es un texto, pero puede terminar en un scape
             p2 = InStr(s2, "\\")
@@ -513,7 +608,31 @@ Public Sub ProcessPart(s As String)
                 s4 = Utils.ProcessTabs(Mid(s2, 1, p2 - 1))
                 If CurrentTextFont <> "" Then glPlus.SelectFont(CurrentTextFont)
 
-                fRect = glPlus.TextExtends(s4, CurrentTextHeigth)
+                stxWords = Split(s4, " ")
+                For iSpace = 0 To stxWords.Max - 1
+                    stxWords[iSpace] &= " "
+                Next
+                If stxWords[stxWords.max] = "" Then stxWords.Remove(stxWords.Max)
+                If (CurrentTextBoxWidth > 0) And (stxWords.Count > 1) Then ' debo trimar
+                    iSpace = 0
+                    ' nuevo:  tengo que ver si no excede el ancho del rectangulo
+
+                    Do
+                        s5 &= stxWords[iSpace]
+                        fRect = glPlus.TextExtends(s5, CurrentTextHeigth)
+
+                        If fRect[0] < CurrentTextBoxWidth Then ' debo trimar
+                            Inc iSpace
+                        Else
+                            Break
+                        End If
+                    Loop Until iSpace = stxWords.Count
+                    s4 = Mid(s4, Len(s5))
+                Else
+                    s5 = s4
+                    fRect = glPlus.TextExtends(s5, CurrentTextHeigth)
+                    s4 = ""
+                End If
                 puntos.Rotate(fRect, CurrentTextAngle)
                 If Me.MyPolygon[0] > (CurrentTextPosX) Then Me.MyPolygon[0] = (CurrentTextPosX)
                 If Me.MyPolygon[1] > (CurrentTextPosY) Then Me.MyPolygon[1] = (CurrentTextPosY)
@@ -521,28 +640,81 @@ Public Sub ProcessPart(s As String)
                 If Me.MyPolygon[3] < (CurrentTextPosY + fRect[1]) Then Me.MyPolygon[3] = (CurrentTextPosY + fRect[1])
                 If CurrentTextAlignment = 1 Then CurrentTextPosX -= fRect[0] / 2
                 If CurrentTextAlignment = 2 Then CurrentTextPosX -= fRect[0]
-                glPlus.DrawText(s4, CurrentTextPosX, CurrentTextPosY, CurrentTextangle, CurrentTextHeigth, CurrentTextColor)
+                glPlus.DrawText(s5, CurrentTextPosX, CurrentTextPosY, CurrentTextangle, CurrentTextHeigth, CurrentTextColor)
+                CurrentTextPosX += fRect[0]
                 If Printing Then
-                    sPrint = s4
+                    sPrint = s5
                     GoSub PrintText2
                 End If
-                ProcessPart(Mid(s2, p2))
+                s2 = s4 & Mid(s2, p2)
+
+                ProcessPart(s2)
             Else
 
                 s2 = Utils.ProcessTabs(s2)
-                If CurrentTextFont <> "" Then glPlus.SelectFont(CurrentTextFont)
-                'If Left(s2, 2) = "24" Then Stop
 
-                fRect = glPlus.TextExtends(s2, CurrentTextHeigth)
+                If CurrentTextFont <> "" Then glPlus.SelectFont(CurrentTextFont)
+                stxWords = Split(s2, " ")
+                For iSpace = stxWords.Max To 0 Step -1
+                    If stxWords[iSpace] = "" Then stxWords.Remove(iSpace)
+                Next
+
+                For iSpace = 0 To stxWords.Max - 1
+                    If stxWords[iSpace] <> "" Then stxWords[iSpace] &= " "
+                Next
+                ' If stxWords[stxWords.max] = "" Then stxWords.Remove(stxWords.Max)
+
+                If (CurrentTextBoxWidth > 0) And (stxWords.Count > 1) Then ' debo trimar
+
+
+
+                    'If Left(s2, 2) = "24" Then Stop
+                    iSpace = 0
+                    ' nuevo:  tengo que ver si no excede el ancho del rectangulo
+
+                    Do
+                        s4 &= stxWords[iSpace]
+                        fRect = glPlus.TextExtends(s4, CurrentTextHeigth)
+
+                        If fRect[0] < CurrentTextBoxWidth Then ' debo trimar
+                            s5 = s4
+                            Inc iSpace
+                        Else
+                            Break
+                        End If
+                    Loop Until iSpace = stxWords.Count
+                    s4 = ""
+                    For i4 = iSpace To stxWords.max
+                        s4 &= stxWords[i4]
+
+                    Next
+
+                Else
+                    s5 = s2
+                    fRect = glPlus.TextExtends(s5, CurrentTextHeigth)
+                    s4 = ""
+                End If
+
                 puntos.Rotate(fRect, CurrentTextAngle)
                 If Me.MyPolygon[0] > (CurrentTextPosX) Then Me.MyPolygon[0] = (CurrentTextPosX)
                 If Me.MyPolygon[1] > (CurrentTextPosY) Then Me.MyPolygon[1] = (CurrentTextPosY)
                 If Me.MyPolygon[2] < (CurrentTextPosX + fRect[0]) Then Me.MyPolygon[2] = (CurrentTextPosX + fRect[0])
                 If Me.MyPolygon[3] < (CurrentTextPosY + fRect[1]) Then Me.MyPolygon[3] = (CurrentTextPosY + fRect[1])
+
                 If CurrentTextAlignment = 1 Then CurrentTextPosX -= fRect[0] / 2
                 If CurrentTextAlignment = 2 Then CurrentTextPosX -= fRect[0]
 
-                glPlus.DrawText(s2, CurrentTextPosX, CurrentTextPosY, CurrentTextAngle, CurrentTextHeigth, CurrentTextColor)
+                ' FIXME: cuando el texto esta formado por varias palabras que se procesan en ProcessPat anidadas, el
+                ' alinemaiento produce problemas porque se refiere a todo el texto y no a la parte
+
+                glPlus.DrawText(s5, CurrentTextPosX, CurrentTextPosY, CurrentTextAngle, CurrentTextHeigth, CurrentTextColor)
+                CurrentTextPosX += fRect[0]
+                If Len(s4) > 0 Then
+                    CurrentTextPosY -= fRect[1]
+                    ProcessPart(s4)
+                End If
+
+
                 If Printing Then
                     sPrint = s2
                     GoSub PrintText2
@@ -684,11 +856,13 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
         End If
         '        If sClaves[i] = "1" And sValues[i] Like "roman*" Then Stop
         If sClaves[i] = "1" Or sClaves[i] = "3" Then e.StringData[Me.sdaText] &= sValues[i]         ' Texto
+
         If sClaves[i] = "50" And Not TextAngleSet Then
             e.fParam[Me.ipaTextAngle] = CFloat(sValues[i])                                          ' rotacion
             TextAngleSet = True
         End If
         If sClaves[i] = "7" Then e.StringData[Me.sdaStyle] = sValues[i]                             ' texy
+        If sClaves[i] = "41" Then e.fParam[Me.ipaRectangleWidth] = CFloat(sValues[i])
         If sClaves[i] = "41" Then e.fParam[Me.ipaRectangleWidth] = CFloat(sValues[i])
         If sClaves[i] = "71" Then e.fParam[Me.ipaAttchmPoint] = CInt(sValues[i])
         If sClaves[i] = "72" Then e.fParam[Me.ipaDrawingDirec] = CFloat(sValues[i])

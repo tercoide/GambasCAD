@@ -611,6 +611,14 @@ Public Function Action_Activate(sAction As String) As Boolean
             gcd.EditEntities("linetype", gcd.currentDrawing.CurrLineType)
             clsEntities.DeSelection()
 
+        Case "grid"
+            Me.GridActive = Not Me.GridActive
+
+        Case "ortho"
+            gcd.Orthogonal = Not gcd.Orthogonal
+        Case "snap"
+            gcd.SnapMode = -gcd.SnapMode
+
     End Select
 
 End
@@ -781,13 +789,16 @@ Public Sub GLArea1_draw()
     ' glPlus.Triangles(ftring, Color.Red, Color.Red)
     '
     ' glPlus.Triangles(ftring2, Color.Blue, Color.blue)
-
-    If gcd.currentDrawing.HoveredEntity Then
+    ' en este momento le damos la posibilidad a la clase actuante a que dibuje lo que quiera
+    gcd.clsJob.Draw()
+    If gcd.currentDrawing.HoveredEntityPrevious Then
         ' si no esta seleccionada, la resalto
         'If Not arrEntities[iEntity[3]].Selected Then
         'iParent = clsEntities.GetParentBlock(gcd.currentDrawing.iEntity[3]) ' esto verifica si tiene que resaltar el bloque completo
 
-        gcd.currentDrawing.HoveredEntity.ClassHandler.DrawRemark(gcd.currentDrawing.HoveredEntity)
+        If gcd.DrawHoveredEntity Then
+            gcd.currentDrawing.HoveredEntityPrevious.ClassHandler.DrawRemark(gcd.currentDrawing.HoveredEntityPrevious)
+        End If
     End If
 
     DrawingAids.DrawCoordenadas
@@ -830,8 +841,7 @@ Public Sub GLArea1_draw()
         gcd.flgNewPosition = False
     End If
 
-    ' en este momento le damos la posibilidad a la clase actuante a que dibuje lo que quiera
-    gcd.clsJob.Draw()
+
 
 End
 
@@ -851,11 +861,34 @@ End
 
 Public Sub GLArea1_MouseMove()
 
+    Dim Xr, Yr As Float
+
+    Xr = gcd.Xreal(Mouse.x)
+    Yr = gcd.Yreal(Mouse.y)
+
     ' Universal:
+    gcd.clsJob.MouseMove()
 
-    Me.lblCoord.Text = Format(gcd.Xreal(Mouse.x), Config.FormatCoord) & " : " & Format(gcd.Yreal(Mouse.y), config.FormatInquiries)
+    Me.lblCoord.Text = Format(Xr, Config.FormatCoord) & " : " & Format(Yr, config.FormatInquiries)
 
-    If Mouse.Middle Then cadPan.MouseMove()
+    If Mouse.Middle Then
+        cadPan.MouseMove()
+    Else If Mouse.Left Then
+
+
+    Else If Mouse.Right Then
+
+
+    Else
+        gcd.currentDrawing.HoveredEntity = clsMouseTracking.CheckAboveEntity(Xr, Yr)
+        If gcd.currentDrawing.HoveredEntityPrevious <> gcd.currentDrawing.HoveredEntity Then
+            gcd.currentDrawing.HoveredEntityPrevious = gcd.currentDrawing.HoveredEntity
+            gcd.currentDrawing.HoveredEntity = Null
+            gcd.redraw
+        Endif
+
+    End If
+
 
     '   If gcd.clsJob.gender <> "Pan" Then
     '     gcd.clsJobPreZoom = gcd.clsJob
@@ -872,7 +905,8 @@ Public Sub GLArea1_MouseMove()
     '
     ' End If
 
-    gcd.clsJob.MouseMove()
+
+
 
 End
 
