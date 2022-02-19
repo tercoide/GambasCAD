@@ -410,6 +410,28 @@ Fast Unsafe Public Function Arc(Optional radio As Float, start_angle As Float, l
 
 End
 
+Fast Unsafe Public Function ArcPoly(Optional radio As Float, start_angle As Float, length As Float, Optional angle_increment As Float = Pi * 2 / 360) As Float[]
+
+    Dim theta As Float
+    Dim flxPoly As New Float[]
+    'double max_angle = 2 * Math.PI
+    'double angle_increment = Math.PI / 1000
+    'angle_increment = Pi * 2 / 360
+
+    ' verifico los angulos
+    ' If length < 0 Then angle_increment *= -1
+
+    For theta = 0 To length Step angle_increment
+
+        flxPoly.Add(radio * Cos(start_angle + theta))
+        flxPoly.Add(radio * Sin(start_angle + theta))
+
+    Next
+
+    Return flxPoly
+
+End
+
 Public Sub Arrow(fBase As Float[], fPunta As Float[], Optional colour As Integer = 0, LineWidth As Float = 1, Style As Integer = 0, ArrowSize As Integer = 0)
 
     ' Style: 0 = Simple lines, 1 = ...to do
@@ -1145,7 +1167,8 @@ End
 '' Devuelve una poly con el texto en el contexto actual de acuerdo a los parametros pasados
 '' Debe estar definida la Font con nombre y altura
 ''
-Fast Unsafe Public Function DrawTextPoly(UTFstring As String, posX As Float, posY As Float, Optional angle As Float = 0, textH As Float = 1, colour As Integer = -14, linewidth As Float = 1, rectW As Float = 0, rectH As Float = 0, alignHoriz As Integer = 0, alignVert As Integer = 0) As Float[]
+'Fast Unsafe
+Public Function DrawTextPoly(UTFstring As String, posX As Float, posY As Float, Optional angle As Float = 0, textH As Float = 1, colour As Integer = -14, linewidth As Float = 1, rectW As Float = 0, rectH As Float = 0, alignHoriz As Integer = 0, alignVert As Integer = 0) As Float[]
 
     Dim i, iii, i2, UTFcode, LetterIndex As Integer, Xadvance As Float
     Dim fArcParams As New Single[]
@@ -1154,15 +1177,18 @@ Fast Unsafe Public Function DrawTextPoly(UTFstring As String, posX As Float, pos
     Dim Ang, m1, m2, b, bx, by, mx, my, ang1, lt As Single
     Dim iBulge As Integer
 
-    ' gl.PushMatrix                                                               ' para evitar peleas, guardo la matriz de trnasformacion
+    Dim dX, dY As Float ' donde tengo el cursor
+    Dim flxArc, flxGlyps As New Float[]
+
+    ' gl.PushMatrix
     ' gl.Translatef(posX, posY, 0)
     ' gl.Rotatef(angle, 0, 0, 1)                                                  ' en grados
     ' gl.Scalef(textH * FontScale, textH * FontScale, 1)
-    If colour <> -14 Then Me.glColorRGB(colour)
     For i = 1 To String.Len(UTFstring)                                                 ' para cada letra
         UTFcode = String.Code(UTFstring, i)                                     ' obtengo el UTF code
         If UTFcode = 32 Then                                                    ' es un espacio
-            gl.Translatef(ActualFont.LetterSpacing, 0, 0)                       ' muevo el puntero a la siguiente posicion
+            'gl.Translatef(ActualFont.LetterSpacing, 0, 0)                       ' muevo el puntero a la siguiente posicion
+            dX += ActualFont.LetterSpacing
         Else
             ' DEPRE LetterIndex = GetCodeIndex(ActualFont, UTFcode)                     ' obtengo el indice de la letra
             If ActualFont.Letter.Exist(UTFcode) Then
@@ -1203,8 +1229,9 @@ Fast Unsafe Public Function DrawTextPoly(UTFstring As String, posX As Float, pos
                         fArcParams = puntos.Arc3Point(Glyps[i2 * 2], Glyps[i2 * 2 + 1], bx, by, Glyps[(i2 + 1) * 2], Glyps[(i2 + 1) * 2 + 1])
                         ' traslado el centro
 
-                        gl.Translatef(fArcParams[0], fArcParams[1], 0)
-
+                        'gl.Translatef(fArcParams[0], fArcParams[1], 0)
+                        dX += fArcParams[0]
+                        dY += fArcParams[1]
                         ' verifico Start_Angle y End_Angle (esta parte esta intimamente ligada a Arc3Point)
                         ' las combinaciones de angulos son diversas, Arc3Point puede no funcionar bien en otra circunstancia
 
@@ -1225,7 +1252,8 @@ Fast Unsafe Public Function DrawTextPoly(UTFstring As String, posX As Float, pos
 
                         If fArcParams[3] > fArcParams[4] Then Swap fArcParams[3], fArcParams[4]
 
-                        glPlus.Arc(fArcParams[2], fArcParams[3], fArcParams[4] - fArcParams[3], colour)
+                        flxArc = glPlus.ArcPoly(fArcParams[2], fArcParams[3], fArcParams[4] - fArcParams[3])
+
                         gl.Translatef(-fArcParams[0], -fArcParams[1], 0)
                         fArcParams = Null
 

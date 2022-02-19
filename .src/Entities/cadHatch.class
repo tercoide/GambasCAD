@@ -66,7 +66,7 @@ Public Function BuildGeometry(E As Entity, Optional density As Float)
 
     If LCase(e.StringData[Me.sdaPattern]) <> "solid" Then
 
-        FillEntityWithHatch2(e)
+        FillEntityWithHatch3(e)
 
     Else
 
@@ -262,7 +262,6 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
             For iLoop = 0 To LoopToRead - 1 'descubri que un Loop puede o no ser un area a rellenar distinta, a veces un Loop es un agujero de otro Loop
 
-
                 ' oNewPAth = e.pBlock.oBoundaryPath
                 ' 'e.pBlock.oBoundaryPath.Add(oNewPAth)
                 '
@@ -274,7 +273,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
                 i = dxf.ReadCode(92, sClaves, sValues, ByRef LoopType, i)
 
                 oNewPAth.Flag = LoopType
-                If i = True Then Stop
+                ' If i = True Then Stop
                 If (LoopType And 2) <> 2 Then ' otherwise is a polyline
                     Inc i
 
@@ -485,7 +484,6 @@ Public Function OverMe(e As Entity, Xr As Float, Yr As Float, tolerance As Float
 
     For Each oBound In e.pBlock.oBoundaryPath.Polylines
 
-
         If puntos.isInside(oBound, xr, yr) Then Return True
 
     Next
@@ -547,7 +545,6 @@ Public Sub MakeBorder2(oPath As Boundary)
 
             Case "Line"
 
-
                 If Not FirstPointSet Then
                     drwPath.Insert(eborder.P.Copy())
 
@@ -573,17 +570,21 @@ Public Sub MakeBorder2(oPath As Boundary)
                 drwPath.Add(drwPath[0])
                 drwPath.Add(drwPath[1])
             End If
-            ' ahora veo si tengo un a poly anterior
-            If oPath.Polylines.Count = 0 Then
-                oPath.Polylines.add(drwPath)
-            Else ' verifico que no sea un hueco
-                If puntos.isInside(oPath.Polylines[0], FirstX, FirstY) Then ' es un hueco
-                    oPath.Holes.Add(drwPath)
-                Else
-                    oPath.Polylines.add(drwPath)
-                Endif
+            ' ' ahora veo si tengo un a poly anterior
+            ' If oPath.Polylines.Count = 0 Then
+            '     oPath.Polylines.add(drwPath)
+            ' Else ' verifico que no sea un hueco
+            '     If puntos.isInside(oPath.Polylines[0], FirstX, FirstY) Then ' es un hueco
+            '         oPath.Holes.Add(drwPath)
+            '     Else
+            '         oPath.Polylines.add(drwPath)
+            '     Endif
+            '
+            ' Endif
 
-            Endif
+            '==============NEW=======================
+            oPath.Polylines.add(drwPath)
+
             drwPath = New Float[]
             FirstPointSet = False
             BoundaryGotClosed = False
@@ -591,6 +592,31 @@ Public Sub MakeBorder2(oPath As Boundary)
 
     Next
 
+    '========================NEW===========================
+    ' ahora ordeno los contornos
+
+    Dim Changes As Boolean = False
+    Dim i2 As Integer
+
+    ' incializo los indices
+    For i = 0 To oPath.Polylines.Max
+        oPath.Levels.add(1)
+    Next
+
+    Do
+        Changes = False
+        For i = 0 To oPath.Polylines.Max
+            For i2 = 0 To oPath.Polylines.Max
+                If i = i2 Then Continue
+                If puntos.isInsidePolygons(oPath.Polylines[i], oPath.Polylines[i2]) Then
+                    If Abs(oPath.Levels[i]) >= oPath.Levels[i2] Then
+                        Changes = True
+                        oPath.Levels[i] = (Abs(oPath.Levels[i2]) + 1) * -1 * Sgn(oPath.Levels[i2])
+                    Endif
+                Endif
+            Next
+        Next
+    Loop Until Not Changes
     Return
 
 End
@@ -658,7 +684,6 @@ Public Sub FillEntityWithHatch2(entToFill As Entity)
 
     'If entToFill.Handle = "FB66C" Then Stop
 
-
     MakeBorder2(oLoop)
 
     'If ((oloop.Flag And 1) = 1) Or (oloop.Flag = 0) Then ' es external, o sea lo que esta afuera de todo
@@ -696,8 +721,6 @@ Public Sub FillEntityWithHatch2(entToFill As Entity)
                 For Each flxContorno In oLoop.Polylines
                     ' este borde es nulo
                     If flxContorno.Count < 6 Then Continue
-
-
 
                     e.ClassHandler.scale(e, entToFill.fParam[cadHatch.ipaScale] * CorrectionScale, entToFill.fParam[cadHatch.ipaScale] * CorrectionScale)
 
@@ -748,7 +771,6 @@ Public Sub FillEntityWithHatch2(entToFill As Entity)
     ' DEFAULT: default boundary path
     ' As you will learn in the next sections, these are more the recommended usage type for the flags, but the fill algorithm doesn’t care much about that, for instance an OUTERMOST path doesn’t have to be inside the EXTERNAL path.
 
-
     ' limpio los huecos
     'Else If (oloop.Flag And 16) = 16 Then ' es outermost
     If oLoop.Holes.Count > 0 Then
@@ -776,14 +798,199 @@ Public Sub FillEntityWithHatch2(entToFill As Entity)
 
 End
 
+Public Sub FillEntityWithHatch3(entToFill As Entity)
+
+    ' Parametros de la entidad:
+
+    ' P[]:        son los puntos de la polilinea que define el contorno del sombreado
+    ' fParam[0]:  escala del sombreado
+    ' fParam[1]:  angulo
+    ' StringData[0]: nombre del patron del sombreado
+
+    Dim e As Entity
+    Dim fPAtternSide As Float
+    Dim iPatternNx, iPatternNy As Integer
+    Dim nx As Integer
+    Dim ny As Integer
+    Dim ie, i, i2 As Integer
+    Dim flxPatternLines, flxPatternLimits, flxPatternSquare, flxContorno, flxFirstPass, flxSecondPass As New Float[]
+    Dim iLoop As Integer
+    Dim enxPattern As New Collection
+    Dim cPattern As New Collection
+    Dim drwPattern As New Drawing
+    Dim enxPatternScaled As New Collection
+    Dim eBorder As Entity
+    Dim sPAtternFile As String
+    Dim oLoop As Boundary
+
+    ' este valor intenta commpensar un problema de compatibilidad entre DWG y DXF
+    ' para estar de acuerdo a LibreCAD, debe ser =1, pero algunos DWG se represetan
+    ' con una densidad de relleno menor (mas disperso el relleno)
+    Dim CorrectionScale As Float = 1 '0.01 ' 0.1
+    Dim level As Integer
+    Dim Hay As Boolean
+
+    sPAtternFile = entToFill.StringData[cadHatch.sdaPaternFile]
+
+    ' verifico si tengo el pattern
+    If Not Exist(sPAtternFile) Then ' lo reemplazo
+
+        sPAtternFile = gcd.dirResources &/ "patterns" &/ "ansi31.dxf"
+
+    End If
+
+    ' cargo el sombreado en un array auxiliar
+
+    Dxf.LoadFile(sPAtternFile, drwPattern, True, True, True) ' lo cargo
+    'gcd.DXFtoEntity(cPattern["ENTITIES"], enxPattern, True)
+    enxPattern = drwPattern.oEntities
+    ' necesito saber cuanto mide el contorno para aplicar la escala y multiplicar hasta cubrir todo el contorno
+
+    flxPatternLimits = clsEntities.ComputeLimits(enxPattern)
+
+    flxPatternSquare.Insert([flxPatternLimits[0]])
+
+    ' los patrones son cuadrados, computo el lado
+    fPatternSide = 100 ' flxPatternLimits[2] - flxPatternLimits[0]
+
+    If entToFill.fParam[cadHatch.ipaScale] = 0 Then
+        entToFill.fParam[cadHatch.ipaScale] = 1
+    Else
+        ''entToFill.fParam[cadHatch.ipaScale] /= 12  ' TODO: verificar esta escala
+    Endif
+
+    'For Each oLoop In entToFill.pBlock.oBoundaryPath
+
+    oloop = entToFill.pBlock.oBoundaryPath
+
+    'If entToFill.Handle = "FB66C" Then Stop
+
+    MakeBorder2(oLoop)
+
+    'If ((oloop.Flag And 1) = 1) Or (oloop.Flag = 0) Then ' es external, o sea lo que esta afuera de todo
+
+    If oloop.Polylines.Count = 0 Then Return
+
+    ' veo los limites del contorno exterior
+    Xmenor = 1e10
+    Ymenor = 1e10
+    Xmayor = -1e10
+    Ymayor = -1e10
+
+    For Each flxContorno In oloop.Polylines
+
+        GetBoundLimits2(flxContorno)
+    Next
+
+    ' vamos a mentir un poco
+    ' xmenor -= 1
+    ' ymenor -= 1
+    ' Xmayor += 1
+    ' ymayor += 1
+
+    ' Creo las lineas del pattern
+    ' determino el tamano nuevo del pattern
+    flxPatternLimits = clsEntities.ComputeLimits(enxPattern)
+
+    fPatternSide = flxPatternLimits[2] - flxPatternLimits[0]
+
+    ' achico el cuadrado post rotacion
+    flxPatternSquare = [flxPatternLimits[0] + fPAtternSide / 4, flxPatternLimits[1] + fPAtternSide / 4, flxPatternLimits[0] + fPAtternSide / 4, flxPatternLimits[3] - fPAtternSide / 4, flxPatternLimits[2] - fPAtternSide / 4, flxPatternLimits[3] - fPAtternSide / 4, flxPatternLimits[2] - fPAtternSide / 4, flxPatternLimits[1] + fPAtternSide / 4]
+    For Each e In enxPattern
+
+        e.ClassHandler.Rotate(e, entToFill.fParam[cadHatch.ipaRotation] / 180 * Pi)
+
+        ' e.ClassHandler.scale(e, entToFill.fParam[cadHatch.ipaScale] * CorrectionScale, entToFill.fParam[cadHatch.ipaScale] * CorrectionScale)
+        '
+
+        Select Case e.Gender
+            Case "Line", "LWPolyline"
+
+                ' nuevo: el contorno pueden ser varias polis, o sea con huecos
+
+                flxPatternLines.Insert(puntos.PolyPolyIntersection(e.p, flxPatternSquare))
+
+                ' this is test to see if the pattern is made correctly
+                'entToFill.PolyLine.Insert(e.p.Copy())
+
+            Case "Circle", "Arc", "Ellipse"
+                ' estas entidades deben dibujarse primero
+                e.ClassHandler.MakePolyline(e, 6)
+                flxPatternLines.Insert(puntos.PolyPolyIntersection(e.PolyLine, flxPatternSquare))
+        End Select
+
+    Next
+
+    puntos.Translate(flxPatternLines, -fPAtternSide / 4, -fPAtternSide / 4)
+
+    puntos.Scale(flxPatternLines, entToFill.fParam[cadHatch.ipaScale] * CorrectionScale, entToFill.fParam[cadHatch.ipaScale] * CorrectionScale)
+
+    ' cambio el valor del cuadrado del pattern al mas chico
+
+    fPAtternSide /= 2 / entToFill.fParam[cadHatch.ipaScale] / CorrectionScale
+
+    ' calculo cuantos patrones necesito
+    iPatternNx = (Xmayor - Xmenor) / fPAtternSide / entToFill.fParam[cadHatch.ipaScale] / CorrectionScale + 1
+    iPatternNy = (ymayor - ymenor) / fPAtternSide / entToFill.fParam[cadHatch.ipaScale] / CorrectionScale + 1
+
+    ' creo un array para el sombreado total  <---No mas
+
+    ' Muevo el pattern y filtro
+
+    For level = 1 To 100
+
+        Hay = False
+        For i = 0 To oLoop.Polylines.Max
+
+            If Abs(oloop.Levels[i]) = level Then
+                Hay = True
+                flxContorno = oloop.Polylines[i]
+                ' este borde es nulo
+                If flxContorno.Count < 6 Then Continue
+
+                If oloop.Levels[i] > 0 Then
+
+                    For nx = 0 To iPatternNx - 1
+                        For ny = 0 To iPatternNy - 1
+
+                            puntos.Translate(flxPatternLines, nx * fPAtternSide, ny * fPAtternSide)
+
+                            ' e.ClassHandler.translate(e, nx * fPAtternSide * entToFill.fParam[cadHatch.ipaScale] * CorrectionScale + Xmenor, ny * fPAtternSide * entToFill.fParam[cadHatch.ipaScale] * CorrectionScale + ymenor)
+
+                            entToFill.PolyLine.Insert(puntos.PolyPolyIntersection(flxPatternLines, flxContorno))
+                            ' Vuelvo a la posicion original
+
+                            puntos.Translate(flxPatternLines, -nx * fPAtternSide, -ny * fPAtternSide)
+
+                        Next
+                    Next
+
+                Else    ' corto en los huecos
+
+                    flxFirstPass.Clear
+
+                    flxFirstPass.Insert(entToFill.PolyLine.copy())
+
+                    entToFill.PolyLine.Clear
+
+                    For i2 = 0 To flxFirstPass.Max - 3 Step 4
+                        entToFill.PolyLine.Insert(puntos.LineholeIntersection(flxFirstPass.Copy(i2, 4), flxContorno))
+
+                    Next
+
+                End If
+            End If
+        Next
+
+        If Not hay Then Break
+
+    Next
+
+End
+
 Public Sub GetBoundLimits2(fxlPoints As Float[])
 
     Dim i As Integer
-
-
-
-
-
 
     For i = 0 To fxlPoints.max Step 2
 
