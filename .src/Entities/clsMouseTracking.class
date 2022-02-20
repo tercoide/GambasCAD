@@ -177,7 +177,7 @@ Public Sub CheckPOI(xr As Float, Yr As Float, Optional e As Entity) As Float[]
 
     tolerance = gcd.Metros(16)
     'Debug "Checking POI"
-
+    rdata.Insert([0, 0, 0])
     iPoligon = -1
     iLine = -1
 
@@ -196,312 +196,305 @@ Public Sub CheckPOI(xr As Float, Yr As Float, Optional e As Entity) As Float[]
     ' Me.flgSearchingPOI = False
     ' Return rdata
     'Debug "total poi check time ", Timer - t, gcd.CurrDrawing.poiPoligons.Count + gcd.CurrDrawing.poiLines.Count + gcd.CurrDrawing.poiPoints.Count, " points parsed"
+    e = gcd.currentDrawing.HoveredEntity
 
     If Not e Then
-
-        e = CheckAboveEntity(xr, yr, tolerance)
-    End If
-    ' If iLine > 0 Then e = gcd.CurrDrawing.arrEntities[gcd.CurrDrawing.poiLinesEntities[iLine]]
-    ' If iPoligon > 0 Then e = gcd.CurrDrawing.arrEntities[iPoligon]
-    rdata.Insert([0, 0, -1])
-
-    If e Then                                               ' ofrezco opciones de enganche
-        ' e = gcd.CurrentDrawing.oEntities[indexEntity]
-        'Debug "Encontrada entidad ", e.Gender, " en ", Timer - t
-
-        Select Case e.Gender
-
-            Case "Line"
-
-                ' perpendicular
-                If gcd.CurrentDrawing.LastPoint.max > 0 Then                     ' tengo un punto anterior
-
-                    If e.P[2] - e.P[0] <> 0 Then
-                        pend1 = (e.P[3] - e.P[1]) / (e.P[2] - e.P[0])
-                        base1 = e.P[1] - pend1 * e.P[0]                 ' Y = pend1 X + base1
-
-                        ' ecuacion de la recta perpendicular que pasa por el punto anterior
-                        If pend1 <> 0 Then
-                            pend2 = -1 / pend1
-                            base2 = gcd.CurrentDrawing.LastPoint[1] - pend2 * gcd.CurrentDrawing.LastPoint[0]
-
-                            ' necesito otro punto
-                            If gcd.CurrentDrawing.LastPoint[0] <> 0 Then
-                                puntoA.Add(0)
-                                puntoA.Add(base2)
-                            Else
-                                puntoA.Add(1)
-                                puntoA.Add(pend2 + base2)
-
-                            End If
-
-                            ' determino la interseccion de ambas
-                            puntoB = puntos.lineLineIntersection(gcd.CurrentDrawing.LastPoint, puntoA, [e.P[0], e.P[1]], [e.P[2], e.P[3]])
-                        Else ' la recta es horizontal
-
-                            puntoB.Add(gcd.CurrentDrawing.LastPoint[0])
-                            puntoB.Add(e.P[1])
-
-                        End If
-                    Else        ' la recta es vertical
-
-                        puntoB.Add(e.P[0])
-                        puntoB.Add(gcd.CurrentDrawing.LastPoint[1])
-
-                    End If
-
-                    ' veo si el punto b esta entre los extremos de la linea , aunque deberia estarlo!!!
-                    If puntos.onSegment(e.P[0], e.P[1], puntoB[0], puntoB[1], e.P[2], e.P[3]) Then
-
-                        ' determino la distancia al puntero para ofrecerlo como opcion de enganche
-                        DistPer = puntos.distancia(puntoB[0], puntoB[1], xr, yr)
-
-                    Endif
-                End If
-
-                ' busco tambien intersecciones
-                For Each e2 In gcd.CurrentDrawing.oVisibleEntities
-                    Select Case e2.Gender
-
-                        Case "Line"
-                            If puntos.doIntersect(e.P[0], e.P[1], e.P[2], e.P[3], e2.P[0], e2.P[1], e2.P[2], e2.P[3]) Then
-                                pInter = puntos.lineLineIntersection([e.P[0], e.P[1]], [e.P[2], e.P[3]], [e2.P[0], e2.P[1]], [e2.P[2], e2.P[3]])
-                                If pInter.Count > 0 Then ' puede no haber intersaeccion
-                                    DistInter = puntos.distancia(xr, yr, pInter[0], pInter[1])
-                                Else
-                                    DistInter = 10e10
-                                End If
-
-                            Endif
-
-                        Case "LWPolyline"
-
-                    End Select
-                Next
-
-            Case "Circle"
-                If gcd.CurrentDrawing.LastPoint.max > 0 Then                     ' tengo un punto anterior
-
-                    ' buscamos una tangente..
-
-                    ' Extraido de StackExchange
-                    ' #Data Section, change As You need #
-                    ' Cx, Cy = coordenadas del centro
-                    Dim Cx As Float = e.p[0]
-                    Dim Cy As Float = e.p[1]
-                    Dim tx, ty, t1x, t1y, t2x, t2y As Float
-                    Dim r As Float = e.fParam[0]
-
-                    Dim Px As Float = gcd.CurrentDrawing.LastPoint[0]
-                    Dim Py As Float = gcd.CurrentDrawing.LastPoint[1]
-
-                    Dim dx As Float = Px - Cx
-                    Dim dy As Float = Py - Cy
-                    Dim dxr As Float = -dy
-                    Dim dyr As Float = dx
-                    DistCenter = Sqr(dx ^ 2 + dy ^ 2)               ' y ya que estoy veo el Center
-
-                    If DistCenter >= r Then
-                        Dim rho As Float = r / DistCenter
-                        Dim ad As Float = rho ^ 2
-                        Dim bd As Float = rho * Sqr(1 - rho ^ 2)
-
-                        ' los puntos tangente
-                        T1x = Cx + ad * dx + bd * dxr
-                        T1y = Cy + ad * dy + bd * dyr
-                        T2x = Cx + ad * dx - bd * dxr
-                        T2y = Cy + ad * dy - bd * dyr
-
-                        If (DistCenter / r - 1) < 1E-8 Then
-                            'P is on the circumference
-                        Else    ' determino cual de las dos tangentes es la mas cercana
-
-                            If puntos.distancia(xr, yr, t1x, t1y) > puntos.distancia(xr, yr, t2x, t2y) Then
-                                Tx = T2x
-                                Ty = T2y
-                            Else
-                                Tx = T1x
-                                Ty = T1y
-
-                            Endif
-                            DistTang = puntos.distancia(xr, yr, tx, ty)
-                        End If
-                    Else ' esta dentro del circulo
-
-                        DistTang = 1e6
-                        ' No tangent Is Possible
-                    End If
-                End If
-
-                ' busco los quadrants
-                Dim qx, qy, q1, q2, q3, q4 As Float
-                q1 = puntos.distancia(e.P[0] - e.fParam[0], e.P[1], xr, yr)
-                q2 = puntos.distancia(e.P[0] + e.fParam[0], e.P[1], xr, yr)
-                q3 = puntos.distancia(e.P[0], e.P[1] - e.fParam[0], xr, yr)
-                q4 = puntos.distancia(e.P[0], e.P[1] + e.fParam[0], xr, yr)
-
-                DistQuad = 1e10
-                If DistQuad > q1 Then
-                    DistQuad = q1
-                    qx = e.P[0] - e.fParam[0]
-                    qy = e.P[1]
-                End If
-                If DistQuad > q2 Then
-                    DistQuad = q2
-                    qx = e.P[0] + e.fParam[0]
-                    qy = e.P[1]
-                End If
-                If DistQuad > q3 Then
-                    DistQuad = q3
-                    qx = e.P[0]
-                    qy = e.P[1] - e.fParam[0]
-                End If
-                If DistQuad > q4 Then
-                    DistQuad = q4
-                    qx = e.P[0]
-                    qy = e.P[1] + e.fParam[0]
-                End If
-
-        End Select
-
-        ' otros puntos
-        Select Case e.Gender
-            Case "Line"
-
-                DistEnd1 = puntos.distancia(e.P[0], e.P[1], xr, yr)
-
-                DistEnd2 = puntos.distancia(e.P[2], e.P[3], xr, yr)
-
-                DistMid = puntos.distancia((e.P[2] + e.P[0]) / 2, (e.P[3] + e.P[1]) / 2, xr, yr)
-                i = 0
-
-            Case "Text", "MText"
-
-                DistBase = puntos.distancia(e.P[0], e.P[1], xr, yr)
-
-            Case "Circle", "Ellipse", "Arc"
-
-                DistCenter = puntos.distancia(e.P[0], e.P[1], xr, yr)
-
-            Case "LWPolyline"
-                ' tengo que ver cual es el mas cercano
-
-                For i = 0 To e.P.count - 4 Step 2
-
-                    ' busco en que tramo estoy
-                    If puntos.doIntersect(xr - tolerance, Yr, Xr + tolerance, Yr, e.P[i + 0], e.P[i + 1], e.P[i + 2], e.P[i + 3]) Or puntos.doIntersect(xr, Yr - tolerance, Xr, Yr + tolerance, e.P[i + 0], e.P[i + 1], e.P[i + 2], e.P[i + 3]) Then
-
-                        DistEnd1 = puntos.distancia(e.P[i + 0], e.P[i + 1], xr, yr)
-                        'If DistEnd1 > DistEnd1B Then DistEnd1 = DistEnd1B
-
-                        DistEnd2 = puntos.distancia(e.P[i + 2], e.P[i + 3], xr, yr)
-                        'If DistEnd2 > DistEnd2B Then DistEnd2 = DistEnd2B
-
-                        DistMid = puntos.distancia((e.P[i + 2] + e.P[i + 0]) / 2, (e.P[i + 3] + e.P[i + 1]) / 2, xr, yr)
-                        'If DistMid > DistMidB Then DistMid = DistMidB
-                        Break
-                    End If
-                Next
-
-        End Select
-
-        ' veo cual es la opcion mas cercana al puntero
-
-        ' dist = Min(DistBase, DistCenter, DistEnd1, DistEnd2, DistMid, DistPer, DistQuad) ' NO FUNCIONA
-
-        If Dist > DistBase Then dist = DistBase
-        If Dist > DistCenter Then dist = DistCenter
-        If Dist > DistEnd1 Then dist = DistEnd1
-        If Dist > DistEnd2 Then dist = DistEnd2
-        If Dist > DistMid Then dist = DistMid
-        If Dist > DistPer Then dist = DistPer
-        If Dist > DistQuad Then dist = DistQuad
-        If Dist > DistTang Then dist = DistTang
-        If Dist > DistInter Then dist = DistInter
-
-        ' ofrezco ese punto
-        If dist = DistEnd1 Then
-            rData[0] = e.P[i + 0]
-            rData[1] = e.P[i + 1]
-            rData[2] = gcd.poiEndPoint
-            DrawingAids.Helper.texto = "EndPoint"
-        End If
-
-        ' ofrezco ese punto
-        If dist = DistEnd2 Then
-            rData[0] = e.P[i + 2]
-            rData[1] = e.P[i + 3]
-            rData[2] = gcd.poiEndPoint
-            DrawingAids.Helper.texto = "EndPoint"
-        End If
-
-        ' ofrezco ese punto
-        If dist = DistMid Then
-            rData[0] = (e.P[i + 2] + e.P[i + 0]) / 2
-            rData[1] = (e.P[i + 3] + e.P[i + 1]) / 2
-            rData[2] = gcd.poiMidPoint
-            DrawingAids.Helper.texto = "MidPoint"
-        End If
-
-        ' ofrezco ese punto
-        If dist = DistInter Then
-            rData[0] = pInter[0]
-            rData[1] = pInter[1]
-            rData[2] = gcd.poiIntersection
-            DrawingAids.Helper.texto = "Intersection"
-        End If
-
-        ' ofrezco ese punto
-        If dist = DistPer Then
-
-            rData[0] = puntoB[0]
-            rData[1] = puntoB[1]
-            rData[2] = gcd.poiPerpendicular
-            DrawingAids.Helper.texto = "Perpendicular"
-        End If
-
-        If dist = DistTang Then
-
-            rData[0] = tx
-            rData[1] = ty
-            rData[2] = gcd.poiTangent
-            DrawingAids.Helper.texto = "Tangent"
-        End If
-
-        If dist = DistCenter Then
-
-            rData[0] = e.p[0]
-            rData[1] = e.p[1]
-            rData[2] = gcd.poiCenter
-            DrawingAids.Helper.texto = "Center"
-        End If
-
-        If dist = DistQuad Then
-            rData[0] = qx
-            rData[1] = qy
-            rData[2] = gcd.poiQuadrant
-            DrawingAids.Helper.texto = "Quadrant"
-        End If
-
-        If dist = DistBase Then
-            rData[0] = e.P[0]
-            rData[1] = e.P[1]
-            rData[2] = gcd.poiBasePoint
-            DrawingAids.Helper.texto = "BasePoint"
-        End If
-
-        rData[3] = indexEntity
-
-    Else
-        'Debug "Sin POI", Timer - t
+        gcd.flgSearchingPOI = False
         DrawingAids.Helper.texto = ""
         rData[0] = xr
         rData[1] = yr
-        rData[2] = -1
+        rData[2] = 0
 
         gcd.currentDrawing.eLastEntity = Null
 
+        Return rdata
     End If
+    ' If iLine > 0 Then e = gcd.CurrDrawing.arrEntities[gcd.CurrDrawing.poiLinesEntities[iLine]]
+    ' If iPoligon > 0 Then e = gcd.CurrDrawing.arrEntities[iPoligon]
+
+    'Debug "Encontrada entidad ", e.Gender, " en ", Timer - t
+
+    Select Case e.Gender
+
+        Case "Line"
+
+            ' perpendicular
+            If gcd.CurrentDrawing.LastPoint.max > 0 Then                     ' tengo un punto anterior
+
+                If e.P[2] - e.P[0] <> 0 Then
+                    pend1 = (e.P[3] - e.P[1]) / (e.P[2] - e.P[0])
+                    base1 = e.P[1] - pend1 * e.P[0]                 ' Y = pend1 X + base1
+
+                    ' ecuacion de la recta perpendicular que pasa por el punto anterior
+                    If pend1 <> 0 Then
+                        pend2 = -1 / pend1
+                        base2 = gcd.CurrentDrawing.LastPoint[1] - pend2 * gcd.CurrentDrawing.LastPoint[0]
+
+                        ' necesito otro punto
+                        If gcd.CurrentDrawing.LastPoint[0] <> 0 Then
+                            puntoA.Add(0)
+                            puntoA.Add(base2)
+                        Else
+                            puntoA.Add(1)
+                            puntoA.Add(pend2 + base2)
+
+                        End If
+
+                        ' determino la interseccion de ambas
+                        puntoB = puntos.lineLineIntersection(gcd.CurrentDrawing.LastPoint, puntoA, [e.P[0], e.P[1]], [e.P[2], e.P[3]])
+                    Else ' la recta es horizontal
+
+                        puntoB.Add(gcd.CurrentDrawing.LastPoint[0])
+                        puntoB.Add(e.P[1])
+
+                    End If
+                Else        ' la recta es vertical
+
+                    puntoB.Add(e.P[0])
+                    puntoB.Add(gcd.CurrentDrawing.LastPoint[1])
+
+                End If
+
+                ' veo si el punto b esta entre los extremos de la linea , aunque deberia estarlo!!!
+                If puntos.onSegment(e.P[0], e.P[1], puntoB[0], puntoB[1], e.P[2], e.P[3]) Then
+
+                    ' determino la distancia al puntero para ofrecerlo como opcion de enganche
+                    DistPer = puntos.distancia(puntoB[0], puntoB[1], xr, yr)
+
+                Endif
+            End If
+
+            ' busco tambien intersecciones
+            For Each e2 In gcd.CurrentDrawing.oVisibleEntities
+                Select Case e2.Gender
+
+                    Case "Line"
+                        If puntos.doIntersect(e.P[0], e.P[1], e.P[2], e.P[3], e2.P[0], e2.P[1], e2.P[2], e2.P[3]) Then
+                            pInter = puntos.lineLineIntersection([e.P[0], e.P[1]], [e.P[2], e.P[3]], [e2.P[0], e2.P[1]], [e2.P[2], e2.P[3]])
+                            If pInter.Count > 0 Then ' puede no haber intersaeccion
+                                DistInter = puntos.distancia(xr, yr, pInter[0], pInter[1])
+                            Else
+                                DistInter = 10e10
+                            End If
+
+                        Endif
+
+                    Case "LWPolyline"
+
+                End Select
+            Next
+
+        Case "Circle"
+            If gcd.CurrentDrawing.LastPoint.max > 0 Then                     ' tengo un punto anterior
+
+                ' buscamos una tangente..
+
+                ' Extraido de StackExchange
+                ' #Data Section, change As You need #
+                ' Cx, Cy = coordenadas del centro
+                Dim Cx As Float = e.p[0]
+                Dim Cy As Float = e.p[1]
+                Dim tx, ty, t1x, t1y, t2x, t2y As Float
+                Dim r As Float = e.fParam[0]
+
+                Dim Px As Float = gcd.CurrentDrawing.LastPoint[0]
+                Dim Py As Float = gcd.CurrentDrawing.LastPoint[1]
+
+                Dim dx As Float = Px - Cx
+                Dim dy As Float = Py - Cy
+                Dim dxr As Float = -dy
+                Dim dyr As Float = dx
+                DistCenter = Sqr(dx ^ 2 + dy ^ 2)               ' y ya que estoy veo el Center
+
+                If DistCenter >= r Then
+                    Dim rho As Float = r / DistCenter
+                    Dim ad As Float = rho ^ 2
+                    Dim bd As Float = rho * Sqr(1 - rho ^ 2)
+
+                    ' los puntos tangente
+                    T1x = Cx + ad * dx + bd * dxr
+                    T1y = Cy + ad * dy + bd * dyr
+                    T2x = Cx + ad * dx - bd * dxr
+                    T2y = Cy + ad * dy - bd * dyr
+
+                    If (DistCenter / r - 1) < 1E-8 Then
+                        'P is on the circumference
+                    Else    ' determino cual de las dos tangentes es la mas cercana
+
+                        If puntos.distancia(xr, yr, t1x, t1y) > puntos.distancia(xr, yr, t2x, t2y) Then
+                            Tx = T2x
+                            Ty = T2y
+                        Else
+                            Tx = T1x
+                            Ty = T1y
+
+                        Endif
+                        DistTang = puntos.distancia(xr, yr, tx, ty)
+                    End If
+                Else ' esta dentro del circulo
+
+                    DistTang = 1e6
+                    ' No tangent Is Possible
+                End If
+            End If
+
+            ' busco los quadrants
+            Dim qx, qy, q1, q2, q3, q4 As Float
+            q1 = puntos.distancia(e.P[0] - e.fParam[0], e.P[1], xr, yr)
+            q2 = puntos.distancia(e.P[0] + e.fParam[0], e.P[1], xr, yr)
+            q3 = puntos.distancia(e.P[0], e.P[1] - e.fParam[0], xr, yr)
+            q4 = puntos.distancia(e.P[0], e.P[1] + e.fParam[0], xr, yr)
+
+            DistQuad = 1e10
+            If DistQuad > q1 Then
+                DistQuad = q1
+                qx = e.P[0] - e.fParam[0]
+                qy = e.P[1]
+            End If
+            If DistQuad > q2 Then
+                DistQuad = q2
+                qx = e.P[0] + e.fParam[0]
+                qy = e.P[1]
+            End If
+            If DistQuad > q3 Then
+                DistQuad = q3
+                qx = e.P[0]
+                qy = e.P[1] - e.fParam[0]
+            End If
+            If DistQuad > q4 Then
+                DistQuad = q4
+                qx = e.P[0]
+                qy = e.P[1] + e.fParam[0]
+            End If
+
+    End Select
+
+    ' otros puntos
+    Select Case e.Gender
+        Case "Line"
+
+            DistEnd1 = puntos.distancia(e.P[0], e.P[1], xr, yr)
+
+            DistEnd2 = puntos.distancia(e.P[2], e.P[3], xr, yr)
+
+            DistMid = puntos.distancia((e.P[2] + e.P[0]) / 2, (e.P[3] + e.P[1]) / 2, xr, yr)
+            i = 0
+
+        Case "Text", "MText"
+
+            DistBase = puntos.distancia(e.P[0], e.P[1], xr, yr)
+
+        Case "Circle", "Ellipse", "Arc"
+
+            DistCenter = puntos.distancia(e.P[0], e.P[1], xr, yr)
+
+        Case "LWPolyline"
+            ' tengo que ver cual es el mas cercano
+
+            For i = 0 To e.P.count - 4 Step 2
+
+                ' busco en que tramo estoy
+                If puntos.doIntersect(xr - tolerance, Yr, Xr + tolerance, Yr, e.P[i + 0], e.P[i + 1], e.P[i + 2], e.P[i + 3]) Or puntos.doIntersect(xr, Yr - tolerance, Xr, Yr + tolerance, e.P[i + 0], e.P[i + 1], e.P[i + 2], e.P[i + 3]) Then
+
+                    DistEnd1 = puntos.distancia(e.P[i + 0], e.P[i + 1], xr, yr)
+                    'If DistEnd1 > DistEnd1B Then DistEnd1 = DistEnd1B
+
+                    DistEnd2 = puntos.distancia(e.P[i + 2], e.P[i + 3], xr, yr)
+                    'If DistEnd2 > DistEnd2B Then DistEnd2 = DistEnd2B
+
+                    DistMid = puntos.distancia((e.P[i + 2] + e.P[i + 0]) / 2, (e.P[i + 3] + e.P[i + 1]) / 2, xr, yr)
+                    'If DistMid > DistMidB Then DistMid = DistMidB
+                    Break
+                End If
+            Next
+
+    End Select
+
+    ' veo cual es la opcion mas cercana al puntero
+
+    ' dist = Min(DistBase, DistCenter, DistEnd1, DistEnd2, DistMid, DistPer, DistQuad) ' NO FUNCIONA
+
+    If Dist > DistBase Then dist = DistBase
+    If Dist > DistCenter Then dist = DistCenter
+    If Dist > DistEnd1 Then dist = DistEnd1
+    If Dist > DistEnd2 Then dist = DistEnd2
+    If Dist > DistMid Then dist = DistMid
+    If Dist > DistPer Then dist = DistPer
+    If Dist > DistQuad Then dist = DistQuad
+    If Dist > DistTang Then dist = DistTang
+    If Dist > DistInter Then dist = DistInter
+
+    ' ofrezco ese punto
+    If dist = DistEnd1 Then
+        rData[0] = e.P[i + 0]
+        rData[1] = e.P[i + 1]
+        rData[2] = gcd.poiEndPoint
+        DrawingAids.Helper.texto = "EndPoint"
+    End If
+
+    ' ofrezco ese punto
+    If dist = DistEnd2 Then
+        rData[0] = e.P[i + 2]
+        rData[1] = e.P[i + 3]
+        rData[2] = gcd.poiEndPoint
+        DrawingAids.Helper.texto = "EndPoint"
+    End If
+
+    ' ofrezco ese punto
+    If dist = DistMid Then
+        rData[0] = (e.P[i + 2] + e.P[i + 0]) / 2
+        rData[1] = (e.P[i + 3] + e.P[i + 1]) / 2
+        rData[2] = gcd.poiMidPoint
+        DrawingAids.Helper.texto = "MidPoint"
+    End If
+
+    ' ofrezco ese punto
+    If dist = DistInter Then
+        rData[0] = pInter[0]
+        rData[1] = pInter[1]
+        rData[2] = gcd.poiIntersection
+        DrawingAids.Helper.texto = "Intersection"
+    End If
+
+    ' ofrezco ese punto
+    If dist = DistPer Then
+
+        rData[0] = puntoB[0]
+        rData[1] = puntoB[1]
+        rData[2] = gcd.poiPerpendicular
+        DrawingAids.Helper.texto = "Perpendicular"
+    End If
+
+    If dist = DistTang Then
+
+        rData[0] = tx
+        rData[1] = ty
+        rData[2] = gcd.poiTangent
+        DrawingAids.Helper.texto = "Tangent"
+    End If
+
+    If dist = DistCenter Then
+
+        rData[0] = e.p[0]
+        rData[1] = e.p[1]
+        rData[2] = gcd.poiCenter
+        DrawingAids.Helper.texto = "Center"
+    End If
+
+    If dist = DistQuad Then
+        rData[0] = qx
+        rData[1] = qy
+        rData[2] = gcd.poiQuadrant
+        DrawingAids.Helper.texto = "Quadrant"
+    End If
+
+    If dist = DistBase Then
+        rData[0] = e.P[0]
+        rData[1] = e.P[1]
+        rData[2] = gcd.poiBasePoint
+        DrawingAids.Helper.texto = "BasePoint"
+    End If
+
     ' Debug "pois checked"
     gcd.flgSearchingPOI = False
     gcd.currentDrawing.eLastEntity = e
