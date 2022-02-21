@@ -59,6 +59,7 @@ Private CurrentTextItalic As Boolean
 Private CurrentTextCrossed As Boolean
 Private CurrentTextAngle As Float
 Private CurrentTextColor As Integer
+Private NewLine As Boolean
 
 Private LastTextLengh As Integer
 
@@ -310,6 +311,7 @@ Public Sub ProcessText(RTF As String)
     Dim p1, p2, p3 As Integer
     Dim sRemains, sToProcess As String
 
+    NewLine = True
     sRemains = rtf
     If SRemains = "" Then Return
     If Left$(sRemains, 1) = "}" Then                    '}more4}{more5}
@@ -323,6 +325,7 @@ Public Sub ProcessText(RTF As String)
     If p1 > 1 Then                              'sToProcess{sRemains}{more{more here}}
         sToProcess = Left$(sRemains, p1 - 1)
         sRemains = Mid$(sRemains, p1)
+
         ProcessPart(sToProcess)
         ProcessText(sRemains)
 
@@ -332,15 +335,18 @@ Public Sub ProcessText(RTF As String)
         If (p3 > 0) And (p3 > p2) Then          '{sRemains}{more{more here}}
             sToProcess = Mid$(sRemains, 2, p2 - 2) 'sRemains
             sRemains = Mid$(sRemains, p2 + 1)       '{more{more here}}
+
             ProcessPart(sToProcess)
             ProcessText(sRemains)
 
         Else If p2 > 0 Then                                            '{more1{more here2{and more3}}more4}{more5}
             sToProcess = Mid$(sRemains, 2, p2 - 2)     'more1
             sRemains = Mid$(sRemains, p2 + 1)           'more here2{and more3}}more4}{more5}
+
             ProcessPart(sToProcess)
             ProcessText(sRemains)
         Else
+
             ProcessPart(sRemains)
 
         Endif
@@ -510,6 +516,7 @@ Public Function ProcessPart(s As String) As String
         Case "\\P"            ' New line
             CurrentTextPosY -= glPlus.TextExtends("XXX", CurrentTextHeigth)[1] * 1.2
             CurrentTextPosX = OriginalTextPosX
+            NewLine = True
             s2 = Mid(s2, 3)
             If Len(s2) > 0 Then ProcessPart(s2)
 
@@ -634,9 +641,14 @@ Public Function ProcessPart(s As String) As String
                 If Me.MyPolygon[1] > (CurrentTextPosY) Then Me.MyPolygon[1] = (CurrentTextPosY)
                 If Me.MyPolygon[2] < (CurrentTextPosX + fRect[0]) Then Me.MyPolygon[2] = (CurrentTextPosX + fRect[0])
                 If Me.MyPolygon[3] < (CurrentTextPosY + fRect[1]) Then Me.MyPolygon[3] = (CurrentTextPosY + fRect[1])
-                If CurrentTextAlignment = 1 Then CurrentTextPosX -= fRect[0] / 2
-                If CurrentTextAlignment = 2 Then CurrentTextPosX -= fRect[0]
+                ' el problema que tengo es que aca veces entro a esta Sub varias veces en la misma linea, y lo que sigue fuciona mal porque encima los textos
+                If NewLine Then
+
+                    If CurrentTextAlignment = 1 Then CurrentTextPosX -= fRect[0] / 2
+                    If CurrentTextAlignment = 2 Then CurrentTextPosX -= fRect[0]
+                End If
                 glPlus.DrawText(s5, CurrentTextPosX, CurrentTextPosY, CurrentTextangle, CurrentTextHeigth, CurrentTextColor)
+                NewLine = False
                 CurrentTextPosX += fRect[0]
                 If Printing Then
                     sPrint = s5
@@ -694,14 +706,15 @@ Public Function ProcessPart(s As String) As String
                 If Me.MyPolygon[1] > (CurrentTextPosY) Then Me.MyPolygon[1] = (CurrentTextPosY)
                 If Me.MyPolygon[2] < (CurrentTextPosX + fRect[0]) Then Me.MyPolygon[2] = (CurrentTextPosX + fRect[0])
                 If Me.MyPolygon[3] < (CurrentTextPosY + fRect[1]) Then Me.MyPolygon[3] = (CurrentTextPosY + fRect[1])
-
-                If CurrentTextAlignment = 1 Then CurrentTextPosX -= fRect[0] / 2
-                If CurrentTextAlignment = 2 Then CurrentTextPosX -= fRect[0]
-
+                If NewLine Then
+                    If CurrentTextAlignment = 1 Then CurrentTextPosX -= fRect[0] / 2
+                    If CurrentTextAlignment = 2 Then CurrentTextPosX -= fRect[0]
+                End If
                 ' FIXME: cuando el texto esta formado por varias palabras que se procesan en ProcessPat anidadas, el
                 ' alinemaiento produce problemas porque se refiere a todo el texto y no a la parte
 
                 glPlus.DrawText(s5, CurrentTextPosX, CurrentTextPosY, CurrentTextAngle, CurrentTextHeigth, CurrentTextColor)
+                NewLine = False
                 CurrentTextPosX += fRect[0]
                 If Len(s4) > 0 Then
                     CurrentTextPosY -= fRect[1]
