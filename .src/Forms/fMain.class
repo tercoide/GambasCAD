@@ -187,149 +187,6 @@ Public Sub SetButtonPics(padre As Object, Optional sSvgPath As String = "")
 
 End
 
-Public Sub printer1_Begin()
-
-    Printer1.Count = 1
-    gcd.debuginfo("Printing")
-
-End
-
-Public Sub printer1_End()
-
-
-    gcd.debuginfo("Print done")
-
-End
-
-
-Public Sub Printer1_Draw()
-
-    Dim i As Integer
-    Dim flxLimits As New Float[]
-    Dim scaleX, scaleY As Float
-    Dim PSY As PrintStyle
-
-    '  Dim jPrint As New JSONCollection
-    PSY = gcd.currentDrawing.CurrPrintStyle
-    Printer1.FullPage = True
-
-    ' DETERMINO LO QUE HAY QUE IMPRIMIR
-    If PSY.PrintArea = 0 Then ' all drawing
-
-        flxLimits = clsEntities.ComputeLimits(gcd.currentDrawing.oEntities)
-
-        PSY.PrintAreaX0 = flxLimits[0]
-        PSY.PrintAreaY0 = flxLimits[1]
-        PSY.PrintAreaX1 = flxLimits[2]
-        PSY.PrintAreaY1 = flxLimits[3]
-
-    Else If PSY.PrintArea = 1 Then ' viewport
-
-        PSY.PrintAreaX0 = gcd.Xreal(0)
-        PSY.PrintAreaY0 = gcd.Yreal(0)
-        PSY.PrintAreaX1 = gcd.Xreal(Me.GLArea1.Width)
-        PSY.PrintAreaY1 = gcd.Yreal(Me.GLArea1.h)
-
-    Else
-
-        ' nada porque ya estan seteados
-
-    End If
-
-
-
-    ' '==============================TEST 1==========================================
-    ' ' De no mediar escalado y centrado, la impresion ocurrente entre
-    '
-    ' '   0,0 +-------------------------------+
-    ' '       |                               |
-    ' '       |                               |
-    ' '       |                               |
-    ' '       |                               |
-    ' '       |                               |
-    ' '       +-------------------------------+ Paint.W, Paint.H (ambos positivos)
-    '
-    ' '   Pero en OpenGL (y por ende las coordenadas de los dibujos)
-    ' '       +-------------------------------+ Xmax,Ymax
-    ' '       |                               |
-    ' '       |                               |
-    ' '       |                               |
-    ' '       |                               |
-    ' '       |               x1,y1-----x2,y2 |
-    ' '       +-------------------------------+
-    '
-
-    '==============================ACTUAL PRINT==========================================
-
-    Paint.Reset ' vuelvo escalas y traslados a cero
-
-    ' APLICO LA ESCALA
-
-    If PSY.PrintScale = -1 Then ' fit to page
-
-        Paint.Translate(Paint.W / 2, Paint.H / 2) ' centro el dibujo
-        ' trato de meter centrado
-        If (PSY.PrintAreaX1 - PSY.PrintAreaX0) > 1e-10 Then scaleX = Paint.w / (PSY.PrintAreaX1 - PSY.PrintAreaX0) Else scaleX = 1e10
-        If (PSY.PrintAreaY1 - PSY.PrintAreaY0) > 1e-10 Then scaleY = Paint.H / (PSY.PrintAreaY1 - PSY.PrintAreaY0) Else scaleY = 1e10
-
-        If ScaleX < ScaleY Then gcd.PrintingScale = ScaleX Else gcd.PrintingScale = Scaley
-        Paint.Scale(gcd.PrintingScale * 0.85, -gcd.PrintingScale * 0.85)
-
-        ' centro el dibujo
-        Paint.Translate(-(PSY.PrintAreaX1 + PSY.PrintAreaX0) / 2, -(PSY.PrintAreaY1 + PSY.PrintAreaY0) / 2)
-    Else ' tengo que aplicar cierta escala y ciertos margenes
-
-        ' primero aplico la escala
-        gcd.PrintingScale = PSY.PrintScale
-        Paint.Scale(gcd.PrintingScale, -gcd.PrintingScale)
-
-        ' ahora los margenes solicitados
-        If PSY.CenteringStyle = 0 Then 'custom
-            Paint.Translate(PSY.PrintOffsetX * gcd.PrintingScale, PSY.PrintOffsetY * gcd.PrintingScale)
-        Else If PSY.CenteringStyle = 1 Then ' top left
-            Paint.Translate(-PSY.PrintAreaX0 * gcd.PrintingScale, -PSY.PrintAreaY0 * gcd.PrintingScale)
-
-        Else If PSY.CenteringStyle = 2 Then ' centered
-            'Paint.Translate(-(PSY.PrintAreaX1 + PSY.PrintAreaX0) / 2 * gcd.PrintingScale, -(PSY.PrintAreaY1 + PSY.PrintAreaY0) / 2 * gcd.PrintingScale)
-            Paint.Translate(-(PSY.PrintAreaX1 + PSY.PrintAreaX0) / 2, -(PSY.PrintAreaY1 + PSY.PrintAreaY0) / 2)
-
-        Endif
-
-
-
-    End If
-
-    Dim L As Layer, E, E2 As Entity
-    For Each L In gcd.currentDrawing.oLayers
-        If L.Visible Then
-            For Each E2 In L.Entities
-                If Not e2.Visible Then Continue
-                If PSY.PrintArea <> 0 Then E = clsEntities.TrimmedEntity(E2, PSY.PrintAreaX0, PSY.PrintAreaY0, PSY.PrintAreaX1, PSY.PrintAreaY1) Else e = e2
-                If IsNull(e) Then Continue
-                If e.LineWidth = 0 Then e.LineWidth = 1
-                ' If jPrint.Exist("Monochrome") Then
-                '   If jPrint["Monochrome"] Then
-                '     e.colour = 255
-                '   Endif
-                ' Endif
-                Paint.Brush = Paint.Color(Color.Black)
-
-                ' TODO: aplicar las puntas segun color de la entidad
-                Paint.LineWidth = e.LineWidth / gcd.PrintingScale
-                Paint.Save  ' guardamos la matriz de transformacion por si la entidad la modifica
-                If InStr("Text MText Attrib Attdef", e.Gender) Then
-                    paint.Font.Size = Abs(e.fParam[cadText.ipaTextHeight] / gcd.PrintingScale * 2)   ' TODO: verificar
-                End If
-
-                e.ClassHandler.draw2(e)
-                Paint.Restore ' restauramos la matriz
-            Next
-        End If
-    Next
-
-
-
-End
 ' Public Sub Printer1_Draw()
 '
 '     Dim i As Integer
@@ -407,24 +264,24 @@ Public Function Action_Activate(sAction As String) As Boolean
 
             gcd.Regen
 
-        Case "pdf_export"
-
-            If Printer1.Configure() Then Return
-            Printer1.Print
+            ' Case "pdf_export"
+            '
+            '     If Printer1.Configure() Then Return
+            '     Printer1.Print
         Case "print"
 
             If Not gcd.currentDrawing.CurrPrintStyle Then gcd.currentDrawing.CurrPrintStyle = New PrintStyle
-            i = fPrint.ShowModal()
-            If i = 1 Then
-
-                Printer1.Print
-            Else If i = 0 Then
-                gcd.debugInfo("Print cancelled")
-
-            Else If i = 2 Then
-                gcd.debugInfo("Selecting what to print")
-
-            End If
+            fPrint.run()
+            ' If i = 1 Then
+            '
+            '     Printer1.Print
+            ' Else If i = 0 Then
+            '     gcd.debugInfo("Print cancelled")
+            '
+            ' Else If i = 2 Then
+            '     gcd.debugInfo("Selecting what to print")
+            '
+            ' End If
 
             ' vemos si hay q imprimir algo
 

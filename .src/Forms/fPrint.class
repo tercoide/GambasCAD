@@ -5,9 +5,6 @@ Public cPaperSizes As New Collection
 
 Public snxAreaToPrint As New Single[]
 
-Public Sub Printer1_Draw()
-
-End
 
 Public Sub btnCAncel_Click()
 
@@ -36,10 +33,14 @@ Public Sub Form_Open()
     Dim stxPrinters As New String[]
     Dim sSize As Variant
 
+
     stxPrinters = Printer.List
 
-    cmbPrinter.List = stxPrinters
 
+    cmbPrinter.List = stxPrinters
+    cmbPrinter.Add(("Print to PDF file"), 0)
+
+    cPaperSizes.Clear
     cPaperSizes.Add("A0 841mm X 1189mm", "A0")
     cPaperSizes.Add("A1 594mm X 841mm", "A1")
     cPaperSizes.Add("A2 420mm X 594mm", "A2")
@@ -48,10 +49,12 @@ Public Sub Form_Open()
     cPaperSizes.Add("A5 148mm X 210mm", "A5")
     cPaperSizes.Add("Custom size in mm", "CU")
 
+    cmbPaperSize.Clear
     For Each sSize In cPaperSizes
         cmbPaperSize.Add(sSize)
     Next
 
+    cmbScale.Clear
     cmbScale.Add("Custom")
     cmbScale.Add("1000:1")
     cmbScale.Add("200:1")
@@ -93,7 +96,7 @@ Public Sub btnPrint_Click()
             .CenteringStyle = 0
         End If
 
-        .PrintOrientation = -(radLandscape.Value = 0)
+        If radLandscape.Value Then .PrintOrientation = Printer.Landscape Else .PrintOrientation = Printer.Portrait
 
         .PrintInvert = chkInvert.Value
         If Me.radAreaWindow.Value Then .PrintArea = 2
@@ -109,16 +112,22 @@ Public Sub btnPrint_Click()
 
     End With
 
-    Me.Close(1) ' la impresion se desarrolla en fMain
+
 
     ' fMain.Printer1.Paper = cmbPaperSize.Text  ' REEMPLAZADO POR LOS SIGUIENTES
-    fMain.Printer1.PaperHeight = gcd.currentDrawing.CurrPrintStyle.PaperSizeH
-    fMain.Printer1.PaperWidth = gcd.currentDrawing.CurrPrintStyle.PaperSizeW
+    Printer1.PaperHeight = gcd.currentDrawing.CurrPrintStyle.PaperSizeH
+    Printer1.PaperWidth = gcd.currentDrawing.CurrPrintStyle.PaperSizeW
+    Printer1.Orientation = gcd.currentDrawing.CurrPrintStyle.PrintOrientation
 
+    If cmbPrinter.Index = 0 Then
+        Printer1.OutputFile = User.Home &/ "print.pdf"
+    Else
+        Printer1.OutputFile = ""
+        Printer1.Name = cmbPrinter.Text
+    End If
 
-    fMain.Printer1.OutputFile = User.Home &/ "print.pdf"
-    fMain.Printer1.Name = cmbPrinter.Text
-    fMain.Printer1.Print
+    Printer1.Print
+    Me.Close(1) ' la impresion se desarrolla en fMain
 
 End
 
@@ -205,7 +214,7 @@ Public Sub btnPenTableSelection2_Click()
     Me.radAreaWindow.Value = True
     gcd.clsJobCallBack = Me ' necesitamos volver aca luego de que marque un area
     gcd.clsJob = cadSelection
-    Me.Close(2)
+    Me.Hide()
 
 End
 
@@ -231,3 +240,161 @@ Public Sub radScale_Click()
 
 End
 
+
+
+Public Sub printer1_Begin()
+
+    Printer1.Count = 1
+    gcd.debuginfo("Printing")
+
+End
+
+Public Sub printer1_Paginate()
+
+    Printer1.Count = 1
+    gcd.debuginfo("Paginating")
+
+End
+
+Public Sub printer1_End()
+
+
+    gcd.debuginfo("Print done")
+
+End
+
+
+Public Sub Printer1_Draw()
+
+    Dim i As Integer
+    Dim flxLimits As New Float[]
+    Dim scaleX, scaleY As Float
+    Dim PSY As PrintStyle
+
+    gcd.debuginfo("Printing pages")
+    '  Dim jPrint As New JSONCollection
+    PSY = gcd.currentDrawing.CurrPrintStyle
+    Printer1.FullPage = True
+
+    ' DETERMINO LO QUE HAY QUE IMPRIMIR
+    If PSY.PrintArea = 0 Then ' all drawing
+
+        flxLimits = clsEntities.ComputeLimits(gcd.currentDrawing.oEntities)
+
+        PSY.PrintAreaX0 = flxLimits[0]
+        PSY.PrintAreaY0 = flxLimits[1]
+        PSY.PrintAreaX1 = flxLimits[2]
+        PSY.PrintAreaY1 = flxLimits[3]
+
+    Else If PSY.PrintArea = 1 Then ' viewport
+
+        PSY.PrintAreaX0 = gcd.Xreal(0)
+        PSY.PrintAreaY0 = gcd.Yreal(0)
+        PSY.PrintAreaX1 = gcd.Xreal(Me.GLArea1.Width)
+        PSY.PrintAreaY1 = gcd.Yreal(Me.GLArea1.h)
+
+    Else
+
+        ' nada porque ya estan seteados
+
+    End If
+
+
+
+    ' '==============================TEST 1==========================================
+    ' ' De no mediar escalado y centrado, la impresion ocurrente entre
+    '
+    ' '   0,0 +-------------------------------+
+    ' '       |                               |
+    ' '       |                               |
+    ' '       |                               |
+    ' '       |                               |
+    ' '       |                               |
+    ' '       +-------------------------------+ Paint.W, Paint.H (ambos positivos)
+    '
+    ' '   Pero en OpenGL (y por ende las coordenadas de los dibujos)
+    ' '       +-------------------------------+ Xmax,Ymax
+    ' '       |                               |
+    ' '       |                               |
+    ' '       |                               |
+    ' '       |                               |
+    ' '       |               x1,y1-----x2,y2 |
+    ' '       +-------------------------------+
+    '
+
+    '==============================ACTUAL PRINT==========================================
+
+    Paint.Reset ' vuelvo escalas y traslados a cero
+
+    ' APLICO LA ESCALA
+
+    If PSY.PrintScale = -1 Then ' fit to page
+
+        Paint.Translate(Paint.W / 2, Paint.H / 2) ' centro el dibujo
+        ' trato de meter centrado
+        If (PSY.PrintAreaX1 - PSY.PrintAreaX0) > 1e-10 Then scaleX = Paint.w / (PSY.PrintAreaX1 - PSY.PrintAreaX0) Else scaleX = 1e10
+        If (PSY.PrintAreaY1 - PSY.PrintAreaY0) > 1e-10 Then scaleY = Paint.H / (PSY.PrintAreaY1 - PSY.PrintAreaY0) Else scaleY = 1e10
+
+        If ScaleX < ScaleY Then gcd.PrintingScale = ScaleX Else gcd.PrintingScale = Scaley
+        Paint.Scale(gcd.PrintingScale * 0.85, -gcd.PrintingScale * 0.85)
+
+        ' centro el dibujo
+        Paint.Translate(-(PSY.PrintAreaX1 + PSY.PrintAreaX0) / 2, -(PSY.PrintAreaY1 + PSY.PrintAreaY0) / 2)
+    Else ' tengo que aplicar cierta escala y ciertos margenes
+
+        Paint.Translate(0, Paint.H) '
+
+        ' Escala basica de impresion, luego de esto, la escala a aplicar seran 1 unidad=1 m
+        Paint.Scale(Paint.Width / Printer1.PaperWidth, Paint.Height / Printer1.PaperHeight)
+
+        ' primero aplico la escala, Unidades de dibujo:Metros
+        gcd.PrintingScale = PSY.PrintScale * 1000 ' para pasar de mm a metros
+        Paint.Scale(gcd.PrintingScale, -gcd.PrintingScale)
+
+        ' ahora los margenes solicitados
+        If PSY.CenteringStyle = 0 Then 'custom
+            Paint.Translate(PSY.PrintOffsetX * gcd.PrintingScale, PSY.PrintOffsetY * gcd.PrintingScale)
+        Else If PSY.CenteringStyle = 1 Then ' top left
+            'Paint.Translate(-PSY.PrintAreaX0 * gcd.PrintingScale, -PSY.PrintAreaY0 * gcd.PrintingScale)
+
+        Else If PSY.CenteringStyle = 2 Then ' centered
+            'Paint.Translate(-(PSY.PrintAreaX1 + PSY.PrintAreaX0) / 2 * gcd.PrintingScale, -(PSY.PrintAreaY1 + PSY.PrintAreaY0) / 2 * gcd.PrintingScale)
+            Paint.Translate(-(PSY.PrintAreaX1 + PSY.PrintAreaX0) / 2, -(PSY.PrintAreaY1 + PSY.PrintAreaY0) / 2)
+
+        Endif
+
+
+
+    End If
+
+    Dim L As Layer, E, E2 As Entity
+    For Each L In gcd.currentDrawing.oLayers
+        If L.Visible Then
+            For Each E2 In L.Entities
+                If Not e2.Visible Then Continue
+                If PSY.PrintArea <> 0 Then E = clsEntities.TrimmedEntity(E2, PSY.PrintAreaX0, PSY.PrintAreaY0, PSY.PrintAreaX1, PSY.PrintAreaY1) Else e = e2
+                If IsNull(e) Then Continue
+                If e.LineWidth = 0 Then e.LineWidth = 1
+                ' If jPrint.Exist("Monochrome") Then
+                '   If jPrint["Monochrome"] Then
+                '     e.colour = 255
+                '   Endif
+                ' Endif
+                Paint.Brush = Paint.Color(Color.Black)
+
+                ' TODO: aplicar las puntas segun color de la entidad
+                Paint.LineWidth = e.LineWidth / gcd.PrintingScale
+                Paint.Save  ' guardamos la matriz de transformacion por si la entidad la modifica
+                If InStr("Text MText Attrib Attdef", e.Gender) Then
+                    paint.Font.Size = Abs(e.fParam[cadText.ipaTextHeight] / gcd.PrintingScale * 2)   ' TODO: verificar
+                End If
+
+                e.ClassHandler.draw2(e)
+                Paint.Restore ' restauramos la matriz
+            Next
+        End If
+    Next
+
+
+
+End
