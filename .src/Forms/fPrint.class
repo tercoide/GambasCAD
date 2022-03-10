@@ -5,8 +5,9 @@ Public cPaperSizes As New Collection
 
 Public snxAreaToPrint As New Single[]
 
-
 Public Sub btnCAncel_Click()
+
+    gcd.clsJobCallBack = Null
 
     Me.Close(0)
 
@@ -33,9 +34,7 @@ Public Sub Form_Open()
     Dim stxPrinters As New String[]
     Dim sSize As Variant
 
-
     stxPrinters = Printer.List
-
 
     cmbPrinter.List = stxPrinters
     cmbPrinter.Add(("Print to PDF file"), 0)
@@ -71,6 +70,8 @@ Public Sub Form_Open()
     cmbScale.Add("1:100")
     cmbScale.Add("1:200")
     cmbScale.Add("1:1000")
+
+    ' set values from current?
 
 End
 
@@ -112,8 +113,6 @@ Public Sub btnPrint_Click()
 
     End With
 
-
-
     ' fMain.Printer1.Paper = cmbPaperSize.Text  ' REEMPLAZADO POR LOS SIGUIENTES
     Printer1.PaperHeight = gcd.currentDrawing.CurrPrintStyle.PaperSizeH
     Printer1.PaperWidth = gcd.currentDrawing.CurrPrintStyle.PaperSizeW
@@ -127,7 +126,6 @@ Public Sub btnPrint_Click()
     End If
 
     Printer1.Print
-    Me.Close(1) ' la impresion se desarrolla en fMain
 
 End
 
@@ -145,8 +143,14 @@ Public Sub cmbPaperSize_Click()
 
         sParts = Split(cmbPaperSize.Text, " ")
 
-        vlbWidth.Text = Left(sParts[1], -2)
-        vlbHeight.Text = Left(sParts[3], -2)
+        If radPortrait.Value Then
+            vlbWidth.Text = Left(sParts[1], -2)
+            vlbHeight.Text = Left(sParts[3], -2)
+        Else
+            vlbWidth.Text = Left(sParts[3], -2)
+            vlbHeight.Text = Left(sParts[1], -2)
+
+        End If
 
     Else
         vlbHeight.Enabled = True
@@ -226,7 +230,6 @@ Public Sub radFitToPage_Click()
     vlbLeft.Enabled = False
     vlbTop.Enabled = False
 
-
 End
 
 Public Sub radScale_Click()
@@ -237,20 +240,17 @@ Public Sub radScale_Click()
     vlbLeft.Enabled = True
     vlbTop.Enabled = True
 
-
 End
-
-
 
 Public Sub printer1_Begin()
 
-    Printer1.Count = 1
     gcd.debuginfo("Printing")
 
 End
 
 Public Sub printer1_Paginate()
 
+    Printer1.FullPage = True
     Printer1.Count = 1
     gcd.debuginfo("Paginating")
 
@@ -258,11 +258,12 @@ End
 
 Public Sub printer1_End()
 
-
     gcd.debuginfo("Print done")
+    gcd.clsJobCallBack = Null
+
+    Me.Close()
 
 End
-
 
 Public Sub Printer1_Draw()
 
@@ -274,7 +275,6 @@ Public Sub Printer1_Draw()
     gcd.debuginfo("Printing pages")
     '  Dim jPrint As New JSONCollection
     PSY = gcd.currentDrawing.CurrPrintStyle
-    Printer1.FullPage = True
 
     ' DETERMINO LO QUE HAY QUE IMPRIMIR
     If PSY.PrintArea = 0 Then ' all drawing
@@ -298,8 +298,6 @@ Public Sub Printer1_Draw()
         ' nada porque ya estan seteados
 
     End If
-
-
 
     ' '==============================TEST 1==========================================
     ' ' De no mediar escalado y centrado, la impresion ocurrente entre
@@ -363,8 +361,6 @@ Public Sub Printer1_Draw()
 
         Endif
 
-
-
     End If
 
     Dim L As Layer, E, E2 As Entity
@@ -395,6 +391,16 @@ Public Sub Printer1_Draw()
         End If
     Next
 
+End
 
+Public Sub radLandscape_Click()
+
+    cmbPaperSize_Click
+
+End
+
+Public Sub radPortrait_Click()
+
+    cmbPaperSize_Click
 
 End
