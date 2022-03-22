@@ -65,6 +65,7 @@ End
 
 Public Sub Draw(oE As Entity)
 
+
     If oe.pBlock Then Draw_List(oe.pBlock.entities, oe, oe.pBlock.AbsoluteCoords)
 
 End
@@ -192,6 +193,8 @@ Public Function BuildPOI(oE As Entity) As Integer
 
     ' si este valor no es provisto , estos POI son de la ultima entidad
 
+    Dim a As Integer
+
     oe.PoiPoints.Clear
     oe.PoiType.Clear
     oe.Polygon.Clear
@@ -202,6 +205,11 @@ Public Function BuildPOI(oE As Entity) As Integer
     'oe.poiEntities.Add(arrIndex)
     'If oe.Handle = "78193" Then Stop
 
+    If oe.Gender = "Dimension" Then
+        a = 1
+
+    Endif
+
     ' polygon
     Dim fLimits As Float[]
     If IsNull(oe.pBlock) Then Return ' Stop
@@ -210,8 +218,13 @@ Public Function BuildPOI(oE As Entity) As Integer
     oe.Polygon.Insert([fLimits[0], fLimits[1], fLimits[2], fLimits[1], fLimits[2], fLimits[3], fLimits[0], fLimits[3]])
     puntos.Scale(oe.Polygon, oe.fParam[cadInsert.ipaEscX], oe.fParam[cadInsert.ipaEscY])
     puntos.Rotate(oe.Polygon, oe.fParam[cadInsert.ipaRotacion] * Pi / 180) ' TODO: verificar orden de esta y la siguiente linea
-    puntos.Translate(oe.Polygon, oe.P[0], oe.P[1])
+    If oe.pBlock.AbsoluteCoords Then
+        ' no translation
+    Else
+        puntos.Translate(oe.Polygon, oe.P[0], oe.P[1])
+    End If
     'If oe.fParam[cadInsert.ipaRotacion] <> 0 Then Stop
+
 
 End
 
@@ -227,9 +240,9 @@ Public Sub ExportDXFCol(e As Entity, ByRef stxExport As String[]) As Boolean
     stxExport.insert([CStr(e.p[1]), dxf.codY0])
     stxExport.insert(["0", dxf.codZ0])
 
-    stxExport.insert([CStr(e.fParam[Me.ipaEscX]), "40"])           ' X scale factor
-    stxExport.insert([CStr(e.fParam[Me.ipaEscY]), "41"])           ' Y scale factor
-    stxExport.insert([CStr(e.fParam[Me.ipaEscZ]), "42"])           ' Z scale factor
+    stxExport.insert([CStr(e.fParam[Me.ipaEscX]), "41"])           ' X scale factor
+    stxExport.insert([CStr(e.fParam[Me.ipaEscY]), "42"])           ' Y scale factor
+    stxExport.insert([CStr(e.fParam[Me.ipaEscZ]), "43"])           ' Z scale factor
     stxExport.insert([CStr(e.fParam[Me.ipaRotacion]), "50"])       ' rotation
 
     stxExport.insert(["1", "70"])
@@ -247,6 +260,8 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     e.fParam[Me.ipaEscX] = 1    ' esc X
     e.fParam[Me.ipaEscY] = 1    ' esc Y
     e.fParam[Me.ipaEscZ] = 1    ' esc Z
+
+
 
     For i = 0 To sClaves.Max
 
