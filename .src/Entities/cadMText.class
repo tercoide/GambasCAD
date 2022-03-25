@@ -293,6 +293,9 @@ Public Sub Draw(oE As Entity)
     ' https://ezdxf.readthedocs.io/en/stable/dxfentities/mtext.html#mtext-inline-codes
 
     ' MTEXT tiene in-line formatting, ver esa web
+
+    TxtStyle = gcd.currentDrawing.CurrTextStyle
+    TxtStyles.Add(TxtStyle)
     ProcessText3(oE.stringdata[Me.sdaText])
 
     CreatePolygon(oe)
@@ -455,7 +458,7 @@ Public Sub ProcessText3(RTF As String)
 
     sLines = Utils.SplitComplex(rtf, "\\P")
 
-    If sLines.Count > 1 Then Stop
+    'If sLines.Count > 1 Then Stop
 
     For Each sRemains In sLines
         Print sRemains
@@ -619,7 +622,7 @@ Public Function ProcessPart2(sLine As String) As String
 
             Case "\\C"            ' cambio de color
 
-                p2 = InStr(s2, ";", p1)
+                p2 = InStr(s2, ";", 1)
 
                 TxtStyle.cadColor = gcd.GetGBColor(CInt(Mid(s2, 3, p2 - 3)))
 
@@ -633,7 +636,7 @@ Public Function ProcessPart2(sLine As String) As String
                 '     If Len(s2) > 0 Then ProcessPart(s2)
 
             Case "\\p"            ' no se que significa esto, suele venir \p12.55;
-                p2 = InStr(s2, ";", p1)
+                p2 = InStr(s2, ";", 1)
                 s2 = Mid(s2, p2 + 1)
 
                 ' Case "\\t", "^I"            ' tab avanzo 4-texto anterior
@@ -653,16 +656,19 @@ Public Function ProcessPart2(sLine As String) As String
                 s2 = Mid(s2, 3)
 
             Case "\\W"            ' \W value; changes width factor To produce wide text
-                p2 = InStr(s2, ";", p1)
+                p2 = InStr(s2, ";", 1)
                 CurrentTextPosX += CFloat(Mid(s2, 3, p2 - 3))
                 s2 = Mid(s2, p2 + 1)
+            Case "\\S"            ' fracciones
+                p2 = InStr(s2, ";", 1)
 
+                s2 = Mid(s2, 3, p2 - 3) & " " & Mid(s2, p2 + 1)
             Case "\\A"            ' Sets the alignment value; valid values: 0, 1, 2(bottom, center, top)
 
                 If Mid(s2, 3, 1) = "1" Then ' es mid
 
                     ' extraigo el texto puro para poder calcular bien el centrado
-                    p2 = InStr(s2, ";", p1)
+                    p2 = InStr(s2, ";", 1)
                     s2 = Mid(s2, p2 + 1)
 
                     fAlign = glPlus.TextExtends(s2, CurrentTextHeigth)
@@ -684,7 +690,7 @@ Public Function ProcessPart2(sLine As String) As String
 
             Case "\\H"            ' cambia la altura del texto
 
-                p2 = InStr(s2, ";", p1)
+                p2 = InStr(s2, ";", 1)
                 s3 = Mid(s2, 3, p2 - 3)
                 If InStr(s3, "x") > 0 Then  ' cambia x veces la altura actual
                     CurrentTextHeigth *= CFloat(Left(s3, -1))
@@ -693,10 +699,8 @@ Public Function ProcessPart2(sLine As String) As String
                 Endif
                 s2 = Mid(s2, p2 + 1)
 
-                If Len(s2) > 0 Then ProcessPart(s2)
-
             Case Like "\\*"            ' codigo no imprementado, lo paso de largo;
-                p2 = InStr(s2, ";", p1)
+                p2 = InStr(s2, ";", 1)
                 If p2 > 0 Then
                     s2 = Mid(s2, p2 + 1)
                 Else
@@ -708,12 +712,21 @@ Public Function ProcessPart2(sLine As String) As String
                 p2 = InStr(s2, "\\")
                 If p2 = 0 Then p2 = 1000
                 p3 = InStr(s2, "}")
-                If p3 = 0 Then p3 = 1000
+                If p3 = 0 Then p3 = 1000 'Else Stop
                 p4 = InStr(s2, "{")
                 If p4 = 0 Then p4 = 1000
 
                 If p3 < p2 Then p2 = p3
-                If p5 < p2 Then p2 = p5
+                If p4 < p2 Then p2 = p4
+
+                If p2 < 1000 Then
+
+                    s5 = Left(s2, p2 - 1)
+                    s2 = Mid(s2, p2)
+                Else
+                    s5 = s2
+                    s2 = ""
+                Endif
 
                 '
                 ' If p2 = 1 Then ' es un escape desconocido
@@ -727,53 +740,53 @@ Public Function ProcessPart2(sLine As String) As String
                 '
                 ' Else
 
-                s2 = Utils.ProcessTabs(s2)
-
-                If CurrentTextFont <> "" Then glPlus.SelectFont(CurrentTextFont)
-                stxWords = Split(s2, " ")
-                For iSpace = stxWords.Max To 0 Step -1
-                    If stxWords[iSpace] = "" Then stxWords.Remove(iSpace)
-                Next
-
-                For iSpace = 0 To stxWords.Max - 1
-                    If stxWords[iSpace] <> "" Then stxWords[iSpace] &= " "
-                Next
-                ' If stxWords[stxWords.max] = "" Then stxWords.Remove(stxWords.Max)
-
-                If (CurrentTextBoxWidth > 0) And (stxWords.Count > 1) Then ' debo trimar
-
-                    'If Left(s2, 2) = "24" Then Stop
-                    iSpace = 0
-                    ' nuevo:  tengo que ver si no excede el ancho del rectangulo
-
-                    'If InStr(s2, "Casilla") > 0 Then Stop
-                    Do
-                        s4 &= stxWords[iSpace]
-                        fRect = glPlus.TextExtends(s4, CurrentTextHeigth)
-
-                        If fRect[0] < CurrentTextBoxWidth Then ' debo trimar
-                            s5 = s4
-                            Inc iSpace
-                        Else
-                            Break
-                        End If
-                    Loop Until iSpace = stxWords.Count
-                    s4 = ""
-                    For i4 = iSpace To stxWords.max
-                        s4 &= stxWords[i4]
-
-                    Next
-
-                Else
-                    s5 = s2
-                    fRect = glPlus.TextExtends(s5, CurrentTextHeigth)
-                    s4 = ""
-                End If
-
-                If s5 = "" Then
-                    s5 = s4
-                    s4 = ""
-                Endif
+                ' s2 = Utils.ProcessTabs(s2)
+                '
+                ' If CurrentTextFont <> "" Then glPlus.SelectFont(CurrentTextFont)
+                ' stxWords = Split(s2, " ")
+                ' For iSpace = stxWords.Max To 0 Step -1
+                '     If stxWords[iSpace] = "" Then stxWords.Remove(iSpace)
+                ' Next
+                '
+                ' For iSpace = 0 To stxWords.Max - 1
+                '     If stxWords[iSpace] <> "" Then stxWords[iSpace] &= " "
+                ' Next
+                ' ' If stxWords[stxWords.max] = "" Then stxWords.Remove(stxWords.Max)
+                '
+                ' If (CurrentTextBoxWidth > 0) And (stxWords.Count > 1) Then ' debo trimar
+                '
+                '     'If Left(s2, 2) = "24" Then Stop
+                '     iSpace = 0
+                '     ' nuevo:  tengo que ver si no excede el ancho del rectangulo
+                '
+                '     'If InStr(s2, "Casilla") > 0 Then Stop
+                '     Do
+                '         s4 &= stxWords[iSpace]
+                '         fRect = glPlus.TextExtends(s4, CurrentTextHeigth)
+                '
+                '         If fRect[0] < CurrentTextBoxWidth Then ' debo trimar
+                '             s5 = s4
+                '             Inc iSpace
+                '         Else
+                '             Break
+                '         End If
+                '     Loop Until iSpace = stxWords.Count
+                '     s4 = ""
+                '     For i4 = iSpace To stxWords.max
+                '         s4 &= stxWords[i4]
+                '
+                '     Next
+                '
+                ' Else
+                '     s5 = s2
+                fRect = glPlus.TextExtends(s5, CurrentTextHeigth)
+                '     s4 = ""
+                ' End If
+                '
+                ' If s5 = "" Then
+                '     s5 = s4
+                '     s4 = ""
+                ' Endif
 
                 puntos.Rotate(fRect, CurrentTextAngle)
                 If Me.MyPolygon[0] > (CurrentTextPosX) Then Me.MyPolygon[0] = (CurrentTextPosX)
