@@ -1168,9 +1168,9 @@ End
 '' Debe estar definida la Font con nombre y altura
 ''
 'Fast Unsafe
-Public Function DrawTextPoly(UTFstring As String, posX As Float, posY As Float, Optional angle As Float = 0, textH As Float = 1, colour As Integer = -14, linewidth As Float = 1, rectW As Float = 0, rectH As Float = 0, alignHoriz As Integer = 0, alignVert As Integer = 0) As Float[]
+Public Function DrawTextPoly(UTFstring As String, Optional textH As Float = 1) As Float[]
 
-    Dim i, iii, i2, UTFcode, LetterIndex As Integer, Xadvance As Float
+    Dim i, iii, i2, UTFcode, LetterIndex As Integer, Xadvance, xMax As Float
     Dim fArcParams As New Single[]
     Dim Glyps, Bulges As New Single[]
     Dim TGlyps, TBulges As Single[][]
@@ -1178,17 +1178,16 @@ Public Function DrawTextPoly(UTFstring As String, posX As Float, posY As Float, 
     Dim iBulge As Integer
 
     Dim dX, dY As Float ' donde tengo el cursor
-    Dim flxArc, flxGlyps As New Float[]
+    Dim flxArc, flxGlyps, flxAnswer As New Float[]
 
-    ' gl.PushMatrix
-    ' gl.Translatef(posX, posY, 0)
-    ' gl.Rotatef(angle, 0, 0, 1)                                                  ' en grados
+
+
     ' gl.Scalef(textH * FontScale, textH * FontScale, 1)
     For i = 1 To String.Len(UTFstring)                                                 ' para cada letra
         UTFcode = String.Code(UTFstring, i)                                     ' obtengo el UTF code
         If UTFcode = 32 Then                                                    ' es un espacio
             'gl.Translatef(ActualFont.LetterSpacing, 0, 0)                       ' muevo el puntero a la siguiente posicion
-            dX += ActualFont.LetterSpacing
+            Xadvance += ActualFont.LetterSpacing
         Else
             ' DEPRE LetterIndex = GetCodeIndex(ActualFont, UTFcode)                     ' obtengo el indice de la letra
             If ActualFont.Letter.Exist(UTFcode) Then
@@ -1253,30 +1252,33 @@ Public Function DrawTextPoly(UTFstring As String, posX As Float, posY As Float, 
                         If fArcParams[3] > fArcParams[4] Then Swap fArcParams[3], fArcParams[4]
 
                         flxArc = glPlus.ArcPoly(fArcParams[2], fArcParams[3], fArcParams[4] - fArcParams[3])
+                        puntos.Translate(flxArc, -fArcParams[0], -fArcParams[1])
+                        flxAnswer.Insert(flxArc)
 
-                        gl.Translatef(-fArcParams[0], -fArcParams[1], 0)
                         fArcParams = Null
 
                     Else    ' dibujo la linea normalmente
 
-                        glPlus.Lines([Glyps[i2 * 2], Glyps[i2 * 2 + 1], Glyps[(i2 + 1) * 2], Glyps[(i2 + 1) * 2 + 1]], Colour)
+                        flxAnswer.Insert([Glyps[i2 * 2] + Xadvance, Glyps[i2 * 2 + 1], Glyps[(i2 + 1) * 2] + Xadvance, Glyps[(i2 + 1) * 2 + 1]])
                     End If
 
                 Next
                 For iii = 0 To Glyps.Max Step 2  ' calculo cuanto tiene que avanzar el puntero
-                    If Glyps[iii] > Xadvance Then Xadvance = Glyps[iii]
+                    If Glyps[iii] > xMax Then xMax = Glyps[iii]
                 Next
 
                 Inc iBulge
             Next
-            gl.Translatef(Xadvance + ActualFont.LetterSpacing, 0, 0)                                       ' muevo el puntero a la siguiente posicion
-            'Debug Xadvance
-            Xadvance = 0
+            Xadvance += xMax + ActualFont.LetterSpacing                                       ' muevo el puntero a la siguiente posicion
+
+            xMax = 0
             '================================================================================
 
         End If
     Next
-    gl.PopMatrix
+
+    puntos.Scale(flxAnswer, textH * FontScale, textH * FontScale)
+    Return flxAnswer
 
 End
 

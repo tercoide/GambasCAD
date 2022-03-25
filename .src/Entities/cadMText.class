@@ -52,7 +52,8 @@ Private OriginalTextPosX As Float
 Private CurrentTextBoxWidth As Float
 Private CurrentTextPosY As Float
 Private CurrentTextBoxHeight As Float
-Private CurrentTextAlignment As Integer     ' horizontal alignment 0 left/1 center/2 right
+Private CurrentTextAlignment As Integer                 ' horizontal alignment 0 left/1 center/2 right
+Private CurrentTextAlignmentVertical As Integer         '
 Private CurrentTextFont As String
 Private CurrentTextBold As Boolean
 Private CurrentTextItalic As Boolean
@@ -66,6 +67,7 @@ Private LastTextLengh As Integer
 ' to create the contour
 
 Public MyPolygon As New Float[]
+Public flxText As New Float[]
 
 Public TxtStyles As New TextStyle[] ' creados a partir de {}
 Public TxtStyle As TextStyle ' el que estoy usando
@@ -243,36 +245,45 @@ Public Sub Draw(oE As Entity)
     CurrentTextBoxWidth = oE.fParam[Me.ipaRectangleWidth]
 
     If CurrentTextHeigth = 0 Then CurrentTextHeigth = 1
-
+    CurrentTextPosY -= CurrentTextHeigth
     Select Case oe.fParam[Me.ipaAttchmPoint]
 
         Case 1      ' Top/Left
-            CurrentTextPosY -= CurrentTextHeigth
+            'CurrentTextPosY -= CurrentTextHeigth
             CurrentTextAlignment = 0
+            CurrentTextAlignmentVertical = 0            ' top
         Case 2      ' Top/Center
-            CurrentTextPosY -= CurrentTextHeigth
+            'CurrentTextPosY -= CurrentTextHeigth
             CurrentTextAlignment = 1
+            CurrentTextAlignmentVertical = 0            ' top
         Case 3      ' Top/Right
-            CurrentTextPosY -= CurrentTextHeigth
+            'CurrentTextPosY -= CurrentTextHeigth
             CurrentTextAlignment = 2
+            CurrentTextAlignmentVertical = 0            ' top
         Case 4      ' Middle/Left
-            CurrentTextPosY -= CurrentTextHeigth / 2
+            'CurrentTextPosY -= CurrentTextHeigth / 2
             CurrentTextAlignment = 0
+            CurrentTextAlignmentVertical = 1            ' mid
         Case 5      ' Middle/Center
-            CurrentTextPosY -= CurrentTextHeigth / 2
+            'CurrentTextPosY -= CurrentTextHeigth / 2
             CurrentTextAlignment = 1
+            CurrentTextAlignmentVertical = 1            ' mid
         Case 6      ' Middle/Right
-            CurrentTextPosY -= CurrentTextHeigth / 2
+            'CurrentTextPosY -= CurrentTextHeigth / 2
             CurrentTextAlignment = 2
+            CurrentTextAlignmentVertical = 1            ' mid
         Case 7      ' Bottom/Left
-            CurrentTextPosY -= 0
+            'CurrentTextPosY -= 0
             CurrentTextAlignment = 0
+            CurrentTextAlignmentVertical = 0            ' top
         Case 8      ' Bottom/Center
-            CurrentTextPosY -= 0
+            'CurrentTextPosY -= 0
             CurrentTextAlignment = 1
+            CurrentTextAlignmentVertical = 2            ' bottom
         Case 9      ' Bottom/Right
-            CurrentTextPosY -= 0
+            'CurrentTextPosY -= 0
             CurrentTextAlignment = 2
+            CurrentTextAlignmentVertical = 2            ' bottom
 
     End Select
 
@@ -306,146 +317,7 @@ Public Sub Draw(oE As Entity)
 
 End
 
-Public Sub ProcessText(RTF As String)
 
-    ' hay 3 posibilidades , empieza con:
-    ' {
-    ' \
-    ' TEXTO cualquiera
-
-    ' busco lo que esta entre {}
-    Dim p1, p2, p3 As Integer
-    Dim sRemains, sToProcess As String
-
-    NewLine = True
-    sRemains = rtf
-    If SRemains = "" Then Return
-    If Left$(sRemains, 1) = "}" Then                    '}more4}{more5}
-        ProcessText(Mid(sRemains, 2))
-        Return
-    Endif
-    'Debug rtf
-    'If InStr(LCase(rtf), "plano de instalacion electrica") > 0 Then Stop
-    'Do
-    p1 = InStr(rtf, "{")
-    If p1 > 1 Then                              'sToProcess{sRemains}{more{more here}}
-        sToProcess = Left$(sRemains, p1 - 1)
-        sRemains = Mid$(sRemains, p1)
-
-        ProcessPart(sToProcess)
-        ProcessText(sRemains)
-
-    Else
-        p3 = InStr(rtf, "{", p1 + 1)
-        p2 = InStr(sRemains, "}")
-        If (p3 > 0) And (p3 > p2) Then          '{sRemains}{more{more here}}
-            sToProcess = Mid$(sRemains, 2, p2 - 2) 'sRemains
-            sRemains = Mid$(sRemains, p2 + 1)       '{more{more here}}
-
-            ProcessPart(sToProcess)
-            ProcessText(sRemains)
-
-        Else If p2 > 0 Then                                            '{more1{more here2{and more3}}more4}{more5}
-            sToProcess = Mid$(sRemains, 2, p2 - 2)     'more1
-            sRemains = Mid$(sRemains, p2 + 1)           'more here2{and more3}}more4}{more5}
-
-            ProcessPart(sToProcess)
-            ProcessText(sRemains)
-        Else
-
-            ProcessPart(sRemains)
-
-        Endif
-
-    Endif
-    'Loop Until Len(sRemains) = 0
-    ' Code   Description
-    ' \L   Start underline
-    ' \l   Stop underline
-    ' \O   Start overline
-    ' \o   Stop overline
-    ' \K   Start strike-through
-    ' \k   Stop strike-through
-    ' \P   New paragraph (new line)
-    ' \p   Paragraphs properties: indentation, alignment, tabulator stops
-    ' \pi \pxi \pxt    Control codes for bullets, numbered paragraphs, tab stops and columns - e.g. bullets: \pxi-3,l3,t3;, tab stops: \pxt10,t12;
-    ' \X    Paragraph wrap on the dimension line (only in dimensions)
-
-    ' \X   Paragraph wrap on the dimension line (only in dimensions)
-    ' \Q   Slanting (oblique) text by angle - e.g. \Q30;
-    ' \H   Text height - e.g. relative \H3x; absolut \H3;
-    ' \W   Text width - e.g. relative \W0.8x; absolut \W0.8;
-    ' \T   Tracking, character spacing - e.g. relative \T0.5x; absolut \T2;
-    ' \F   Font selection e.g. \Fgdt;o - GDT-tolerance
-    ' \S   Stacking, fractions e.g. \SA^ B; space after “^” is required to avoid caret decoding, \SX/Y; \S1#4;
-    ' \A   Alignment
-    '
-    '     \A0; = bottom
-    '     \A1; = center
-    '     \A2; = top
-    '
-    ' \C   Color change
-    '
-    '     \C1; = red
-    '     \C2; = yellow
-    '     \C3; = green
-    '     \C4; = cyan
-    '     \C5; = blue
-    '     \C6; = magenta
-    '     \C7; = white
-    '
-    ' \~   Non breaking space
-    ' {}   Braces - define the text area influenced by the code, codes and braces can be nested up to 8 levels deep
-    ' \   Escape character - e.g. \{ = “{”
-
-End
-
-Public Sub ProcessText2(RTF As String)
-
-    ' busco lo que esta entre {} y anidaciones
-
-    Dim p1, p2 As Integer
-    Dim sRemains, sToProcess As String
-    Dim Abro, Cierro As New Integer[]
-    Dim stxEnviar As New String[]
-    Dim partes As Integer
-    Dim iAbro As Integer
-    Dim iCierro As Integer
-    Dim iProf As Integer
-
-    sRemains = rtf
-    'Debug rtf
-    'If InStr(LCase(rtf), "plano de instalacion electrica") > 0 Then Stop
-    p1 = 0
-    Do
-        p1 = InStr(rtf, "{", P1 + 1)
-        If p1 > 0 Then Abro.Add(p1)
-    Loop Until p1 = 0
-
-    p1 = 0
-    Do
-        p1 = InStr(rtf, "}", P1 + 1)
-        If p1 > 0 Then Cierro.Add(p1)
-    Loop Until p1 = 0
-
-    If Abro.Max <> Cierro.Max Then Stop
-
-    iAbro = 0
-    iCierro = 0
-    iProf = 0
-
-    If Abro.Count = 0 Then
-        ProcessPart(sRemains)
-    Endif
-
-    Do
-
-        If Abro[iAbro] > Cierro[iCierro] Then
-
-        Endif
-    Loop
-
-End
 
 Public Sub ProcessText3(RTF As String)
 
@@ -455,58 +327,34 @@ Public Sub ProcessText3(RTF As String)
     Dim p1, p2, p3 As Integer
     Dim sLines As New String[]
     Dim sRemains, sToProcess As String
+    Dim fRect As New Float[]
+    Dim dx, dy As Float
+
+    flxText.Clear ' limpio los glyphs
 
     sLines = Utils.SplitComplex(rtf, "\\P")
+
+    'If InStr(rtf, "DETALLE UNIFILAR") > 0 Then Stop
 
     'If sLines.Count > 1 Then Stop
 
     For Each sRemains In sLines
-        Print sRemains
-        ProcessPart2(sRemains)
+        'Print sRemains
+        ProcessPart3(sRemains)
     Next
 
-    ' NewLine = True
-    ' sRemains = rtf
-    ' If SRemains = "" Then Return
-    ' If Left$(sRemains, 1) = "}" Then                    '}more4}{more5}
-    '     ProcessText(Mid(sRemains, 2))
-    '     Return
-    ' Endif
-    ' 'Debug rtf
-    ' 'If InStr(LCase(rtf), "plano de instalacion electrica") > 0 Then Stop
-    ' 'Do
-    ' p1 = InStr(rtf, "{")
-    ' If p1 > 1 Then                              'sToProcess{sRemains}{more{more here}}
-    '     sToProcess = Left$(sRemains, p1 - 1)
-    '     sRemains = Mid$(sRemains, p1)
-    '
-    '     ProcessPart(sToProcess)
-    '     ProcessText(sRemains)
-    '
-    ' Else
-    '     p3 = InStr(rtf, "{", p1 + 1)
-    '     p2 = InStr(sRemains, "}")
-    '     If (p3 > 0) And (p3 > p2) Then          '{sRemains}{more{more here}}
-    '         sToProcess = Mid$(sRemains, 2, p2 - 2) 'sRemains
-    '         sRemains = Mid$(sRemains, p2 + 1)       '{more{more here}}
-    '
-    '         ProcessPart(sToProcess)
-    '         ProcessText(sRemains)
-    '
-    '     Else If p2 > 0 Then                                            '{more1{more here2{and more3}}more4}{more5}
-    '         sToProcess = Mid$(sRemains, 2, p2 - 2)     'more1
-    '         sRemains = Mid$(sRemains, p2 + 1)           'more here2{and more3}}more4}{more5}
-    '
-    '         ProcessPart(sToProcess)
-    '         ProcessText(sRemains)
-    '     Else
-    '
-    '         ProcessPart(sRemains)
-    '
-    '     Endif
-    '
-    ' Endif
-    ' 'Loop Until Len(sRemains) = 0
+    fRect = puntos.Limits(flxText)
+    fRect[1] = fRect[3] - fRect[1]
+
+    If CurrentTextAlignmentVertical = 1 Then dy = -fRect[1] / 2
+    If CurrentTextAlignmentVertical = 2 Then dy = -fRect[1]
+    If dy <> 0 Then puntos.Translate(flxText, 0, dy)
+
+
+
+    glPlus.Lines(flxText, CurrentTextColor)
+
+
     ' Code   Description
     ' \L   Start underline
     ' \l   Stop underline
@@ -548,8 +396,10 @@ Public Sub ProcessText3(RTF As String)
 
 End
 
+
+
 ' procesa una linea de MText con todos sus modificadores
-Public Function ProcessPart2(sLine As String) As String
+Public Function ProcessPart3(sLine As String) As String
 
     Dim s2, sFont, s3, s4, sTab, sPrint As String
     Dim p1, p2, p3, p4, p5 As Integer
@@ -561,8 +411,12 @@ Public Function ProcessPart2(sLine As String) As String
     Dim s5 As String
     Dim stxWords As String[]
     Dim i4 As Integer
+    Dim dx, dy As Float
+
+    Dim flxWords, flxPAragraph As New Float[]
 
     s2 = sLine
+    NewLine = True
 
     ' reemplazo caracteres especiales
     s2 = Replace(s2, "%%D", "U+00B0")
@@ -583,239 +437,253 @@ Public Function ProcessPart2(sLine As String) As String
             s2 = Mid(s2, 2)
         End If
 
-        Select Case Mid$(s2, 1, 2)
+        If Left(s2, 1) = "\\" Then
+            Select Case Mid$(s2, 2, 1)
 
-            Case "\\U" ' ej \U+0045
+                Case "U" ' ej \U+0045
 
-                ' es un caracter utf, no hago nada
+                    ' es un caracter utf, no hago nada
 
-            Case "\\f"            ' esta indicado un cambio en la fuente
-                '  \fVerdana|b0|i0|cxxx|p34;
-                p1 = InStr(s2, "|")
-                TxtStyle.FontName = Mid$(s2, 2, p1 - 2)
-                p1 = InStr(s2, "|b")
-                If p1 > 0 Then
-                    TxtStyle.Bold = (Mid$(s2, p1 + 2, 1) = "1")
-                End If
-                p1 = InStr(s2, "|i")
-                If p1 > 0 Then
+                Case "f"            ' esta indicado un cambio en la fuente
+                    '  \fVerdana|b0|i0|cxxx|p34;
+                    p1 = InStr(s2, "|")
+                    TxtStyle.FontName = Mid$(s2, 2, p1 - 2)
+                    p1 = InStr(s2, "|b")
+                    If p1 > 0 Then
+                        TxtStyle.Bold = (Mid$(s2, p1 + 2, 1) = "1")
+                    End If
+                    p1 = InStr(s2, "|i")
+                    If p1 > 0 Then
 
-                    TxtStyle.Italic = (Mid$(s2, p1 + 2, 1) = "1")
-                End If
+                        TxtStyle.Italic = (Mid$(s2, p1 + 2, 1) = "1")
+                    End If
 
-                p1 = InStr(s2, "|c")    ' codepage
-                If p1 > 0 Then
+                    p1 = InStr(s2, "|c")    ' codepage
+                    If p1 > 0 Then
 
-                    p2 = InStr(s2, "|", p1 + 1)
-                    ' Try CurrentTextColor = Mid$(s2, p1 + 2, p2 - p1 - 1) = "1"
-                End If
-                p1 = p2 + 1
+                        p2 = InStr(s2, "|", p1 + 1)
+                        ' Try CurrentTextColor = Mid$(s2, p1 + 2, p2 - p1 - 1) = "1"
+                    End If
+                    p1 = p2 + 1
 
-                p1 = InStr(s2, "|p") ' paragraph
-                p2 = InStr(s2, ";", p1)
-                If p1 > 0 Then
+                    p1 = InStr(s2, "|p") ' paragraph
+                    p2 = InStr(s2, ";", p1)
+                    If p1 > 0 Then
 
-                    'CurrentTextHeigth = CFloat(Mid$(s2, p1 + 2, p2 - p1 - 2)) / 100
-                End If
+                        'CurrentTextHeigth = CFloat(Mid$(s2, p1 + 2, p2 - p1 - 2)) / 100
+                    End If
 
-                s2 = Mid(s2, p2 + 1)
+                    s2 = Mid(s2, p2 + 1)
 
-            Case "\\C"            ' cambio de color
+                Case "C"            ' cambio de color
 
-                p2 = InStr(s2, ";", 1)
+                    p2 = InStr(s2, ";", 1)
 
-                TxtStyle.cadColor = gcd.GetGBColor(CInt(Mid(s2, 3, p2 - 3)))
+                    TxtStyle.cadColor = gcd.GetGBColor(CInt(Mid(s2, 3, p2 - 3)))
 
-                s2 = Mid(s2, p2 + 1)
+                    s2 = Mid(s2, p2 + 1)
 
-                ' Case "\\P"            ' New line
-                '     CurrentTextPosY -= glPlus.TextExtends("XXX", CurrentTextHeigth)[1] * 1.2
-                '     CurrentTextPosX = OriginalTextPosX
-                '     NewLine = True
-                '     s2 = Mid(s2, 3)
-                '     If Len(s2) > 0 Then ProcessPart(s2)
+                    ' Case "\\P"            ' New line
+                    '     CurrentTextPosY -= glPlus.TextExtends("XXX", CurrentTextHeigth)[1] * 1.2
+                    '     CurrentTextPosX = OriginalTextPosX
+                    '     NewLine = True
+                    '     s2 = Mid(s2, 3)
+                    '     If Len(s2) > 0 Then ProcessPart(s2)
 
-            Case "\\p"            ' no se que significa esto, suele venir \p12.55;
-                p2 = InStr(s2, ";", 1)
-                s2 = Mid(s2, p2 + 1)
-
-                ' Case "\\t", "^I"            ' tab avanzo 4-texto anterior
-                '   ' TODO: verificar sin Tab=4 espacios
-                '   If LastTextLengh > 4 Then sTab = "    " Else sTab = Space(4 - LastTextLengh)
-                '   s2 = stab & Mid(s2, 3)
-                '   If Len(s2) > 0 Then ProcessPart(s2)
-                '   LastTextLengh = 0
-
-            Case "\\T" 'Adjusts the space between characters. Valid values range from a minimum of .75 to 4 times the original spacing between characters.
-
-            Case "\\Q"  '\Q angle; changes obliquing angle
-                s2 = Mid(s2, 3)
-            Case "\\O"  '\O changes to overline
-                s2 = Mid(s2, 3)
-            Case "\\L"  '\O changes to underline
-                s2 = Mid(s2, 3)
-
-            Case "\\W"            ' \W value; changes width factor To produce wide text
-                p2 = InStr(s2, ";", 1)
-                CurrentTextPosX += CFloat(Mid(s2, 3, p2 - 3))
-                s2 = Mid(s2, p2 + 1)
-            Case "\\S"            ' fracciones
-                p2 = InStr(s2, ";", 1)
-
-                s2 = Mid(s2, 3, p2 - 3) & " " & Mid(s2, p2 + 1)
-            Case "\\A"            ' Sets the alignment value; valid values: 0, 1, 2(bottom, center, top)
-
-                If Mid(s2, 3, 1) = "1" Then ' es mid
-
-                    ' extraigo el texto puro para poder calcular bien el centrado
+                Case "p"            ' no se que significa esto, suele venir \p12.55;
                     p2 = InStr(s2, ";", 1)
                     s2 = Mid(s2, p2 + 1)
 
-                    fAlign = glPlus.TextExtends(s2, CurrentTextHeigth)
-                    'fAlign[0] *= -1
-                    'fAlign[1] *= 1
+                    ' Case "\\t", "^I"            ' tab avanzo 4-texto anterior
+                    '   ' TODO: verificar sin Tab=4 espacios
+                    '   If LastTextLengh > 4 Then sTab = "    " Else sTab = Space(4 - LastTextLengh)
+                    '   s2 = stab & Mid(s2, 3)
+                    '   If Len(s2) > 0 Then ProcessPart(s2)
+                    '   LastTextLengh = 0
 
-                    puntos.Rotate(fAlign, CurrentTextAngle / 180 * Pi)
-                    CurrentTextPosX -= fAlign[0] * 0.5
+                Case "T" 'Adjusts the space between characters. Valid values range from a minimum of .75 to 4 times the original spacing between characters.
 
-                    ' alineo Y
-                    'CurrentTextPosY += fAlign[1] * 0.5
-
-                    ' pero , y si esta rotado el texto???
-
-                    ' Else
-                    '   Stop
-
-                End If
-
-            Case "\\H"            ' cambia la altura del texto
-
-                p2 = InStr(s2, ";", 1)
-                s3 = Mid(s2, 3, p2 - 3)
-                If InStr(s3, "x") > 0 Then  ' cambia x veces la altura actual
-                    CurrentTextHeigth *= CFloat(Left(s3, -1))
-                Else
-                    CurrentTextHeigth = CFloat(s3)
-                Endif
-                s2 = Mid(s2, p2 + 1)
-
-            Case Like "\\*"            ' codigo no imprementado, lo paso de largo;
-                p2 = InStr(s2, ";", 1)
-                If p2 > 0 Then
-                    s2 = Mid(s2, p2 + 1)
-                Else
+                Case "Q"  '\Q angle; changes obliquing angle
                     s2 = Mid(s2, 3)
-                End If
-            Case Else ' es texto
+                Case "O"  '\O changes to overline
+                    s2 = Mid(s2, 3)
+                Case "L"  '\O changes to underline
+                    s2 = Mid(s2, 3)
 
-                ' es un texto, pero puede terminar en un scape
-                p2 = InStr(s2, "\\")
-                If p2 = 0 Then p2 = 1000
-                p3 = InStr(s2, "}")
-                If p3 = 0 Then p3 = 1000 'Else Stop
-                p4 = InStr(s2, "{")
-                If p4 = 0 Then p4 = 1000
+                Case "W"            ' \W value; changes width factor To produce wide text
+                    p2 = InStr(s2, ";", 1)
+                    CurrentTextPosX += CFloat(Mid(s2, 3, p2 - 3))
+                    s2 = Mid(s2, p2 + 1)
+                Case "S"            ' fracciones
+                    p2 = InStr(s2, ";", 1)
 
-                If p3 < p2 Then p2 = p3
-                If p4 < p2 Then p2 = p4
+                    s2 = Mid(s2, 3, p2 - 3) & " " & Mid(s2, p2 + 1)
+                Case "A"            ' Sets the alignment value; valid values: 0, 1, 2(bottom, center, top)
 
-                If p2 < 1000 Then
+                    If Mid(s2, 3, 1) = "1" Then ' es mid
 
-                    s5 = Left(s2, p2 - 1)
-                    s2 = Mid(s2, p2)
-                Else
-                    s5 = s2
-                    s2 = ""
-                Endif
+                        ' extraigo el texto puro para poder calcular bien el centrado
+                        p2 = InStr(s2, ";", 1)
+                        s2 = Mid(s2, p2 + 1)
 
-                '
-                ' If p2 = 1 Then ' es un escape desconocido
-                '     p2 = InStr(s2, ";")
-                '     If p2 = 0 Then
-                '         s2 = Mid(s2, 3)
-                '     Else
-                '         s2 = Mid(s2, p2 + 1)
-                '     End If
-                '     If Len(s2) > 0 Then ProcessPart(s2)
-                '
-                ' Else
+                        fAlign = glPlus.TextExtends(s2, CurrentTextHeigth)
+                        'fAlign[0] *= -1
+                        'fAlign[1] *= 1
 
-                ' s2 = Utils.ProcessTabs(s2)
-                '
-                ' If CurrentTextFont <> "" Then glPlus.SelectFont(CurrentTextFont)
-                ' stxWords = Split(s2, " ")
-                ' For iSpace = stxWords.Max To 0 Step -1
-                '     If stxWords[iSpace] = "" Then stxWords.Remove(iSpace)
-                ' Next
-                '
-                ' For iSpace = 0 To stxWords.Max - 1
-                '     If stxWords[iSpace] <> "" Then stxWords[iSpace] &= " "
-                ' Next
-                ' ' If stxWords[stxWords.max] = "" Then stxWords.Remove(stxWords.Max)
-                '
-                ' If (CurrentTextBoxWidth > 0) And (stxWords.Count > 1) Then ' debo trimar
-                '
-                '     'If Left(s2, 2) = "24" Then Stop
-                '     iSpace = 0
-                '     ' nuevo:  tengo que ver si no excede el ancho del rectangulo
-                '
-                '     'If InStr(s2, "Casilla") > 0 Then Stop
-                '     Do
-                '         s4 &= stxWords[iSpace]
-                '         fRect = glPlus.TextExtends(s4, CurrentTextHeigth)
-                '
-                '         If fRect[0] < CurrentTextBoxWidth Then ' debo trimar
-                '             s5 = s4
-                '             Inc iSpace
-                '         Else
-                '             Break
-                '         End If
-                '     Loop Until iSpace = stxWords.Count
-                '     s4 = ""
-                '     For i4 = iSpace To stxWords.max
-                '         s4 &= stxWords[i4]
-                '
-                '     Next
-                '
-                ' Else
-                '     s5 = s2
-                fRect = glPlus.TextExtends(s5, CurrentTextHeigth)
-                '     s4 = ""
-                ' End If
-                '
-                ' If s5 = "" Then
-                '     s5 = s4
-                '     s4 = ""
-                ' Endif
+                        puntos.Rotate(fAlign, CurrentTextAngle / 180 * Pi)
+                        CurrentTextPosX -= fAlign[0] * 0.5
 
-                puntos.Rotate(fRect, CurrentTextAngle)
-                If Me.MyPolygon[0] > (CurrentTextPosX) Then Me.MyPolygon[0] = (CurrentTextPosX)
-                If Me.MyPolygon[1] > (CurrentTextPosY) Then Me.MyPolygon[1] = (CurrentTextPosY)
-                If Me.MyPolygon[2] < (CurrentTextPosX + fRect[0]) Then Me.MyPolygon[2] = (CurrentTextPosX + fRect[0])
-                If Me.MyPolygon[3] < (CurrentTextPosY + fRect[1]) Then Me.MyPolygon[3] = (CurrentTextPosY + fRect[1])
-                If NewLine Then
-                    If CurrentTextAlignment = 1 Then CurrentTextPosX -= fRect[0] / 2
-                    If CurrentTextAlignment = 2 Then CurrentTextPosX -= fRect[0]
-                End If
-                ' FIXME: cuando el texto esta formado por varias palabras que se procesan en ProcessPat anidadas, el
-                ' alinemaiento produce problemas porque se refiere a todo el texto y no a la parte
+                        ' alineo Y
+                        'CurrentTextPosY += fAlign[1] * 0.5
 
-                glPlus.DrawText(s5, CurrentTextPosX, CurrentTextPosY, CurrentTextAngle, CurrentTextHeigth, CurrentTextColor)
-                NewLine = False
-                CurrentTextPosX += fRect[0]
+                        ' pero , y si esta rotado el texto???
 
-                If Printing Then
-                    sPrint = s2
-                    GoSub PrintText2
-                End If
+                        ' Else
+                        '   Stop
 
-                'Endif
+                    End If
 
-        End Select
+                Case "H"            ' cambia la altura del texto
+
+                    p2 = InStr(s2, ";", 1)
+                    s3 = Mid(s2, 3, p2 - 3)
+                    If InStr(s3, "x") > 0 Then  ' cambia x veces la altura actual
+                        CurrentTextHeigth *= CFloat(Left(s3, -1))
+                    Else
+                        CurrentTextHeigth = CFloat(s3)
+                    Endif
+                    s2 = Mid(s2, p2 + 1)
+
+                Case Else            ' codigo no imprementado, lo paso de largo;
+                    p2 = InStr(s2, ";", 1)
+                    If p2 > 0 Then
+                        s2 = Mid(s2, p2 + 1)
+                    Else
+                        s2 = Mid(s2, 3)
+                    End If
+            End Select
+        Else ' es texto
+
+            ' es un texto, pero puede terminar en un scape
+            p2 = InStr(s2, "\\")
+            If p2 = 0 Then p2 = 1000 'Else Stop
+            p3 = InStr(s2, "}")
+            If p3 = 0 Then p3 = 1000 'Else Stop
+            p4 = InStr(s2, "{")
+            If p4 = 0 Then p4 = 1000
+
+            If p3 < p2 Then p2 = p3
+            If p4 < p2 Then p2 = p4
+
+            If p2 < 1000 Then
+
+                s5 = Left(s2, p2 - 1)
+                s2 = Mid(s2, p2)
+            Else
+                s5 = s2
+                s2 = ""
+            Endif
+
+            '
+            ' If p2 = 1 Then ' es un escape desconocido
+            '     p2 = InStr(s2, ";")
+            '     If p2 = 0 Then
+            '         s2 = Mid(s2, 3)
+            '     Else
+            '         s2 = Mid(s2, p2 + 1)
+            '     End If
+            '     If Len(s2) > 0 Then ProcessPart(s2)
+            '
+            ' Else
+
+            ' s2 = Utils.ProcessTabs(s2)
+            '
+            ' If CurrentTextFont <> "" Then glPlus.SelectFont(CurrentTextFont)
+            ' stxWords = Split(s2, " ")
+            ' For iSpace = stxWords.Max To 0 Step -1
+            '     If stxWords[iSpace] = "" Then stxWords.Remove(iSpace)
+            ' Next
+            '
+            ' For iSpace = 0 To stxWords.Max - 1
+            '     If stxWords[iSpace] <> "" Then stxWords[iSpace] &= " "
+            ' Next
+            ' ' If stxWords[stxWords.max] = "" Then stxWords.Remove(stxWords.Max)
+            '
+            ' If (CurrentTextBoxWidth > 0) And (stxWords.Count > 1) Then ' debo trimar
+            '
+            '     'If Left(s2, 2) = "24" Then Stop
+            '     iSpace = 0
+            '     ' nuevo:  tengo que ver si no excede el ancho del rectangulo
+            '
+            '     'If InStr(s2, "Casilla") > 0 Then Stop
+            '     Do
+            '         s4 &= stxWords[iSpace]
+            '         fRect = glPlus.TextExtends(s4, CurrentTextHeigth)
+            '
+            '         If fRect[0] < CurrentTextBoxWidth Then ' debo trimar
+            '             s5 = s4
+            '             Inc iSpace
+            '         Else
+            '             Break
+            '         End If
+            '     Loop Until iSpace = stxWords.Count
+            '     s4 = ""
+            '     For i4 = iSpace To stxWords.max
+            '         s4 &= stxWords[i4]
+            '
+            '     Next
+            '
+            ' Else
+            '     s5 = s2
+            fRect = glPlus.TextExtends(s5, CurrentTextHeigth)
+            '     s4 = ""
+            ' End If
+            '
+            ' If s5 = "" Then
+            '     s5 = s4
+            '     s4 = ""
+            ' Endif
+
+            puntos.Rotate(fRect, CurrentTextAngle)
+            If Me.MyPolygon[0] > (CurrentTextPosX) Then Me.MyPolygon[0] = (CurrentTextPosX)
+            If Me.MyPolygon[1] > (CurrentTextPosY) Then Me.MyPolygon[1] = (CurrentTextPosY)
+            If Me.MyPolygon[2] < (CurrentTextPosX + fRect[0]) Then Me.MyPolygon[2] = (CurrentTextPosX + fRect[0])
+            If Me.MyPolygon[3] < (CurrentTextPosY + fRect[1]) Then Me.MyPolygon[3] = (CurrentTextPosY + fRect[1])
+            ' FIXME: cuando el texto esta formado por varias palabras que se procesan en ProcessPat anidadas, el
+
+            ' flxGlyps.Insert(glPlus.DrawTextPoly(s5, CurrentTextPosX, CurrentTextPosY, CurrentTextAngle, CurrentTextHeigth, CurrentTextColor)
+            flxWords.Insert(glPlus.DrawTextPoly(s5, CurrentTextHeigth))
+            puntos.Translate(flxWords, CurrentTextPosX, CurrentTextPosY)
+            flxPAragraph.Insert(flxWords)
+            flxWords.Clear
+
+            CurrentTextPosX += fRect[0]
+            'NewLine = False
+
+
+            If Printing Then
+                sPrint = s2
+                GoSub PrintText2
+            End If
+
+            'Endif
+
+        End If
         ' primero separo en diferentes partes
 
         ' sigo procesando hasta que no haya mas caracteres en la linea
     Loop Until s2 = ""
+    ' alinemaiento produce problemas porque se refiere a todo el texto y no a la parte
+    fRect = puntos.Limits(flxPAragraph)
+    fRect[0] = fRect[2] - fRect[0]
+    dx = 0
+    If CurrentTextAlignment = 1 Then dx = fRect[0] / 2
+    If CurrentTextAlignment = 2 Then dx = fRect[0]
+    If dx <> 0 Then puntos.Translate(flxPAragraph, dx, 0)
+    flxText.insert(flxPAragraph)
+    CurrentTextPosY -= glPlus.TextExtends("XXX", CurrentTextHeigth)[1] * 1.2
+    CurrentTextPosX = OriginalTextPosX
+
 
     Return
 
@@ -827,355 +695,7 @@ PrintText2:
 
 End
 
-Public Function ProcessPart(s As String) As String
-    ' aca viene lo que esta ente {}, sin esos simbolos
 
-    Dim s2, sFont, s3, s4, sTab, sPrint As String
-    Dim p1, p2, p3, p4 As Integer
-    Dim fAlign, fAlignR, fRect As New Float[]
-
-    Dim angulo As Float, hText As New PaintExtents, lText As String
-    Dim FontScalePrev As Float
-    Dim iSpace As Integer
-    Dim s5 As String
-    Dim stxWords As String[]
-    Dim i4 As Integer
-
-    s2 = s
-
-    s2 = Replace(s2, "%%D", "U+00B0")
-    s2 = Replace(s2, "%%P", "U+00B1")
-    s2 = Replace(s2, "%%C", "U+2205")
-
-    'If Left$(s2, 1) = "\\" Then
-    's2 = Mid(s2, 2)
-    Select Case Mid$(s2, 1, 2)
-
-        Case "\\U" ' ej \U+0045
-
-        Case "\\U" ' ej \U+0045
-
-            ' es un caracter utf
-
-        Case "\\f"            ' esta indicado un cambio en la fuente
-            '  \fVerdana|b0|i0|cxxx|p34;
-            p1 = InStr(s2, "|")
-            CurrentTextFont = Mid$(s2, 2, p1 - 2)
-            p1 = InStr(s2, "|b")
-            If p1 > 0 Then
-                CurrentTextBold = Mid$(s2, p1 + 2, 1) = "1"
-            End If
-            p1 = InStr(s2, "|i")
-            If p1 > 0 Then
-
-                CurrentTextItalic = Mid$(s2, p1 + 2, 1) = "1"
-            End If
-
-            p1 = InStr(s2, "|c")    ' codepage , no usado
-            If p1 > 0 Then
-
-                p2 = InStr(s2, "|", p1 + 1)
-                ' Try CurrentTextColor = Mid$(s2, p1 + 2, p2 - p1 - 1) = "1"
-            End If
-            p1 = p2 + 1
-
-            p1 = InStr(s2, "|p")  ' pitch (no se que es)
-            p2 = InStr(s2, ";", p1)
-            If p1 > 0 Then
-
-                'CurrentTextHeigth = CFloat(Mid$(s2, p1 + 2, p2 - p1 - 2)) / 100
-            End If
-
-            s2 = Mid(s2, p2 + 1)
-
-            If Len(s2) > 0 Then ProcessPart(s2)
-        Case "\\C"            ' cambio de color
-
-            p2 = InStr(s2, ";", p1)
-
-            CurrentTextColor = gcd.GetGBColor(CInt(Mid(s2, 3, p2 - 3)))
-
-            s2 = Mid(s2, p2 + 1)
-
-            If Len(s2) > 0 Then ProcessPart(s2)
-
-        Case "\\P"            ' New line
-            CurrentTextPosY -= glPlus.TextExtends("XXX", CurrentTextHeigth)[1] * 1.2
-            CurrentTextPosX = OriginalTextPosX
-            NewLine = True
-            s2 = Mid(s2, 3)
-            If Len(s2) > 0 Then ProcessPart(s2)
-
-        Case "\\p"            ' no se que significa esto, suele venir \p12.55;
-            p2 = InStr(s2, ";", p1)
-            s2 = Mid(s2, p2 + 1)
-            If Len(s2) > 0 Then ProcessPart(s2)
-
-            ' Case "\\t", "^I"            ' tab avanzo 4-texto anterior
-            '   ' TODO: verificar sin Tab=4 espacios
-            '   If LastTextLengh > 4 Then sTab = "    " Else sTab = Space(4 - LastTextLengh)
-            '   s2 = stab & Mid(s2, 3)
-            '   If Len(s2) > 0 Then ProcessPart(s2)
-            '   LastTextLengh = 0
-
-        Case "\\T" 'Adjusts the space between characters. Valid values range from a minimum of .75 to 4 times the original spacing between characters.
-
-        Case "\\Q"  '\Q angle; changes obliquing angle
-
-        Case "\\O"  '\O changes to overline
-
-        Case "\\L"  '\O changes to underline
-
-        Case "\\W"            ' \W value; changes width factor To produce wide text
-            p2 = InStr(s2, ";", p1)
-            CurrentTextPosX += CFloat(Mid(s2, 3, p2 - 3))
-            s2 = Mid(s2, p2 + 1)
-            If Len(s2) > 0 Then ProcessPart(s2)
-
-        Case "\\A"            ' Sets the alignment value; valid values: 0, 1, 2(bottom, center, top)
-
-            If Mid(s2, 3, 1) = "1" Then ' es mid
-
-                ' extraigo el texto puro para poder calcular bien el centrado
-                p2 = InStr(s2, ";", p1)
-                s2 = Mid(s2, p2 + 1)
-
-                fAlign = glPlus.TextExtends(s2, CurrentTextHeigth)
-                'fAlign[0] *= -1
-                'fAlign[1] *= 1
-
-                puntos.Rotate(fAlign, CurrentTextAngle / 180 * Pi)
-                CurrentTextPosX -= fAlign[0] * 0.5
-
-                ' alineo Y
-                'CurrentTextPosY += fAlign[1] * 0.5
-
-                ' pero , y si esta rotado el texto???
-
-                ' Else
-                '   Stop
-
-            End If
-
-            If Len(s2) > 0 Then ProcessPart(s2)
-        Case "\\H"            ' cambia la altura del texto
-
-            p2 = InStr(s2, ";", p1)
-            s3 = Mid(s2, 3, p2 - 3)
-            If InStr(s3, "x") > 0 Then  ' cambia x veces la altura actual
-                CurrentTextHeigth *= CFloat(Left(s3, -1))
-            Else
-                CurrentTextHeigth = CFloat(s3)
-            Endif
-            s2 = Mid(s2, p2 + 1)
-
-            If Len(s2) > 0 Then ProcessPart(s2)
-
-        Case Like "\\*"            ' codigo no imprementado, lo paso de largo;
-            p2 = InStr(s2, ";", p1)
-            s2 = Mid(s2, p2 + 1)
-            If Len(s2) > 0 Then ProcessPart(s2)
-        Case Else ' es texto
-
-            ' es un texto, pero puede terminar en un scape
-            p2 = InStr(s2, "\\")
-            ' p3 = InStr(s2, "^I")
-            '
-            ' If (p3 > 0) And (p3 < p2) Then p2 = p3
-            '
-            If p2 = 1 Then ' es un escape desconocido
-                p2 = InStr(s2, ";")
-                If p2 = 0 Then
-                    s2 = Mid(s2, 3)
-                Else
-                    s2 = Mid(s2, p2 + 1)
-                End If
-                If Len(s2) > 0 Then ProcessPart(s2)
-
-                ' Else If p2 > 0 Then
-                '
-                '     s4 = Utils.ProcessTabs(Mid(s2, 1, p2 - 1))
-                '     If CurrentTextFont <> "" Then glPlus.SelectFont(CurrentTextFont)
-                '
-                '     stxWords = Split(s4, " ")
-                '     For iSpace = 0 To stxWords.Max - 1
-                '         stxWords[iSpace] &= " "
-                '     Next
-                '     If stxWords[stxWords.max] = "" Then stxWords.Remove(stxWords.Max)
-                '     If (CurrentTextBoxWidth > 0) And (stxWords.Count > 1) Then ' debo trimar
-                '         iSpace = 0
-                '         ' nuevo:  tengo que ver si no excede el ancho del rectangulo
-                '
-                '         Do
-                '             s5 &= stxWords[iSpace]
-                '             fRect = glPlus.TextExtends(s5, CurrentTextHeigth)
-                '
-                '             If fRect[0] < CurrentTextBoxWidth Then ' debo trimar
-                '                 Inc iSpace
-                '             Else
-                '                 Break
-                '             End If
-                '         Loop Until iSpace = stxWords.Count
-                '         s4 = Mid(s4, Len(s5))
-                '     Else
-                '         s5 = s4
-                '         fRect = glPlus.TextExtends(s5, CurrentTextHeigth)
-                '         s4 = ""
-                '     End If
-                '     puntos.Rotate(fRect, CurrentTextAngle)
-                '     If Me.MyPolygon[0] > (CurrentTextPosX) Then Me.MyPolygon[0] = (CurrentTextPosX)
-                '     If Me.MyPolygon[1] > (CurrentTextPosY) Then Me.MyPolygon[1] = (CurrentTextPosY)
-                '     If Me.MyPolygon[2] < (CurrentTextPosX + fRect[0]) Then Me.MyPolygon[2] = (CurrentTextPosX + fRect[0])
-                '     If Me.MyPolygon[3] < (CurrentTextPosY + fRect[1]) Then Me.MyPolygon[3] = (CurrentTextPosY + fRect[1])
-                '     ' el problema que tengo es que aca veces entro a esta Sub varias veces en la misma linea, y lo que sigue fuciona mal porque encima los textos
-                '     If NewLine Then
-                '
-                '         If CurrentTextAlignment = 1 Then CurrentTextPosX -= fRect[0] / 2
-                '         If CurrentTextAlignment = 2 Then CurrentTextPosX -= fRect[0]
-                '     End If
-                '     glPlus.DrawText(s5, CurrentTextPosX, CurrentTextPosY, CurrentTextangle, CurrentTextHeigth, CurrentTextColor)
-                '     NewLine = False
-                '     CurrentTextPosX += fRect[0]
-                '     If Printing Then
-                '         sPrint = s5
-                '         GoSub PrintText2
-                '     End If
-                '     s2 = s4 & Mid(s2, p2)
-                '
-                '     ProcessPart(s2)
-            Else
-
-                s2 = Utils.ProcessTabs(s2)
-
-                If CurrentTextFont <> "" Then glPlus.SelectFont(CurrentTextFont)
-                stxWords = Split(s2, " ")
-                For iSpace = stxWords.Max To 0 Step -1
-                    If stxWords[iSpace] = "" Then stxWords.Remove(iSpace)
-                Next
-
-                For iSpace = 0 To stxWords.Max - 1
-                    If stxWords[iSpace] <> "" Then stxWords[iSpace] &= " "
-                Next
-                ' If stxWords[stxWords.max] = "" Then stxWords.Remove(stxWords.Max)
-
-                If (CurrentTextBoxWidth > 0) And (stxWords.Count > 1) Then ' debo trimar
-
-                    'If Left(s2, 2) = "24" Then Stop
-                    iSpace = 0
-                    ' nuevo:  tengo que ver si no excede el ancho del rectangulo
-
-                    'If InStr(s2, "Casilla") > 0 Then Stop
-                    Do
-                        s4 &= stxWords[iSpace]
-                        fRect = glPlus.TextExtends(s4, CurrentTextHeigth)
-
-                        If fRect[0] < CurrentTextBoxWidth Then ' debo trimar
-                            s5 = s4
-                            Inc iSpace
-                        Else
-                            Break
-                        End If
-                    Loop Until iSpace = stxWords.Count
-                    s4 = ""
-                    For i4 = iSpace To stxWords.max
-                        s4 &= stxWords[i4]
-
-                    Next
-
-                Else
-                    s5 = s2
-                    fRect = glPlus.TextExtends(s5, CurrentTextHeigth)
-                    s4 = ""
-                End If
-
-                If s5 = "" Then
-                    s5 = s4
-                    s4 = ""
-                Endif
-
-                puntos.Rotate(fRect, CurrentTextAngle)
-                If Me.MyPolygon[0] > (CurrentTextPosX) Then Me.MyPolygon[0] = (CurrentTextPosX)
-                If Me.MyPolygon[1] > (CurrentTextPosY) Then Me.MyPolygon[1] = (CurrentTextPosY)
-                If Me.MyPolygon[2] < (CurrentTextPosX + fRect[0]) Then Me.MyPolygon[2] = (CurrentTextPosX + fRect[0])
-                If Me.MyPolygon[3] < (CurrentTextPosY + fRect[1]) Then Me.MyPolygon[3] = (CurrentTextPosY + fRect[1])
-                If NewLine Then
-                    If CurrentTextAlignment = 1 Then CurrentTextPosX -= fRect[0] / 2
-                    If CurrentTextAlignment = 2 Then CurrentTextPosX -= fRect[0]
-                End If
-                ' FIXME: cuando el texto esta formado por varias palabras que se procesan en ProcessPat anidadas, el
-                ' alinemaiento produce problemas porque se refiere a todo el texto y no a la parte
-
-                glPlus.DrawText(s5, CurrentTextPosX, CurrentTextPosY, CurrentTextAngle, CurrentTextHeigth, CurrentTextColor)
-                NewLine = False
-                CurrentTextPosX += fRect[0]
-                If Len(s4) > 0 Then
-                    CurrentTextPosY -= fRect[1]
-                    ProcessPart(s4)
-                End If
-
-                If Printing Then
-                    sPrint = s2
-                    GoSub PrintText2
-                End If
-
-            Endif
-
-    End Select
-    ' primero separo en diferentes partes
-
-    Return
-
-PrintText:
-
-    htext = paint.TextExtents(sPrint)
-    paint.save
-    paint.Translate(CurrentTextPosX, CurrentTextPosY)
-    paint.Rotate(-CurrentTextangle * Pi / 180)
-    paint.Scale(1, -1)
-    Paint.Font.Size = CurrentTextHeigth / gcd.PrintingScale * 2
-    paint.DrawText(sPrint)
-    paint.Stroke
-    paint.Restore
-
-    Return
-
-PrintText2:
-
-    paintPlus.DrawText(sPrint, CurrentTextPosX, CurrentTextPosY, CurrentTextAngle, CurrentTextHeigth, CurrentTextColor)
-
-    Return
-
-End
-
-'
-'  {\fVerdana|b0|i0|c0|p34;Firma:}
-'  {\fVerdana|b0|i0|c0|p34;Ing. Marcos Kupervaser }
-'  {\fVerdana|b0|i0|c0|p34;Domicilio:}
-'  {\fVerdana|b0|i0|c0|p34;Firma:}
-'  {\fVerdana|b0|i0|c0|p34;Domicilio: C. Pellegrini 627}
-'  {\fVerdana|b0|i0|c0|p34;Firma:}
-'  {\fVerdana|b0|i0|c0|p34;Domicilio:      Perú 1015}
-'  {\fVerdana|b0|i0|c0|p34;Ing. Marcos Kupervaser\P }
-'  {\fVerdana|b0|i0|c0|p34; Construquen SRL}
-'  {\fVerdana|b0|i0|c0|p34;Ing. Martín Cristia}
-'  {\fVerdana|b0|i0|c0|p34;MMN°:3549  MCPN°:2207 }
-'  {\fVerdana|b0|i0|c0|p34;MMN°:3549  MCPN°:2207 }
-'  {\fVerdana|b0|i0|c0|p34;Firma:}
-'  {\fVerdana|b0|i0|c0|p34;Domicilio:}
-'  {\fVerdana|b0|i0|c0|p34;Firma:}
-'  {\fVerdana|b0|i0|c0|p34;Domicilio:}
-'  {\fVerdana|b0|i0|c0|p34;Expte N°: 77}
-'  {\fVerdana|b0|i0|c0|p34;\W2.0681; \W1;Letra: "T"}
-'  {\fVerdana|b0|i0|c0|p34;Año: 2014}
-'  {\fVerdana|b0|i0|c0|p34;Dígito}
-'  {\fVerdana|b0|i0|c0|p34;Folio}
-'  \pt14.35; {\fVerdana|b0|i0|c0|p34;Destino: \fVerdana|b1|i0|c0|p34;Viviendas Colectivas, Oficinas y Local Comercial}
-'  {\fVerdana|b0|i0|c0|p34;Propietario: \fVerdana|b1|i0|c0|p34; Valeria Sara Titioski, Pablo Andrés Titiosky y Rolando Simón Titioski.}
-'  \pt2.45; {\fVerdana|b0|i0|c0|p34;Calle: \fVerdana|b1|i0|c0|p34;Paraguay 940}
-'  {\fVerdana|b0|i0|c0|p34;Entre: \fVerdana|b1|i0|c0|p34;Junin e H. Irigoyen}
-'  {\fVerdana|b0|i0|c0|p34;Barrio: \fVerdana|b1|i0|c0|p34;Libertad}
-'  {\fVerdana|b0|i0|c0|p34;Escala: \fVerdana|b1|i0|c0|p34;1:100}
-'  {\fVerdana|b0|i0|c0|p34;\LPROPIETARIO\l:  }
 
 Public Sub ExportDXFCol(e As Entity, ByRef stxExport As String[]) As Boolean
 
