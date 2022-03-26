@@ -49,6 +49,7 @@ Private CurrentTextLines As String
 Private CurrentTextHeigth As Float
 Private CurrentTextPosX As Float
 Private OriginalTextPosX As Float
+Private OriginalTextPosY As Float
 Private CurrentTextBoxWidth As Float
 Private CurrentTextPosY As Float
 Private CurrentTextBoxHeight As Float
@@ -61,6 +62,7 @@ Private CurrentTextCrossed As Boolean
 Private CurrentTextAngle As Float
 Private CurrentTextColor As Integer
 Private NewLine As Boolean
+Public Trimmed As Boolean
 
 Private LastTextLengh As Integer
 
@@ -236,20 +238,23 @@ End
 Public Sub Draw(oE As Entity)
 
     If Not oE.Visible Then Return
-    'If oe.Handle = "7BD36" Then Stop
+    'If oe.Handle = "13B759" Then Stop
     TextAngle = oe.fParam[Me.ipaTextAngle]
     ' voy a procesar texto
     CurrentTextPosX = oE.p[0]
     CurrentTextPosY = oE.p[1]
 
     ' para chequear los aligments
-    ' gl.PointSize(3)
-    ' gl.Begin(gl.POINTS)
-    ' gl.Vertex2f(oe.P[0], oe.P[1])
-    ' gl.End
+    gl.PointSize(3)
+    gl.Begin(gl.POINTS)
+    gl.Vertex2f(oe.P[0], oe.P[1])
+    gl.End
 
     CurrentTextHeigth = oE.fParam[Me.ipaTextHeight]
     CurrentTextBoxWidth = oE.fParam[Me.ipaRectangleWidth]
+    ' guardo
+    OriginalTextPosX = CurrentTextPosX
+    OriginalTextPosY = CurrentTextPosY
 
     If CurrentTextHeigth = 0 Then CurrentTextHeigth = 1
     CurrentTextPosY -= CurrentTextHeigth
@@ -294,9 +299,6 @@ Public Sub Draw(oE As Entity)
 
     End Select
 
-    ' guardo
-    OriginalTextPosX = CurrentTextPosX
-
     CurrentTextAngle = oE.fParam[Me.ipaTextAngle] * 180 / Pi
     CurrentTextColor = gcd.GetGBColor(oE.Colour, oe.pLayer)
 
@@ -324,8 +326,6 @@ Public Sub Draw(oE As Entity)
 
 End
 
-
-
 Public Sub ProcessText3(RTF As String)
 
     ' voy a hacer una gran division
@@ -338,7 +338,7 @@ Public Sub ProcessText3(RTF As String)
     Dim dx, dy As Float
 
     flxText.Clear ' limpio los glyphs
-
+    Trimmed = False
     sLines = Utils.SplitComplex(rtf, "\\P")
 
     'If InStr(rtf, "DETALLE UNIFILAR") > 0 Then Stop
@@ -351,23 +351,26 @@ Public Sub ProcessText3(RTF As String)
     Next
 
     fRect = puntos.Limits(flxText)
-    fRect[1] = fRect[3] - fRect[1]
-    fRect[0] = fRect[2] - fRect[0]
 
-    If CurrentTextAlignmentVertical = 1 Then dy = fRect[1] / 2
-    If CurrentTextAlignmentVertical = 2 Then dy = fRect[1]
+    dy = fRect[3] - fRect[1]
+    ' but
+    If Trimmed Then dy = glPlus.TextExtends("XXX", CurrentTextHeigth)[1] * 1.2
 
-    ' If CurrentTextAlignment = 1 Then dx = -fRect[0] / 2
-    ' If CurrentTextAlignment = 2 Then dx = -fRect[0]
+    If CurrentTextAlignmentVertical = 1 Then dy = dy / 2
+    If CurrentTextAlignmentVertical = 0 Then dy = 0
 
+    If CurrentTextAlignment = 1 Then dx = (fRect[2] - fRect[0]) / 2
+    If CurrentTextAlignment = 2 Then dx = (fRect[2] - fRect[0])
 
-    puntos.Translate(flxText, dx, dy)
+    puntos.Translate(flxText, 0, dy)
 
+    puntos.RotatePointsFromBase(OriginalTextPosX, OriginalTextPosY, CurrentTextAngle * Pi / 180, flxText)
 
-
-    glPlus.Lines(flxText, CurrentTextColor)
-
-
+    If Printing Then
+        paintPlus.Lines(flxText)
+    Else
+        glPlus.Lines(flxText, CurrentTextColor)
+    End If
     ' Code   Description
     ' \L   Start underline
     ' \l   Stop underline
@@ -408,8 +411,6 @@ Public Sub ProcessText3(RTF As String)
     ' \   Escape character - e.g. \{ = “{”
 
 End
-
-
 
 ' procesa una linea de MText con todos sus modificadores
 Public Function ProcessPart3(sLine As String) As String
@@ -533,28 +534,29 @@ Public Function ProcessPart3(sLine As String) As String
                     s2 = Mid(s2, 3, p2 - 3) & " " & Mid(s2, p2 + 1)
                 Case "A"            ' Sets the alignment value; valid values: 0, 1, 2(bottom, center, top)
 
-                    If Mid(s2, 3, 1) = "1" Then ' es mid
-
-                        ' extraigo el texto puro para poder calcular bien el centrado
-                        p2 = InStr(s2, ";", 1)
-                        s2 = Mid(s2, p2 + 1)
-
-                        fAlign = glPlus.TextExtends(s2, CurrentTextHeigth)
-                        'fAlign[0] *= -1
-                        'fAlign[1] *= 1
-
-                        puntos.Rotate(fAlign, CurrentTextAngle / 180 * Pi)
-                        CurrentTextPosX -= fAlign[0] * 0.5
-
-                        ' alineo Y
-                        'CurrentTextPosY += fAlign[1] * 0.5
-
-                        ' pero , y si esta rotado el texto???
-
-                        ' Else
-                        '   Stop
-
-                    End If
+                    ' extraigo el texto puro para poder calcular bien el centrado
+                    CurrentTextAlignmentVertical = CInt(Mid(s2, 3, 1))
+                    p2 = InStr(s2, ";", 1)
+                    s2 = Mid(s2, p2 + 1)
+                    '     If CurrentTextAlignmentVertical = 1 Then ' es mid
+                    '
+                    '
+                    '     fAlign = glPlus.TextExtends(s2, CurrentTextHeigth)
+                    '     'fAlign[0] *= -1
+                    '     'fAlign[1] *= 1
+                    '
+                    '     puntos.Rotate(fAlign, CurrentTextAngle / 180 * Pi)
+                    '     'CurrentTextPosX -= fAlign[0] * 0.5
+                    '
+                    '     ' alineo Y
+                    '     CurrentTextPosY += fAlign[1] * 0.5
+                    '
+                    '     ' pero , y si esta rotado el texto???
+                    '
+                    '     ' Else
+                    '     '   Stop
+                    '
+                    ' End If
 
                 Case "H"            ' cambia la altura del texto
 
@@ -577,7 +579,7 @@ Public Function ProcessPart3(sLine As String) As String
             End Select
         Else ' es texto
 
-            ' es un texto, pero puede terminar en un scape
+            ' es un texto, pero puede terminar en un scape o cambio de TeextStyles
             p2 = InStr(s2, "\\")
             If p2 = 0 Then p2 = 1000 'Else Stop
             p3 = InStr(s2, "}")
@@ -590,8 +592,8 @@ Public Function ProcessPart3(sLine As String) As String
 
             If p2 < 1000 Then
 
-                s5 = Left(s2, p2 - 1)
-                s2 = Mid(s2, p2)
+                s5 = Left(s2, p2 - 1)       ' s5 es el texto puro
+                s2 = Mid(s2, p2)            ' s2 es el resto , a procesar
             Else
                 s5 = s2
                 s2 = ""
@@ -609,45 +611,52 @@ Public Function ProcessPart3(sLine As String) As String
             '
             ' Else
 
-            ' s2 = Utils.ProcessTabs(s2)
-            '
-            ' If CurrentTextFont <> "" Then glPlus.SelectFont(CurrentTextFont)
-            ' stxWords = Split(s2, " ")
+            s5 = Utils.ProcessTabs(s5)
+
+            If CurrentTextFont <> "" Then glPlus.SelectFont(CurrentTextFont)
+            stxWords = Split(s5, " ")
             ' For iSpace = stxWords.Max To 0 Step -1
             '     If stxWords[iSpace] = "" Then stxWords.Remove(iSpace)
             ' Next
-            '
-            ' For iSpace = 0 To stxWords.Max - 1
-            '     If stxWords[iSpace] <> "" Then stxWords[iSpace] &= " "
-            ' Next
-            ' ' If stxWords[stxWords.max] = "" Then stxWords.Remove(stxWords.Max)
-            '
-            ' If (CurrentTextBoxWidth > 0) And (stxWords.Count > 1) Then ' debo trimar
-            '
-            '     'If Left(s2, 2) = "24" Then Stop
-            '     iSpace = 0
-            '     ' nuevo:  tengo que ver si no excede el ancho del rectangulo
-            '
-            '     'If InStr(s2, "Casilla") > 0 Then Stop
-            '     Do
-            '         s4 &= stxWords[iSpace]
-            '         fRect = glPlus.TextExtends(s4, CurrentTextHeigth)
-            '
-            '         If fRect[0] < CurrentTextBoxWidth Then ' debo trimar
-            '             s5 = s4
-            '             Inc iSpace
-            '         Else
-            '             Break
-            '         End If
-            '     Loop Until iSpace = stxWords.Count
-            '     s4 = ""
-            '     For i4 = iSpace To stxWords.max
-            '         s4 &= stxWords[i4]
-            '
-            '     Next
-            '
-            ' Else
-            '     s5 = s2
+
+            For iSpace = 0 To stxWords.Max - 1
+                If stxWords[iSpace] <> "" Then stxWords[iSpace] &= " "
+            Next
+            ' If stxWords[stxWords.max] = "" Then stxWords.Remove(stxWords.Max)
+
+            If (CurrentTextBoxWidth > 0) And (stxWords.Count > 1) Then ' debo trimar
+
+                iSpace = 0
+                ' nuevo:  tengo que ver si no excede el ancho del rectangulo
+
+                'If InStr(s5, "Cerradura de embutir DOBLE") > 0 Then Stop
+                s4 = ""
+                NewLine = False   ' supongo que entra todo
+
+                Do
+                    s4 &= stxWords[iSpace]
+                    fRect = glPlus.TextExtends(s4, CurrentTextHeigth)
+
+                    If fRect[0] < CurrentTextBoxWidth Then
+                        s5 = s4
+                        Inc iSpace
+                    Else' debo trimar
+                        NewLine = True
+                        Trimmed = True
+
+                        Break
+
+                    End If
+                Loop Until iSpace = stxWords.Count
+
+                s4 = ""
+                For i4 = iSpace To stxWords.max
+                    s4 &= stxWords[i4]
+
+                Next
+                s2 = s4 & s2
+
+            End If
             fRect = glPlus.TextExtends(s5, CurrentTextHeigth)
             '     s4 = ""
             ' End If
@@ -664,22 +673,15 @@ Public Function ProcessPart3(sLine As String) As String
             If Me.MyPolygon[3] < (CurrentTextPosY + fRect[1]) Then Me.MyPolygon[3] = (CurrentTextPosY + fRect[1])
             ' FIXME: cuando el texto esta formado por varias palabras que se procesan en ProcessPat anidadas, el
 
-            ' flxGlyps.Insert(glPlus.DrawTextPoly(s5, CurrentTextPosX, CurrentTextPosY, CurrentTextAngle, CurrentTextHeigth, CurrentTextColor)
             flxWords.Insert(glPlus.DrawTextPoly(s5, CurrentTextHeigth))
             puntos.Translate(flxWords, CurrentTextPosX, CurrentTextPosY)
             flxPAragraph.Insert(flxWords)
             flxWords.Clear
 
-            CurrentTextPosX += fRect[0]
-            'NewLine = False
-
-
-            If Printing Then
-                sPrint = s2
-                GoSub PrintText2
-            End If
-
-            'Endif
+            If NewLine Then
+                CurrentTextPosY -= glPlus.TextExtends("XXX", CurrentTextHeigth)[1] * 1.2
+                'fRect[1]
+            Endif
 
         End If
         ' primero separo en diferentes partes
@@ -697,18 +699,9 @@ Public Function ProcessPart3(sLine As String) As String
     CurrentTextPosY -= glPlus.TextExtends("XXX", CurrentTextHeigth)[1] * 1.2
     CurrentTextPosX = OriginalTextPosX
 
-
-    Return
-
-PrintText2:
-
-    paintPlus.DrawText(sPrint, CurrentTextPosX, CurrentTextPosY, CurrentTextAngle, CurrentTextHeigth, CurrentTextColor)
-
     Return
 
 End
-
-
 
 Public Sub ExportDXFCol(e As Entity, ByRef stxExport As String[]) As Boolean
 
