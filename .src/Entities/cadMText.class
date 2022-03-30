@@ -366,6 +366,12 @@ Public Sub ProcessText3(RTF As String)
 
     puntos.RotatePointsFromBase(OriginalTextPosX, OriginalTextPosY, CurrentTextAngle * Pi / 180, flxText)
 
+    fRect = puntos.Limits(flxText)
+    Me.MyPolygon[0] = fRect[0]
+    Me.MyPolygon[1] = fRect[1]
+    Me.MyPolygon[2] = fRect[2]
+    Me.MyPolygon[3] = fRect[3]
+
     If Printing Then
         paintPlus.Lines(flxText)
     Else
@@ -430,7 +436,7 @@ Public Function ProcessPart3(sLine As String) As String
     Dim flxWords, flxPAragraph As New Float[]
 
     s2 = sLine
-    NewLine = True
+
 
     ' reemplazo caracteres especiales
     s2 = Replace(s2, "%%D", "U+00B0")
@@ -516,6 +522,8 @@ Public Function ProcessPart3(sLine As String) As String
                     '   LastTextLengh = 0
 
                 Case "T" 'Adjusts the space between characters. Valid values range from a minimum of .75 to 4 times the original spacing between characters.
+                    p2 = InStr(s2, ";", 1)
+                    s2 = Mid(s2, p2 + 1)
 
                 Case "Q"  '\Q angle; changes obliquing angle
                     s2 = Mid(s2, 3)
@@ -610,7 +618,7 @@ Public Function ProcessPart3(sLine As String) As String
             '     If Len(s2) > 0 Then ProcessPart(s2)
             '
             ' Else
-
+            'If InStr(s5, "C(1)") > 0 Then Stop
             s5 = Utils.ProcessTabs(s5)
 
             If CurrentTextFont <> "" Then glPlus.SelectFont(CurrentTextFont)
@@ -623,22 +631,22 @@ Public Function ProcessPart3(sLine As String) As String
                 If stxWords[iSpace] <> "" Then stxWords[iSpace] &= " "
             Next
             ' If stxWords[stxWords.max] = "" Then stxWords.Remove(stxWords.Max)
-
+            NewLine = False   ' supongo que entra todo
             If (CurrentTextBoxWidth > 0) And (stxWords.Count > 1) Then ' debo trimar
 
                 iSpace = 0
                 ' nuevo:  tengo que ver si no excede el ancho del rectangulo
 
-                'If InStr(s5, "Cerradura de embutir DOBLE") > 0 Then Stop
+
                 s4 = ""
-                NewLine = False   ' supongo que entra todo
+
 
                 Do
-                    s4 &= stxWords[iSpace]
+                    s5 &= stxWords[iSpace]
                     fRect = glPlus.TextExtends(s4, CurrentTextHeigth)
 
                     If fRect[0] < CurrentTextBoxWidth Then
-                        s5 = s4
+                        's5 = s4
                         Inc iSpace
                     Else' debo trimar
                         NewLine = True
@@ -650,7 +658,7 @@ Public Function ProcessPart3(sLine As String) As String
                 Loop Until iSpace = stxWords.Count
 
                 s4 = ""
-                For i4 = iSpace To stxWords.max
+                For i4 = iSpace + 1 To stxWords.max
                     s4 &= stxWords[i4]
 
                 Next
@@ -658,29 +666,18 @@ Public Function ProcessPart3(sLine As String) As String
 
             End If
             fRect = glPlus.TextExtends(s5, CurrentTextHeigth)
-            '     s4 = ""
-            ' End If
-            '
-            ' If s5 = "" Then
-            '     s5 = s4
-            '     s4 = ""
-            ' Endif
 
-            puntos.Rotate(fRect, CurrentTextAngle)
-            If Me.MyPolygon[0] > (CurrentTextPosX) Then Me.MyPolygon[0] = (CurrentTextPosX)
-            If Me.MyPolygon[1] > (CurrentTextPosY) Then Me.MyPolygon[1] = (CurrentTextPosY)
-            If Me.MyPolygon[2] < (CurrentTextPosX + fRect[0]) Then Me.MyPolygon[2] = (CurrentTextPosX + fRect[0])
-            If Me.MyPolygon[3] < (CurrentTextPosY + fRect[1]) Then Me.MyPolygon[3] = (CurrentTextPosY + fRect[1])
-            ' FIXME: cuando el texto esta formado por varias palabras que se procesan en ProcessPat anidadas, el
+
 
             flxWords.Insert(glPlus.DrawTextPoly(s5, CurrentTextHeigth))
             puntos.Translate(flxWords, CurrentTextPosX, CurrentTextPosY)
             flxPAragraph.Insert(flxWords)
             flxWords.Clear
-
-            If NewLine Then
-                CurrentTextPosY -= glPlus.TextExtends("XXX", CurrentTextHeigth)[1] * 1.2
+            CurrentTextPosX += fRect[0]
+            If NewLine Then         ' necesito una nueva linea porque tuve que ajustar el texto
+                CurrentTextPosY -= fRect[1] * 1.4
                 'fRect[1]
+                CurrentTextPosX = OriginalTextPosX
             Endif
 
         End If
@@ -696,7 +693,7 @@ Public Function ProcessPart3(sLine As String) As String
     If CurrentTextAlignment = 2 Then dx = -fRect[0]
     If dx <> 0 Then puntos.Translate(flxPAragraph, dx, 0)
     flxText.insert(flxPAragraph)
-    CurrentTextPosY -= glPlus.TextExtends("XXX", CurrentTextHeigth)[1] * 1.2
+    CurrentTextPosY -= glPlus.TextExtends("XXX", CurrentTextHeigth)[1] * 1.4
     CurrentTextPosX = OriginalTextPosX
 
     Return
