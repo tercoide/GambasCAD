@@ -31,40 +31,40 @@ Public Const ParamHelper As String = "Start point;Angle;Heigth;"     ' a little 
 Public Const ParamDefault As String = " ; 0 ; 10 ; "
 
 ' esto es para texto RTF o complejos
-Private Printing As Boolean
+Public Printing As Boolean
 
-Private TextAngle As Float
+Public TextAngle As Float
 
-Private TextLines As New String[]
-Private TextHeigth As New Float[]
-Private TextPosX As New Float[]
-Private TextBoxWidth As New Float[]
-Private TextPosY As New Float[]
-Private TextBoxHeight As New Float[]
-Private TextAlignment As New Integer[]
-Private TextFont As New String[]
-Private TextBold As New Boolean[]
+Public TextLines As New String[]
+Public TextHeigth As New Float[]
+Public TextPosX As New Float[]
+Public TextBoxWidth As New Float[]
+Public TextPosY As New Float[]
+Public TextBoxHeight As New Float[]
+Public TextAlignment As New Integer[]
+Public TextFont As New String[]
+Public TextBold As New Boolean[]
 
-Private CurrentTextLines As String
-Private CurrentTextHeigth As Float
-Private CurrentTextPosX As Float
-Private OriginalTextPosX As Float
-Private OriginalTextPosY As Float
-Private CurrentTextBoxWidth As Float
-Private CurrentTextPosY As Float
-Private CurrentTextBoxHeight As Float
-Private CurrentTextAlignment As Integer                 ' horizontal alignment 0 left/1 center/2 right
-Private CurrentTextAlignmentVertical As Integer         '
-Private CurrentTextFont As String
-Private CurrentTextBold As Boolean
-Private CurrentTextItalic As Boolean
-Private CurrentTextCrossed As Boolean
-Private CurrentTextAngle As Float
-Private CurrentTextColor As Integer
-Private NewLine As Boolean
+Public CurrentTextLines As String
+Public CurrentTextHeigth As Float
+Public CurrentTextPosX As Float
+Public OriginalTextPosX As Float
+Public OriginalTextPosY As Float
+Public CurrentTextBoxWidth As Float
+Public CurrentTextPosY As Float
+Public CurrentTextBoxHeight As Float
+Public CurrentTextAlignment As Integer                 ' horizontal alignment 0 left/1 center/2 right
+Public CurrentTextAlignmentVertical As Integer         '
+Public CurrentTextFont As String
+Public CurrentTextBold As Boolean
+Public CurrentTextItalic As Boolean
+Public CurrentTextCrossed As Boolean
+Public CurrentTextAngle As Float
+Public CurrentTextColor As Integer
+Public NewLine As Boolean
 Public Trimmed As Boolean
 
-Private LastTextLengh As Integer
+Public LastTextLengh As Integer
 
 ' to create the contour
 
@@ -207,7 +207,11 @@ Public Sub CreatePolygon(oE As Entity)
     oE.Polygon.Clear
 
     ' tRect = glPlus.MTextExtends(oE.stringdata[Me.sdaText], oE.p[0], oE.p[1], oE.fParam[Me.ipaTextHeight])
+    If MyPolygon.Count = 0 Then
+        MyPolygon.Clear
+        MyPolygon.insert([1e10, 1e10, -1e10, -1e10])
 
+    Endif
     ' armo el poligono , que ya tiene la escala
     If Abs(Me.MyPolygon[0]) > 1e9 Then Return
     oE.Polygon.Insert([Me.MyPolygon[0], Me.MyPolygon[1]])
@@ -244,11 +248,11 @@ Public Sub Draw(oE As Entity)
     CurrentTextPosX = oE.p[0]
     CurrentTextPosY = oE.p[1]
 
-    ' para chequear los aligments
-    gl.PointSize(3)
-    gl.Begin(gl.POINTS)
-    gl.Vertex2f(oe.P[0], oe.P[1])
-    gl.End
+    ' ' para chequear los aligments
+    ' gl.PointSize(3)
+    ' gl.Begin(gl.POINTS)
+    ' gl.Vertex2f(oe.P[0], oe.P[1])
+    ' gl.End
 
     CurrentTextHeigth = oE.fParam[Me.ipaTextHeight]
     CurrentTextBoxWidth = oE.fParam[Me.ipaRectangleWidth]
@@ -306,8 +310,6 @@ Public Sub Draw(oE As Entity)
     '
     ' If InStr(oE.stringdata[0], "Madera Blanda ") > 0 Then Stop
 
-    MyPolygon.Clear
-    MyPolygon.insert([1e10, 1e10, -1e10, -1e10])
 
     ' https://ezdxf.readthedocs.io/en/stable/tutorials/mtext.html
     ' https://ezdxf.readthedocs.io/en/stable/dxfentities/mtext.html#mtext-inline-codes
@@ -338,6 +340,10 @@ Public Sub ProcessText3(RTF As String)
     Dim dx, dy As Float
 
     flxText.Clear ' limpio los glyphs
+
+    MyPolygon.Clear
+    MyPolygon.insert([1e10, 1e10, -1e10, -1e10])
+
     Trimmed = False
     sLines = Utils.SplitComplex(rtf, "\\P")
 
@@ -442,6 +448,10 @@ Public Function ProcessPart3(sLine As String) As String
     s2 = Replace(s2, "%%D", "U+00B0")
     s2 = Replace(s2, "%%P", "U+00B1")
     s2 = Replace(s2, "%%C", "U+2205")
+    s2 = Replace(s2, "%%D", "°", gb.IgnoreCase)
+    s2 = Replace(s2, "%%P", "±", gb.IgnoreCase)
+    s2 = Replace(s2, "%%C", "∅", gb.IgnoreCase)
+
 
     Do ' proceso la linea hasta que no me queden mas caracteres
         If Left$(s2, 1) = "{" Then  ' voy a modificar los parametros del estilo de texto
@@ -638,7 +648,7 @@ Public Function ProcessPart3(sLine As String) As String
                 ' nuevo:  tengo que ver si no excede el ancho del rectangulo
 
 
-                s4 = ""
+                s5 = ""
 
 
                 Do

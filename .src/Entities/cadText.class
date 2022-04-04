@@ -159,59 +159,18 @@ Public Sub Draw(oE As Entity)
 
     If Not oE.Visible Then Return
 
-    ' Debug oE.stringdata[0]
-    Dim s2 As String
+    ' ' para chequear los aligments
+    ' gl.PointSize(3)
+    ' gl.Begin(gl.POINTS)
+    ' gl.Vertex2f(oe.P[0], oe.P[1])
+    ' Try gl.Vertex2f(oe.P[2], oe.P[3])
+    ' gl.End
+    '
 
-    s2 = oE.stringdata[Me.sdaText]
-    s2 = Replace(s2, "%%D", "°", gb.IgnoreCase)
-    s2 = Replace(s2, "%%P", "±", gb.IgnoreCase)
-    s2 = Replace(s2, "%%C", "∅", gb.IgnoreCase)
+    SetMtextVars(oe)
+    cadMText.Printing = False
+    cadMText.ProcessText3(oE.stringdata[Me.sdaText])
 
-    ' Vamos a trbajar un poco en la alineacion, obtenemos el tamanio del texto:
-    Dim rText As Float[]
-    Dim dY As Float     ' correccion de Y debido a la alineacion
-    Dim dX As Float     ' correccion de X debido a la alineacion
-
-    rText = glPlus.TextExtends(s2, oE.fParam[Me.ipaTextHeight])
-
-    If oe.P.Count = 2 Then          ' hay solo un punto, la alineacion es Baseline/Left
-
-        dX = oE.p[0]    ' nada que corregir
-        dY = oE.p[1]
-
-    Else    ' tengo dos puntos
-
-        ' veo la alineacion vertical
-        If oe.fParam[Me.ipaVertJustif] <= 1 Then       'es Baseline/Bottom que es casi lo mismo
-
-            dY = oE.p[1]
-        Else If oe.fParam[Me.ipaVertJustif] = 2 Then   'Center
-            ' TODO: verificar si mejor no debiera usar rText[1]
-            dY = (oe.P[3] - oe.P[1]) / 2 - oe.fParam[Me.ipaTextHeight] / 2
-
-        Else                                            'top
-            dY = oe.P[3] - oe.fParam[Me.ipaTextHeight]
-        End If
-
-        ' veo la alineacion horizontal
-        If oe.fParam[Me.ipaHorizJustif] = 0 Then       'es Left
-
-            dX = oE.p[0]
-        Else If oe.fParam[Me.ipaHorizJustif] = 1 Then   'Center
-            dX = oE.p[0] + (oe.P[2] - oe.P[0]) / 2 - rText[0] / 2
-        Else If oe.fParam[Me.ipaHorizJustif] = 2 Then   'Right
-            dX = oE.p[0] + oe.P[2] - rText[0]
-        Else If oe.fParam[Me.ipaHorizJustif] = 3 Then   'Aligned , pero no se que es
-            dX = oE.p[0] + (oe.P[2] - oe.P[0]) / 2 - rText[0] / 2
-
-        Else If oe.fParam[Me.ipaHorizJustif] = 4 Then   ' Middle, se calcula en base al segunto punto.
-            dX = oE.p[0] + (oe.P[2] - oe.P[0]) - rText[0] / 2
-
-        Else If oe.fParam[Me.ipaHorizJustif] = 5 Then   ' Fit, pero no tengo esta capability en glPlus.DrawTExt
-            dx = oE.p[0]
-        End If
-    End If
-    glPlus.DrawText(s2, dX, dY, oE.fParam[Me.ipaTextAngle], oE.fParam[Me.ipaTextHeight], gcd.GetGBColor(oE.Colour, oe.pLayer))
 
 End
 
@@ -235,23 +194,79 @@ Public Function Draw2(oE As Entity)
 
     If Not oE.Visible Then Return
 
-    Dim angulo As Float, hText As New PaintExtents, lText As String
-    Dim FontScalePrev As Float
+    SetMtextVars(oe)
+    cadMText.Printing = True
+    cadMText.ProcessText3(oE.stringdata[Me.sdaText])
 
-    ' angulo = oE.fParam[Me.ipaTextAngle] / 180 * Pi    ' ojo OPENGL--> GRADOS, GAMBAS-->RADIANESDXF
-    '
-    ' htext = paint.TextExtents(oe.StringData[Me.sdaText])
-    ' paint.save
-    ' paint.Translate(oE.p[0], oE.p[1])
-    ' paint.Rotate(-angulo)
-    ' paint.Scale(1, -1)
-    ' Paint.Font.Size = oe.fParam[Me.ipaTextHeight] / gcd.PrintingScale * 2
-    ' 'paint.DrawText(oe.StringData[Me.sdaText])
-    paintPlus.DrawText(oe.StringData[Me.sdaText], oE.p[0], oE.p[1], -angulo, oe.fParam[Me.ipaTextHeight])
+End
 
-    paint.Stroke
+Public Sub SetMtextVars(oe As Entity)
 
-    ' paint.Restore
+    'If oe.StringData[Me.sdaText] = "DESTINO:" Then Stop
+    cadMText.CurrentTextAngle = oE.fParam[Me.ipaTextAngle]
+    cadMText.CurrentTextHeigth = oE.fParam[Me.ipaTextHeight]
+    cadMText.CurrentTextColor = gcd.GetGBColor(oE.Colour, oe.pLayer)
+    If cadMText.CurrentTextHeigth = 0 Then cadMText.CurrentTextHeigth = 1
+
+    cadMText.CurrentTextPosX = oE.p[0]    ' nada que corregir
+    cadMText.CurrentTextPosY = oE.p[1]
+
+    If oe.P.Count = 2 Then          ' hay solo un punto, la alineacion es Baseline/Left
+
+        cadMText.CurrentTextAlignmentVertical = 2
+        cadMText.CurrentTextAlignment = 0
+
+
+    Else    ' tengo dos puntos
+
+        ' veo la alineacion vertical
+        If oe.fParam[Me.ipaVertJustif] <= 1 Then       'es Baseline/Bottom que es casi lo mismo
+
+            cadMText.CurrentTextAlignmentVertical = 0
+
+        Else If oe.fParam[Me.ipaVertJustif] = 2 Then   'Center
+
+            cadMText.CurrentTextAlignmentVertical = 1
+
+        Else                                            'top
+            cadMText.CurrentTextAlignmentVertical = 2
+        End If
+
+        ' veo la alineacion horizontal
+        If oe.fParam[Me.ipaHorizJustif] = 0 Then       'es Left
+
+            cadMText.CurrentTextAlignment = 0
+
+        Else If oe.fParam[Me.ipaHorizJustif] = 1 Then   'Center
+            cadMText.CurrentTextAlignment = 1
+        Else If oe.fParam[Me.ipaHorizJustif] = 2 Then   'Right
+            cadMText.CurrentTextAlignment = 2
+        Else If oe.fParam[Me.ipaHorizJustif] = 3 Then   'Aligned , pero no se que es:  me parece que texto confinado al espacio asignado
+            cadMText.CurrentTextAlignment = 1
+            cadMText.CurrentTextBoxWidth = 0
+            cadMText.CurrentTextPosX = oE.p[0] + (oe.P[2] - oe.P[0]) / 2
+
+        Else If oe.fParam[Me.ipaHorizJustif] = 4 Then   ' Middle, se calcula en base al segunto punto.
+            cadMText.CurrentTextAlignment = 1
+            cadMText.CurrentTextAlignmentVertical = 1
+            cadMText.CurrentTextBoxWidth = 0
+            cadMText.CurrentTextPosX = oE.P[2]    ' nada que corregir
+            cadMText.CurrentTextPosY = oE.p[3]
+            'cadMText.CurrentTextPosX = oE.p[0] + (oe.P[2] - oe.P[0]) / 2
+
+        Else If oe.fParam[Me.ipaHorizJustif] = 5 Then   ' Fit, pero no tengo esta capability en glPlus.DrawTExt
+            cadMText.CurrentTextAlignment = 1
+            cadMText.CurrentTextPosX = oE.p[0] + (oe.P[2] - oe.P[0]) / 2
+            cadMText.CurrentTextBoxWidth = oe.P[2] - oe.P[0]
+        End If
+    End If
+
+    ' guardo
+    cadMText.OriginalTextPosX = cadMText.CurrentTextPosX
+    cadMText.OriginalTextPosY = cadMText.CurrentTextPosY
+
+
+    cadMText.CurrentTextPosY -= cadMText.CurrentTextHeigth
 
 End
 
