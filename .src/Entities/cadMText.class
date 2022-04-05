@@ -61,6 +61,8 @@ Public CurrentTextItalic As Boolean
 Public CurrentTextCrossed As Boolean
 Public CurrentTextAngle As Float
 Public CurrentTextColor As Integer
+
+Public Lines As Integer
 Public NewLine As Boolean
 Public Trimmed As Boolean
 
@@ -245,23 +247,20 @@ Public Sub Draw(oE As Entity)
     'If oe.Handle = "13B759" Then Stop
     TextAngle = oe.fParam[Me.ipaTextAngle]
     ' voy a procesar texto
-    CurrentTextPosX = oE.p[0]
-    CurrentTextPosY = oE.p[1]
+    OriginalTextPosX = oE.p[0]
+    OriginalTextPosY = oE.p[1]
 
-    ' ' para chequear los aligments
-    ' gl.PointSize(3)
-    ' gl.Begin(gl.POINTS)
-    ' gl.Vertex2f(oe.P[0], oe.P[1])
-    ' gl.End
+    ' para chequear los aligments
+    gl.PointSize(3)
+    gl.Begin(gl.POINTS)
+    gl.Vertex2f(oe.P[0], oe.P[1])
+    gl.End
 
     CurrentTextHeigth = oE.fParam[Me.ipaTextHeight]
     CurrentTextBoxWidth = oE.fParam[Me.ipaRectangleWidth]
-    ' guardo
-    OriginalTextPosX = CurrentTextPosX
-    OriginalTextPosY = CurrentTextPosY
 
     If CurrentTextHeigth = 0 Then CurrentTextHeigth = 1
-    CurrentTextPosY -= CurrentTextHeigth
+    'CurrentTextPosY -= CurrentTextHeigth
     Select Case oe.fParam[Me.ipaAttchmPoint]
 
         Case 1      ' Top/Left
@@ -337,7 +336,7 @@ Public Sub ProcessText3(RTF As String)
     Dim sLines As New String[]
     Dim sRemains, sToProcess As String
     Dim fRect As New Float[]
-    Dim dx, dy As Float
+    Dim dx, dy, dy2 As Float
 
     flxText.Clear ' limpio los glyphs
 
@@ -345,12 +344,15 @@ Public Sub ProcessText3(RTF As String)
     MyPolygon.insert([1e10, 1e10, -1e10, -1e10])
 
     Trimmed = False
+    Lines = 1
     sLines = Utils.SplitComplex(rtf, "\\P")
 
-    'If InStr(rtf, "DETALLE UNIFILAR") > 0 Then Stop
+    'If InStr(UCase(rtf), "MADERA BLANDA") > 0 Then Stop
 
     'If sLines.Count > 1 Then Stop
 
+    ' con esto los glyps vienen hacia abajo
+    CurrentTextPosY = 0'-CurrentTextHeigth * 1.4
     For Each sRemains In sLines
         'Print sRemains
         ProcessPart3(sRemains)
@@ -358,19 +360,25 @@ Public Sub ProcessText3(RTF As String)
 
     fRect = puntos.Limits(flxText)
 
-    dy = fRect[3] - fRect[1]
-    ' but
-    If Trimmed Then dy = glPlus.TextExtends("XXX", CurrentTextHeigth)[1] * 1.2
+    dy = Abs(fRect[3] - fRect[1])
+    'dy = Lines * CurrentTextHeigth * 1.4 ' la altura total del texto
+    dy2 = dy / Lines
+    dx = fRect[2] - fRect[0]
+    ' ' but
+    ' If Trimmed Then dy = CurrentTextHeigth * 1.2
 
-    If CurrentTextAlignmentVertical = 1 Then dy = dy / 2
-    If CurrentTextAlignmentVertical = 0 Then dy = 0
+    If CurrentTextAlignmentVertical = 2 Then dy = OriginalTextPosY + dy - dy2
+    If CurrentTextAlignmentVertical = 1 Then dy = OriginalTextPosY + dy / 2 - dy2
+    If CurrentTextAlignmentVertical = 0 Then dy = OriginalTextPosY - dy2
 
-    If CurrentTextAlignment = 1 Then dx = (fRect[2] - fRect[0]) / 2
-    If CurrentTextAlignment = 2 Then dx = (fRect[2] - fRect[0])
+    If CurrentTextAlignment = 0 Then dx = OriginalTextPosX
+    If CurrentTextAlignment = 1 Then dx = OriginalTextPosX - dx / 2 + CurrentTextBoxWidth / 2
+    If CurrentTextAlignment = 2 Then dx = OriginalTextPosX - dx + CurrentTextBoxWidth
 
-    puntos.Translate(flxText, 0, dy)
+    puntos.Translate(flxText, dx, dy)
 
     puntos.RotatePointsFromBase(OriginalTextPosX, OriginalTextPosY, CurrentTextAngle * Pi / 180, flxText)
+    'puntos.RotatePointsFromBase(dx, dy, CurrentTextAngle * Pi / 180, flxText)
 
     fRect = puntos.Limits(flxText)
     Me.MyPolygon[0] = fRect[0]
@@ -553,7 +561,7 @@ Public Function ProcessPart3(sLine As String) As String
                 Case "A"            ' Sets the alignment value; valid values: 0, 1, 2(bottom, center, top)
 
                     ' extraigo el texto puro para poder calcular bien el centrado
-                    CurrentTextAlignmentVertical = CInt(Mid(s2, 3, 1))
+                    'CurrentTextAlignmentVertical = CInt(Mid(s2, 3, 1))
                     p2 = InStr(s2, ";", 1)
                     s2 = Mid(s2, p2 + 1)
                     '     If CurrentTextAlignmentVertical = 1 Then ' es mid
@@ -653,7 +661,7 @@ Public Function ProcessPart3(sLine As String) As String
 
                 Do
                     s5 &= stxWords[iSpace]
-                    fRect = glPlus.TextExtends(s4, CurrentTextHeigth)
+                    fRect = glPlus.TextExtends(s5, CurrentTextHeigth)
 
                     If fRect[0] < CurrentTextBoxWidth Then
                         's5 = s4
@@ -675,36 +683,30 @@ Public Function ProcessPart3(sLine As String) As String
                 s2 = s4 & s2
 
             End If
-            fRect = glPlus.TextExtends(s5, CurrentTextHeigth)
-
-
 
             flxWords.Insert(glPlus.DrawTextPoly(s5, CurrentTextHeigth))
-            puntos.Translate(flxWords, CurrentTextPosX, CurrentTextPosY)
+            puntos.Translate(flxWords, 0, CurrentTextPosY)
             flxPAragraph.Insert(flxWords)
             flxWords.Clear
-            CurrentTextPosX += fRect[0]
+
             If NewLine Then         ' necesito una nueva linea porque tuve que ajustar el texto
-                CurrentTextPosY -= fRect[1] * 1.4
-                'fRect[1]
-                CurrentTextPosX = OriginalTextPosX
+                CurrentTextPosY -= CurrentTextHeigth * 1.4
+                Lines += 1
             Endif
 
         End If
-        ' primero separo en diferentes partes
-
-        ' sigo procesando hasta que no haya mas caracteres en la linea
     Loop Until s2 = ""
     ' alinemaiento produce problemas porque se refiere a todo el texto y no a la parte
-    fRect = puntos.Limits(flxPAragraph)
-    fRect[0] = fRect[2] - fRect[0]
-    dx = 0
-    If CurrentTextAlignment = 1 Then dx = -fRect[0] / 2
-    If CurrentTextAlignment = 2 Then dx = -fRect[0]
-    If dx <> 0 Then puntos.Translate(flxPAragraph, dx, 0)
+    ' fRect = puntos.Limits(flxPAragraph)
+    ' fRect[0] = fRect[2] - fRect[0]
+    ' dx = 0
+    ' If CurrentTextAlignment = 1 Then dx = -fRect[0] / 2
+    ' If CurrentTextAlignment = 2 Then dx = -fRect[0]
+    '
+    ' puntos.Translate(flxPAragraph, dx, 0)
     flxText.insert(flxPAragraph)
-    CurrentTextPosY -= glPlus.TextExtends("XXX", CurrentTextHeigth)[1] * 1.4
-    CurrentTextPosX = OriginalTextPosX
+    CurrentTextPosY -= CurrentTextHeigth * 1.4
+
 
     Return
 
