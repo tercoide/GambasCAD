@@ -271,6 +271,8 @@ Public Sub Printer1_Draw()
     Dim flxLimits As New Float[]
     Dim scaleX, scaleY As Float
     Dim PSY As PrintStyle
+    Dim dX, dY, sX, sY, rX, rY As Float
+
 
     gcd.debuginfo("Printing pages")
     '  Dim jPrint As New JSONCollection
@@ -340,26 +342,46 @@ Public Sub Printer1_Draw()
         Paint.Translate(-(PSY.PrintAreaX1 + PSY.PrintAreaX0) / 2, -(PSY.PrintAreaY1 + PSY.PrintAreaY0) / 2)
     Else ' tengo que aplicar cierta escala y ciertos margenes
 
-        Paint.Translate(0, Paint.H) '
 
+        'Paint.Translate(0, -Paint.H) '
         ' Escala basica de impresion, luego de esto, la escala a aplicar seran 1 unidad=1 m
-        Paint.Scale(Paint.Width / Printer1.PaperWidth, Paint.Height / Printer1.PaperHeight)
-
+        sX = Paint.Width / Printer1.PaperWidth
+        sY = Paint.Height / Printer1.PaperHeight
         ' primero aplico la escala, Unidades de dibujo:Metros
         gcd.PrintingScale = PSY.PrintScale * 1000 ' para pasar de mm a metros
-        Paint.Scale(gcd.PrintingScale, -gcd.PrintingScale)
+        sX *= gcd.PrintingScale
+        sY *= gcd.PrintingScale
+
 
         ' ahora los margenes solicitados
+
         If PSY.CenteringStyle = 0 Then 'custom
-            Paint.Translate(PSY.PrintOffsetX * gcd.PrintingScale, PSY.PrintOffsetY * gcd.PrintingScale)
+            Paint.Translate(0, Paint.H) ' centro el dibujo
+            Paint.Scale(sX, -sY)
+            dX = -PSY.PrintAreaX0
+            dY = -PSY.PrintAreaY0
+
+            dX += PSY.PrintOffsetX * gcd.PrintingScale
+            dY += PSY.PrintOffsetY * gcd.PrintingScale
+
         Else If PSY.CenteringStyle = 1 Then ' top left
             'Paint.Translate(-PSY.PrintAreaX0 * gcd.PrintingScale, -PSY.PrintAreaY0 * gcd.PrintingScale)
+            Paint.Translate(0, Paint.H) ' centro el dibujo
+            Paint.Scale(sX, -sY)
+
+            dX = -PSY.PrintAreaX0
+            dY = -PSY.PrintAreaY0
 
         Else If PSY.CenteringStyle = 2 Then ' centered
-            'Paint.Translate(-(PSY.PrintAreaX1 + PSY.PrintAreaX0) / 2 * gcd.PrintingScale, -(PSY.PrintAreaY1 + PSY.PrintAreaY0) / 2 * gcd.PrintingScale)
-            Paint.Translate(-(PSY.PrintAreaX1 + PSY.PrintAreaX0) / 2, -(PSY.PrintAreaY1 + PSY.PrintAreaY0) / 2)
+            Paint.Translate(Paint.w / 2, Paint.H / 2) ' centro el dibujo
+            Paint.Scale(sX, -sY)
+
+            dx = -(PSY.PrintAreaX1 + PSY.PrintAreaX0) / 2
+            dy = -(PSY.PrintAreaY1 + PSY.PrintAreaY0) / 2
+
 
         Endif
+        Paint.Translate(dX, dY)
 
     End If
 
@@ -379,7 +401,7 @@ Public Sub Printer1_Draw()
                 Paint.Brush = Paint.Color(Color.Black)
 
                 ' TODO: aplicar las puntas segun color de la entidad
-                Paint.LineWidth = e.LineWidth / gcd.PrintingScale
+                Paint.LineWidth = 0.15 / gcd.PrintingScale  ' punta 0.15mm
                 Paint.Save  ' guardamos la matriz de transformacion por si la entidad la modifica
                 If InStr("Text MText Attrib Attdef", e.Gender) Then
                     paint.Font.Size = Abs(e.fParam[cadText.ipaTextHeight] / gcd.PrintingScale * 2)   ' TODO: verificar
