@@ -412,7 +412,7 @@ End
 
 Fast Unsafe Public Function ArcPoly(Optional radio As Float, start_angle As Float, length As Float, Optional angle_increment As Float = Pi * 2 / 360) As Float[]
 
-    Dim theta As Float
+    Dim theta, x0, y0 As Float
     Dim flxPoly As New Float[]
     'double max_angle = 2 * Math.PI
     'double angle_increment = Math.PI / 1000
@@ -421,12 +421,26 @@ Fast Unsafe Public Function ArcPoly(Optional radio As Float, start_angle As Floa
     ' verifico los angulos
     ' If length < 0 Then angle_increment *= -1
 
-    For theta = 0 To length Step angle_increment
-
-        flxPoly.Add(radio * Cos(start_angle + theta))
-        flxPoly.Add(radio * Sin(start_angle + theta))
+    For theta = angle_increment To length Step angle_increment
+        x0 = radio * Cos(start_angle + theta - angle_increment)
+        y0 = radio * Sin(start_angle + theta - angle_increment)
+        flxPoly.Add(x0)
+        flxPoly.Add(y0)
+        x0 = radio * Cos(start_angle + theta)
+        y0 = radio * Sin(start_angle + theta)
+        flxPoly.Add(x0)
+        flxPoly.Add(y0)
 
     Next
+    x0 = radio * Cos(start_angle + theta - angle_increment)
+    y0 = radio * Sin(start_angle + theta - angle_increment)
+    flxPoly.Add(x0)
+    flxPoly.Add(y0)
+    x0 = radio * Cos(start_angle + length)
+    y0 = radio * Sin(start_angle + length)
+    flxPoly.Add(x0)
+    flxPoly.Add(y0)
+
 
     Return flxPoly
 
@@ -1166,9 +1180,8 @@ End
 
 '' Devuelve una poly con el texto en el contexto actual de acuerdo a los parametros pasados
 '' Debe estar definida la Font con nombre y altura
-''
 'Fast Unsafe
-Fast Unsafe Public Function DrawTextPoly(UTFstring As String, Optional textH As Float = 1, sRotationRad As Single = 0) As Float[]
+Public Function DrawTextPoly(UTFstring As String, Optional textH As Float = 1, sRotationRad As Single = 0) As Float[]
 
     Dim i, iii, i2, UTFcode, LetterIndex As Integer, Xadvance, xMax As Float
     Dim fArcParams As New Single[]
@@ -1183,6 +1196,7 @@ Fast Unsafe Public Function DrawTextPoly(UTFstring As String, Optional textH As 
     ' gl.Scalef(textH * FontScale, textH * FontScale, 1)
     For i = 1 To String.Len(UTFstring)                                                 ' para cada letra
         UTFcode = String.Code(UTFstring, i)                                     ' obtengo el UTF code
+
         If UTFcode = 32 Then                                                    ' es un espacio
             'gl.Translatef(ActualFont.LetterSpacing, 0, 0)                       ' muevo el puntero a la siguiente posicion
             Xadvance += ActualFont.LetterSpacing
@@ -1227,8 +1241,8 @@ Fast Unsafe Public Function DrawTextPoly(UTFstring As String, Optional textH As 
                         ' traslado el centro
 
                         'gl.Translatef(fArcParams[0], fArcParams[1], 0)
-                        dX += fArcParams[0]
-                        dY += fArcParams[1]
+                        ' dX += fArcParams[0]
+                        ' dY += fArcParams[1]
                         ' verifico Start_Angle y End_Angle (esta parte esta intimamente ligada a Arc3Point)
                         ' las combinaciones de angulos son diversas, Arc3Point puede no funcionar bien en otra circunstancia
 
@@ -1249,11 +1263,12 @@ Fast Unsafe Public Function DrawTextPoly(UTFstring As String, Optional textH As 
 
                         If fArcParams[3] > fArcParams[4] Then Swap fArcParams[3], fArcParams[4]
 
-                        flxArc = glPlus.ArcPoly(fArcParams[2], fArcParams[3], fArcParams[4] - fArcParams[3])
-                        puntos.Translate(flxArc, -fArcParams[0], -fArcParams[1])
+                        flxArc = glPlus.ArcPoly(fArcParams[2], fArcParams[3], fArcParams[4] - fArcParams[3], Pi / 16)
+                        puntos.Translate(flxArc, fArcParams[0] + Xadvance, fArcParams[1])
                         flxAnswer.Insert(flxArc)
 
-                        fArcParams = Null
+                        fArcParams.Clear
+                        flxArc.Clear
 
                     Else    ' dibujo la linea normalmente
 
