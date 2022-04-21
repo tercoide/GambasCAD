@@ -1005,3 +1005,184 @@ Public Sub GetBoundLimits2(fxlPoints As Float[])
     Next
 
 End
+
+
+Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
+
+    ' Parametros de la entidad:
+
+    ' P[]:        son los puntos de la polilinea que define el contorno del sombreado
+    ' fParam[0]:  escala del sombreado
+    ' fParam[1]:  angulo
+    ' StringData[0]: nombre del patron del sombreado
+
+
+    Dim e As Entity
+    Dim fPAtternSide As Float
+    Dim iPatternNx, iPatternNy, iPatternN As Integer
+    Dim nx As Integer
+    Dim ny As Integer
+    Dim ie, i As Integer
+    Dim flxPatternLimits, flxContorno, flxFirstPass, flxSecondPass As New Float[]
+    Dim iLoop As Integer
+    Dim enxPattern As New Collection
+    Dim cPattern As New Collection
+    Dim drwPattern As New Drawing
+    Dim enxPatternScaled As New Collection
+    Dim eBorder As Entity
+    Dim sPAtternFile As String
+    Dim oLoop As Boundary
+
+    ' este valor intenta commpensar un problema de compatibilidad entre DWG y DXF
+    ' para estar de acuerdo a LibreCAD, debe ser =1, pero algunos DWG se represetan
+    ' con una densidad de relleno menor (mas disperso el relleno)
+    Dim CorrectionScale As Float = 1 '0.01 ' 0.1
+
+    sPAtternFile = entToFill.StringData[cadHatch.sdaPaternFile]
+
+    ' verifico si tengo el pattern
+    If Not Exist(sPAtternFile) Then ' lo reemplazo
+
+        sPAtternFile = gcd.dirResources &/ "patterns" &/ "ansi31.dxf"
+
+    End If
+
+    ' cargo el sombreado en un array auxiliar
+
+    Dxf.LoadFile(sPAtternFile, drwPattern, True, True, True) ' lo cargo
+    'gcd.DXFtoEntity(cPattern["ENTITIES"], enxPattern, True)
+    enxPattern = drwPattern.oEntities
+    ' necesito saber cuanto mide el contorno para aplicar la escala y multiplicar hasta cubrir todo el contorno
+
+    flxPatternLimits = clsEntities.ComputeLimits(enxPattern)
+
+    ' los patrones son cuadrados, computo el lado
+    fPatternSide = 100 ' flxPatternLimits[2] - flxPatternLimits[0]
+
+    If entToFill.fParam[cadHatch.ipaScale] = 0 Then
+        entToFill.fParam[cadHatch.ipaScale] = 1
+    Else
+        ''entToFill.fParam[cadHatch.ipaScale] /= 12  ' TODO: verificar esta escala
+    Endif
+
+    'For Each oLoop In entToFill.pBlock.oBoundaryPath
+
+    oloop = entToFill.pBlock.oBoundaryPath
+
+    'If entToFill.Handle = "FB66C" Then Stop
+
+    MakeBorder2(oLoop)
+
+    'If ((oloop.Flag And 1) = 1) Or (oloop.Flag = 0) Then ' es external, o sea lo que esta afuera de todo
+
+    If oloop.Polylines.Count = 0 Then Return
+
+    ' veo los limites del contorno exterior
+    Xmenor = 1e10
+    Ymenor = 1e10
+    Xmayor = -1e10
+    Ymayor = -1e10
+
+    For Each flxContorno In oloop.Polylines
+
+        GetBoundLimits2(flxContorno)
+    Next
+
+    ' vamos a mentir un poco
+    ' xmenor -= 1
+    ' ymenor -= 1
+    ' Xmayor += 1
+    ' ymayor += 1
+
+    ' calculo cuantos patrones necesito
+    iPatternNx = (Xmayor - Xmenor) / fPAtternSide / entToFill.fParam[cadHatch.ipaScale] / CorrectionScale + 1
+    iPatternNy = (ymayor - ymenor) / fPAtternSide / entToFill.fParam[cadHatch.ipaScale] / CorrectionScale + 1
+
+    ' creo un array para el sombreado total  <---No mas
+
+    ' Muevo el pattern y filtro
+    If iPatternNx > iPatternNy Then iPatternN = iPatternNx Else iPatternN = iPatternNy
+
+    For nx = -iPatternN - 1 To iPatternN
+        For ny = -iPatternN - 1 To iPatternN
+            For Each e In enxPattern
+                For Each flxContorno In oLoop.Polylines
+                    ' este borde es nulo
+                    If flxContorno.Count < 6 Then Continue
+
+                    e.ClassHandler.scale(e, entToFill.fParam[cadHatch.ipaScale] * CorrectionScale, entToFill.fParam[cadHatch.ipaScale] * CorrectionScale)
+
+                    e.ClassHandler.translate(e, nx * fPAtternSide * entToFill.fParam[cadHatch.ipaScale] * CorrectionScale + Xmenor, ny * fPAtternSide * entToFill.fParam[cadHatch.ipaScale] * CorrectionScale + ymenor)
+
+                    e.ClassHandler.Rotate(e, entToFill.fParam[cadHatch.ipaRotation] / 180 * Pi)
+                    ' ahora lo dibujo
+                    ' ahora tengo que filtrar las entidades que quedan fuera del contorno y generar lineas sueltas que forman
+                    ' el sombreado (por ahora seran solo lineas)
+                    ' esas lineas las acumulo en un array
+
+                    Select Case e.Gender
+                        Case "Line", "LWPolyline"
+
+                            ' nuevo: el contorno pueden ser varias polis, o sea con huecos
+
+                            flxFirstPass.Insert(puntos.PolyPolyIntersection(e.p, flxContorno))
+
+                            ' this is test to see if the pattern is made correctly
+                            'entToFill.PolyLine.Insert(e.p.Copy())
+
+                        Case "Circle", "Arc", "Ellipse"
+                            ' estas entidades deben dibujarse primero
+                            e.ClassHandler.MakePolyline(e, 6)
+                            flxFirstPass.Insert(puntos.PolyPolyIntersection(e.PolyLine, flxContorno))
+                    End Select
+
+                    ' Vuelvo a la posicion original
+                    e.ClassHandler.Rotate(e, -entToFill.fParam[cadHatch.ipaRotation] / 180 * Pi)
+
+                    e.ClassHandler.translate(e, -(nx * fPAtternSide * entToFill.fParam[cadHatch.ipaScale] * CorrectionScale + Xmenor), -(ny * fPAtternSide * entToFill.fParam[cadHatch.ipaScale] * CorrectionScale + ymenor))
+
+                    e.ClassHandler.scale(e, 1 / entToFill.fParam[cadHatch.ipaScale] * CorrectionScale, 1 / entToFill.fParam[cadHatch.ipaScale] * CorrectionScale)
+                Next
+            Next
+
+        Next
+    Next
+    'entToFill.PolyLine.Insert(flxFirstPass.Copy())
+
+    ' HASTA ACA LLEGO BIEN, CON EL CONTORNO PPAL LLENO
+
+    ' https://ezdxf.readthedocs.io/en/stable/dxfentities/hatch.html
+    ' Boundary Paths
+    ' The hatch entity is build by different functional path types, this are filter flags for the Hatch.dxf.hatch_style:
+    '
+    ' EXTERNAL: defines the outer boundary of the hatch
+    ' OUTERMOST: defines the first tier of inner hatch boundaries
+    ' DEFAULT: default boundary path
+    ' As you will learn in the next sections, these are more the recommended usage type for the flags, but the fill algorithm doesn’t care much about that, for instance an OUTERMOST path doesn’t have to be inside the EXTERNAL path.
+
+    ' limpio los huecos
+    'Else If (oloop.Flag And 16) = 16 Then ' es outermost
+    If oLoop.Holes.Count > 0 Then
+
+        For Each flxContorno In oLoop.Holes
+
+            entToFill.PolyLine.Clear
+
+            For i = 0 To flxFirstPass.Max - 3 Step 4
+                entToFill.PolyLine.Insert(puntos.LineholeIntersection(flxFirstPass.Copy(i, 4), flxContorno))
+
+            Next
+            flxFirstPass.Clear
+            flxFirstPass.Insert(entToFill.PolyLine.copy())
+
+        Next
+
+    Else
+
+        entToFill.PolyLine.Insert(flxFirstPass.Copy())
+    End If
+    'End If
+
+    'Next
+
+End

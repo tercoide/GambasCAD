@@ -47,6 +47,7 @@ Public TextBold As New Boolean[]
 
 Public CurrentTextLines As String
 Public CurrentTextHeigth As Float
+Public OriginalTextHeigth As Float
 Public CurrentTextPosX As Float
 Public OriginalTextPosX As Float
 Public OriginalTextPosY As Float
@@ -65,6 +66,7 @@ Public CurrentTextColor As Integer
 Public Lines As Integer
 Public NewLine As Boolean
 Public Trimmed As Boolean
+Public TrimText As Boolean
 
 Public LastTextLengh As Integer
 
@@ -257,6 +259,7 @@ Public Sub Draw(oE As Entity)
     gl.End
 
     CurrentTextHeigth = oE.fParam[Me.ipaTextHeight]
+    OriginalTextHeigth = CurrentTextHeigth
     CurrentTextBoxWidth = oE.fParam[Me.ipaRectangleWidth]
 
     If CurrentTextHeigth = 0 Then CurrentTextHeigth = 1
@@ -304,7 +307,7 @@ Public Sub Draw(oE As Entity)
 
     CurrentTextAngle = oE.fParam[Me.ipaTextAngle] * 180 / Pi
     CurrentTextColor = gcd.GetGBColor(oE.Colour, oe.pLayer)
-
+    TrimText = True
     'If InStr(oE.Handle, "1C1DD12D") > 0 Then Stop
     '
     ' If InStr(oE.stringdata[0], "Madera Blanda ") > 0 Then Stop
@@ -344,10 +347,10 @@ Public Sub ProcessText3(RTF As String)
     MyPolygon.insert([1e10, 1e10, -1e10, -1e10])
 
     Trimmed = False
-    Lines = 1
-    sLines = Utils.SplitComplex(rtf, "\\P")
 
-    'If InStr(LCase(rtf), "mc-12b") > 0 Then Stop
+    sLines = Utils.SplitComplex(rtf, "\\P")
+    Lines = 0
+    'If InStr(LCase(rtf), "ventana de aluminio ano") > 0 Then Stop
 
     'If sLines.Count > 1 Then Stop
 
@@ -356,6 +359,7 @@ Public Sub ProcessText3(RTF As String)
     For Each sRemains In sLines
         'Print sRemains
         ProcessPart3(sRemains)
+        lines += 1
     Next
 
     fRect = puntos.Limits(flxText)
@@ -369,7 +373,7 @@ Public Sub ProcessText3(RTF As String)
 
     If CurrentTextAlignmentVertical = 2 Then dy = OriginalTextPosY + dy - dy2
     If CurrentTextAlignmentVertical = 1 Then dy = OriginalTextPosY + dy / 2 - dy2
-    If CurrentTextAlignmentVertical = 0 Then dy = OriginalTextPosY - dy2
+    If CurrentTextAlignmentVertical = 0 Then dy = OriginalTextPosY - dy2 '* sLines.Count
 
     If CurrentTextAlignment = 0 Then dx = OriginalTextPosX
     If CurrentTextAlignment = 1 Then dx = OriginalTextPosX - dx / 2 '+ CurrentTextBoxWidth / 2
@@ -469,7 +473,7 @@ Public Function ProcessPart3(sLine As String) As String
         End If
 
         If Left$(s2, 1) = "}" Then  ' vuelvo al estilo anterior
-
+            CurrentTextHeigth = OriginalTextHeigth
             TxtStyles.Remove(TxtStyles.max)
             TxtStyle = TxtStyles.Last
             s2 = Mid(s2, 2)
@@ -640,49 +644,55 @@ Public Function ProcessPart3(sLine As String) As String
             s5 = Utils.ProcessTabs(s5)
 
             If CurrentTextFont <> "" Then glPlus.SelectFont(CurrentTextFont)
-            stxWords = Split(s5, " ")
-            ' For iSpace = stxWords.Max To 0 Step -1
-            '     If stxWords[iSpace] = "" Then stxWords.Remove(iSpace)
-            ' Next
 
-            For iSpace = 0 To stxWords.Max - 1
-                If stxWords[iSpace] <> "" Then stxWords[iSpace] &= " "
-            Next
-            ' If stxWords[stxWords.max] = "" Then stxWords.Remove(stxWords.Max)
-            NewLine = False   ' supongo que entra todo
-            If (CurrentTextBoxWidth > 0) And (stxWords.Count > 1) Then ' debo trimar
+            ' tengo que trimar?
+            If TrimText Then
+                stxWords = Split(s5, " ")
+                ' For iSpace = stxWords.Max To 0 Step -1
+                '     If stxWords[iSpace] = "" Then stxWords.Remove(iSpace)
+                ' Next
 
-                iSpace = 0
-                ' nuevo:  tengo que ver si no excede el ancho del rectangulo
-
-
-                s5 = ""
-
-
-                Do
-                    s5 &= stxWords[iSpace]
-                    fRect = glPlus.TextExtends(s5, CurrentTextHeigth)
-
-                    If fRect[0] < CurrentTextBoxWidth Then
-                        's5 = s4
-                        Inc iSpace
-                    Else' debo trimar
-                        NewLine = True
-                        Trimmed = True
-
-                        Break
-
-                    End If
-                Loop Until iSpace = stxWords.Count
-
-                s4 = ""
-                For i4 = iSpace + 1 To stxWords.max
-                    s4 &= stxWords[i4]
-
+                For iSpace = 0 To stxWords.Max - 1
+                    If stxWords[iSpace] <> "" Then stxWords[iSpace] &= " "
                 Next
-                s2 = s4 & s2
+                ' If stxWords[stxWords.max] = "" Then stxWords.Remove(stxWords.Max)
+                NewLine = False   ' supongo que entra todo
+                If (CurrentTextBoxWidth > 0) And (stxWords.Count > 1) Then ' debo trimar
+
+                    iSpace = 0
+                    ' nuevo:  tengo que ver si no excede el ancho del rectangulo
+
+
+                    s5 = ""
+
+
+                    Do
+                        s5 &= stxWords[iSpace]
+                        fRect = glPlus.TextExtends(s5, CurrentTextHeigth)
+
+                        If fRect[0] < CurrentTextBoxWidth Then
+                            's5 = s4
+                            Inc iSpace
+                        Else' debo trimar
+                            NewLine = True
+                            Trimmed = True
+
+                            Break
+
+                        End If
+                    Loop Until iSpace = stxWords.Count
+
+                    s4 = ""
+                    For i4 = iSpace + 1 To stxWords.max
+                        s4 &= stxWords[i4]
+
+                    Next
+                    s2 = s4 & s2
+
+                End If
 
             End If
+
 
             flxWords.Insert(glPlus.DrawTextPoly(s5, CurrentTextHeigth))
             puntos.Translate(flxWords, 0, CurrentTextPosY)
