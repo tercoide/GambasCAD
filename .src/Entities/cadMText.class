@@ -56,6 +56,8 @@ Public CurrentTextPosY As Float
 Public CurrentTextBoxHeight As Float
 Public CurrentTextAlignment As Integer                 ' horizontal alignment 0 left/1 center/2 right
 Public CurrentTextAlignmentVertical As Integer         '
+Public CurrentParagraphAlignment As Integer         '
+
 Public CurrentTextFont As String
 Public CurrentTextBold As Boolean
 Public CurrentTextItalic As Boolean
@@ -311,7 +313,7 @@ Public Sub Draw(oE As Entity)
     'If InStr(oE.Handle, "1C1DD12D") > 0 Then Stop
     '
     ' If InStr(oE.stringdata[0], "Madera Blanda ") > 0 Then Stop
-
+    'If oe.Handle = "13C574" Then Stop
 
     ' https://ezdxf.readthedocs.io/en/stable/tutorials/mtext.html
     ' https://ezdxf.readthedocs.io/en/stable/dxfentities/mtext.html#mtext-inline-codes
@@ -339,7 +341,7 @@ Public Sub ProcessText3(RTF As String)
     Dim sLines As New String[]
     Dim sRemains, sToProcess As String
     Dim fRect As New Float[]
-    Dim dx, dy, dy2 As Float
+    Dim px, py, dx, dy, dy2 As Float
 
     flxText.Clear ' limpio los glyphs
 
@@ -356,6 +358,7 @@ Public Sub ProcessText3(RTF As String)
 
     ' con esto los glyps vienen hacia abajo
     CurrentTextPosY = 0'-CurrentTextHeigth * 1.4
+    CurrentParagraphAlignment = 0
     For Each sRemains In sLines
         'Print sRemains
         ProcessPart3(sRemains)
@@ -371,15 +374,18 @@ Public Sub ProcessText3(RTF As String)
     ' ' but
     ' If Trimmed Then dy = CurrentTextHeigth * 1.2
 
-    If CurrentTextAlignmentVertical = 2 Then dy = OriginalTextPosY + dy - dy2
-    If CurrentTextAlignmentVertical = 1 Then dy = OriginalTextPosY + dy / 2 - dy2
-    If CurrentTextAlignmentVertical = 0 Then dy = OriginalTextPosY - dy2 '* sLines.Count
+    If CurrentTextAlignmentVertical = 2 Then py = OriginalTextPosY + dy - dy2
+    If CurrentTextAlignmentVertical = 1 Then py = OriginalTextPosY + dy / 2 - dy2
+    If CurrentTextAlignmentVertical = 0 Then py = OriginalTextPosY - dy2 '* sLines.Count
 
-    If CurrentTextAlignment = 0 Then dx = OriginalTextPosX
-    If CurrentTextAlignment = 1 Then dx = OriginalTextPosX - dx / 2 + CurrentTextBoxWidth / 2
-    If CurrentTextAlignment = 2 Then dx = OriginalTextPosX - dx + CurrentTextBoxWidth
+    If CurrentTextAlignment = 0 Then px = OriginalTextPosX
+    If CurrentTextAlignment = 1 Then px = OriginalTextPosX - dx / 2
+    If CurrentTextAlignment = 2 Then px = OriginalTextPosX - dx
 
-    puntos.Translate(flxText, dx, dy)
+    ' If CurrentParagraphAlignment = 1 Then px = px + CurrentTextBoxWidth / 2
+    ' If CurrentParagraphAlignment = 2 Then px = px + CurrentTextBoxWidth
+
+    puntos.Translate(flxText, px, py)
 
     puntos.RotatePointsFromBase(OriginalTextPosX, OriginalTextPosY, CurrentTextAngle * Pi / 180, flxText)
     'puntos.RotatePointsFromBase(dx, dy, CurrentTextAngle * Pi / 180, flxText)
@@ -455,7 +461,6 @@ Public Function ProcessPart3(sLine As String) As String
 
     s2 = sLine
 
-
     ' reemplazo caracteres especiales
     s2 = Replace(s2, "%%D", "U+00B0")
     s2 = Replace(s2, "%%P", "U+00B1")
@@ -463,7 +468,6 @@ Public Function ProcessPart3(sLine As String) As String
     s2 = Replace(s2, "%%D", "°", gb.IgnoreCase)
     s2 = Replace(s2, "%%P", "±", gb.IgnoreCase)
     s2 = Replace(s2, "%%C", "∅", gb.IgnoreCase)
-
 
     Do ' proceso la linea hasta que no me queden mas caracteres
         If Left$(s2, 1) = "{" Then  ' voy a modificar los parametros del estilo de texto
@@ -533,6 +537,13 @@ Public Function ProcessPart3(sLine As String) As String
                     '     If Len(s2) > 0 Then ProcessPart(s2)
 
                 Case "p"            ' no se que significa esto, suele venir \p12.55;
+                    ' \pxqc = centered
+                    ' \pxqr = right
+                    ' \pxql = left
+                    If Left(s2, 5) = "\\pxql" Then CurrentParagraphAlignment = 0
+                    If Left(s2, 5) = "\\pxqc" Then CurrentParagraphAlignment = 1
+                    If Left(s2, 5) = "\\pxqr" Then CurrentParagraphAlignment = 2
+
                     p2 = InStr(s2, ";", 1)
                     s2 = Mid(s2, p2 + 1)
 
@@ -662,9 +673,7 @@ Public Function ProcessPart3(sLine As String) As String
                     iSpace = 0
                     ' nuevo:  tengo que ver si no excede el ancho del rectangulo
 
-
                     s5 = ""
-
 
                     Do
                         s5 &= stxWords[iSpace]
@@ -693,7 +702,6 @@ Public Function ProcessPart3(sLine As String) As String
 
             End If
 
-
             flxWords.Insert(glPlus.DrawTextPoly(s5, CurrentTextHeigth))
             puntos.Translate(flxWords, 0, CurrentTextPosY)
             flxPAragraph.Insert(flxWords)
@@ -707,16 +715,15 @@ Public Function ProcessPart3(sLine As String) As String
         End If
     Loop Until s2 = ""
     ' alinemaiento produce problemas porque se refiere a todo el texto y no a la parte
-    ' fRect = puntos.Limits(flxPAragraph)
-    ' fRect[0] = fRect[2] - fRect[0]
-    ' dx = 0
-    ' If CurrentTextAlignment = 1 Then dx = -fRect[0] / 2
-    ' If CurrentTextAlignment = 2 Then dx = -fRect[0]
-    '
-    ' puntos.Translate(flxPAragraph, dx, 0)
+    fRect = puntos.Limits(flxPAragraph)
+    fRect[0] = fRect[2] - fRect[0]
+    dx = 0
+    If CurrentParagraphAlignment = 1 Then dx = CurrentTextBoxWidth / 2 - fRect[0] / 2
+    If CurrentParagraphAlignment = 2 Then dx = CurrentTextBoxWidth - fRect[0]
+
+    puntos.Translate(flxPAragraph, dx, 0)
     flxText.insert(flxPAragraph)
     CurrentTextPosY -= CurrentTextHeigth * 1.4
-
 
     Return
 
@@ -788,6 +795,8 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     Dim TextHeigthSet As Boolean = False
     Dim TextAngleSet As Boolean = False
     Dim ax, ay, az As Single ' angulo del texto
+
+    If e.Handle = "13C919" Then Stop
 
     For i = 0 To sClaves.Max
 
