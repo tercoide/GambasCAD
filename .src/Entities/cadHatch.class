@@ -219,7 +219,7 @@ End
 
 Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
 
-    Dim i, iLoop, iPoints, iBorderObjects, iBoundaryObject As Integer
+    Dim i, iPattern, iLoop, iPoints, iBorderObjects, iBoundaryObject As Integer
     Dim LoopToRead As Integer
     Dim LoopType As Integer
     Dim EdgesToRead As Integer
@@ -227,8 +227,10 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     Dim eContour As Entity
     Dim edge As Integer
     Dim oNewPAth As Boundary
+    Dim oPattern As Pattern
     ' Dim jscPath, vSeg As JSONCollection
     Dim RefObjHandle As String
+    Dim DashLength As Float
 
     'If e.Handle = "60FA9" Then Stop
 
@@ -459,6 +461,25 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
         If sClaves[i] = "75" Then e.fParam[Me.ipaParity] = CFloat(sValues[i])
         If sClaves[i] = "76" Then e.fParam[Me.ipaPatternType] = CFloat(sValues[i])
 
+        ' ahora viene el pattern data
+        If sClaves[i] = "78" Then
+            For iPattern = 1 To sValues[i]
+                oPattern = New Pattern
+                e.pBlock.Patterns.Add(oPattern)
+                i = dxf.ReadCode(53, sClaves, sValues, ByRef oPattern.AngleDeg, i)
+                i = dxf.ReadCode(43, sClaves, sValues, ByRef oPattern.BaseX, i)
+                i = dxf.ReadCode(44, sClaves, sValues, ByRef oPattern.BaseY, i)
+                i = dxf.ReadCode(45, sClaves, sValues, ByRef oPattern.OffsetX, i)
+                i = dxf.ReadCode(46, sClaves, sValues, ByRef oPattern.OffsetY, i)
+                i = dxf.ReadCode(79, sClaves, sValues, ByRef oPattern.Dashes, i)
+
+                For iBorderObjects = 1 To oPattern.Dashes
+
+                    i = dxf.ReadCode(79, sClaves, sValues, ByRef DashLength, i)
+                    oPattern.DashLength.Add(DashLength)
+                Next
+            Next
+        End If
     Loop
 
     If e.fParam[Me.ipaSolid] Then
@@ -1006,7 +1027,6 @@ Public Sub GetBoundLimits2(fxlPoints As Float[])
 
 End
 
-
 Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
 
     ' Parametros de la entidad:
@@ -1015,7 +1035,6 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
     ' fParam[0]:  escala del sombreado
     ' fParam[1]:  angulo
     ' StringData[0]: nombre del patron del sombreado
-
 
     Dim e As Entity
     Dim fPAtternSide As Float
