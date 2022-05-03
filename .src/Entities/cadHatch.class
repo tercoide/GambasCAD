@@ -1042,6 +1042,10 @@ End
 
 Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
 
+    ' reeleno usando un pattern manual
+    ' https://knowledge.autodesk.com/support/autocad-lt/learn-explore/caas/CloudHelp/cloudhelp/2018/ENU/AutoCAD-LT/files/GUID-79B99823-7600-4CAB-BD12-04D5103D90CB-htm.html
+
+
     ' Parametros de la entidad:
 
     ' P[]:        son los puntos de la polilinea que define el contorno del sombreado
@@ -1055,7 +1059,7 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
     Dim nx As Integer
     Dim ny As Integer
     Dim ie, i As Integer
-    Dim flxTrimmedLine, flxPatternLimits, flxContorno, flxFirstPass, flxSecondPass, flxPatternLines As New Float[]
+    Dim flxTrimmedLine, flxPatternLimits, flxContorno, flxFirstPass, flxSecondPass, flxPatternLines, flxDashes As New Float[]
     Dim iLoop As Integer
     Dim enxPattern As New Collection
     Dim cPattern As New Collection
@@ -1065,11 +1069,12 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
     Dim sPAtternFile As String
     Dim oLoop As Boundary
     Dim oPat As Pattern
-    Dim NoMoreIntersections As Boolean
+    Dim NoMoreIntersections, MeAlejo, Filled As Boolean
     Dim OffsetDirection As Integer = 1
-    Dim mX, mY, dX, dY, BaseX, BaseY, FinalX, FinalY, TanA, DashLength, DashTrame As Float
-    Dim CosA, SinA, DashBaseX, DashBaseY, DashFinalX, DashFinalY As Float
-
+    Dim mX, mY, dX, dY, BaseX, BaseY, StartX, StartY, FinalX, FinalY, TanA, DashLength, DashTrame As Float
+    Dim Scale, CosA, SinA, DashBaseX, DashBaseY, DashFinalX, DashFinalY As Float
+    Dim SeedX, SeedY, SeedIndex As Float
+    Dim Mucho As Float = 1e10
     ' este valor intenta commpensar un problema de compatibilidad entre DWG y DXF
     ' para estar de acuerdo a LibreCAD, debe ser =1, pero algunos DWG se represetan
     ' con una densidad de relleno menor (mas disperso el relleno)
@@ -1104,90 +1109,155 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
         GetBoundLimits2(flxContorno)
     Next
 
-    For Each oPat In entToFill.pBlock.Patterns
-        NoMoreIntersections = False
-        OffsetDirection = 1
-        iPatternOffset = 0
+    Scale = entToFill.fParam[Me.ipaScale]
+    Scale = 1
+    SeedIndex = 0
+    ' ya tenemos las lineas del pattern, las hacemos intersectar con el contorno
+    For Each flxContorno In oLoop.Polylines
+        If oLoop.Levels[SeedIndex] < 0 Then Continue ' es un hole
 
-        TanA = Tan(oPat.AngleDeg * Pi / 180)
-        CosA = Cos(oPat.AngleDeg * Pi / 180)
-        SinA = Sin(oPat.AngleDeg * Pi / 180)
+        If flxContorno.Count < 6 Then Continue          ' este borde es nulo
 
-        Do
-            ' trazamos las lines que forman el hatch y verificamos intersacciones
+        Try SeedX = entToFill.pBlock.SeedPoints[SeedIndex * 2]
+        Try SeedY = entToFill.pBlock.SeedPoints[SeedIndex * 2 + 1]
 
-            ' Tenemos que trazar las lineas de manera que alcancen los limites del contorno
-            ' entonces vemos el angulo:
 
-            ' El punto base para la nueva linea es:
-            BaseX = oPat.BaseX + iPatternOffset * OffsetDirection * oPat.OffsetX
-            BaseY = oPat.BaseY + iPatternOffset * OffsetDirection * oPat.OffsetY
+        For Each oPat In entToFill.pBlock.Patterns
+            NoMoreIntersections = False
+            OffsetDirection = 1
+            iPatternOffset = 0
 
-            'basandonos en el punto base, vemos cuanto de largo deben ser
-            dX = Xmayor - BaseX
-            dY = Ymayor - BaseY
+            TanA = Tan((oPat.AngleDeg + entToFill.fParam[Me.ipaRotation]) * Pi / 180)
+            CosA = Cos((oPat.AngleDeg + entToFill.fParam[Me.ipaRotation]) * Pi / 180)
+            SinA = Sin((oPat.AngleDeg + entToFill.fParam[Me.ipaRotation]) * Pi / 180)
 
-            mY = dx * TanA
-            If TanA <> 0 Then mX = dy / TanA Else mx = 1e10
+            Do
 
-            ' elijo el menor
-            If mY <= dY Then
-                If TanA <> 0 Then
-                    FinalX = BaseX + my / TanA
-                Else
-                    FinalX = BaseX + mx
-                End If
-                'FinalX = BaseX + my / TanA
-                FinalY = BaseY + mY
-            Else
-                FinalX = BaseX + mX
-                FinalY = BaseY + mx * TanA
 
-            Endif
+                BaseX = SeedX + oPat.BaseX + iPatternOffset * oPat.OffsetX * Scale * OffsetDirection
+                BaseY = SeedY + oPat.BaseY + iPatternOffset * OffsetDirection * oPat.OffsetY * Scale
 
-            ' ya tenemos las lineas del pattern, las hacemos intersectar con el contorno
-            For Each flxContorno In oLoop.Polylines
-                ' este borde es nulo
-                If flxContorno.Count < 6 Then Continue
+                ' trazo una linea infinita
+                FinalX = BaseX + CosA * Mucho
+                FinalY = BaseY + SinA * Mucho
+
+                StartX = BaseX - CosA * Mucho
+                StartY = BaseY - SinA * Mucho
+
+                ' trazamos las lines que forman el hatch y verificamos intersacciones
+
+                'basandonos en el punto base, vemos cuanto de largo deben ser
+                dX = Xmenor - BaseX
+                dY = Ymenor - BaseY
+
+
+
+                Inc iPatternOffset
+
                 ' La linea recortada al contorno es:
-                flxTrimmedLine = puntos.LinePolyIntersection([BaseX, BaseY, FinalX, FinalY], flxContorno)
+                flxTrimmedLine = puntos.LinePolyIntersection([StartX, StartY, FinalX, FinalY], flxContorno)
 
                 ' ahora aplico los dashes
 
                 flxPatternLines.Clear
-                If oPat.Dashes = 0 Then ' es una linea recta
-                    entToFill.PolyLine.Insert(flxTrimmedLine.Copy())
-                Else ' inserto dashes
-                    DashBaseX = BaseX
-                    DashBaseY = BaseY
-                    Do
-                        For Each DashTrame In oPat.DashLength
-                            DashFinalX = DashBaseX + Abs(DashTrame) * CosA
-                            DashFinalY = DashBaseY + Abs(DashTrame) * SinA
+                If flxTrimmedLine.Count > 0 Then
+                    'flxFirstPass.Insert(flxTrimmedLine.Copy())
+                    'entToFill.PolyLine.Insert(flxTrimmedLine.Copy())
+                    ' oPat.Dashes = 0
+                    If oPat.Dashes = 0 Then ' es una linea recta
+                        flxFirstPass.Insert(flxTrimmedLine.Copy())
+                    Else ' inserto dashes
+                        ' direccion +
+                        DashBaseX = BaseX
+                        DashBaseY = BaseY
+                        Do
 
-                            flxTrimmedLine = puntos.LinePolyIntersection([DashBaseX, DashBaseY, DashFinalX, DashFinalY], flxContorno)
-                            DashBaseX = DashFinalX
-                            DashBaseY = DashFinalY
-                            entToFill.PolyLine.Insert(flxTrimmedLine.Copy())
-                        Next
-                    Loop Until (DashBaseX >= FinalX) Or (DashBaseY >= FinalY)
+                            For Each DashTrame In oPat.DashLength
+                                DashFinalX = DashBaseX + Abs(DashTrame) * CosA * Scale
+                                DashFinalY = DashBaseY + Abs(DashTrame) * SinA * Scale
+
+                                flxDashes = puntos.LinePolyIntersection([DashBaseX, DashBaseY, DashFinalX, DashFinalY], flxContorno)
+                                DashBaseX = DashFinalX
+                                DashBaseY = DashFinalY
+                                If flxDashes.Count > 0 Then
+                                    flxFirstPass.Insert(flxDashes.Copy())
+                                Else
+
+                                    Break
+                                End If
+                            Next
+
+                        Loop Until flxDashes.Count = 0
+
+                        DashBaseX = BaseX
+                        DashBaseY = BaseY
+                        Do
+
+
+                            For i = oPat.DashLength.Max To 0 Step -1
+                                DashTrame = oPat.DashLength[i]
+                                DashFinalX = DashBaseX - Abs(DashTrame) * CosA * Scale
+                                DashFinalY = DashBaseY - Abs(DashTrame) * SinA * Scale
+
+                                flxDashes = puntos.LinePolyIntersection([DashBaseX, DashBaseY, DashFinalX, DashFinalY], flxContorno)
+                                DashBaseX = DashFinalX
+                                DashBaseY = DashFinalY
+                                If flxDashes.Count > 0 Then
+                                    flxFirstPass.Insert(flxDashes.Copy())
+                                Else
+
+                                    Break
+                                End If
+                            Next
+
+                        Loop Until flxDashes.Count = 0
+                        ' direccion -
+                    End If
+                Else
+                    MeAlejo = False
+                    ' veo si me aproximo
+                    If Abs(oPat.OffsetX) > Abs(oPat.OffsetY) Then ' chequeo segun X
+
+
+                        If dX > 0 Then
+                            If (oPat.OffsetX * OffsetDirection) < 0 Then MeAlejo = True
+
+                        Else
+                            If (oPat.OffsetX * OffsetDirection) > 0 Then MeAlejo = True
+
+
+                        Endif
+                    Else ' cheque segun Y
+
+                        If dY > 0 Then
+                            If (oPat.OffsetY * OffsetDirection) < 0 Then MeAlejo = True
+
+                        Else
+                            If (oPat.OffsetY * OffsetDirection) > 0 Then MeAlejo = True
+
+
+                        Endif
+
+                    End If
+
+                    If MeAlejo Then
+                        If OffsetDirection = 1 Then
+                            OffsetDirection = -1
+                            iPatternOffset = 1
+                        Else
+                            NoMoreIntersections = True
+                        Endif
+                    End If
                 End If
 
-            Next
+                '
+            Loop Until NoMoreIntersections
+            'Next
 
-            Inc iPatternOffset
-            If flxTrimmedLine.Count = 0 Then
-                If OffsetDirection = 1 Then
-                    OffsetDirection = -1
-                    iPatternOffset = 1
-                Else
-                    NoMoreIntersections = True
-                Endif
-            Endif
-
-        Loop Until NoMoreIntersections
+        Next
+        Inc SeedIndex
     Next
-
+    'If entToFill.PolyLine.Count = 0 Then Stop
     'entToFill.PolyLine.Insert(flxFirstPass.Copy())
 
     ' HASTA ACA LLEGO BIEN, CON EL CONTORNO PPAL LLENO
@@ -1201,26 +1271,27 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
     ' DEFAULT: default boundary path
     ' As you will learn in the next sections, these are more the recommended usage type for the flags, but the fill algorithm doesn’t care much about that, for instance an OUTERMOST path doesn’t have to be inside the EXTERNAL path.
 
-    ' limpio los huecos
+    'limpio los huecos
     'Else If (oloop.Flag And 16) = 16 Then ' es outermost
-    ' If oLoop.Holes.Count > 0 Then
-    '
-    '     For Each flxContorno In oLoop.Holes
-    '
-    '         entToFill.PolyLine.Clear
-    '
-    '         For i = 0 To flxFirstPass.Max - 3 Step 4
-    '             entToFill.PolyLine.Insert(puntos.LineholeIntersection(flxFirstPass.Copy(i, 4), flxContorno))
-    '
-    '         Next
-    '         flxFirstPass.Clear
-    '         flxFirstPass.Insert(entToFill.PolyLine.copy())
-    '
-    '     Next
-    '
-    ' Else
-    '
-    '     entToFill.PolyLine.Insert(flxFirstPass.Copy())
-    ' End If
+
+    SeedIndex = -1
+    Filled = False
+    For Each flxContorno In oLoop.Polylines
+        Inc SeedIndex
+        If oLoop.Levels[SeedIndex] > 0 Then Continue ' es un borde
+
+        Filled = True
+
+        For i = 0 To flxFirstPass.Max - 3 Step 4
+            entToFill.PolyLine.Insert(puntos.LineholeIntersection(flxFirstPass.Copy(i, 4), flxContorno))
+
+        Next
+
+
+    Next
+
+    If Not Filled Then entToFill.PolyLine.Insert(flxFirstPass.Copy())
+
+
 
 End
