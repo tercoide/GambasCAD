@@ -88,7 +88,7 @@ End
 
 Public Sub Draw(oE As Entity)
 
-    Dim iLoop, iStart As Integer
+    Dim i, iLoop, iStart, iColour As Integer
     Dim fBorder As New Float[]
     Dim oLoop As Boundary
     Dim E2 As Entity
@@ -98,8 +98,19 @@ Public Sub Draw(oE As Entity)
     'BuildGeometry(oe)
 
     If LCase(oe.StringData[Me.sdaPattern]) <> "solid" Then
+        iColour = gcd.GetGBColor(oE.Colour, oe.pLayer)
+        GLplus.Lines(oE.PolyLine, iColour, oE.LineWidth, oE.LineType.index)
 
-        GLplus.Lines(oE.PolyLine, gcd.GetGBColor(oE.Colour, oe.pLayer), oE.LineWidth, oE.LineType.index)
+        gl.Begin(gl.POINTS)
+
+        For i = 0 To oE.PolyLine.Max - 3 Step 4
+            If (oE.PolyLine[i] = oE.PolyLine[i + 2]) And (oE.PolyLine[i + 1] = oE.PolyLine[i + 3]) Then
+                glPlus.glColorRGB(iColour)
+                gl.Vertex2f(oE.PolyLine[i], oE.PolyLine[i + 1])
+            End If
+
+        Next
+        gl.end
 
     Else
 
@@ -655,373 +666,6 @@ Public Sub MakeBorder2(oPath As Boundary)
 
 End
 
-Public Sub FillEntityWithHatch2(entToFill As Entity)
-
-    ' Parametros de la entidad:
-
-    ' P[]:        son los puntos de la polilinea que define el contorno del sombreado
-    ' fParam[0]:  escala del sombreado
-    ' fParam[1]:  angulo
-    ' StringData[0]: nombre del patron del sombreado
-
-    Dim e As Entity
-    Dim fPAtternSide As Float
-    Dim iPatternNx, iPatternNy As Integer
-    Dim nx As Integer
-    Dim ny As Integer
-    Dim ie, i As Integer
-    Dim flxPatternLimits, flxContorno, flxFirstPass, flxSecondPass As New Float[]
-    Dim iLoop As Integer
-    Dim enxPattern As New Collection
-    Dim cPattern As New Collection
-    Dim drwPattern As New Drawing
-    Dim enxPatternScaled As New Collection
-    Dim eBorder As Entity
-    Dim sPAtternFile As String
-    Dim oLoop As Boundary
-
-    ' este valor intenta commpensar un problema de compatibilidad entre DWG y DXF
-    ' para estar de acuerdo a LibreCAD, debe ser =1, pero algunos DWG se represetan
-    ' con una densidad de relleno menor (mas disperso el relleno)
-    Dim CorrectionScale As Float = 1 '0.01 ' 0.1
-
-    sPAtternFile = entToFill.StringData[cadHatch.sdaPaternFile]
-
-    ' verifico si tengo el pattern
-    If Not Exist(sPAtternFile) Then ' lo reemplazo
-
-        sPAtternFile = gcd.dirResources &/ "patterns" &/ "ansi31.dxf"
-
-    End If
-
-    ' cargo el sombreado en un array auxiliar
-
-    Dxf.LoadFile(sPAtternFile, drwPattern, True, True, True) ' lo cargo
-    'gcd.DXFtoEntity(cPattern["ENTITIES"], enxPattern, True)
-    enxPattern = drwPattern.oEntities
-    ' necesito saber cuanto mide el contorno para aplicar la escala y multiplicar hasta cubrir todo el contorno
-
-    flxPatternLimits = clsEntities.ComputeLimits(enxPattern)
-
-    ' los patrones son cuadrados, computo el lado
-    fPatternSide = 100 ' flxPatternLimits[2] - flxPatternLimits[0]
-
-    If entToFill.fParam[cadHatch.ipaScale] = 0 Then
-        entToFill.fParam[cadHatch.ipaScale] = 1
-    Else
-        ''entToFill.fParam[cadHatch.ipaScale] /= 12  ' TODO: verificar esta escala
-    Endif
-
-    'For Each oLoop In entToFill.pBlock.oBoundaryPath
-
-    oloop = entToFill.pBlock.oBoundaryPath
-
-    'If entToFill.Handle = "FB66C" Then Stop
-
-    MakeBorder2(oLoop)
-
-    'If ((oloop.Flag And 1) = 1) Or (oloop.Flag = 0) Then ' es external, o sea lo que esta afuera de todo
-
-    If oloop.Polylines.Count = 0 Then Return
-
-    ' veo los limites del contorno exterior
-    Xmenor = 1e10
-    Ymenor = 1e10
-    Xmayor = -1e10
-    Ymayor = -1e10
-
-    For Each flxContorno In oloop.Polylines
-
-        GetBoundLimits2(flxContorno)
-    Next
-
-    ' vamos a mentir un poco
-    ' xmenor -= 1
-    ' ymenor -= 1
-    ' Xmayor += 1
-    ' ymayor += 1
-
-    ' calculo cuantos patrones necesito
-    iPatternNx = (Xmayor - Xmenor) / fPAtternSide / entToFill.fParam[cadHatch.ipaScale] / CorrectionScale + 1
-    iPatternNy = (ymayor - ymenor) / fPAtternSide / entToFill.fParam[cadHatch.ipaScale] / CorrectionScale + 1
-
-    ' creo un array para el sombreado total  <---No mas
-
-    ' Muevo el pattern y filtro
-
-    For nx = 0 To iPatternNx - 1
-        For ny = 0 To iPatternNy - 1
-            For Each e In enxPattern
-                For Each flxContorno In oLoop.Polylines
-                    ' este borde es nulo
-                    If flxContorno.Count < 6 Then Continue
-
-                    e.ClassHandler.scale(e, entToFill.fParam[cadHatch.ipaScale] * CorrectionScale, entToFill.fParam[cadHatch.ipaScale] * CorrectionScale)
-
-                    e.ClassHandler.translate(e, nx * fPAtternSide * entToFill.fParam[cadHatch.ipaScale] * CorrectionScale + Xmenor, ny * fPAtternSide * entToFill.fParam[cadHatch.ipaScale] * CorrectionScale + ymenor)
-
-                    'e.ClassHandler.Rotate(e, entToFill.fParam[cadHatch.ipaRotation] / 180 * Pi)
-                    ' ahora lo dibujo
-                    ' ahora tengo que filtrar las entidades que quedan fuera del contorno y generar lineas sueltas que forman
-                    ' el sombreado (por ahora seran solo lineas)
-                    ' esas lineas las acumulo en un array
-
-                    Select Case e.Gender
-                        Case "Line", "LWPolyline"
-
-                            ' nuevo: el contorno pueden ser varias polis, o sea con huecos
-
-                            flxFirstPass.Insert(puntos.PolyPolyIntersection(e.p, flxContorno))
-
-                            ' this is test to see if the pattern is made correctly
-                            'entToFill.PolyLine.Insert(e.p.Copy())
-
-                        Case "Circle", "Arc", "Ellipse"
-                            ' estas entidades deben dibujarse primero
-                            e.ClassHandler.MakePolyline(e, 6)
-                            flxFirstPass.Insert(puntos.PolyPolyIntersection(e.PolyLine, flxContorno))
-                    End Select
-
-                    ' Vuelvo a la posicion original
-
-                    e.ClassHandler.translate(e, -(nx * fPAtternSide * entToFill.fParam[cadHatch.ipaScale] * CorrectionScale + Xmenor), -(ny * fPAtternSide * entToFill.fParam[cadHatch.ipaScale] * CorrectionScale + ymenor))
-
-                    e.ClassHandler.scale(e, 1 / entToFill.fParam[cadHatch.ipaScale] * CorrectionScale, 1 / entToFill.fParam[cadHatch.ipaScale] * CorrectionScale)
-                Next
-            Next
-
-        Next
-    Next
-    'entToFill.PolyLine.Insert(flxFirstPass.Copy())
-
-    ' HASTA ACA LLEGO BIEN, CON EL CONTORNO PPAL LLENO
-
-    ' https://ezdxf.readthedocs.io/en/stable/dxfentities/hatch.html
-    ' Boundary Paths
-    ' The hatch entity is build by different functional path types, this are filter flags for the Hatch.dxf.hatch_style:
-    '
-    ' EXTERNAL: defines the outer boundary of the hatch
-    ' OUTERMOST: defines the first tier of inner hatch boundaries
-    ' DEFAULT: default boundary path
-    ' As you will learn in the next sections, these are more the recommended usage type for the flags, but the fill algorithm doesn’t care much about that, for instance an OUTERMOST path doesn’t have to be inside the EXTERNAL path.
-
-    ' limpio los huecos
-    'Else If (oloop.Flag And 16) = 16 Then ' es outermost
-    If oLoop.Holes.Count > 0 Then
-
-        For Each flxContorno In oLoop.Holes
-
-            entToFill.PolyLine.Clear
-
-            For i = 0 To flxFirstPass.Max - 3 Step 4
-                entToFill.PolyLine.Insert(puntos.LineholeIntersection(flxFirstPass.Copy(i, 4), flxContorno))
-
-            Next
-            flxFirstPass.Clear
-            flxFirstPass.Insert(entToFill.PolyLine.copy())
-
-        Next
-
-    Else
-
-        entToFill.PolyLine.Insert(flxFirstPass.Copy())
-    End If
-    'End If
-
-    'Next
-
-End
-
-Public Sub FillEntityWithHatch3(entToFill As Entity)
-
-    ' Parametros de la entidad:
-
-    ' P[]:        son los puntos de la polilinea que define el contorno del sombreado
-    ' fParam[0]:  escala del sombreado
-    ' fParam[1]:  angulo
-    ' StringData[0]: nombre del patron del sombreado
-
-    Dim e As Entity
-    Dim fPAtternSide As Float
-    Dim iPatternNx, iPatternNy As Integer
-    Dim nx As Integer
-    Dim ny As Integer
-    Dim ie, i, i2 As Integer
-    Dim flxPatternLines, flxPatternLimits, flxPatternSquare, flxContorno, flxFirstPass, flxSecondPass As New Float[]
-    Dim iLoop As Integer
-    Dim enxPattern As New Collection
-    Dim cPattern As New Collection
-    Dim drwPattern As New Drawing
-    Dim enxPatternScaled As New Collection
-    Dim eBorder As Entity
-    Dim sPAtternFile As String
-    Dim oLoop As Boundary
-
-    ' este valor intenta commpensar un problema de compatibilidad entre DWG y DXF
-    ' para estar de acuerdo a LibreCAD, debe ser =1, pero algunos DWG se represetan
-    ' con una densidad de relleno menor (mas disperso el relleno)
-    Dim CorrectionScale As Float = 1 '0.01 ' 0.1
-    Dim level As Integer
-    Dim Hay As Boolean
-
-    sPAtternFile = entToFill.StringData[cadHatch.sdaPaternFile]
-
-    ' verifico si tengo el pattern
-    If Not Exist(sPAtternFile) Then ' lo reemplazo
-
-        sPAtternFile = gcd.dirResources &/ "patterns" &/ "ansi31.dxf"
-
-    End If
-
-    ' cargo el sombreado en un array auxiliar
-
-    Dxf.LoadFile(sPAtternFile, drwPattern, True, True, True) ' lo cargo
-    'gcd.DXFtoEntity(cPattern["ENTITIES"], enxPattern, True)
-    enxPattern = drwPattern.oEntities
-    ' necesito saber cuanto mide el contorno para aplicar la escala y multiplicar hasta cubrir todo el contorno
-
-    flxPatternLimits = clsEntities.ComputeLimits(enxPattern)
-
-    flxPatternSquare.Insert([flxPatternLimits[0]])
-
-    ' los patrones son cuadrados, computo el lado
-    fPatternSide = 100 ' flxPatternLimits[2] - flxPatternLimits[0]
-
-    If entToFill.fParam[cadHatch.ipaScale] = 0 Then
-        entToFill.fParam[cadHatch.ipaScale] = 1
-    Else
-        ''entToFill.fParam[cadHatch.ipaScale] /= 12  ' TODO: verificar esta escala
-    Endif
-
-    'For Each oLoop In entToFill.pBlock.oBoundaryPath
-
-    oloop = entToFill.pBlock.oBoundaryPath
-
-    'If entToFill.Handle = "FB66C" Then Stop
-
-    MakeBorder2(oLoop)
-
-    'If ((oloop.Flag And 1) = 1) Or (oloop.Flag = 0) Then ' es external, o sea lo que esta afuera de todo
-
-    If oloop.Polylines.Count = 0 Then Return
-
-    ' veo los limites del contorno exterior
-    Xmenor = 1e10
-    Ymenor = 1e10
-    Xmayor = -1e10
-    Ymayor = -1e10
-
-    For Each flxContorno In oloop.Polylines
-
-        GetBoundLimits2(flxContorno)
-    Next
-
-    ' vamos a mentir un poco
-    ' xmenor -= 1
-    ' ymenor -= 1
-    ' Xmayor += 1
-    ' ymayor += 1
-
-    ' Creo las lineas del pattern
-    ' determino el tamano nuevo del pattern
-    flxPatternLimits = clsEntities.ComputeLimits(enxPattern)
-
-    fPatternSide = flxPatternLimits[2] - flxPatternLimits[0]
-
-    ' achico el cuadrado post rotacion
-    flxPatternSquare = [flxPatternLimits[0] + fPAtternSide / 4, flxPatternLimits[1] + fPAtternSide / 4, flxPatternLimits[0] + fPAtternSide / 4, flxPatternLimits[3] - fPAtternSide / 4, flxPatternLimits[2] - fPAtternSide / 4, flxPatternLimits[3] - fPAtternSide / 4, flxPatternLimits[2] - fPAtternSide / 4, flxPatternLimits[1] + fPAtternSide / 4]
-    For Each e In enxPattern
-
-        e.ClassHandler.Rotate(e, entToFill.fParam[cadHatch.ipaRotation] / 180 * Pi)
-
-        ' e.ClassHandler.scale(e, entToFill.fParam[cadHatch.ipaScale] * CorrectionScale, entToFill.fParam[cadHatch.ipaScale] * CorrectionScale)
-        '
-
-        Select Case e.Gender
-            Case "Line", "LWPolyline"
-
-                ' nuevo: el contorno pueden ser varias polis, o sea con huecos
-
-                flxPatternLines.Insert(puntos.PolyPolyIntersection(e.p, flxPatternSquare))
-
-                ' this is test to see if the pattern is made correctly
-                'entToFill.PolyLine.Insert(e.p.Copy())
-
-            Case "Circle", "Arc", "Ellipse"
-                ' estas entidades deben dibujarse primero
-                e.ClassHandler.MakePolyline(e, 6)
-                flxPatternLines.Insert(puntos.PolyPolyIntersection(e.PolyLine, flxPatternSquare))
-        End Select
-
-    Next
-
-    puntos.Translate(flxPatternLines, -fPAtternSide / 4, -fPAtternSide / 4)
-
-    puntos.Scale(flxPatternLines, entToFill.fParam[cadHatch.ipaScale] * CorrectionScale, entToFill.fParam[cadHatch.ipaScale] * CorrectionScale)
-
-    ' cambio el valor del cuadrado del pattern al mas chico
-
-    fPAtternSide /= 2 / entToFill.fParam[cadHatch.ipaScale] / CorrectionScale
-
-    ' calculo cuantos patrones necesito
-    iPatternNx = (Xmayor - Xmenor) / fPAtternSide / entToFill.fParam[cadHatch.ipaScale] / CorrectionScale + 1
-    iPatternNy = (ymayor - ymenor) / fPAtternSide / entToFill.fParam[cadHatch.ipaScale] / CorrectionScale + 1
-
-    ' creo un array para el sombreado total  <---No mas
-
-    ' Muevo el pattern y filtro
-
-    For level = 1 To 100
-
-        Hay = False
-        For i = 0 To oLoop.Polylines.Max
-
-            If Abs(oloop.Levels[i]) = level Then
-                Hay = True
-                flxContorno = oloop.Polylines[i]
-                ' este borde es nulo
-                If flxContorno.Count < 6 Then Continue
-
-                If oloop.Levels[i] > 0 Then
-
-                    For nx = 0 To iPatternNx - 1
-                        For ny = 0 To iPatternNy - 1
-
-                            puntos.Translate(flxPatternLines, nx * fPAtternSide, ny * fPAtternSide)
-
-                            ' e.ClassHandler.translate(e, nx * fPAtternSide * entToFill.fParam[cadHatch.ipaScale] * CorrectionScale + Xmenor, ny * fPAtternSide * entToFill.fParam[cadHatch.ipaScale] * CorrectionScale + ymenor)
-
-                            entToFill.PolyLine.Insert(puntos.PolyPolyIntersection(flxPatternLines, flxContorno))
-                            ' Vuelvo a la posicion original
-
-                            puntos.Translate(flxPatternLines, -nx * fPAtternSide, -ny * fPAtternSide)
-
-                        Next
-                    Next
-
-                Else    ' corto en los huecos
-
-                    flxFirstPass.Clear
-
-                    flxFirstPass.Insert(entToFill.PolyLine.copy())
-
-                    entToFill.PolyLine.Clear
-
-                    For i2 = 0 To flxFirstPass.Max - 3 Step 4
-                        entToFill.PolyLine.Insert(puntos.LineholeIntersection(flxFirstPass.Copy(i2, 4), flxContorno))
-
-                    Next
-
-                End If
-            End If
-        Next
-
-        If Not hay Then Break
-
-    Next
-
-End
-
 Public Sub GetBoundLimits2(fxlPoints As Float[])
 
     Dim i As Integer
@@ -1044,7 +688,6 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
 
     ' reeleno usando un pattern manual
     ' https://knowledge.autodesk.com/support/autocad-lt/learn-explore/caas/CloudHelp/cloudhelp/2018/ENU/AutoCAD-LT/files/GUID-79B99823-7600-4CAB-BD12-04D5103D90CB-htm.html
-
 
     ' Parametros de la entidad:
 
@@ -1069,16 +712,18 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
     Dim sPAtternFile As String
     Dim oLoop As Boundary
     Dim oPat As Pattern
-    Dim NoMoreIntersections, MeAlejo, Filled As Boolean
+    Dim NoMoreIntersections, MeAlejo, Filled, UseAxisX As Boolean
     Dim OffsetDirection As Integer = 1
     Dim mX, mY, dX, dY, BaseX, BaseY, Check, StartX, StartY, FinalX, FinalY, TanA, DashLength, DashTrame As Float
     Dim Scale, CosA, SinA, DashBaseX, DashBaseY, DashFinalX, DashFinalY As Float
     Dim SeedX, SeedY, SeedIndex, CosB, SinB, TanB, CosAB, SinAB, TanAB As Float
     Dim Mucho, MuchoViejo As Float
+    Dim Xcg, Ycg, DistCg, DistCgOld As Float
     ' este valor intenta commpensar un problema de compatibilidad entre DWG y DXF
     ' para estar de acuerdo a LibreCAD, debe ser =1, pero algunos DWG se represetan
     ' con una densidad de relleno menor (mas disperso el relleno)
     Dim CorrectionScale As Float = 1 '0.01 ' 0.1
+    Dim iHatchLinesDrawn As Integer
 
     If entToFill.fParam[cadHatch.ipaScale] = 0 Then
         entToFill.fParam[cadHatch.ipaScale] = 1
@@ -1090,7 +735,7 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
 
     oloop = entToFill.pBlock.oBoundaryPath
 
-    If entToFill.Handle = "39C" Then Stop
+    'If entToFill.Handle = "3DF" Then Stop
     'If entToFill.StringData[0] = "ANSI31" Then Stop
 
     MakeBorder2(oLoop)
@@ -1107,11 +752,14 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
 
     Dim l1, l2, lmax As Float
 
-
     For Each flxContorno In oloop.Polylines
 
         GetBoundLimits2(flxContorno)
     Next
+
+    ' obtengo el CG
+    Xcg = (Xmayor + Xmenor) / 2
+    Ycg = (Ymayor + Ymenor) / 2
 
     Scale = entToFill.fParam[Me.ipaScale]
     Scale = 1
@@ -1125,20 +773,16 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
         Try SeedX = entToFill.pBlock.SeedPoints[SeedIndex * 2]
         Try SeedY = entToFill.pBlock.SeedPoints[SeedIndex * 2 + 1]
 
-        l1 = (Xmenor - SeedX) ^ 2 + (Ymenor - SeedY) ^ 2        ' l1 y l2 son las distancias del seed a los limites del dibujo
-        l2 = (Xmayor - SeedX) ^ 2 + (Ymayor - SeedY) ^ 2
-
-        If l1 < l2 Then lmax = Sqr(l2) Else lmax = Sqr(l1)
-
         TanA = Tan(entToFill.fParam[Me.ipaRotation] * Pi / 180)
         CosA = Cos(entToFill.fParam[Me.ipaRotation] * Pi / 180)
         SinA = Sin(entToFill.fParam[Me.ipaRotation] * Pi / 180)
 
-
         For Each oPat In entToFill.pBlock.Patterns
+            iHatchLinesDrawn = 0
             NoMoreIntersections = False
             OffsetDirection = 1
             iPatternOffset = 0
+            If Abs(oPat.OffsetX) >= Abs(oPat.OffsetY) Then UseAxisX = True Else UseAxisX = False
 
             ' el angulo de la linea del patron ya tiene incorporado el angulo general del hatch
             TanB = Tan(oPat.AngleDeg * Pi / 180)
@@ -1152,46 +796,35 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
             ' TanA = Tan(entToFill.fParam[Me.ipaRotation] * Pi / 180)
             ' CosA = Cos(entToFill.fParam[Me.ipaRotation] * Pi / 180)
             ' SinA = Sin(entToFill.fParam[Me.ipaRotation] * Pi / 180)
-
+            DistCg = 1e100
             Do
-                If iPatternOffset > 1e4 Then Stop
+                If iPatternOffset > 1e3 Then Break 'Stop
 
                 ' el Offset entre lineas del patron ya tiene incorporado el angulo del hatch
                 BaseX = SeedX + oPat.BaseX + iPatternOffset * OffsetDirection * oPat.OffsetX * Scale
                 BaseY = SeedY + oPat.BaseY + iPatternOffset * OffsetDirection * oPat.OffsetY * Scale
 
-                Mucho = 0
-
+                Mucho = 1e10
 
                 If Abs(Xmayor - BaseX) > mucho Then mucho = Abs(Xmayor - BaseX)
                 If Abs(Ymayor - BaseY) > mucho Then mucho = Abs(Ymayor - BaseY)
                 If Abs(Xmenor - BaseX) > mucho Then mucho = Abs(Xmenor - BaseX)
                 If Abs(Ymenor - BaseY) > mucho Then mucho = Abs(Ymenor - BaseY)
 
-
-
-
-                StartX = BaseX - cosB * Mucho
+                StartX = BaseX - cosB * mucho
                 StartY = BaseY - SinB * Mucho
 
                 FinalX = BaseX + CosB * Mucho
                 FinalY = BaseY + SinB * Mucho
 
-                ' trazo una linea infinita
-                ' FinalX = BaseX + CosB * lmax * 2
-                ' FinalY = BaseY + SinB * lmax * 2
-
-                Mucho = Abs(puntos.PointToLineDistance([BaseX, BaseY], [StartX, StartY, FinalX, FinalY]))
-
-                'If MuchoViejo = 0 Then MuchoViejo = Mucho
-
-                ' trazamos las lines que forman el hatch y verificamos intersacciones
+                '
+                ' 'If MuchoViejo = 0 Then MuchoViejo = Mucho
+                '
+                ' ' trazamos las lines que forman el hatch y verificamos intersacciones
 
                 'basandonos en el punto base, vemos cuanto de largo deben ser
                 dX = Xmenor - BaseX
                 dY = Ymenor - BaseY
-
-
 
                 Inc iPatternOffset
 
@@ -1204,9 +837,11 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
                 If flxTrimmedLine.Count > 0 Then
                     'flxFirstPass.Insert(flxTrimmedLine.Copy())
                     'entToFill.PolyLine.Insert(flxTrimmedLine.Copy())
-                    oPat.Dashes = 0
+                    'oPat.Dashes = 0
                     If oPat.Dashes = 0 Then ' es una linea recta
                         flxFirstPass.Insert(flxTrimmedLine.Copy())
+                        Inc iHatchLinesDrawn
+
                     Else ' armo los dashes y despue los recorto al contorno
                         ' direccion +
                         DashBaseX = BaseX
@@ -1214,7 +849,9 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
                         Do
 
                             For Each DashTrame In oPat.DashLength
-                                If DashTrame = 0 Then DashTrame = oPat.DashLength[0] / 50
+                                ' If DashTrame = 0 Then ' es un punto, intentamos dibujar un pixel
+                                '     DashTrame = gcd.Pixels(0.5)
+                                ' End If
                                 DashFinalX = DashBaseX + Abs(DashTrame) * CosB * Scale
                                 DashFinalY = DashBaseY + Abs(DashTrame) * SinB * Scale
 
@@ -1246,13 +883,11 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
                                 If (DashFinalY < Ymenor) Then Break
                             Endif
 
-
                         Loop
 
                         DashBaseX = BaseX
                         DashBaseY = BaseY
                         Do
-
 
                             For i = oPat.DashLength.Max To 0 Step -1
                                 DashTrame = oPat.DashLength[i]
@@ -1269,7 +904,6 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
                                 ' flxDashes.Add(BaseY)
                                 ' flxDashes.Add(FinalX)
                                 ' flxDashes.Add(FinalY)
-
 
                                 DashBaseX = DashFinalX
                                 DashBaseY = DashFinalY
@@ -1288,65 +922,31 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
                                 If (DashFinalY < Ymenor) Then Break
                             Endif
 
-
                         Loop
                         ' direccion -
                     End If
-                Else
-                    MeAlejo = False
-                    ' veo si me aproximo
-                    If Abs(oPat.OffsetX) > Abs(oPat.OffsetY) Then ' chequeo segun X
 
+                Else    'RUTINA DE VERIFICACION PARA VER SI SIGO TRAZANDO EN ESTA DIRECCION
 
-                        If (oPat.OffsetX * OffsetDirection) < 0 Then
-                            If FinalX < StartX Then
-                                If StartX < Xmenor Then MeAlejo = True
-                            Else
-                                If FinalX < Xmenor Then MeAlejo = True
-                            Endif
+                    DistCgOld = DistCg
+                    DistCg = Abs(puntos.PointToLineDistance([Xcg, Ycg], [StartX, StartY, FinalX, FinalY]))
+                    If DistCg > DistCgOld Then MeAlejo = True Else MeAlejo = False
 
-                        Else    ' voy hacia X+
-                            If FinalX < StartX Then
-                                If FinalX > Xmayor Then MeAlejo = True
-                            Else
-                                If StartX > Xmayor Then MeAlejo = True
-                            Endif
-
-                        End If
-
-
-                    Else ' cheque segun Y
-
-
-                        If (oPat.OffsetY * OffsetDirection) < 0 Then
-                            If FinalY < StartY Then
-                                If StartY < Ymenor Then MeAlejo = True
-                            Else
-                                If FinalY < Ymenor Then MeAlejo = True
-                            Endif
-
-                        Else    ' voy hacia Y+
-                            If FinalY < StartY Then
-                                If FinalY > Ymayor Then MeAlejo = True
-                            Else
-                                If StartY > Ymayor Then MeAlejo = True
-                            Endif
-
-                        End If
-
-                    End If
-
-                    If MuchoViejo < Mucho Then MeAlejo = True
-                    MuchoViejo = Mucho
-                    If MeAlejo Then
-                        If OffsetDirection = 1 Then
-                            OffsetDirection = -1
-                            iPatternOffset = 1
-                        Else
-                            NoMoreIntersections = True
-                        Endif
-                    End If
                 End If
+
+                If MeAlejo Then
+                    If OffsetDirection = 1 Then
+                        OffsetDirection = -1
+                        iPatternOffset = 1
+                        DistCg = 1e100
+                        MeAlejo = False
+
+                    Else
+                        NoMoreIntersections = True
+                        MeAlejo = False
+                    Endif
+                End If
+                'End If
 
                 '
             Loop Until NoMoreIntersections
@@ -1385,11 +985,8 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
 
         Next
 
-
     Next
 
     If Not Filled Then entToFill.PolyLine.Insert(flxFirstPass.Copy())
-
-
 
 End
