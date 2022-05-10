@@ -1753,46 +1753,49 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
     '     gcd.currentDrawing.oBlocks.Add(newBlock, newBlock.handle)
     '
     ' Next
+    ' hay DXF sin TAbles
+    If colData.Exist("TABLES") Then
+        For Each colBlk In colData["BLOCKS"]
+            Dim newBlock As New Block
+            newBlock.entities = New Collection
+            newBlock.name = colBlk[dxf.codName]
 
-    For Each colBlk In colData["BLOCKS"]
-        Dim newBlock As New Block
-        newBlock.entities = New Collection
-        newBlock.name = colBlk[dxf.codName]
+            ' en ciertos DXF no hay la tabla BLOCK_RECORD
+            If colData["TABLES"].Exist("BLOCK_RECORD") Then cParent = colData["TABLES"]["BLOCK_RECORD"][newBlock.name]
+            newBlock.handle = colBlk[dxf.codHandle]
+            If cParent Then
+                newBlock.HandleOwner = cParent[dxf.codHandle]
+                newBlock.HandleOwnerParent = cParent[dxf.codHandleOwner]
+            Else
+                newBlock.HandleOwner = 0
+                newBlock.HandleOwnerParent = 0
+            End If
 
-        ' en ciertos DXF no hay la tabla BLOCK_RECORD
-        If colData["TABLES"].Exist("BLOCK_RECORD") Then cParent = colData["TABLES"]["BLOCK_RECORD"][newBlock.name]
-        newBlock.handle = colBlk[dxf.codHandle]
-        If cParent Then
-            newBlock.HandleOwner = cParent[dxf.codHandle]
-            newBlock.HandleOwnerParent = cParent[dxf.codHandleOwner]
-        Else
-            newBlock.HandleOwner = 0
-            newBlock.HandleOwnerParent = 0
-        End If
-        'newBlock = clsEntities.FIndBlock(colBlk[dxf.codName])
-        newBlock.layer = colBlk[dxf.codLayer]
-        Try newBlock.x0 = colBlk[dxf.codX0]
-        Try newBlock.y0 = colBlk[dxf.codY0]
-        If colBlk.Exist(dxf.codZ0) Then newBlock.z0 = colBlk[dxf.codZ0]
-        newBlock.flags = colBlk["70"]
-        Drw.oBlocks.Add(newBlock, newBlock.handle)
+            'newBlock = clsEntities.FIndBlock(colBlk[dxf.codName])
+            newBlock.layer = colBlk[dxf.codLayer]
+            Try newBlock.x0 = colBlk[dxf.codX0]
+            Try newBlock.y0 = colBlk[dxf.codY0]
+            If colBlk.Exist(dxf.codZ0) Then newBlock.z0 = colBlk[dxf.codZ0]
+            newBlock.flags = colBlk["70"]
+            Drw.oBlocks.Add(newBlock, newBlock.handle)
 
-    Next
-    For Each colBlk In colData["BLOCKS"]
+        Next
+        For Each colBlk In colData["BLOCKS"]
 
-        If colBlk.Exist("entities") Then
+            If colBlk.Exist("entities") Then
 
-            DXFtoEntity(colBlk["entities"], Drw.oBlocks[colBlk[dxf.codHandle]].entities)
-            'If gcd.currentDrawing.arrBlocks[i].entities.Count = 0 Then Stop
+                DXFtoEntity(colBlk["entities"], Drw.oBlocks[colBlk[dxf.codHandle]].entities)
+                'If gcd.currentDrawing.arrBlocks[i].entities.Count = 0 Then Stop
 
-        Else
+            Else
 
-            Debug "Error loading block", newBlock.name
+                Debug "Error loading block", newBlock.name
 
-        End If
-        Inc i
+            End If
+            Inc i
 
-    Next
+        Next
+    End If
 
 End
 
