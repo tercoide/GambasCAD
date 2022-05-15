@@ -906,7 +906,13 @@ Public Sub BuildPoi(Optional entities As Collection, OnlyVisibles As Boolean = T
     If entGroup.Count = 0 Then Return
 
     For Each e In entGroup
-        If (OnlyVisibles And e.pLayer.Visible) Or Not OnlyVisibles Then
+        If e.pLayer Then
+
+            If (OnlyVisibles And e.pLayer.Visible) Or Not OnlyVisibles Then
+                e.ClassHandler.BuildPoi(e)
+            End If
+        Else
+            e.pLayer = gcd.currentDrawing.CurrLayer
             e.ClassHandler.BuildPoi(e)
         End If
     Next
@@ -1169,6 +1175,7 @@ End
 Public Function DXFImportToEntity(c As Collection, Optional IsDummy As Boolean = False) As Entity
 
     Dim clsHandler As Object
+    Dim sClass As Class
     Dim sClave As New String[]
     Dim sValue As New String[]
     Dim lpValue, lpclave As String
@@ -1182,7 +1189,9 @@ Public Function DXFImportToEntity(c As Collection, Optional IsDummy As Boolean =
     If IsDummy Then
         clsHandler = cadDummy
     Else
-        clsHandler = Object.New("cad" & c[dxf.codEntity])  ' obtenemos el tipo de entidad y buscamos su clase. Si no manjemos esa entidad, esto de error.
+        'clsHandler = Object.New("cad" & c[dxf.codEntity])  ' obtenemos el tipo de entidad y buscamos su clase. Si no manjemos esa entidad, esto de error.
+        sClass = Class.Load("cad" & c[dxf.codEntity])
+        clsHandler = sClass.AutoCreate()
 
     End If
     'GotEntity = True
@@ -1419,7 +1428,6 @@ End
 '' No se incluye informacion propia del Drawing, solo de las entidades.
 Public Sub EntityToJsonString(e As Entity) As String
 
-
     Dim j As New JSONCollection
     Dim s As String
 
@@ -1436,6 +1444,5 @@ Public Sub EntityToJsonString(e As Entity) As String
 
     s = JSON.encode2(j)
     Return s
-
 
 End

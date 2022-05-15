@@ -2,6 +2,7 @@
 
 Private OldH As Integer
 Private ActionDone As Integer
+Private cEntitiesBlock As New Collection
 Public Const ActionInsertionPoint As Integer = 1
 Public Const ActionSelectEntities As Integer = 2
 
@@ -20,6 +21,10 @@ End
 
 Public Sub Done()
 
+    Dim picTemp As New Image(picPreview.w, picPreview.h, Color.Black)
+    Dim eSelected As Entity
+    Dim i As Integer
+
     lblHelp.visible = False
     btnDone.Visible = False
     lblName.Visible = True
@@ -30,7 +35,29 @@ Public Sub Done()
     If Me.Action = Me.ActionInsertionPoint Then
         txtX.Text = Format(cadSelection.EndXr, "0.0000")
         txtY.Text = Format(cadSelection.Endyr, "0.0000")
+    Else If Me.Action = Me.ActionSelectEntities Then
+        ' intento recolectar las entidades y armar un dibujo
+        i = cEntitiesBlock.Count
+        For Each eSelected In gcd.currentDrawing.oSelected
+            Inc i
+
+            cEntitiesBlock.Add(eSelected, Str(i))
+        Next
+        gcd.FitEntitiesToImage(cEntitiesBlock, picTemp, -1, 0)
+        picPreview.Image = picTemp
     Endif
+
+End
+
+Public Sub ShrinkMe()
+
+    Me.H = lblHelp.H + 16
+    lblHelp.visible = True
+    btnDone.Visible = True
+    lblName.Visible = False
+    cmbFamily.Visible = False
+    cmbSubFamily.Visible = False
+    txtName.Visible = False
 
 End
 
@@ -38,33 +65,116 @@ Public Sub Parameters_Click()
 
     If Last.name = "btnDone" Then
         Done
-    Else
-        Me.H = lblHelp.H + 16
-        lblHelp.visible = True
-        btnDone.Visible = True
-        lblName.Visible = False
-        cmbFamily.Visible = False
-        cmbSubFamily.Visible = False
-        txtName.Visible = False
-        If Last.name = "btnInsertionPoint" Then
-            lblHelp.Text = ("Set the insertion point")
-            cadSelection.Mode = cadSelection.SelectModePoint
-            gcd.clsJobCallBack = Me
-            gcd.clsJob = cadSelection
-            Me.Action = Me.ActionInsertionPoint
+    Else If Last.name = "btnInsertionPoint" Then
+        lblHelp.Text = ("Set the insertion point")
+        cadSelection.Mode = cadSelection.SelectModePoint
+        gcd.clsJobCallBack = Me
+        gcd.clsJob = cadSelection
+        Me.Action = Me.ActionInsertionPoint
+        ShrinkMe
 
-        Else If Last.name = "btnEntities" Then
-            lblHelp.Text = ("Select entities for the new block")
-            cadSelection.Mode = cadSelection.SelectModeEntities
-            gcd.clsJobCallBack = Null
-            gcd.clsJob = cadSelection
-            Me.Action = Me.ActionSelectEntities
-
-        Else If Last.name = "btnRemove" Then
-            gcd.currentDrawing.oSelected.Clear
-
-        Endif
+    Else If Last.name = "btnEntities" Then
+        lblHelp.Text = ("Select entities for the new block")
+        cadSelection.Mode = cadSelection.SelectModeEntities
+        gcd.clsJobCallBack = Null
+        gcd.clsJob = cadSelection
+        Me.Action = Me.ActionSelectEntities
+        ShrinkMe
+    Else If Last.name = "btnRemove" Then
+        cEntitiesBlock.Clear
+        picPreview.Image.Clear
+        picPreview.Refresh
+    Else If Last.name = "btnCreate" Then
+        CreateBlock
 
     Endif
+
+End
+
+Public Sub CreateBlock()
+
+    Dim tmpDrawing As New Drawing
+    Dim sTest, sBlockName, sPath As String
+    Dim tmpBlock As Block
+    Dim tmpEnty As Entity
+    Dim dX, dY As Float
+
+    ' verifico q el nombre sea valido y no este en uso
+    sBlockName = txtName.Text
+    If sBlockName = "" Then
+        Message.Error(("Block name is empty"))
+        Return
+    Endif
+    For Each tmpBlock In gcd.currentDrawing.oBlocks
+        If TmpBlock.name = sBlockName Then
+            Message.Error(("Block name is in use"))
+            Return
+        Endif
+    Next
+
+    ' si lo voy a exportar, verifico que el archivo no exista
+    If chkExportToDatabase.Value = True Then
+        sPath = Config.BlocksLibraryPath
+        If cmbFamily.Text <> "" Then sPath &/= cmbFamily.Text
+        If cmbSubFamily.Text <> "" Then sPath &/= cmbSubFamily.Text
+        sPath &/= sBlockName & ".dxf"
+        If Exist(sPath) Then
+            Message.Error(("Block already exist in the database, use another name"))
+            Return
+        Endif
+    Endif
+
+    ' proceso las entidades de acuerdo a las opciones elegidas
+    If chkExplode.Value = True Then
+        For Each tmpEnty In cEntitiesBlock
+            If tmpEnty.pBlock Then
+                cadExplode.explode_list(tmpEnty.pBlock.entities, tmpEnty, cEntitiesBlock)
+                tmpEnty.pBlock = Null
+                cEntitiesBlock.Remove(cEntitiesBlock.Key)
+            End If
+        Next
+    Endif
+
+    If chkIncludeData.Value = False Then
+        For Each tmpEnty In cEntitiesBlock
+            tmpEnty.pLayer = Null
+            tmpEnty.pDimStyle = Null
+            tmpEnty.LineType = Null
+        Next
+    Endif
+
+    Try dX = Val(txtX.Text)
+    Try dY = Val(txtY.Text)
+    tmpBlock = New Block
+    tmpBlock.entities = New Collection
+
+    For Each tmpEnty In cEntitiesBlock
+        TmpBlock.entities.Add(tmpEnty, gcd.NewHandle())
+    Next
+    tmpBlock.name = sBlockName
+    ' muevo las entidades al punto de insercion
+    For Each tmpEnty In tmpBlock.entities
+        tmpEnty.ClassHandler.translate(tmpEnty, -dx, -dy)
+    Next
+
+    ' ahora agrego el Block al dibujo actual
+    gcd.currentDrawing.oBlocks.Add(tmpBlock, gcd.NewHandle())
+
+    ' si lo voy a exportar, verifico que el archivo no exista
+    If chkExportToDatabase.Value = True Then
+
+        tmpDrawing.oEntities = cEntitiesBlock
+        If Not chkExplode.Value Then ' tengo que grabar los bloques tambien
+            For Each tmpEnty In cEntitiesBlock
+                If (tmpEnty.Gender = "Insert") Or (tmpEnty.Gender Like "Dim*") Then
+                    tmpDrawing.oBlocks.Add(gcd.currentDrawing.oBlocks[tmpEnty.pBlock.name], tmpEnty.pBlock.handle)
+                Endif
+            Next
+
+        Endif
+        dxf.SaveFile(sPath, tmpDrawing, True, True, chkIncludeData.Value, Not chkExplode.Value)
+    End If
+
+    Me.Close
 
 End

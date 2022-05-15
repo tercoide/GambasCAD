@@ -1,6 +1,5 @@
 ' Gambas module file
 
-' Tool maintained by Terco
 ' GambasCAD
 ' Software para diseño CAD
 '
@@ -1103,32 +1102,17 @@ End
 '' Carga un DXF e intenta dibujarlo centrado en el contenedor: DrawingArea, Picture, Image
 ''          iColor: CAD color o -1 para usar como vienen en el DXF
 ''          fLineWidth: -1=como vienen, 0=automatico, >0 = fijo en ese valor
-Public Function FitDxfToImage(sDXFfile As String, imgPreview As Object, Optional iColor As Integer = 0, fLineWidth As Float = 1) As Boolean
+Public Function FitEntitiesToImage(cEntities As Collection, imgPreview As Object, Optional iColor As Integer = 0, fLineWidth As Float = 1) As Boolean
 
-    Dim drwTemp As New Drawing
-
-    Dim cModelPreview As Collection
-    Dim entyBlock As New Collection
     Dim scaleX, scale, scaleY As Float
     Dim entScale As Float
     Dim entidad As Entity
     Dim sFActor As Float = 1.5
     Dim flxLimits As New Float[]
 
-    If Not Exist(sDxfFile) Then Return False
-    'imgPreview = New Image(80, 80, Color.Black)
-    cModelPreview = New Collection
-    entyBlock.Clear
-    entyBlock = New Collection
-    Dxf.LoadFile(sDxfFile, drwTemp, True, False, True)
-    entyBlock = drwTemp.oEntities
-    'gcd.DXFtoEntity(cModelPreview["ENTITIES"], entyBlock)
-    For Each entidad In entyBlock
-        entidad.pLayer = gcd.currentDrawing.CurrLayer
-    Next
-    clsEntities.BuildPoi(entyBlock)
-    If entyBlock.Count > 0 Then
-        flxLimits = clsEntities.ComputeLimits(entyBlock)                    ' computo el tamaño de la entidad, y luego determino la escala
+    clsEntities.BuildPoi(cEntities)
+    If cEntities.Count > 0 Then
+        flxLimits = clsEntities.ComputeLimits(cEntities)                    ' computo el tamaño de la entidad, y luego determino la escala
 
         Paint.Begin(imgPreview)
 
@@ -1142,9 +1126,10 @@ Public Function FitDxfToImage(sDXFfile As String, imgPreview As Object, Optional
         ' centro el dibujo
         Paint.Translate(-(flxLimits[2] + flxLimits[0]) / 2, -(flxLimits[3] + flxLimits[1]) / 2)
 
-        For Each entidad In entyBlock
+        For Each entidad In cEntities
+            If entidad.pLayer = Null Then entidad.pLayer = gcd.currentDrawing.CurrLayer
             If iColor < 0 Then
-                Paint.Brush = gcd.gColor[entidad.colour]
+                Paint.Brush = Paint.Color(gcd.gColor[entidad.colour])
             Else
                 Paint.Brush = Paint.Color(iColor)
             Endif
@@ -1157,6 +1142,25 @@ Public Function FitDxfToImage(sDXFfile As String, imgPreview As Object, Optional
         Paint.End
 
     End If
+
+End
+
+'' Carga un DXF e intenta dibujarlo centrado en el contenedor: DrawingArea, Picture, Image
+''          iColor: CAD color o -1 para usar como vienen en el DXF
+''          fLineWidth: -1=como vienen, 0=automatico, >0 = fijo en ese valor
+Public Function FitDxfToImage(sDXFfile As String, imgPreview As Object, Optional iColor As Integer = 0, fLineWidth As Float = 1) As Boolean
+
+    Dim drwTemp As New Drawing
+    Dim scaleX, scale, scaleY As Float
+    Dim entScale As Float
+    Dim sFActor As Float = 1.5
+    Dim flxLimits As New Float[]
+
+    If Not Exist(sDxfFile) Then Return False
+
+    Dxf.LoadFile(sDxfFile, drwTemp, True, False, True)
+
+    FitEntitiesToImage(drwTemp.oEntities, imgPreview, iColor, fLineWidth)
 
 End
 
