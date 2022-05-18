@@ -1,0 +1,394 @@
+' Gambas class file
+
+Private OldH As Integer
+Private ActionDone As Integer
+Private cEntitiesBlock As New Collection
+Public Const ActionInsertionPoint As Integer = 1
+Public Const ActionSelectEntities As Integer = 2
+
+
+Public Sub Run()
+
+    Me.SetFocus
+    Done
+
+End
+
+Public Sub Form_Open()
+
+    OldH = Me.H
+    Dim sDirName As String
+
+    For Each sDirName In Dir(Config.BlocksLibraryPath)
+        If IsDir(Config.BlocksLibraryPath &/ sDirName) Then ComboBox1.Add(sDirName)
+    Next
+    If ComboBox1.Count > 0 Then ComboBox1.Index = 0
+
+
+End
+
+Public Sub form_Activate()
+
+
+    'Me.H = OldH
+
+End
+
+Public Sub Done()
+
+    Dim picTemp As New Image(picPreview.w, picPreview.h, Color.Black)
+    Dim eSelected As Entity
+    Dim i As Integer
+
+    lblHelp.visible = False
+    btnDone.Visible = False
+    TabStrip1.Visible = True
+    lblName.Visible = True
+    cmbFamily.Visible = True
+    cmbSubFamily.Visible = True
+    txtName.Visible = True
+    Me.H = OldH
+    If Me.Action = Me.ActionInsertionPoint Then
+        txtX.Text = Format(cadSelection.EndXr, "0.0000")
+        txtY.Text = Format(cadSelection.Endyr, "0.0000")
+    Else If Me.Action = Me.ActionSelectEntities Then
+        ' intento recolectar las entidades y armar un dibujo
+        i = cEntitiesBlock.Count
+        For Each eSelected In gcd.currentDrawing.oSelected
+            Inc i
+
+            cEntitiesBlock.Add(eSelected, Str(i))
+        Next
+        gcd.FitEntitiesToImage(cEntitiesBlock, picTemp, -1, 0)
+        picPreview.Image = picTemp
+    Endif
+
+End
+
+Public Sub ShrinkMe()
+
+    Me.H = lblHelp.H + 16
+    lblHelp.visible = True
+    btnDone.Visible = True
+    TabStrip1.Visible = False
+    lblName.Visible = False
+    cmbFamily.Visible = False
+    cmbSubFamily.Visible = False
+    txtName.Visible = False
+
+End
+
+Public Sub Parameters_Click()
+
+    If Last.name = "btnDone" Then
+        Done
+    Else If Last.name = "btnInsertionPoint" Then
+        lblHelp.Text = ("Set the insertion point")
+        cadSelection.Mode = cadSelection.SelectModePoint
+        gcd.clsJobCallBack = Me
+        gcd.clsJob = cadSelection
+        Me.Action = Me.ActionInsertionPoint
+        ShrinkMe
+
+    Else If Last.name = "btnEntities" Then
+        lblHelp.Text = ("Select entities for the new block")
+        cadSelection.Mode = cadSelection.SelectModeEntities
+        gcd.clsJobCallBack = Null
+        gcd.clsJob = cadSelection
+        Me.Action = Me.ActionSelectEntities
+        ShrinkMe
+    Else If Last.name = "btnRemove" Then
+        cEntitiesBlock.Clear
+        picPreview.Image.Clear
+        picPreview.Refresh
+    Else If Last.name = "btnCreate" Then
+        CreateBlock
+
+    Endif
+
+End
+
+Public Sub CreateBlock()
+
+    Dim tmpDrawing As New Drawing
+    Dim sTest, sBlockName, sPath As String
+    Dim tmpBlock As Block
+    Dim tmpEnty As Entity
+    Dim dX, dY As Float
+
+    ' verifico q el nombre sea valido y no este en uso
+    sBlockName = txtName.Text
+    If sBlockName = "" Then
+        Message.Error(("Block name is empty"))
+        Return
+    Endif
+    For Each tmpBlock In gcd.currentDrawing.oBlocks
+        If TmpBlock.name = sBlockName Then
+            Message.Error(("Block name is in use"))
+            Return
+        Endif
+    Next
+
+    ' si lo voy a exportar, verifico que el archivo no exista
+    If chkExportToDatabase.Value = True Then
+        sPath = Config.BlocksLibraryPath
+        If cmbFamily.Text <> "" Then sPath &/= cmbFamily.Text
+        If cmbSubFamily.Text <> "" Then sPath &/= cmbSubFamily.Text
+        sPath &/= sBlockName & ".dxf"
+        If Exist(sPath) Then
+            Message.Error(("Block already exist in the database, use another name"))
+            Return
+        Endif
+    Endif
+
+    ' proceso las entidades de acuerdo a las opciones elegidas
+    If chkExplode.Value = True Then
+        For Each tmpEnty In cEntitiesBlock
+            If tmpEnty.pBlock Then
+                cadExplode.explode_list(tmpEnty.pBlock.entities, tmpEnty, cEntitiesBlock)
+                tmpEnty.pBlock = Null
+                cEntitiesBlock.Remove(cEntitiesBlock.Key)
+            End If
+        Next
+    Endif
+
+    If chkIncludeData.Value = False Then
+        For Each tmpEnty In cEntitiesBlock
+            tmpEnty.pLayer = Null
+            tmpEnty.pDimStyle = Null
+            tmpEnty.LineType = Null
+        Next
+    Endif
+
+    Try dX = Val(txtX.Text)
+    Try dY = Val(txtY.Text)
+    tmpBlock = New Block
+    tmpBlock.entities = New Collection
+
+    For Each tmpEnty In cEntitiesBlock
+        TmpBlock.entities.Add(tmpEnty, gcd.NewHandle())
+    Next
+    tmpBlock.name = sBlockName
+    ' muevo las entidades al punto de insercion
+    For Each tmpEnty In tmpBlock.entities
+        tmpEnty.ClassHandler.translate(tmpEnty, -dx, -dy)
+    Next
+
+    ' ahora agrego el Block al dibujo actual
+    gcd.currentDrawing.oBlocks.Add(tmpBlock, gcd.NewHandle())
+
+    ' si lo voy a exportar, verifico que el archivo no exista
+    If chkExportToDatabase.Value = True Then
+
+        tmpDrawing.oEntities = cEntitiesBlock
+        If Not chkExplode.Value Then ' tengo que grabar los bloques tambien
+            For Each tmpEnty In cEntitiesBlock
+                If (tmpEnty.Gender = "Insert") Or (tmpEnty.Gender Like "Dim*") Then
+                    tmpDrawing.oBlocks.Add(gcd.currentDrawing.oBlocks[tmpEnty.pBlock.name], tmpEnty.pBlock.handle)
+                Endif
+            Next
+
+        Endif
+        dxf.SaveFile(sPath, tmpDrawing, True, True, chkIncludeData.Value, Not chkExplode.Value)
+    End If
+
+    Me.Close
+
+End
+
+Public Sub ComboBox1_Click()
+
+    Dim sFilename As String
+    Dim imgPreview As Image
+    Dim entScale As Float
+    Dim entidad As Entity
+    Dim sFActor As Float = 1.5
+
+    icvLibrary.Clear
+    ComboBox2.Clear
+    For Each sFilename In Dir(Config.BlocksLibraryPath &/ ComboBox1.Current.Text)
+        If IsDir(Config.BlocksLibraryPath &/ ComboBox1.Current.Text &/ sFilename) Then
+            ComboBox2.Add(sFilename)
+        Else
+            If LCase(File.Ext(sFilename)) <> "dxf" Then Continue
+            imgPreview = New Image(80, 80, Color.Black)
+
+            gcd.FitDxfToImage(Config.BlocksLibraryPath &/ ComboBox1.current.Text &/ sFilename, imgPreview, Config.WhiteAndBlack, 0)
+
+            icvLibrary.Add(Left$(sFilename, -4), Left$(sFilename, -4), imgPreview.Picture)
+        End If
+    Next
+    If ComboBox2.Count > 0 Then ComboBox2.Index = 0
+
+End
+
+
+
+Public Sub ComboBox2_Click()
+
+    icvLibrary.Clear
+    Dim sFilename, sPath As String
+    Dim imgPreview As Image
+    For Each sFilename In Dir(Config.BlocksLibraryPath &/ ComboBox1.Current.Text &/ ComboBox2.Current.Text, "*.dxf")
+        If IsDir(Config.BlocksLibraryPath &/ ComboBox1.Current.Text &/ ComboBox2.Current.Text &/ sFilename) Then Continue
+        If LCase(File.Ext(sFilename)) <> "dxf" Then Continue
+        '     ComboBox2.Add(sFilename)
+        ' Else
+        imgPreview = New Image(80, 80, Color.Black)
+        sPath = Config.BlocksLibraryPath &/ ComboBox1.current.Text &/ ComboBox2.Current.Text &/ sFilename
+        gcd.FitDxfToImage(sPath, imgPreview, Config.WhiteAndBlack, 0)
+
+        icvLibrary.Add(Left$(sFilename, -4), Left$(sFilename, -4), imgPreview.Picture)
+
+    Next
+
+End
+
+Public Sub TabStrip1_Click()
+
+
+    Select Case TabStrip1.Index
+        Case 0  ' block maker
+
+
+        Case 1  'block creator
+
+            LoadBlocksInUse
+
+        Case 2  ' block library
+            If icvLibrary.Item Then
+                If icvLibrary.Item.Selected Then btnAddToDrawing.Enabled = True Else btnAddToDrawing.Enabled = False
+            End If
+
+    End Select
+
+End
+
+Public Sub chkShowHiddenBlocks_Click()
+
+
+    LoadBlocksInUse
+
+End
+
+Public Sub LoadBlocksInUse()
+
+
+    Dim sName As String
+    Dim imgPreview As Image
+    Dim blkTemp As Block
+
+    icvBlocksInUse.Clear
+    For Each blkTemp In gcd.currentDrawing.oBlocks
+
+        ' verifico si tengo que mostrar los que estan en uso
+        If Left(blkTemp.name, 1) = "*" Then
+            If chkShowHiddenBlocks.Value = False Then Continue
+        Endif
+
+
+        imgPreview = New Image(80, 80, Color.Black)
+
+        gcd.FitEntitiesToImage(blkTemp.entities, imgPreview, Config.WhiteAndBlack, 0)
+
+        icvBlocksInUse.Add(blkTemp.name, blkTemp.name, imgPreview.Picture)
+
+    Next
+
+End
+
+Public Sub btnAddToDrawing_Click()
+
+    Dim icvItem, icvItemUsed, icvTest As _iconview_item
+    Dim sPath, sName, sNewName As String
+    Dim iRest As Integer
+    Dim i, iItem As Integer
+    Dim InUse As Boolean
+    Dim drwTemp As Drawing
+    Dim blkNew, blkTemp As Block
+    Dim eBlockl As Entity
+
+    icvLibrary.MoveFirst
+    For iItem = 0 To icvLibrary.Count
+        icvItem = icvLibrary.Item
+        If Not icvTest Then Break
+        If icvItem.Selected Then
+            sPath = Config.BlocksLibraryPath &/ ComboBox1.current.Text &/ ComboBox2.Current.Text &/ icvItem.Text &/ ".dxf"
+            ' busco que no exista
+            sNewName = icvItem.Text
+            For Each blkTemp In gcd.currentDrawing.oBlocks
+                If blkTemp.name = icvItem.Text Then
+                    iRest = Message.Question(("The block is already in use, you can:"), ("Replace"), ("Rename"), ("Cancel"))
+                    If iRest = 2 Then
+                        Continue
+                    Else If iRest = 1 Then
+                        ' we search for anothee name
+                        For i = 0 To 10000
+                            sNewName = icvItem.Text & Str(i)
+                            For Each blkNew In gcd.currentDrawing.oBlocks
+                                If sNewName = blkNew.name Then InUse = True
+                            Next
+                            If Not InUse Then Break
+                        Next
+                        'sName = InputBox(("Name for the block in the drawing"), ("Rename block"), icvItem.Text & Str(Rand(100, 10000)))
+
+                        GoSub AddBlock
+
+                    Else    ' LO VAMOS A REEMPLAZAR
+                        For Each blkNew In gcd.currentDrawing.oBlocks
+                            If blkNew.name = sNewName Then
+                                gcd.currentDrawing.oBlocks.Remove(gcd.currentDrawing.oBlocks.Last)
+                            Endif
+                        Next
+
+                        ' y ahora lo agregamos
+                        GoSub AddBlock
+
+
+
+                    Endif
+                Endif
+            Next
+
+
+        Endif
+        icvLibrary.MoveNext
+    Next
+    Return
+
+    ' cargo el archivo
+AddBlock:
+    drwTemp = New Drawing
+    dxf.LoadFile(sPath, drwTemp,,,,, False)
+    ' todo el dibujo sera un bloque
+    blkNew = New Block
+    blkNew.name = sNewName
+    blkNew.entities = New Entity[]
+    For Each eBlockl In drwTemp.oEntities
+        blkNew.entities.Add(drwTemp.oEntities, gcd.NewHandle())
+    Next
+
+    ' ahora que el bloque esta conformado, lo agregamos el dibujo actual
+    gcd.currentDrawing.oBlocks.Add(blkNew, sNewName)    ' TODO: verificar si no necesito una HANDLE
+
+
+
+End
+
+Public Sub icvLibrary_Click()
+
+    If icvLibrary.Item Then
+        If icvLibrary.Item Then btnAddToDrawing.Enabled = True Else btnAddToDrawing.Enabled = False
+    Endif
+
+End
+
+Public Sub form_KeyPress()
+
+
+    If Key.Code = Key.Down Then
+        icvLibrary.MoveNext
+        Debug icvLibrary.Item.Text
+    End If
+
+End
