@@ -311,28 +311,27 @@ Public Sub btnAddToDrawing_Click()
     icvLibrary.MoveFirst
     For iItem = 0 To icvLibrary.Count
         icvItem = icvLibrary.Item
-        If Not icvTest Then Break
+        If Not icvItem Then Break
         If icvItem.Selected Then
-            sPath = Config.BlocksLibraryPath &/ ComboBox1.current.Text &/ ComboBox2.Current.Text &/ icvItem.Text &/ ".dxf"
+            sPath = Config.BlocksLibraryPath &/ ComboBox1.current.Text &/ ComboBox2.Current.Text &/ icvItem.Text & ".dxf"
             ' busco que no exista
             sNewName = icvItem.Text
             For Each blkTemp In gcd.currentDrawing.oBlocks
                 If blkTemp.name = icvItem.Text Then
                     iRest = Message.Question(("The block is already in use, you can:"), ("Replace"), ("Rename"), ("Cancel"))
                     If iRest = 2 Then
-                        Continue
+                        InUse = True
+                        Break
                     Else If iRest = 1 Then
                         ' we search for anothee name
                         For i = 0 To 10000
                             sNewName = icvItem.Text & Str(i)
+                            InUse = False
                             For Each blkNew In gcd.currentDrawing.oBlocks
                                 If sNewName = blkNew.name Then InUse = True
                             Next
                             If Not InUse Then Break
                         Next
-                        'sName = InputBox(("Name for the block in the drawing"), ("Rename block"), icvItem.Text & Str(Rand(100, 10000)))
-
-                        GoSub AddBlock
 
                     Else    ' LO VAMOS A REEMPLAZAR
                         For Each blkNew In gcd.currentDrawing.oBlocks
@@ -341,14 +340,14 @@ Public Sub btnAddToDrawing_Click()
                             Endif
                         Next
 
-                        ' y ahora lo agregamos
-                        GoSub AddBlock
 
 
 
                     Endif
                 Endif
             Next
+            ' y ahora lo agregamos
+            If Not InUse Then GoSub AddBlock
 
 
         Endif
@@ -359,19 +358,19 @@ Public Sub btnAddToDrawing_Click()
     ' cargo el archivo
 AddBlock:
     drwTemp = New Drawing
-    dxf.LoadFile(sPath, drwTemp,,,,, False)
+    dxf.LoadFile(sPath, drwTemp,,,,, True)
     ' todo el dibujo sera un bloque
     blkNew = New Block
     blkNew.name = sNewName
-    blkNew.entities = New Entity[]
+    blkNew.entities = New Collection
     For Each eBlockl In drwTemp.oEntities
-        blkNew.entities.Add(drwTemp.oEntities, gcd.NewHandle())
+        blkNew.entities.Add(eBlockl, gcd.NewHandle())
     Next
 
     ' ahora que el bloque esta conformado, lo agregamos el dibujo actual
     gcd.currentDrawing.oBlocks.Add(blkNew, sNewName)    ' TODO: verificar si no necesito una HANDLE
 
-
+    Return
 
 End
 
@@ -386,9 +385,9 @@ End
 Public Sub form_KeyPress()
 
 
-    If Key.Code = Key.Down Then
-        icvLibrary.MoveNext
-        Debug icvLibrary.Item.Text
-    End If
+    ' If Key.Code = Key.Down Then
+    '     icvLibrary.MoveNext
+    '     Debug icvLibrary.Item.Text
+    ' End If
 
 End
