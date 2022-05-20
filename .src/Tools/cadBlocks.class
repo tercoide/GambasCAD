@@ -21,11 +21,23 @@
 ' Boston, MA  02110-1301  USA
 
 Inherits ToolsBase
+'Create Private
+'Create Static
 Public Const Gender As String = "Blocks"
 
 Public eBlock As Block
+
 Private drwInsert As Drawing
 Public fBlock As New Punto2d
+
+Public eInsert As Entity
+Public iStage As Integer
+' Block insertion vars
+Public fBlockScaleX As Float = 1
+Public fBlockScaleY As Float = 1
+Public fBlockDegRotation As Float = 0
+Public fBlockInvert As Integer = 1
+
 
 Public Function Start(Optional sfilename As Variant, Optional _mode As Integer = 0) As Boolean
 
@@ -34,6 +46,8 @@ Public Function Start(Optional sfilename As Variant, Optional _mode As Integer =
     Dim iREt As Integer
 
     If sfilename = 0 Then fBlocks.Show
+    iStage = Int(Rnd(0, 1000))
+    Debug "Start ", iStage
     Return
     eBlock = New Block
     eBlock.name = ""
@@ -46,7 +60,7 @@ Public Function Start(Optional sfilename As Variant, Optional _mode As Integer =
     'gcd.ImpEnty6(cModelPreview["ENTITIES"] , eBlock.entities)
     eBlock.name = Utils.FileWithoutExtension(Utils.FileFromPath(sFilename))
 
-    'If iret = 0 Then Me.Finish
+    'If iret = 0 Then Finish
 
     ' el user eligio un bloque y lo quiere insertar en algun punto
 
@@ -54,38 +68,16 @@ End
 
 Public Sub Draw()
 
-    Dim ET As Entity, i As Integer
-    Dim fBlockDegRotation As Float
-    Dim Mirrored As Integer
 
-    If Not eBlock Then Return
+    If Not eInsert Then Return
 
-    FMain.fBlockDegRotation = CFloat(FMain.txtRotation.Text)
-    Try FMain.fBlockScaleX = CFloat(FMain.txtScalex.Text)
-    If FMain.fBlockScaleX = 0 Then FMain.fBlockScaleX = 1
-
-    Try FMain.fBlockScaleY = CFloat(FMain.txtScaleY.Text)
-    If FMain.fBlockScaleY = 0 Then FMain.fBlockScaleY = 1
-
-    If FMain.tbnMirrored.value Then Mirrored = -1 Else Mirrored = 1
 
     gl.PushMatrix
     gl.Translatef(fBlock.x, fBlock.y, 0)
-    gl.Rotatef(FMain.fBlockDegRotation, 0, 0, 1)
-    gl.Scalef(FMain.fBlockScaleX * Mirrored, FMain.fBlockScaleY, 1)
+    gl.Rotatef(fBlockDegRotation, 0, 0, 1)
+    gl.Scalef(fBlockScaleX * fBlockInvert, fBlockScaleY, 1)
 
-    For Each ET In eBlock.entities
-        'et.visible = True
-
-        et.pLayer = gcd.CurrentDrawing.CurrLayer
-        et.colour = gcd.CurrentDrawing.CurrColor
-
-        et.LineType = gcd.CurrentDrawing.CurrLineType
-
-        et.LineWidth = gcd.CurrentDrawing.CurrLineWt
-
-        et.ClassHandler.Draw(et)
-    Next
+    gl.CallList(eInsert.glDrwList)
 
     gl.PopMatrix
 
@@ -98,81 +90,82 @@ Public Function MouseMove() ' esta rutina es llamada por FCAD en el evento Drawi
 
     ' y si tengo enganche?
 
-    If gcd.CurrentDrawing.iEntity[2] >= 0 Then
-
-        ' esto re enganchado
-
-        fBlock.x = gcd.CurrentDrawing.iEntity[0]
-        fBlock.y = gcd.CurrentDrawing.iEntity[1]
-
-    End If
+    ' If gcd.CurrentDrawing.iEntity[2] >= 0 Then
+    '
+    '     ' esto re enganchado
+    '
+    '     fBlock.x = gcd.CurrentDrawing.iEntity[0]
+    '     fBlock.y = gcd.CurrentDrawing.iEntity[1]
+    '
+    ' End If
 
 End
 
 Public Function MouseUp() ' called by FCAD-> DrawingArea_MouseUp
 
     ' creo el bloque (si no existe y luego el insert)
-    Dim entInsert As New Entity
     Dim i, ie As Integer
     Dim sBloque As String
-    Dim entPart As Entity
 
-    ' busco el bloque
-    If IsNull(clsEntities.FIndBlock(eBlock.name)) Then ' must add
 
-        eBlock.layer = gcd.CurrentDrawing.CurrLayer.Name
-        eBlock.HandleOwner = gcd.NewHandle()    ' code 5 BLOCK_RECORD y 330 BLOCK
-        eBlock.handle = gcd.NewHandle()         ' code 5 BLOCK
-        eBlock.HandleOwnerParent = "1"          ' code 330 BLOCK_RECORD
-        eBlock.HandleAsociatedLayout = "1"      ' ?
 
-        ' este block nuevo necesita un endblk al final, lo creamos
+    ' eInsert.pBlock = eBlock
+    eInsert.Handle = gcd.NewHandle()
+    eInsert.HandleOwner = "1"
 
-        entPart = New Entity
-        entPart.ClassHandler = cadEndBlk
-        entPart.Gender = "EndBlk"
-        entPart.Handle = gcd.NewHandle()
-        entPart.pLayer = gcd.CurrentDrawing.CurrLayer
-        entPart.HandleOwner = eBlock.handle
-        eBlock.entities.Add(entPart)
-        For Each entPart In eBlock.entities
-            entPart.HandleOwner = eBlock.HandleOwner
-        Next
+    ' eInsert.ClassHandler = cadInsert
+    ' eInsert.pLayer = gcd.CurrentDrawing.CurrLayer
+    ' eInsert.colour = gcd.CurrentDrawing.CurrColor
+    ' eInsert.LineType = gcd.CurrentDrawing.CurrLineType
+    ' eInsert.LineWidth = gcd.CurrentDrawing.CurrLineWt
+    ' eInsert.Gender = cadInsert.Gender
+    eInsert.P[0] = fBlock.x
+    eInsert.P[1] = fBlock.y
 
-        gcd.CurrentDrawing.arrBlocks.Add(eBlock)
-    End If
-    ' ahora creo el insert
+    eInsert.fParam[cadInsert.ipaEscX] = FBlockscaleX * fBlockInvert
+    eInsert.fParam[cadInsert.ipaEscY] = FBlockscaleY
 
-    gcd.CurrentDrawing.oEntities.Add(entInsert)
-    entInsert.pBlock = eBlock
-    entInsert.Handle = gcd.NewHandle()
-    entInsert.HandleOwner = "1"
 
-    entInsert.ClassHandler = cadInsert
-    entInsert.pLayer = gcd.CurrentDrawing.CurrLayer
-    entInsert.colour = gcd.CurrentDrawing.CurrColor
-    entInsert.LineType = gcd.CurrentDrawing.CurrLineType
-    entInsert.LineWidth = gcd.CurrentDrawing.CurrLineWt
-    entInsert.Gender = cadInsert.Gender
-    entInsert.P.Add(fBlock.x)
-    entInsert.P.Add(fBlock.y)
+    eInsert.fParam[cadInsert.ipaRotacion] = FBlockdegRotation
+    eInsert.ClassHandler.Finish(eInsert)
 
-    entInsert.fParam.Add(FMain.FBlockscaleX)
-    entInsert.fParam.Add(FMain.FBlockscaleY)
-    entInsert.fParam.Add(1)
+    gcd.CurrentDrawing.oEntities.Add(eInsert, eInsert.Handle)
 
-    entInsert.fParam.Add(FMain.FBlockdegRotation)
-    entInsert.ClassHandler.Finish(entInsert)
-
-    EntityBuilder.LastEntity = entInsert                                       ' save it to repeat on rigth click
+    EntityBuilder.LastEntity = eInsert                                       ' save it to repeat on rigth click
 
     gcd.clsJobPrevious = Me
     gcd.clsJob = cadSelection
     DrawingAids.CleanTexts
 
-    FMain.PanelBlockFit.Visible = False
-    FMain.ListView1.Visible = True
+
 
     gcd.regen
+
+End
+
+Public Sub SetInsert(sBlockName As String, ScaleXYZ As Float, Rotation As Float, bInvert As Boolean)
+
+    'Debug "Create", iStage
+    ' Armo una entidad Insert y la meto en oSelected para que sea dibujada
+    eInsert = cadInsert.NewEntity()'New Entity
+    eInsert.Gender = cadInsert.Gender
+    eInsert.pBlock = clsEntities.FIndBlock(sBlockName)' gcd.currentDrawing.oBlocks[icvBlocksInUse.Item.Key]
+    eInsert.fParam[cadInsert.ipaEscX] = 1' ScaleXYZ
+    eInsert.fParam[cadInsert.ipaEscY] = 1' ScaleXYZ
+    eInsert.fParam[cadInsert.ipaEscZ] = 1' ScaleXYZ
+    eInsert.fParam[cadInsert.ipaRotacion] = 0'Rotation
+    'If bInvert Then eInsert.fParam[cadInsert.ipaEscX] *= -1
+
+    ' gcd.currentDrawing.oSelected.Clear
+    ' gcd.currentDrawing.oSelected.Add(eInsert, "1")
+    fBlockDegRotation = Rotation
+    fBlockScaleX = ScaleXYZ
+    fBlockScaleY = ScaleXYZ
+
+    If bInvert Then fBlockInvert = -1 Else fBlockInvert = 1
+
+    clsEntities.glGenDrawList(eInsert)
+
+
 
 End

@@ -251,9 +251,10 @@ Public Sub TabStrip1_Click()
         Case 0  ' block maker
 
 
-        Case 1  'block creator
+        Case 1  'block insertion
 
             LoadBlocksInUse
+
 
         Case 2  ' block library
             If icvLibrary.Item Then
@@ -291,9 +292,12 @@ Public Sub LoadBlocksInUse()
 
         gcd.FitEntitiesToImage(blkTemp.entities, imgPreview, Config.WhiteAndBlack, 0)
 
-        icvBlocksInUse.Add(blkTemp.name, blkTemp.name, imgPreview.Picture)
+        icvBlocksInUse.Add(blkTemp.handle, blkTemp.name, imgPreview.Picture)
 
     Next
+    btnInsertToDrawing.Enabled = False
+
+
 
 End
 
@@ -363,12 +367,13 @@ AddBlock:
     blkNew = New Block
     blkNew.name = sNewName
     blkNew.entities = New Collection
+    blkNew.handle = gcd.NewHandle()
     For Each eBlockl In drwTemp.oEntities
         blkNew.entities.Add(eBlockl, gcd.NewHandle())
     Next
 
     ' ahora que el bloque esta conformado, lo agregamos el dibujo actual
-    gcd.currentDrawing.oBlocks.Add(blkNew, sNewName)    ' TODO: verificar si no necesito una HANDLE
+    gcd.currentDrawing.oBlocks.Add(blkNew, blkNew.handle)    ' TODO: verificar si no necesito una HANDLE
 
     Return
 
@@ -389,5 +394,64 @@ Public Sub form_KeyPress()
     '     icvLibrary.MoveNext
     '     Debug icvLibrary.Item.Text
     ' End If
+
+End
+
+
+
+Public Sub btnRemoveFromDrawing_Click()
+
+    ' primero busco a ver si tengo algun Insert de este bloque
+    Dim e As Entity
+    Dim InUse As Boolean
+
+    For Each e In gcd.currentDrawing.oEntities
+        If e.pBlock Then
+            If e.pBlock.name = icvBlocksInUse.Item.text Then
+                Message.Error(("There is an Insert using this Block, can't be removed"))
+                InUse = True
+                Break
+
+            Endif
+        Endif
+    Next
+
+    If Not InUse Then
+        gcd.currentDrawing.oBlocks.Remove(icvBlocksInUse.Item.Key)
+        icvBlocksInUse.Remove(icvBlocksInUse.Item.Key)
+    Endif
+
+End
+
+Public Sub btnInsertToDrawing_Click()
+
+    ' voy a insertar
+    Dim fScale, fRot As Float
+    Dim iItem As Integer
+
+    Try fScale = Val(txtScale.Text)
+    If fScale = 0 Then fScale = 1
+
+    Try fRot = Val(txtRotation.Text)
+
+    icvBlocksInUse.MoveFirst
+    For iItem = 0 To icvBlocksInUse.Count
+
+        If Not icvBlocksInUse.Item Then Break
+        If icvBlocksInUse.Item.Selected Then
+            ' si aqui pongo cadBlocks.SetInsert la entidad se crea en otra instancia de cadBlocks y no la veo mas
+            gcd.clsJob.SetInsert(icvBlocksInUse.Item.text, fScale, fRot, chkInvert.Value)
+            Break
+        End If
+        icvBlocksInUse.MoveNext
+    Next
+    Me.Hide
+
+
+End
+
+Public Sub icvBlocksInUse_Select()
+
+    btnInsertToDrawing.Enabled = True
 
 End
