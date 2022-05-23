@@ -98,10 +98,10 @@ End
 
 ' Public Sub setEntity(e As Entity)
 '
-'     Try e.iParam.Resize(e.ClassHandler.iTotalParams)
-'     Try e.fParam.Resize(e.ClassHandler.fTotalParams)
-'     Try e.StringData.Resize(e.ClassHandler.sdaTotalParams) ' text, style
-'     Try e.P.Resize(e.ClassHandler.TotalPoints * 2)
+'     Try e.iParam.Resize(gcd.CCC[e.gender].iTotalParams)
+'     Try e.fParam.Resize(gcd.CCC[e.gender].fTotalParams)
+'     Try e.StringData.Resize(gcd.CCC[e.gender].sdaTotalParams) ' text, style
+'     Try e.P.Resize(gcd.CCC[e.gender].TotalPoints * 2)
 '
 ' End
 
@@ -117,7 +117,7 @@ Public Function ReconstruirBloques() As Boolean
     For i = 0 To gcd.CurrentDrawing.oEntities
         DrawingAids.CmdLineHelper = ("Loading blocks ") & Format$(i / gcd.CurrentDrawing.oEntities, "0.00%")
         Wait 0.0001
-        If gcd.CurrentDrawing.oEntities[i].gender = "Block" Then
+        If gcd.CurrentDrawing.oEntities[i].gender = "BLOCK" Then
             Dim newBlock As New Block
             newBlock.name = gcd.CurrentDrawing.oEntities[i].block
             newBlock.x = gcd.CurrentDrawing.oEntities[i].p[0]
@@ -125,13 +125,13 @@ Public Function ReconstruirBloques() As Boolean
             newBlock.entities = New Collection
             ' busco los objetos de este bloque y los reconstruyo
             For i2 = iStart To gcd.CurrentDrawing.oEntities
-                If gcd.CurrentDrawing.oEntities[i2].block = newBlock.name And gcd.CurrentDrawing.oEntities[i2].gender <> "Block" Then ' sin recursividad en bloques
-                    If gcd.CurrentDrawing.oEntities[i2].block = newBlock.name And gcd.CurrentDrawing.oEntities[i2].gender <> "Insert" Then 'no quiero insertarme a mi mismo
+                If gcd.CurrentDrawing.oEntities[i2].block = newBlock.name And gcd.CurrentDrawing.oEntities[i2].gender <> "BLOCK" Then ' sin recursividad en bloques
+                    If gcd.CurrentDrawing.oEntities[i2].block = newBlock.name And gcd.CurrentDrawing.oEntities[i2].gender <> "INSERT" Then 'no quiero insertarme a mi mismo
                         PartesEncontradas = True
                         Dim o2 As Entity
                         o2 = ClonEntity(gcd.CurrentDrawing.oEntities[i2])
 
-                        o2.ClassHandler.finish(o2)
+                        Gcd.CCC[o2.gender].finish(o2)
                         newBlock.entities.Add(o2)
                     End If
                 Else
@@ -163,12 +163,12 @@ Public Sub glGenBuffers(Optional eEntity As Entity = Null)
 
         ' If Not gl.islist(eEntity.glDrwList) Then eEntity.glDrwList = gl.GenLists(1)
         ' gl.NewList(eEntity.glDrwList, gl.COMPILE)
-        ' eEntity.ClassHandler.Draw(eEntity)
+        ' eEntity.Gcd.CCC[e.gender].Draw(eEntity)
         ' gl.EndList
         '
         ' If Not gl.islist(eEntity.glDrwListSel) Then eEntity.glDrwListSel = gl.GenLists(1)
         ' gl.NewList(eEntity.glDrwListSel, gl.COMPILE)
-        ' eEntity.ClassHandler.DrawSelected(eEntity)
+        ' eEntity.Gcd.CCC[e.gender].DrawSelected(eEntity)
         ' gl.EndList
 
     Else
@@ -185,7 +185,7 @@ Public Sub glGenBuffers(Optional eEntity As Entity = Null)
 
             'If Not gl.islist(e.glDrwList) Then e.glDrwList = gl.GenLists(1)
             'gl.NewList(e.glDrwList, gl.COMPILE)
-            e.ClassHandler.Draw(e)
+            gcd.CCC[e.gender].Draw(e)
             'gl.EndList
 
         Next
@@ -228,7 +228,7 @@ Public Sub glGenBuffers(Optional eEntity As Entity = Null)
         ' For Each e In gcd.CurrentDrawing.oEntities
         '     If Not gl.islist(e.glDrwListSel) Then e.glDrwListSel = gl.GenLists(1)
         '     gl.NewList(e.glDrwListSel, gl.COMPILE)
-        '     e.ClassHandler.DrawSelected(e)
+        '     gcd.CCC[e.gender].DrawSelected(e)
         '     gl.EndList
         ' Next
         '
@@ -252,12 +252,12 @@ Public Sub glGenDrawList(Optional eEntity As Entity = Null)
 
         If Not gl.islist(eEntity.glDrwList) Then eEntity.glDrwList = gl.GenLists(1)
         gl.NewList(eEntity.glDrwList, gl.COMPILE)
-        eEntity.ClassHandler.Draw(eEntity)
+        eEntity.Gcd.CCC[e.gender].Draw(eEntity)
         gl.EndList
 
         If Not gl.islist(eEntity.glDrwListSel) Then eEntity.glDrwListSel = gl.GenLists(1)
         gl.NewList(eEntity.glDrwListSel, gl.COMPILE)
-        eEntity.ClassHandler.DrawSelected(eEntity)
+        eEntity.Gcd.CCC[e.gender].DrawSelected(eEntity)
         gl.EndList
 
     Else
@@ -270,7 +270,7 @@ Public Sub glGenDrawList(Optional eEntity As Entity = Null)
             If Not gl.islist(e.glDrwList) Then e.glDrwList = gl.GenLists(1)
 
             gl.NewList(e.glDrwList, gl.COMPILE)
-            e.ClassHandler.Draw(e)
+            gcd.CCC[e.gender].Draw(e)
             gl.EndList
 
         Next
@@ -279,7 +279,7 @@ Public Sub glGenDrawList(Optional eEntity As Entity = Null)
         For Each e In gcd.CurrentDrawing.oEntities
             If Not gl.islist(e.glDrwListSel) Then e.glDrwListSel = gl.GenLists(1)
             gl.NewList(e.glDrwListSel, gl.COMPILE)
-            e.ClassHandler.DrawSelected(e)
+            gcd.CCC[e.gender].DrawSelected(e)
             gl.EndList
         Next
 
@@ -366,7 +366,7 @@ Public Sub glGenDrawListLAyers(Optional aLayer As Layer)
             If Not gl.islist(aLayer.glList) Then aLayer.glList = gl.GenLists(1)
             gl.NewList(aLayer.glList, gl.COMPILE)
             For Each e In gcd.CurrentDrawing.oEntities
-                If e.Gender = "Hatch" And Not gcd.DrawHatch Then Continue
+                If e.Gender = "HATCH" And Not gcd.DrawHatch Then Continue
 
                 If e.pLayer = aLayer Then gl.CallList(e.glDrwList)
 
@@ -420,7 +420,7 @@ Public Sub DrawPoiSymbolsAll()
 
     For Each e As Entity In gcd.CurrentDrawing.oSelected
 
-        ' If (e.Gender = "Insert") Then
+        ' If (e.Gender = "INSERT") Then
         DrawPoiSymbols(e)
         Inc total
         ' End If
@@ -466,9 +466,9 @@ Public Sub Finish(Optional selected As Boolean = True)
 
     For Each E In gcd.CurrentDrawing.oEntities
         If selected Then                                                    ' apply to only the selected ones
-            If E.Selected Then E.ClassHandler.Finish(E)
+            If E.Selected Then gcd.CCC[e.gender].Finish(E)
         Else                                                                ' apply to all
-            E.ClassHandler.Finish(E)
+            gcd.CCC[e.gender].Finish(E)
         End If
 
     Next
@@ -484,7 +484,7 @@ Public Sub ClonElements(Optional selected As Boolean = True)
     For Each E In gcd.CurrentDrawing.oSelected
         eClon = Me.ClonEntity(e, True)
         gcd.CurrentDrawing.oEntities.Add(eClon, eClon.Handle)
-        eClon.ClassHandler.finish(eClon)
+        eClon.Gcd.CCC[e.gender].finish(eClon)
         gcd.CurrentDrawing.CurrLayer.Entities.Add(eClon)
 
     Next
@@ -498,9 +498,9 @@ Public Sub ClonEntity(e As Entity, Optional GetNewHandle As Boolean = True) As E
 
     Dim o As Entity
 
-    o = e.ClassHandler.newEntity()
+    o = gcd.CCC[e.gender].newEntity()
     CopyElemData(e, o)                              ' copy all values
-    o.ClassHandler.BuildPoi(o)
+    o.Gcd.CCC[e.gender].BuildPoi(o)
     If GetNewHandle Then o.Handle = gcd.NewHandle()
     Return o
 
@@ -716,7 +716,6 @@ Public Sub CopyElemData(origen As Entity, destino As Entity)
     Next
 
     destino.Gender = origen.Gender
-    destino.ClassHandler = origen.ClassHandler
     destino.pLayer = origen.pLayer
     destino.pBlock = origen.pBlock
     destino.Group = origen.Group
@@ -737,7 +736,7 @@ Public Sub Move(dX As Float, dY As Float, Optional OnlySelected As Boolean = Fal
     For Each e In gcd.CurrentDrawing.oEntities
         If (e.selected And OnlySelected) Or Not OnlySelected Then
 
-            e.ClassHandler.Translate(e, dX, dY, OnlyPointSelected)
+            gcd.CCC[e.gender].Translate(e, dX, dY, OnlyPointSelected)
 
         Endif
 
@@ -753,7 +752,7 @@ Public Sub Rotate(degAngle As Float, Optional OnlySelected As Boolean = False, O
     For Each e In gcd.CurrentDrawing.oEntities
         If (e.selected And OnlySelected) Or Not OnlySelected Then
 
-            e.ClassHandler.Rotate(e, degAngle)
+            gcd.CCC[e.gender].Rotate(e, degAngle)
 
         Endif
 
@@ -769,7 +768,7 @@ Public Sub Scale(sX As Float, sY As Float, Optional sZ As Float = 1, OnlySelecte
     For Each e In gcd.CurrentDrawing.oEntities
         If (e.selected And OnlySelected) Or Not OnlySelected Then
 
-            e.ClassHandler.Scale(e, sX, sY)
+            gcd.CCC[e.gender].Scale(e, sX, sY)
 
         Endif
 
@@ -882,7 +881,7 @@ Public Function CollectDetectableEntities()
                 If Config.TrackEntityCurves Then e.Trackable = True Else e.Trackable = False
             Case "Mtext", "Text", "Attrib", "Attdef"
                 If Config.TrackEntityTexts Then e.Trackable = True Else e.Trackable = False
-            Case "Insert"
+            Case "INSERT"
                 If Config.TrackEntityInserts Then e.Trackable = True Else e.Trackable = False
             Case "Hatch"
                 If Config.TrackEntityHatches Then e.Trackable = True Else e.Trackable = False
@@ -909,11 +908,11 @@ Public Sub BuildPoi(Optional entities As Collection, OnlyVisibles As Boolean = T
         If e.pLayer Then
 
             If (OnlyVisibles And e.pLayer.Visible) Or Not OnlyVisibles Then
-                e.ClassHandler.BuildPoi(e)
+                gcd.CCC[e.gender].BuildPoi(e)
             End If
         Else
             e.pLayer = gcd.currentDrawing.CurrLayer
-            e.ClassHandler.BuildPoi(e)
+            gcd.CCC[e.gender].BuildPoi(e)
         End If
     Next
 
@@ -946,7 +945,7 @@ Public Function ComputeLimits(Optional entities As Collection, OnlyVisibles As B
 
         If IsVisible Then
 
-            If e.Gender = "Insert" Then
+            If e.Gender = "INSERT" Then
                 If IsNull(e.pBlock) Then Continue
                 newLimits = ComputeLimits(e.pBlock.entities)
                 If IsNull(newLimits) Then Continue
@@ -1009,7 +1008,7 @@ Public Function ComputeLimits(Optional entities As Collection, OnlyVisibles As B
                     'If (Xmenor < 0) And gcd.SnapMode Then Stop
 
                 Next
-            Else If e.Gender = "Point" Then
+            Else If e.Gender = "POINT" Then
 
                 If IgnorePoints Then Continue
                 i = 0
@@ -1044,7 +1043,7 @@ Public Function ComputeLimits(Optional entities As Collection, OnlyVisibles As B
             End If
         End If
         If Xmenor < 10 Then
-            If e.Gender = "Insert" Then
+            If e.Gender = "INSERT" Then
 
                 a = 1
             End If
@@ -1198,21 +1197,6 @@ Public Function DXFImportToEntity(c As Collection, Optional IsDummy As Boolean =
     Dim e As Entity
     Dim LT As LineType
 
-    ' If Not c.Exist("entity") Then Return False
-    ' If Not c "entity") Then Return False
-    If IsDummy Then
-        clsHandler = cadDummy
-    Else
-        'clsHandler = Object.New("cad" & c[dxf.codEntity])  ' obtenemos el tipo de entidad y buscamos su clase. Si no manjemos esa entidad, esto de error.
-        sClass = Class.Load("cad" & c[dxf.codEntity])
-        clsHandler = sClass.AutoCreate()
-
-    End If
-    'GotEntity = True
-
-    'Finally
-
-    'If Not GotEntity Then Return False
 
     For Each lpValue In c
         lpclave = c.Key
@@ -1222,7 +1206,7 @@ Public Function DXFImportToEntity(c As Collection, Optional IsDummy As Boolean =
         sValue.Add(lpValue)
 
     Next
-    e = clsHandler.newEntity()
+    e = gcd.CCC[c[dxf.codEntity]].newEntity()
     ' llenamos Common data:
     e.pLayer = GetLayerByName(c[dxf.codLayer])
     e.Handle = c[dxf.codHandle]
@@ -1245,10 +1229,10 @@ Public Function DXFImportToEntity(c As Collection, Optional IsDummy As Boolean =
         e.LineType = gcd.CurrentDrawing.oLTypes[gcd.CurrentDrawing.oLTypes.First]
 
     End If
-    If clsHandler.ImportDXF(e, sClave, sValue) Then
+    If gcd.CCC[e.gender].ImportDXF(e, sClave, sValue) Then
 
-        'If e.ClassHandler.gender <> "Hatch" Then e.ClassHandler.Finish(e)
-        e.ClassHandler.Finish(e)
+        'If gcd.CCC[e.gender].gender <> "Hatch" Then gcd.CCC[e.gender].Finish(e)
+        gcd.CCC[e.gender].Finish(e)
 
         Return e
 
@@ -1259,7 +1243,7 @@ Public Function DXFImportToEntity(c As Collection, Optional IsDummy As Boolean =
     End If
 
     ' Catch
-    'e.ClassHandler = cadDummy
+    'gcd.CCC[e.gender] = cadDummy
     Return Null
 
 End
@@ -1344,7 +1328,7 @@ End
 '     End If
 '
 '     'Catch
-'     'e.ClassHandler = cadDummy
+'     'gcd.CCC[e.gender] = cadDummy
 '     Return False
 '
 ' End

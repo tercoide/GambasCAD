@@ -25,7 +25,7 @@
 ' this is the Main Job, either we are doing this or other job
 Inherits ToolsBase
 ' Create Static
-Public Const Gender As String = "Default"
+Public Const Gender As String = "DEFAULT"
 
 Public Const SelectModePoint As Integer = 1             ' only mark a point
 Public Const SelectModeRect As Integer = 2              ' make a rect
@@ -253,7 +253,7 @@ Public Sub MouseUp()
 
         Else If GripPoint >= 0 Then
 
-            EntityForEdit.ClassHandler.buildpoi(EntityForEdit)
+            Gcd.CCC[EntityForEdit.gender].buildpoi(EntityForEdit)
             GripPoint = -1
             clsEntities.glGenDrawList(EntityForEdit)
             iEntityForEdit = -1
@@ -293,7 +293,7 @@ Public Sub MouseMove() ' esta rutina es llamada por FCAD en el evento DrawingAre
     If GripPoint >= 0 Then
         Select Case EntityForEdit.PoiType[GripPoint]
             Case gcd.poiBasePoint, gcd.poiCenter, gcd.poiMidPoint
-                EntityForEdit.ClassHandler.translate(EntityForEdit, Me.SelEndXr - dx, Me.SelEndYr - dY)
+                Gcd.CCC[EntityForEdit.gender].translate(EntityForEdit, Me.SelEndXr - dx, Me.SelEndYr - dY)
                 dX = Me.SelEndXr
                 dY = Me.SelEndYr
             Case gcd.poiEndPoint
@@ -326,22 +326,24 @@ Public Function KeyText(EnteredText As String)
     ' in this case, we try to run the command wich is a class
     Dim o As Object, RunWith As String, c As Class
 
-    EnteredText = LCase(Trim(EnteredText))
+    EnteredText = UCase(Trim(EnteredText))
     If EnteredText = "" Then Return                                ' no BS here
 
-    Select Case LCase(EnteredText)
-        Case "regen"
+    Select Case EnteredText
+        Case "REGEN"
             gcd.regen
-        Case "redraw"
+        Case "REDRAW"
             gcd.Redraw
 
         Case Else
             'o = cadDimension ' a test
             gcd.clsJobPrevious = gcd.clsJob
 
-            Try o = Object.New("cad" & EnteredText)
+            If gcd.CCC.Exist(EnteredText) Then
+                o = gcd.CCC[EnteredText]
+            Else
 
-            If IsNull(o) Then
+
                 DrawingAids.ErrorMessage = "Command not recognized"
                 Return
             Endif
@@ -353,7 +355,7 @@ Public Function KeyText(EnteredText As String)
 
             Else                                                    ' its propably an eentity
 
-                gcd.clsJob = Object.New(o.usewith)
+                gcd.clsJob = gcd.CCC[o.usewith]
                 gcd.clsJob.start(o)
 
             End If
@@ -400,10 +402,10 @@ Public Sub Draw() ' esta rutina es llamada por FCAD en el evento DrawingArea_Dra
 
         If GripPoint >= 0 Then
 
-            EntityForEdit.ClassHandler.Draw(EntityForEdit)
+            Gcd.CCC[EntityForEdit.gender].Draw(EntityForEdit)
 
         Endif
-        'EntityForEdit.ClassHandler.drawremark(EntityForEdit)
+        'EntityForEdit.Gcd.CCC[e.gender].drawremark(EntityForEdit)
         gl.CallList(gcd.CurrentDrawing.GlListSelectedEntities)
         clsEntities.DrawPoiSymbols(EntityForEdit)
 
