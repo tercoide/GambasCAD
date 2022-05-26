@@ -100,46 +100,52 @@ End
 
 Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
 
-    ' la linea solo recibe puntos
+
+
 
     If vParam[0] <> "point" Then Return False
 
     If Me.StepsDone = 0 Then
         Me.DimType = gcd.dimAligned
-
-        eBuild.iParam.Resize(cadDimension.iTotalParams)
-        eBuild.fParam.Resize(cadDimension.TotalParams)
-        eBuild.StringData.Resize(cadDimension.sdaTotalParams) ' text, style
-        eBuild.pStyle = gcd.CurrentDrawing.CurrDimStyle
-
-        Try eBuild.P[0] = vParam[1]
-        Try eBuild.P[1] = vParam[2]
-        eBuild.P[2] = eBuild.P[0]
-        eBuild.P[3] = eBuild.P[1]
+        ' supongo que marca el punto de derecha a izq
+        ' el primero es P3 o P67
+        Try eBuild.p[0] = vParam[1]
+        Try eBuild.p[1] = vParam[2]
+        eBuild.p[2] = eBuild.P[0]
+        eBuild.p[3] = eBuild.P[1]
+        eBuild.p[4] = eBuild.p[2]
+        eBuild.p[5] = eBuild.P[3]
+        ' Me.pointDefPoint2.x = Me.pointDefPoint1.x
+        ' Me.pointDefPoint2.y = Me.pointDefPoint1.y
         If definitive Then Return True
     Else If Me.StepsDone = 1 Then
 
-        Try eBuild.P[2] = vParam[1]
-        Try eBuild.P[3] = vParam[2]
-        eBuild.pBlock = ReBuildBlock(eBuild)
+        Try eBuild.p[2] = vParam[1]
+        Try eBuild.p[3] = vParam[2]
+        eBuild.p[4] = eBuild.p[2]
+        eBuild.p[5] = eBuild.P[3]
+
+        ' Try Me.pointDefPoint2.x = vParam[1]
+        ' Try Me.pointDefPoint2.y = vParam[2]
+        eBuild.pBlock = cadDIMENSION_LINEAR.ReBuildBlock2(eBuild, -1)
         If definitive Then Return True
-    Else If Me.StepsDone = 2 Then
-        If vParam[0] = "point" Then  ' vino como un punto, entonces la calculo de otra manera
+    Else If Me.StepsDone = 2 Then   ' el tercer punto sera la posicion del texto
 
-            ' return the angle from horizontal to us
-            eBuild.fParam[cadDimension.ipaExtension] = -puntos.PointToLineDistance([vParam[1], vParam[2]], [eBuild.p[0], eBuild.p[1], eBuild.p[2], eBuild.p[3]]) ' / puntos.distancia(eBuild.p[0], eBuild.p[1], eBuild.p[2], eBuild.p[3]
+        ' return the angle from horizontal to us
+        'eBuild.fParam[Me.ipaExtension] = -puntos.PointToLineDistance([vParam[1], vParam[2]], [eBuild.p[0], eBuild.p[1], eBuild.p[2], eBuild.p[3]]) ' / puntos.distancia(eBuild.p[0], eBuild.p[1], eBuild.p[2], eBuild.p[3]
+        Try eBuild.p[4] = vParam[1]
+        Try eBuild.p[5] = vParam[2]
 
-        Else If vParam[0] = "float" Then  ' vino como un punto, entonces la calculo de otra manera
-            eBuild.fParam[Me.ipaExtension] = vParam[1]
-
-        End If
-
-        eBuild.pBlock = ReBuildBlock(eBuild)
+        ' Try Me.pointDefPoint0.x = vParam[1]
+        ' Try Me.pointDefPoint0.y = vParam[2]
+        eBuild.pBlock = cadDIMENSION_LINEAR.ReBuildBlock2(eBuild, -1)
         If definitive Then
             'Stop
             Return True
         End If
     Endif
+
+
 
 End
 
