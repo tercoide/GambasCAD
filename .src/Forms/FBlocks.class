@@ -146,7 +146,7 @@ Public Sub CreateBlock()
         For Each tmpEnty In cEntitiesBlock
             If tmpEnty.pBlock Then
                 cadExplode.explode_list(tmpEnty.pBlock.entities, tmpEnty, cEntitiesBlock)
-                tmpEnty.pBlock = Null
+                'tmpEnty.pBlock = Null
                 cEntitiesBlock.Remove(cEntitiesBlock.Key)
             End If
         Next
@@ -154,9 +154,10 @@ Public Sub CreateBlock()
 
     If chkIncludeData.Value = False Then
         For Each tmpEnty In cEntitiesBlock
-            tmpEnty.pLayer = Null
-            tmpEnty.pDimStyle = Null
-            tmpEnty.LineType = Null
+            tmpEnty.pLayer = gcd.currentDrawing.oLayers[gcd.currentDrawing.oLayers.First]
+            tmpEnty.pDimStyle = gcd.currentDrawing.oDimStyles[gcd.currentDrawing.oDimStyles.First]
+            tmpEnty.LineType = gcd.currentDrawing.oLTYpes[gcd.currentDrawing.oLTYpes.First]
+            tmpEnty.Colour = 0
         Next
     Endif
 
@@ -360,7 +361,7 @@ Public Sub btnAddToDrawing_Click()
                 Endif
             Next
             ' y ahora lo agregamos
-            If Not InUse Then GoSub AddBlock
+            If Not InUse Then AddBlock(sPath, sNewName, gcd.currentDrawing.oBlocks) 'GoSub AddBlock
 
 
         Endif
@@ -369,12 +370,40 @@ Public Sub btnAddToDrawing_Click()
     Return
 
     ' cargo el archivo
-AddBlock:
+    ' AddBlock:
+    '     drwTemp = New Drawing
+    '     dxf.LoadFile(sPath, drwTemp,,,,, True)
+    '     ' todo el dibujo sera un bloque
+    '     blkNew = New Block
+    '     blkNew.name = sNewName
+    '     blkNew.entities = New Collection
+    '     blkNew.handle = gcd.NewHandle()
+    '     For Each eBlockl In drwTemp.oEntities
+    '         blkNew.entities.Add(eBlockl, gcd.NewHandle())
+    '     Next
+    '     ' y agregamos la entidad ENDBLK
+    '     eBlockl = New Entity
+    '     eBlockl = cadEndBlk.NewEntity()
+    '     blkNew.entities.Add(eBlockl, gcd.NewHandle())
+    '
+    '     ' ahora que el bloque esta conformado, lo agregamos el dibujo actual
+    '     gcd.currentDrawing.oBlocks.Add(blkNew, blkNew.handle)    ' TODO: verificar si no necesito una HANDLE
+    '
+    '     Return
+
+End
+
+Public Sub AddBlock(sPath As String, sBlockName As String, sContainer As Collection) As Boolean
+
+
+    Dim drwTemp As Drawing, blkNew As Block, eBlockl As Entity
+
     drwTemp = New Drawing
     dxf.LoadFile(sPath, drwTemp,,,,, True)
     ' todo el dibujo sera un bloque
+
     blkNew = New Block
-    blkNew.name = sNewName
+    blkNew.name = sBlockName
     blkNew.entities = New Collection
     blkNew.handle = gcd.NewHandle()
     For Each eBlockl In drwTemp.oEntities
@@ -386,9 +415,8 @@ AddBlock:
     blkNew.entities.Add(eBlockl, gcd.NewHandle())
 
     ' ahora que el bloque esta conformado, lo agregamos el dibujo actual
-    gcd.currentDrawing.oBlocks.Add(blkNew, blkNew.handle)    ' TODO: verificar si no necesito una HANDLE
+    sContainer.Add(blkNew, blkNew.handle)    ' TODO: verificar si no necesito una HANDLE
 
-    Return
 
 End
 

@@ -527,128 +527,18 @@ Public Sub Main()
     picPrintOn = Picture.Load(gcd.dirResources &/ "png" &/ "printOn.png")
     picPrintOff = Picture.Load(gcd.dirResources &/ "png" &/ "printOff.png")
 
-End
-
-Public Sub ExportBlocks(colData As Collection) ', obxEntities As Entity[]) As Integer
-
-End
-
-Public Sub ImportBlocksFromDXF(colData As Collection) ', obxEntities As Entity[]) As Integer
-
-    Dim iTotalEntities As Integer, colent, colBlk As Collection, flxPoints As New Float[], P As Float[]
-    Dim hBlock As String
-    Dim cParent As Collection, cEntyList As New Collection
-    Dim hEnty As Variant, iEnty As Integer
-    Dim cEnty As Variant[]
-    Dim i As Integer
-
-    If Not colData.Exist("BLOCKS") Then Return
-    ' For Each colBlk In colData["TABLES"]["BLOCK_RECORD"]
-    '     Dim newBlock As New Block
-    '     newBlock.entities = New Collection
-    '     newBlock.name = colBlk[dxf.codName]
-    '     newBlock.handle = colBlk[dxf.codHandle]
-    '     newBlock.HandleOwnerParent = colBlk[dxf.codHandleOwner]
-    '     newBlock.HandleAsociatedLayout = colBlk["340"]
-    '     Try newBlock.InsertUnits = colBlk["70"]
-    '     Try newBlock.Explotability = colBlk["280"]
-    '     Try newBlock.Scalability = colBlk["281"]
-    '     gcd.currentDrawing.oBlocks.Add(newBlock, newBlock.handle)
-    '
-    ' Next
-
-    For Each colBlk In colData["BLOCKS"]
-        Dim newBlock As New Block
-        newBlock.entities = New Collection
-        newBlock.name = colBlk[dxf.codName]
-        cParent = colData["TABLES"]["BLOCK_RECORD"][newBlock.name]
-        newBlock.handle = colBlk[dxf.codHandle]
-        If cParent Then
-            newBlock.HandleOwner = cParent[dxf.codHandle]
-            newBlock.HandleOwnerParent = cParent[dxf.codHandleOwner]
-        End If
-        'newBlock = clsEntities.FIndBlock(colBlk[dxf.codName])
-        newBlock.layer = colBlk[dxf.codLayer]
-        Try newBlock.x0 = colBlk[dxf.codX0]
-        Try newBlock.y0 = colBlk[dxf.codY0]
-        If colBlk.Exist(dxf.codZ0) Then newBlock.z0 = colBlk[dxf.codZ0]
-        newBlock.flags = colBlk["70"]
-        gcd.currentDrawing.oBlocks.Add(newBlock, newBlock.handle)
-
-    Next
-    For Each colBlk In colData["BLOCKS"]
-
-        If colBlk.Exist("entities") Then
-
-            DXFtoEntity(colBlk["entities"], gcd.currentDrawing.oBlocks[colBlk[dxf.codHandle]].entities)
-            'If gcd.currentDrawing.arrBlocks[i].entities.Count = 0 Then Stop
-
-        Else
-
-            Debug "Error loading block", newBlock.name
-
-        End If
-        Inc i
+    ' bloques common
+    Dim sFiles As String[]
+    Dim sBlocksFiles As String
+    sFiles = Dir(gcd.dirResources &/ "common", "*.dxf")
+    For Each sBlocksFiles In sFiles
+        FBlocks.AddBlock(gcd.dirResources &/ "common" &/ sBlocksFiles, Utils.FileWithoutExtension(sBlocksFiles), gcd.CommonBlocks)
 
     Next
 
-End
-
-'' Importa las cosas de manera descentralizada
-Public Sub DXFtoEntity(cEny As Collection, obx As Collection, Optional NewHandles As Boolean = True)
-
-    Dim e As Collection               ' current Entity
-    Dim entNueva As Entity
-    Dim flgIsPolyline, IsDummy As Boolean
-    Dim pBlockPolyline As Block
-    Dim sHandle As String
-
-    For Each e In cEny                                              ' Para cada Coleccion de datos de vrx
-        If e.Exist(dxf.codEntity) Then                                     ' es una entidad?
-            ' entonces, creamos una nueva
-            ' poner en minuscula para anular la entidad
-            If InStr("HATCH POLYLINE ENDBLK SEQEND VERTEX POINT ATTDEF ATTRIB LINE LWPOLYLINE CIRCLE ELLIPSE ARC TEXT MTEXT SPLINE SOLID INSERT DIMENSION DIMENSION_LINEAR DIMENSION_DIAMETEr DIMENSION_RADIUs DIMENSION_ANG3Pt DIMENSION_ALIGNED DIMENSION_ORDINATE LARGE_RADIAL_DIMENSION ARC_DIMENSION", UCase(e[dxf.codEntity])) = 0 Then IsDummy = True Else IsDummy = False
-            'If UCase(e[dxf.codEntity]) = "INSERT" Then Stop
-
-            entNueva = clsEntities.DXFImportToEntity(e, IsDummy)
-            If IsDummy Then
-                ' no esta implementada
-                gcd.debuginfo("Entidad no implementada o con errores: " & e[dxf.codHandle] & "," & e[dxf.codEntity])
-
-            Else
-
-                If Not IsNull(entNueva) Then         ' si esta implementada, llenamos los datos
-                    If NewHandles Or (entNueva.Handle = "") Then
-                        sHandle = Me.NewHandle()
-                        entNueva.Handle = sHandle
-                    Else
-                        sHandle = entNueva.Handle
-                    End If
-                    If flgIsPolyline Then
-                        pBlockPolyline.entities.Add(entNueva, sHandle)
-                    Else
-                        obx.Add(entNueva, sHandle)
-                    End If
-
-                    If e[dxf.codEntity] = "POLYLINE" Then
-                        flgIsPolyline = True
-                        pBlockPolyline = New Block
-                        pBlockPolyline.entities = New Collection
-                        gcd.currentDrawing.oPolyLines.Add(pBlockPolyline, entNueva.Handle)
-                        entNueva.pBlock = pBlockPolyline
-                    End If
-                    If e[dxf.codEntity] = "SEQEND" And flgIsPolyline = True Then
-                        flgIsPolyline = False
-                        pBlockPolyline = Null
-                    End If
-                    entNueva = Null                                           ' limpiamos
-
-                Endif
-            End If
-        End If
-    Next
 
 End
+
 
 Public Function GetLayer(LayerName As String) As Layer
 
@@ -662,24 +552,7 @@ Public Function GetLayer(LayerName As String) As Layer
 
 End
 
-'' Reads layers collection and puts data in oLayers
-Public Sub ReadLayers(claydata As Collection)
 
-    Dim hLay As Layer
-
-    ' primero eliminamos lo q haya
-    currentDrawing.oLayers.Clear
-    For Each cLay As Collection In cLayData
-        hLay = New Layer
-        hLay.Name = cLay[dxf.codName]
-        hLay.Visible = CInt(cLay[dxf.codColor]) >= 0
-        hLay.Colour = Abs(CInt(cLay[dxf.codColor]))
-        hLay.handle = cLay[dxf.codHandle]
-        If hLay.handle = "" Then hLay.handle = gcd.NewHandle()
-        currentDrawing.oLayers.Add(hLay, hLay.handle)
-    Next
-
-End
 
 '' Reads entities and fill arrLayers
 Public Sub FillLayers(drw As Drawing)
@@ -700,118 +573,118 @@ Public Sub FillLayers(drw As Drawing)
 
 End
 
-'' Reads LineTypes collection and puts data in arrLTypes
-Public Sub ReadLTypes()
+' '' Reads LineTypes collection and puts data in arrLTypes
+' Public Sub ReadLTypes()
+'
+'     Dim hlty As LineType
+'     Dim t, i As Integer
+'     Dim fTrameLength As Float
+'     Dim sNextKey As String
+'
+'     ' primero eliminamos lo q haya
+'     currentDrawing.oLTYpes.Clear
+'     For Each c As Collection In currentDrawing.cLtypes
+'         hlty = New LineType
+'         hlty.Name = c[dxf.codName]
+'         hlty.Description = c["3"]
+'         hlty.handle = c[dxf.codHandle]
+'         If hLty.handle = "" Then hLty.handle = gcd.NewHandle()
+'         hlty.nTrames = CInt(c["73"])
+'         If hlty.nTrames > 0 Then hlty.Length = c["40"]
+'         i = 0
+'         For t = 1 To hlty.nTrames
+'             Do
+'                 If t > 1 Then
+'                     sNextKey = "49_" & CStr(i)
+'                 Else
+'                     sNextKey = "49"
+'                 Endif
+'                 If c.Exist(sNextKey) Then
+'                     Inc i
+'                     hlty.TrameLength.Add(Abs(CFloat(c[sNextKey])) * 2.5) ' TODO: verificar este valor arbitrario
+'                     If hlty.TrameLength.Last = 0 Then hlty.TrameLength.Last = 1
+'
+'                     Break
+'                 Endif
+'                 Inc i
+'                 If i = 1000 Then Return
+'             Loop
+'
+'         Next
+'
+'         currentDrawing.oLTYpes.Add(hlty, hlty.handle)
+'
+'     Next
+'
+' End
 
-    Dim hlty As LineType
-    Dim t, i As Integer
-    Dim fTrameLength As Float
-    Dim sNextKey As String
-
-    ' primero eliminamos lo q haya
-    currentDrawing.oLTYpes.Clear
-    For Each c As Collection In currentDrawing.cLtypes
-        hlty = New LineType
-        hlty.Name = c[dxf.codName]
-        hlty.Description = c["3"]
-        hlty.handle = c[dxf.codHandle]
-        If hLty.handle = "" Then hLty.handle = gcd.NewHandle()
-        hlty.nTrames = CInt(c["73"])
-        If hlty.nTrames > 0 Then hlty.Length = c["40"]
-        i = 0
-        For t = 1 To hlty.nTrames
-            Do
-                If t > 1 Then
-                    sNextKey = "49_" & CStr(i)
-                Else
-                    sNextKey = "49"
-                Endif
-                If c.Exist(sNextKey) Then
-                    Inc i
-                    hlty.TrameLength.Add(Abs(CFloat(c[sNextKey])) * 2.5) ' TODO: verificar este valor arbitrario
-                    If hlty.TrameLength.Last = 0 Then hlty.TrameLength.Last = 1
-
-                    Break
-                Endif
-                Inc i
-                If i = 1000 Then Return
-            Loop
-
-        Next
-
-        currentDrawing.oLTYpes.Add(hlty, hlty.handle)
-
-    Next
-
-End
-
-'' Reads TextStyle and DimStyles collection and puts data in arrStyles
-Public Sub ReadStyles()
-
-    Dim hlty As TextStyle
-    Dim t, i As Integer
-    Dim fTrameLength As Float
-    Dim sH2, sNextKey As String
-    Dim RefStyle As TextStyle
-
-    ' primero eliminamos lo q haya
-    currentDrawing.oStyles.Clear
-    ' Leo los TextStyle de texto
-    For Each c As Collection In gcd.currentDrawing.cModel["TABLES"]["STYLE"]
-        hlty = New TextStyle
-
-        hlty.Name = c[dxf.codName]
-        hlty.handle = c[dxf.codHandle]
-        hlty.IsDimStyle = False
-        hlty.sFont_3 = c["3"]
-
-        hlty.FixedH_40 = CFloat(c["40"])
-
-        ' Esto no puede usarse asi, LastHeightUsed_2 es solo un dato de historial
-        ' If hlty.FixedH_40 = 0 Then hlty.FixedH_40 = CFloat(c["42"])
-
-        If hlty.handle = "" Then sH2 = hlty.name Else sH2 = hlty.handle
-        currentDrawing.oStyles.Add(hlty, sh2)
-
-    Next
-    If currentDrawing.oTextStyles.Count > 0 Then
-
-    Endif
-
-    ' Leo lo TextStyle de dimensiones
-    For Each c As Collection In gcd.currentDrawing.cModel["TABLES"]["DIMSTYLE"]
-        hlty = New TextStyle
-
-        hlty.Name = c[dxf.codName]
-        If IsNull(c[dxf.codHandle]) Then
-            hlty.handle = c["105"]
-        Else
-            hlty.handle = c[dxf.codHandle]
-        Endif
-
-        hlty.IsDimStyle = True
-
-        Try hlty.fArrowSize_41 = CFloat(c["41"])
-        If hlty.fArrowSize_41 = 0 Then hlty.fArrowSize_41 = 1
-
-        Try hlty.fTxtHeight_140 = CFloat(c["140"])
-        If hlty.fTxtHeight_140 = 0 Then hlty.fTxtHeight_140 = 1
-
-        Try hlty.iRefStyleHandle_340 = c["340"]
-
-        If hlty.iRefStyleHandle_340 <> "" Then
-            RefStyle = FindStyleByHandle(hlty.iRefStyleHandle_340)
-            If Not IsNull(RefStyle) Then
-                If RefStyle.FixedH_40 > 0 Then hlty.fTxtHeight_140 = RefStyle.FixedH_40
-                hlty.sFont_3 = RefStyle.sFont_3
-            Endif
-        Endif
-
-        currentDrawing.oStyles.Add(hlty, hlty.handle)
-
-    Next
-
-End
+' '' Reads TextStyle and DimStyles collection and puts data in arrStyles
+' Public Sub ReadStyles()
+'
+'     Dim hlty As TextStyle
+'     Dim t, i As Integer
+'     Dim fTrameLength As Float
+'     Dim sH2, sNextKey As String
+'     Dim RefStyle As TextStyle
+'
+'     ' primero eliminamos lo q haya
+'     currentDrawing.oStyles.Clear
+'     ' Leo los TextStyle de texto
+'     For Each c As Collection In gcd.currentDrawing.cModel["TABLES"]["STYLE"]
+'         hlty = New TextStyle
+'
+'         hlty.Name = c[dxf.codName]
+'         hlty.handle = c[dxf.codHandle]
+'         hlty.IsDimStyle = False
+'         hlty.sFont_3 = c["3"]
+'
+'         hlty.FixedH_40 = CFloat(c["40"])
+'
+'         ' Esto no puede usarse asi, LastHeightUsed_2 es solo un dato de historial
+'         ' If hlty.FixedH_40 = 0 Then hlty.FixedH_40 = CFloat(c["42"])
+'
+'         If hlty.handle = "" Then sH2 = hlty.name Else sH2 = hlty.handle
+'         currentDrawing.oStyles.Add(hlty, sh2)
+'
+'     Next
+'     If currentDrawing.oTextStyles.Count > 0 Then
+'
+'     Endif
+'
+'     ' Leo lo TextStyle de dimensiones
+'     For Each c As Collection In gcd.currentDrawing.cModel["TABLES"]["DIMSTYLE"]
+'         hlty = New TextStyle
+'
+'         hlty.Name = c[dxf.codName]
+'         If IsNull(c[dxf.codHandle]) Then
+'             hlty.handle = c["105"]
+'         Else
+'             hlty.handle = c[dxf.codHandle]
+'         Endif
+'
+'         hlty.IsDimStyle = True
+'
+'         Try hlty.fArrowSize_41 = CFloat(c["41"])
+'         If hlty.fArrowSize_41 = 0 Then hlty.fArrowSize_41 = 1
+'
+'         Try hlty.fTxtHeight_140 = CFloat(c["140"])
+'         If hlty.fTxtHeight_140 = 0 Then hlty.fTxtHeight_140 = 1
+'
+'         Try hlty.iRefStyleHandle_340 = c["340"]
+'
+'         If hlty.iRefStyleHandle_340 <> "" Then
+'             RefStyle = FindStyleByHandle(hlty.iRefStyleHandle_340)
+'             If Not IsNull(RefStyle) Then
+'                 If RefStyle.FixedH_40 > 0 Then hlty.fTxtHeight_140 = RefStyle.FixedH_40
+'                 hlty.sFont_3 = RefStyle.sFont_3
+'             Endif
+'         Endif
+'
+'         currentDrawing.oStyles.Add(hlty, hlty.handle)
+'
+'     Next
+'
+' End
 
 Public Function GetGBColor(CADcolor As Integer, Optional pLayer As Layer) As Integer
 
@@ -872,113 +745,8 @@ Public Function NewHandle() As String
 
 End
 
-' '' Updates the Graphics with the changes in the Model. Can be applied to certain entities only. Forces
-' '' a Regen if specified.
-' Public Function UpdateGraphics(Optional handles As String[] = [], DoRegen As Boolean = True)
-'
-'     Dim cEntity As Collection, entNueva As Entity
-'
-'     gcd.debugInfo("Importing DXF data",,, True)
-'
-'     ImportBlocksFromDXF(gcd.currentDrawing.cModel)
-'
-'     If handles.Count = 0 Then                   ' Update all entities
-'
-'         gcd.DXFtoEntity(gcd.currentDrawing.cEntities, gcd.currentDrawing.oEntities, False)
-'
-'     Else                                        ' Update only entities with handles provided
-'
-'         For Each sHandle As String In handles
-'
-'             If gcd.currentDrawing.cEntities.Exist(sHandle) Then  ' la actualizo
-'
-'                 entNueva = New Entity                                       ' entonces, creamos una nueva
-'                 If clsEntities.ImportJsonToEntity(gcd.currentDrawing.cEntities[sHandle], entNueva) Then         ' si esta implementada, llenamos los datos
-'
-'                     gcd.currentDrawing.arrEntities.Add(entNueva)
-'                     entNueva = Null                                           ' limpiamos
-'
-'                 Endif
-'             Endif
-'
-'         Next
-'
-'     End If
-'
-'     gcd.FillLayers            ' esto necesita que arrLayers y arrEntities esten cargados
-'     clsEntities.BuildPoi()
-'
-'     If DoRegen Then Regen
-'
-' End
 
-'' Pasa los layers de cModel a los graficos
-' Public Sub UpdateLayers()
-'
-'   Dim CMLayer As Collection
-'   Dim newlayer As Layer
-'
-'   currentDrawing.Layers.Clear
-'   For Each CMLayer In currentDrawing.cModel["LAYERS"]
-'
-'     newlayer = New Layer
-'     If TypeOf(CMLayer[dxf.codColor]) = gb.Object Then
-'       newlayer.Colour = CMLayer[dxf.codColor]["index"]
-'     Else
-'       newlayer.Colour = CMLayer[dxf.codColor]
-'     Endif
-'     newlayer.Name = CMLayer["name"]
-'     newlayer.handle = CMLayer["handle"][1]
-'     newlayer.id = newlayer.handle
-'     currentDrawing.Layers.Add(newlayer, newlayer.id)
-'   Next
-'
-' End
 
-' Public Sub UpdateModel()
-'
-'     Dim ent As Entity
-'     Dim dxfExporting As Boolean
-'     Dim cNewEntity As Collection
-'     Dim sNewHandle As String
-'     Dim iHandle As Integer
-'
-'     For Each ent In currentDrawing.arrEntities
-'
-'         dxfExporting = False               ' Supongo que la clase todvia no esta lista
-'
-'         ' ' la primera verificacion que hago es ver si la entidad es de un insert, entonces no se guarda
-'
-'         ' Esto puede fallar en caso q no este lista, por eso el Try
-'         Try dxfExporting = ent.Gcd.CCC[e.gender].DXF_Export
-'
-'         If dxfExporting Then               ' La clase esta lista para crear/editar JSON
-'
-'             ' Verifico si la entidad ya existe en cModel, o fue creada por el usuario graficamente
-'             If currentDrawing.cEntities.Exist(ent.Handle) Then
-'
-'                 ' Ya existe, la vacio
-'                 cNewEntity = New Collection
-'                 currentDrawing.cEntities.Add(cNewEntity, ent.Handle)
-'
-'                 ent.Gcd.CCC[e.gender].ExportDXFCol(ent, currentDrawing.cEntities[ent.Handle])
-'
-'             Else
-'                 ' No existe, debemos crear la entrada
-'                 cNewEntity = New Collection
-'                 sNewHandle = NewHandle()
-'                 ' iHandle = currentDrawing.cModel["AuxHeader"]["HANDSEED"]
-'                 currentDrawing.cEntities.Add(cNewEntity, sNewHandle)
-'                 ent.Handle = sNewHandle
-'
-'                 ent.Gcd.CCC[e.gender].ExportDXFCol(ent, currentDrawing.cEntities[sNewHandle])
-'
-'             End If
-'         End If
-'
-'     Next
-'
-' End
 
 Public Function iHeader(VarName As String) As Integer
 
@@ -1103,9 +871,9 @@ Catch
 
 End
 
-'' Carga un DXF e intenta dibujarlo centrado en el contenedor: DrawingArea, Picture, Image
-''          iColor: CAD color o -1 para usar como vienen en el DXF
-''          fLineWidth: -1=como vienen, 0=automatico, >0 = fijo en ese valor
+''  Lee entidades e intenta dibujarlas centrado en el contenedor: DrawingArea, Picture, Image
+''  iColor: CAD color o -1 para usar como vienen en el DXF
+''  fLineWidth: -1=como vienen, 0=automatico, >0 = fijo en ese valor
 Public Function FitEntitiesToImage(cEntities As Collection, imgPreview As Object, Optional iColor As Integer = 0, fLineWidth As Float = 1) As Boolean
 
     Dim scaleX, scale, scaleY As Float
@@ -1140,6 +908,8 @@ Public Function FitEntitiesToImage(cEntities As Collection, imgPreview As Object
                 Paint.Brush = Paint.Color(iColor)
             Endif
             If fLineWidth = 0 Then
+                If entidad.LineWidth = 0 Then entidad.LineWidth = 1
+
                 Paint.LineWidth = entidad.LineWidth / scale
             End If
 
@@ -1152,8 +922,8 @@ Public Function FitEntitiesToImage(cEntities As Collection, imgPreview As Object
 End
 
 '' Carga un DXF e intenta dibujarlo centrado en el contenedor: DrawingArea, Picture, Image
-''          iColor: CAD color o -1 para usar como vienen en el DXF
-''          fLineWidth: -1=como vienen, 0=automatico, >0 = fijo en ese valor
+'' iColor: CAD color o -1 para usar como vienen en el DXF
+'' fLineWidth: -1=como vienen, 0=automatico, >0 = fijo en ese valor
 Public Function FitDxfToImage(sDXFfile As String, imgPreview As Object, Optional iColor As Integer = 0, fLineWidth As Float = 1) As Boolean
 
     Dim drwTemp As New Drawing
