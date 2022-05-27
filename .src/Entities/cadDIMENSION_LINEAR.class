@@ -30,6 +30,27 @@ Public Const ParamType As String = "PPP"
 Public Const ParamHelper As String = "Start point;End point;extension"
 Public Const ParamDefault As String = " "
 
+
+Public Sub ExportDXFCol(e As Entity, ByRef stxExport As String[]) As Boolean
+
+    cadDimension.ExportDXFCol(e, stxExport)
+
+    ' sobreescribo el nombre de la entidad
+
+    stxExport.insert(["AcDbAlignedDimension", "100"])
+    ' ===========================================================================
+    stxExport.insert([CStr(e.p[14]), dxf.codX3])                ' first def point
+    stxExport.insert([CStr(e.p[15]), dxf.codY3])
+    stxExport.insert(["0", dxf.codz0])
+
+    stxExport.insert([CStr(e.p[16]), "14"])                ' text att point
+    stxExport.insert([CStr(e.p[17]), "24"])
+    stxExport.insert([CStr(e.fParam[cadInsert.ipaRotacion]), "50"])
+    stxExport.insert(["0", "52"])
+    stxExport.insert(["AcDbRotatedDimension", "100"])
+
+End
+
 Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
 
     Dim i As Integer
@@ -47,8 +68,8 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
             If sClaves[i] = "12" Then e.P[8] = CFloat(sValues[i])
             If sClaves[i] = "22" Then e.P[9] = CFloat(sValues[i])
 
-            'If sClaves[i] = "13" Then e.P[0] = CFloat(sValues[i])
-            'If sClaves[i] = "23" Then e.P[1] = CFloat(sValues[i])
+            If sClaves[i] = "13" Then e.P[0] = CFloat(sValues[i])
+            If sClaves[i] = "23" Then e.P[1] = CFloat(sValues[i])
 
             If sClaves[i] = "14" Then e.P[2] = CFloat(sValues[i])
             If sClaves[i] = "24" Then e.P[3] = CFloat(sValues[i])
@@ -57,6 +78,8 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
             If sClaves[i] = "50" Then e.iParam[cadDimension.iiiMode] = 1000 * CFloat(sValues[i])
 
             If sClaves[i] = "52" Then e.fParam[cadDimension.ipaObliqueExtension] = CFloat(sValues[i])
+
+
 
         End If
 
@@ -80,7 +103,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     Try e.pBlock.AbsoluteCoords = True
 
     ' y poner esto
-    ' e.pBlock = Me.ReBuildBlock(e)
+    e.pBlock = Me.ReBuildBlock2(e)
 
     Return True
 
@@ -110,8 +133,8 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
         eBuild.p[3] = eBuild.P[1]
         eBuild.p[4] = eBuild.p[2]
         eBuild.p[5] = eBuild.P[3]
-        ' Me.DefPoint2.x = Me.pointDefPoint1.x
-        ' Me.DefPoint2.y = Me.pointDefPoint1.y
+        ' Me.DefPoint2.x = Me.DefPoint1.x
+        ' Me.DefPoint2.y = Me.DefPoint1.y
 
         If eBuild.iParam[Me.iiiMode] = 0 Then ' linear (depende de la posicion de la medida)
             iMode = 0
@@ -320,28 +343,28 @@ Public Sub ReBuildBlock2(E As Entity, Optional iMode As Integer, fAngle As Float
 
 
     ' linea principal
-    eLineaPpal = cadLine.NewEntity([Me.DefPoint1b.x, Me.DefPoint1b.y, Me.DefPoint2b.x, Me.DefPoint2b.y])  ' el 2do punto lo tengo que determinar, el primero esta en la posicion final
+    eLineaPpal = cadLine.NewEntity([Me.DefPoint1b.x, Me.DefPoint1b.y, Me.DefPoint2b.x, Me.DefPoint2b.y], True)  ' el 2do punto lo tengo que determinar, el primero esta en la posicion final
 
     ' lineas de demarcacion
     'eExtension1 = cadLine.NewEntity([Me.DefPoint1b.x, Me.DefPoint1b.y - Me.DimExtension, Me.DefPoint1b.x, Me.DefPoint1b.y + Me.DimExtension])
 
-    eExtension1 = cadLine.NewEntity([Me.DefPoint1.x, Me.DefPoint1.y, Me.DefPoint1b.x, Me.DefPoint1b.y])
-    eExtension2 = cadLine.NewEntity([Me.DefPoint2.x, Me.DefPoint2.y, Me.DefPoint2b.x, Me.DefPoint2b.y])
+    eExtension1 = cadLine.NewEntity([Me.DefPoint1.x, Me.DefPoint1.y, Me.DefPoint1b.x, Me.DefPoint1b.y], True)
+    eExtension2 = cadLine.NewEntity([Me.DefPoint2.x, Me.DefPoint2.y, Me.DefPoint2b.x, Me.DefPoint2b.y], True)
 
 
     ' puntos base, ya en las ubicaciones finales (coinciden con los clicks)
-    ePoint1 = cadPoint.NewEntity([Me.DefPoint1.x, Me.DefPoint1.y])
-    ePoint2 = cadPoint.NewEntity([Me.DefPoint2.x, Me.DefPoint2.y])
+    ePoint1 = cadPoint.NewEntity([Me.DefPoint1.x, Me.DefPoint1.y], True)
+    ePoint2 = cadPoint.NewEntity([Me.DefPoint2.x, Me.DefPoint2.y], True)
 
     ' flechas
-    eOblique1 = cadInsert.NewEntity([Me.DefPoint1b.x, Me.DefPoint1b.y])
+    eOblique1 = cadInsert.NewEntity([Me.DefPoint1b.x, Me.DefPoint1b.y], True)
     eOblique1.pBlock = clsEntities.FIndBlock("_thick1_arrow", gcd.CommonBlocks)
     eOblique1.fParam[cadInsert.ipaEscX] = 1
     eOblique1.fParam[cadInsert.ipaEscY] = 1
     eOblique1.fParam[cadInsert.ipaEscZ] = 1
     eOblique1.fParam[cadInsert.ipaRotacion] = Me.DefAngle * 180 / Pi
 
-    eOblique2 = cadInsert.NewEntity([Me.DefPoint2b.x, Me.DefPoint2b.y])
+    eOblique2 = cadInsert.NewEntity([Me.DefPoint2b.x, Me.DefPoint2b.y], True)
     eOblique2.pBlock = clsEntities.FIndBlock("_thick2_arrow", gcd.CommonBlocks)
     eOblique2.fParam[cadInsert.ipaEscX] = 1
     eOblique2.fParam[cadInsert.ipaEscY] = 1
@@ -349,20 +372,20 @@ Public Sub ReBuildBlock2(E As Entity, Optional iMode As Integer, fAngle As Float
     eOblique2.fParam[cadInsert.ipaRotacion] = Me.DefAngle * 180 / Pi
 
     ' texto
-    eText = cadMText.NewEntity([Me.DefTextMidPoint.x, Me.DefTextMidPoint.y])  ' si leo un archivo, esta es la posicion final
+    eText = cadMText.NewEntity([Me.DefTextMidPoint.x, Me.DefTextMidPoint.y], True)  ' si leo un archivo, esta es la posicion final
     eText.fParam[cadMText.ipaAttchmPoint] = 8
     eText.fParam[cadMText.ipaTextAngle] = Me.DefAngle
     eText.fParam[cadMText.ipaTextHeight] = Me.DimTextHeight
 
     ' agrego todo al bloque
-    newBlock.entities.Add(eLineaPpal, gcd.NewHandle())
-    newBlock.entities.Add(eExtension1, gcd.NewHandle())
-    newBlock.entities.Add(eExtension2, gcd.NewHandle())
-    newBlock.entities.Add(ePoint1, gcd.NewHandle())
-    newBlock.entities.Add(ePoint2, gcd.NewHandle())
-    newBlock.entities.Add(eOblique1, gcd.NewHandle())
-    newBlock.entities.Add(eOblique2, gcd.NewHandle())
-    newBlock.entities.Add(eText, gcd.NewHandle())
+    newBlock.entities.Add(eLineaPpal, eLineaPpal.Handle)
+    newBlock.entities.Add(eExtension1, eExtension1.Handle)
+    newBlock.entities.Add(eExtension2, eExtension2.Handle)
+    newBlock.entities.Add(ePoint1, ePoint1.Handle)
+    newBlock.entities.Add(ePoint2, ePoint2.Handle)
+    newBlock.entities.Add(eOblique1, eOblique1.Handle)
+    newBlock.entities.Add(eOblique2, eOblique2.Handle)
+    newBlock.entities.Add(eText, eText.Handle)
     newBlock.AbsoluteCoords = True
 
     ' -> el bloque
@@ -389,6 +412,30 @@ Public Sub ReBuildBlock2(E As Entity, Optional iMode As Integer, fAngle As Float
         eOblique1.fParam[cadInsert.ipaRotacion] += 180
         eOblique2.fParam[cadInsert.ipaRotacion] += 180
     End If
+
+
+    ' guardo los puntos para exportar a DXF
+
+    e.P[10] = Me.DefPoint2b.x
+    e.P[11] = Me.DefPoint2b.y
+
+    e.P[12] = Me.DefTextMidPoint.x
+    e.P[13] = Me.DefTextMidPoint.y
+
+    e.P[14] = 0 ' baseline
+    e.P[15] = 0
+
+    e.P[16] = Me.DefPoint1.x
+    e.P[17] = Me.DefPoint1.y
+
+    e.P[18] = Me.DefPoint2.x
+    e.P[19] = Me.DefPoint2.y
+
+    e.P[20] = 0
+    e.P[21] = 0
+
+    e.P[22] = 0
+    e.P[23] = 0
 
 
     Return newBlock
