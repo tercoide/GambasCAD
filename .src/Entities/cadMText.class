@@ -312,7 +312,7 @@ Public Sub Draw(oE As Entity)
     TrimText = True
     'If InStr(oE.Handle, "1C1DD12D") > 0 Then Stop
     '
-    ' If InStr(oE.stringdata[0], "Madera Blanda ") > 0 Then Stop
+    If InStr(oE.stringdata[0], "TRANSFERE") > 0 Then Stop
     'If oe.Handle = "13C574" Then Stop
 
     ' https://ezdxf.readthedocs.io/en/stable/tutorials/mtext.html
@@ -456,9 +456,9 @@ Public Function ProcessPart3(sLine As String) As String
     Dim s5 As String
     Dim stxWords As String[]
     Dim i4 As Integer
-    Dim dx, dy As Float
+    Dim dx, dy, LineOffsetX As Float
 
-    Dim flxWords, flxPAragraph As New Float[]
+    Dim flxWords, flxPAragraph, flxTemp As New Float[]
 
     s2 = sLine
 
@@ -685,12 +685,13 @@ Public Function ProcessPart3(sLine As String) As String
                         s5 &= stxWords[iSpace]
                         fRect = glPlus.TextExtends(s5, CurrentTextHeigth)
 
-                        If fRect[0] < CurrentTextBoxWidth Then
+                        If fRect[0] + LineOffsetX < CurrentTextBoxWidth Then
                             's5 = s4
                             Inc iSpace
                         Else' debo trimar
                             NewLine = True
                             Trimmed = True
+
 
                             Break
 
@@ -708,14 +709,19 @@ Public Function ProcessPart3(sLine As String) As String
 
             End If
 
-            flxWords.Insert(glPlus.DrawTextPoly(s5, CurrentTextHeigth))
-            puntos.Translate(flxWords, 0, CurrentTextPosY)
+            flxTemp = glPlus.DrawTextPoly(s5, CurrentTextHeigth)
+            fRect = puntos.Limits(flxTemp)
+            flxWords.Insert(flxTemp)
+            puntos.Translate(flxWords, LineOffsetX, CurrentTextPosY)
+            LineOffsetX += fRect[2]
             flxPAragraph.Insert(flxWords)
             flxWords.Clear
 
             If NewLine Then         ' necesito una nueva linea porque tuve que ajustar el texto
                 CurrentTextPosY -= CurrentTextHeigth * 1.4
                 Lines += 1
+                LineOffsetX = 0
+
             Endif
 
         End If
