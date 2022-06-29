@@ -20,7 +20,7 @@
 ' Foundation, Inc., 51 Franklin St, Fifth Floor,
 ' Boston, MA  02110-1301  USA
 Create Static
-Inherits Caddimension
+Inherits CadDIMENSION_ANG3PT
 
 Public Const Gender As String = "ARC_DIMENSION"
 Public Const DrawingOrder As Integer = 100 ' 1 a 32.724 esto debe Drawse primero y ser sobreescrito por el resto
@@ -28,7 +28,7 @@ Public Const PointsToDraw As Integer = 1             ' minimal point requered fo
 Public Const CmdLineHelper As String = ("Insert a linear acotation")
 Public Const ParamType As String = "PPPP"                             ' that is Point, Point, Float; could be Color Text, etc
 Public Const ParamHelper As String = "Center of arc;First point;Secont point;extension"
-Public Const DXF_Export As Boolean = False
+
 
 Public Sub ExportDXFCol(e As Entity, ByRef stxExport As String[]) As Boolean
 
@@ -36,15 +36,30 @@ Public Sub ExportDXFCol(e As Entity, ByRef stxExport As String[]) As Boolean
     stxExport[0] = Me.Gender
     ' sobreescribo el nombre de la entidad
 
-    stxExport.insert(["AcDbAlignedDimension", "100"])
+    stxExport.insert(["AcDbArcDimension", "100"])
     ' ===========================================================================
-    stxExport.insert([CStr(e.p[4]), dxf.codX3])                ' first def point
-    stxExport.insert([CStr(e.p[5]), dxf.codY3])
-    stxExport.insert(["0", dxf.codz0])
+    stxExport.insert([CStr(e.p[16]), "13"])
+    stxExport.insert([CStr(e.p[17]), "23"])
+    stxExport.insert(["0", "33"])
 
-    stxExport.insert([CStr(e.p[6]), "14"])                ' text att point
-    stxExport.insert([CStr(e.p[7]), "24"])
+    stxExport.insert([CStr(e.p[18]), "14"])
+    stxExport.insert([CStr(e.p[19]), "24"])
     stxExport.insert(["0", "34"])
+
+    stxExport.insert([CStr(e.p[20]), "15"])
+    stxExport.insert([CStr(e.p[21]), "25"])
+    stxExport.insert(["0", "35"])
+
+
+    stxExport.insert([CStr(e.p[22]), "16"])
+    stxExport.insert([CStr(e.p[23]), "26"])
+    stxExport.insert(["0", "36"])
+
+    stxExport.insert([CStr(e.p[24]), "17"])
+    stxExport.insert([CStr(e.p[25]), "27"])
+    stxExport.insert(["0", "37"])
+
+
 
 End
 
@@ -85,181 +100,53 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
 End
 
-Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
 
-    ' la linea solo recibe puntos
 
-    If vParam[0] <> "point" Then Return False
-
-    If Me.StepsDone = 0 Then
-        Me.DimType = gcd.dimAligned
-
-        Try eBuild.P[0] = vParam[1]
-        Try eBuild.P[1] = vParam[2]
-        eBuild.P[2] = eBuild.P[0]
-        eBuild.P[3] = eBuild.P[1]
-        If definitive Then Return True
-    Else If Me.StepsDone = 1 Then
-
-        Try eBuild.P[2] = vParam[1]
-        Try eBuild.P[3] = vParam[2]
-        eBuild.P[4] = eBuild.P[2]
-        eBuild.P[5] = eBuild.P[3]
-
-        eBuild.pBlock = ReBuildBlock(eBuild)
-        If definitive Then Return True
-    Else If Me.StepsDone = 2 Then
-
-        Try eBuild.P[4] = vParam[1]
-        Try eBuild.P[5] = vParam[2]
-        eBuild.P[6] = eBuild.P[4]
-        eBuild.P[7] = eBuild.P[5]
-
-        eBuild.pBlock = ReBuildBlock(eBuild)
-        If definitive Then Return True
-    Else If Me.StepsDone = 3 Then
-
-        Try eBuild.P[6] = vParam[1]
-        Try eBuild.P[7] = vParam[2]
-
-        eBuild.pBlock = ReBuildBlock(eBuild)
-        If definitive Then Return True
-
-    Endif
-
-End
-
-Public Sub ReBuildBlock(E As Entity) As Block
-
-    Dim d As Float, flxTextExt As Float[]
-    Dim fRotXY As Float[]
-
-    Dim newBlock As New Block
-    Dim f1, f2 As New Float[]
-
-    newBlock.entities = New Collection
-    Return newBlock
-    ' para definir este bloque necesito 6 entidades
-    Dim eLineaPpal As Entity
-    Dim eOblique1 As Entity       ' tambien pueden ser flechas Solid
-    Dim eOblique2 As Entity
-    Dim eExtension1 As Entity
-    Dim eExtension2 As Entity
-    Dim eDot1 As Entity
-    Dim eDot2 As Entity
-    Dim eText As Entity
-    Dim ePoint2 As Entity
-
-    ' vemos los estilos
-    If E.fParam[Me.ipaStyleTextHeigth] > 0 Then Me.DimTextHeight = E.fParam[Me.ipaStyleTextHeigth] Else Me.DimTextHeight = E.pStyle.DIMTXT
-    If E.fParam[Me.ipaStyleArrowSize] > 0 Then Me.DimArrowSize = E.fParam[Me.ipaStyleArrowSize] Else Me.DimArrowSize = E.pStyle.DIMASZ
-    Me.DimArrowWidth = Me.DimArrowSize / 3
-
-    ' la linea principal ahora es un arco
-    eLineaPpal = cadarc.NewEntity([0.0, 0.0])
-
-    ' lineas de demarcacion
-    eExtension1 = cadLine.NewEntity([0, Me.DimExtension, 0, -Me.DimExtension])
-    eExtension2 = cadLine([0, Me.DimExtension, 0, -Me.DimExtension])
-
-    ' flechas
-
-    clsEntities.Addsolid(newBlock.entities, [0, 0, Me.DimArrowSize, Me.DimArrowWidth, Me.DimArrowSize, -Me.DimArrowWidth, 0, 0], E.colour, E.LineWidth, E.LineType.Index, E.pLayer)
-    eOblique1 = newBlock.entities.Last
-
-    clsEntities.Addsolid(newBlock.entities, [0, 0, -Me.DimArrowSize, Me.DimArrowWidth, -Me.DimArrowSize, -Me.DimArrowWidth, 0, 0], E.colour, E.LineWidth, E.LineType.Index, E.pLayer)
-    eOblique2 = newBlock.entities.Last
-
-    ' texto
-    clsEntities.AddMText(newBlock.entities, [0.0, 0.0, 0.0, 0.0], 0, Me.DimTextHeight, "0.00", E.colour, E.LineWidth, E.LineType.Index, E.pLayer)
-    eText = newBlock.entities.Last
-
-    ' -> el bloque
-
-    E.fParam[cadInsert.ipaEscX] = 1      ' ScaleX del inserto
-    E.fParam[cadInsert.ipaEscY] = 1      ' ScaleY del inserto
-    E.fParam[cadInsert.ipaEscZ] = 1      ' ScaleY del inserto
-
-    E.Visible = True
-
-    '
-    eLineaPpal.fParam[0] = 0          ' radio
-    eLineaPpal.fParam[1] = Ang(E.P[2] - E.P[0], E.P[3] - E.P[1]) * 180 / Pi
-
-    '
-    ' las lineas de extension (las hago HORIZONTALES y las roto)
-    eExtension1.P.Clear
-    eExtension1.P.Insert([-Me.DimExtension, 0, Me.DimExtension, 0])
-    eExtension2.P.Clear
-    eExtension2.P.Insert([-Me.DimExtension, 0, Me.DimExtension, 0])
-
-    ' flechas
-    eOblique1.P.Clear
-    eOblique1.P.Insert([0, 0, -Me.DimArrowWidth, Me.DimArrowSize, Me.DimArrowWidth, Me.DimArrowSize, 0, 0])
-
-    eOblique2.P.Clear
-    eOblique2.P.Insert([0, 0, -Me.DimArrowWidth, -Me.DimArrowSize, Me.DimArrowWidth, -Me.DimArrowSize, 0, 0])
-    '
-
-    ' 2========================================================================================
-    ' nuevo radio
-    d = puntos.distancia(E.P[0], E.P[1], E.P[6], E.P[7])
-    eLineaPpal.fParam[0] = d          ' radio del arco
-
-    eLineaPpal.fParam[2] = Ang(E.P[4] - E.P[0], E.P[5] - E.P[1]) * 180 / Pi
-    '
-
-    ' ' la sexta es el texto
-    If (eLineaPpal.fParam[2] - eLineaPpal.fParam[1]) < 0 Then eLineaPpal.fParam[2] += 360
-
-    E.fParam[cadDimension.ipaRealMeasure] = (eLineaPpal.fParam[2] - eLineaPpal.fParam[1]) / 360 * 2 * puntos.distancia(E.P[0], E.P[1], E.P[4], E.P[5]) * Pi
-
-    eText.StringData[0] = "L " & Format(E.fParam[cadDimension.ipaRealMeasure], Me.DimFormatAng)
-
-    fRotXY = puntos.RotateFromPointWithAngle(E.P[0], E.P[1], (eLineaPpal.fParam[2] - eLineaPpal.fParam[1]) / 180 * Pi / 2, E.P[2], E.P[3])
-    '
-    flxTextExt = glPlus.TextExtends(eText.StringData[cadMText.sdaText], 0, 0, eText.fParam[1])
-    '
-    eText.P[0] = fRotXY[0] - E.P[0]
-    eText.P[1] = fRotXY[1] - E.P[1]
-    eText.fParam[cadMText.ipaTextAngle] = (eLineaPpal.fParam[2] + eLineaPpal.fParam[1]) / 2 - 90
-
-    ' 3 ===========================================================================
-
-    ' roto
-    eExtension1.Gcd.CCC[e.gender].Rotate(eExtension1, eLineaPpal.fParam[1] / 180 * Pi)
-    eExtension2.Gcd.CCC[e.gender].Rotate(eExtension2, eLineaPpal.fParam[2] / 180 * Pi)
-    eOblique1.Gcd.CCC[e.gender].Rotate(eOblique1, eLineaPpal.fParam[1] / 180 * Pi)
-    eOblique2.Gcd.CCC[e.gender].Rotate(eOblique2, eLineaPpal.fParam[2] / 180 * Pi)
-
-    ' muevo
-    fRotXY = puntos.RotateFromPointWithAngle(E.P[0], E.P[1], eLineaPpal.fParam[1] / 180 * Pi, d + E.P[0], E.P[1])
-    ' traslado una flecha y una linea de extension
-    eExtension1.Gcd.CCC[e.gender].Translate(eExtension1, fRotXY[0] - E.P[0], fRotXY[1] - E.P[1])
-    eOblique1.Gcd.CCC[e.gender].Translate(eOblique1, fRotXY[0] - E.P[0], fRotXY[1] - E.P[1])
-
-    ' muevo
-    fRotXY = puntos.RotateFromPointWithAngle(E.P[0], E.P[1], eLineaPpal.fParam[2] / 180 * Pi, d + E.P[0], E.P[1])
-    ' traslado las otras
-    eExtension2.Gcd.CCC[e.gender].Translate(eExtension2, fRotXY[0] - E.P[0], fRotXY[1] - E.P[1])
-    eOblique2.Gcd.CCC[e.gender].Translate(eOblique2, fRotXY[0] - E.P[0], fRotXY[1] - E.P[1])
-
-    ' la sexta es el texto
-
-    fRotXY = puntos.RotateFromPointWithAngle(E.P[0], E.P[1], (eLineaPpal.fParam[2] + eLineaPpal.fParam[1]) / 180 * Pi / 2, d + E.P[0], E.P[1])
-
-    eText.P[0] = fRotXY[0] - E.P[0]
-    eText.P[1] = fRotXY[1] - E.P[1]
-
-    ' el largo de la linea principal viene dado por la distancia entre ambos puntos
-    d = puntos.distancia(E.P[0], E.P[1], E.P[2], E.P[3])
-
-    ' con este click calculo el angulo
-    'elem.fParam[cadInsert.ipaRotacion] = Ang(elem.p[2] - elem.P[0], elem.p[3] - elem.P[1]) * 180 / Pi
-
-    ' X0
-
-    '===========================================
-    Return newBlock
-
-End
+'   0 ARC_DIMENSION
+'   5 11FD
+' 102 {ACAD_REACTORS
+' 330 1214
+' 102 }
+' 102 {ACAD_XDICTIONARY
+' 360 120A
+' 102 }
+' 330 2
+' 100 AcDbEntity
+'   8 dimmensions
+' 160               1764
+' 100 AcDbDimension
+' 280      0
+'   2 *D10
+'  10 389.4605870115539
+'  20 138.877721482013
+'  30 0.0
+'  11 380.9292857263932
+'  21 139.3416183844374
+'  31 0.0
+'  70     40
+'  71      5
+'  42 26.17270411733045
+'  73      0
+'  74      0
+'  75      0
+'   3 standard
+' 100 AcDbArcDimension
+'  13 394.5636509951041
+'  23 126.1138109425265
+'  33 0.0
+'  14 378.5734835508681
+'  24 120.4916581162911
+'  34 0.0
+'  15 386.6451427706808
+'  25 123.08494339706
+'  35 0.0
+'  70      0
+'  40 0.3653339482464578
+'  41 3.452458808100671
+'  71      0
+'  16 394.5636509951041
+'  26 126.1138109425265
+'  36 0.0
+'  17 378.5734835508681
+'  27 120.4916581162911
+'  37 0.0

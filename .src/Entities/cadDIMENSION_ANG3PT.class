@@ -37,15 +37,26 @@ Public Sub ExportDXFCol(e As Entity, ByRef stxExport As String[]) As Boolean
     stxExport[0] = Me.Gender
     ' sobreescribo el nombre de la entidad
 
-    stxExport.insert(["AcDbAlignedDimension", "100"])
+    stxExport.insert(["AcDb3PointAngularDimension", "100"])
     ' ===========================================================================
-    stxExport.insert([CStr(e.p[4]), dxf.codX3])                ' first def point
-    stxExport.insert([CStr(e.p[5]), dxf.codY3])
-    stxExport.insert(["0", dxf.codz0])
+    stxExport.insert([CStr(e.p[16]), "13"])                ' first def point
+    stxExport.insert([CStr(e.p[17]), "23"])
+    stxExport.insert(["0", "33"])
 
-    stxExport.insert([CStr(e.p[6]), "14"])                ' text att point
-    stxExport.insert([CStr(e.p[7]), "24"])
+    stxExport.insert([CStr(e.p[18]), "14"])                ' text att point
+    stxExport.insert([CStr(e.p[19]), "24"])
     stxExport.insert(["0", "34"])
+
+    stxExport.insert([CStr(e.p[20]), "15"])                ' text att point
+    stxExport.insert([CStr(e.p[21]), "25"])
+    stxExport.insert(["0", "35"])
+
+    If e.iParam[Me.iiiMode] = 1 Then
+        stxExport.insert([CStr(e.p[22]), "16"])                ' text att point
+        stxExport.insert([CStr(e.p[23]), "26"])
+        stxExport.insert(["0", "36"])
+
+    Endif
 
 End
 
@@ -53,12 +64,6 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
     Dim i As Integer
     Dim AfterSubclassmarker As Boolean
-    ' revisamos lo que viene del importador comun
-    Me.DefPoint1.x = e.P[0]
-    Me.DefPoint1.y = e.P[1]
-
-    Me.DefTextMidPoint.x = e.P[2]
-    Me.DefTextMidPoint.y = e.P[3]
 
     For i = 0 To sClaves.Max
         If sClaves[i] = "100" And sValues[i] = "AcDb3PointAngularDimension" Then AfterSubclassmarker = True
@@ -77,20 +82,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
     Next
 
-    ' ahora recosntruyo el bloque segun mis propios metodos
-    e.P[0] = Me.DefPointCentral.x
-    e.P[1] = Me.DefPointCentral.y
 
-    e.P[2] = Me.DefPoint2.x
-    e.P[3] = Me.DefPoint2.y
-
-    e.P.Add(Me.DefPoint1.x)
-    e.P.Add(Me.DefPoint1.y)
-
-    e.P.Add(Me.DefTextMidPoint.x)
-    e.P.Add(Me.DefTextMidPoint.y)
-
-    e.fParam[cadDimension.ipaExtension] = -puntos.distancia(Me.DefPoint1.x, Me.DefPoint1.y, Me.DefPointCentral.x, Me.DefPointCentral.y)
 
     ' TODO: cuando este terminada la entidad, sacar eso
     ' tengo q presuponer que las escalas son = 1
@@ -120,8 +112,6 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
 
     ' luego se marca la posicion del texto
     ' https://ezdxf.readthedocs.io/en/stable/tutorials/angular_dimension.html
-
-
 
 
     If vParam[0] <> "point" Then Return False
@@ -164,144 +154,11 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
 
 End
 
-Public Sub ReBuildBlock(E As Entity) As Block
-
-    Dim d As Float, flxTextExt As Float[]
-    Dim fRotXY As Float[]
-
-    Dim newBlock As New Block
-    Dim f1, f2 As New Float[]
-
-    newBlock.entities = New Collection
-    Return newBlock
-    ' para definir este bloque necesito 6 entidades
-    Dim eLineaPpal As Entity
-    Dim eOblique1 As Entity       ' tambien pueden ser flechas Solid
-    Dim eOblique2 As Entity
-    Dim eExtension1 As Entity
-    Dim eExtension2 As Entity
-    Dim eDot1 As Entity
-    Dim eDot2 As Entity
-    Dim eText As Entity
-    Dim ePoint2 As Entity
-
-    ' vemos los estilos
-    If E.fParam[Me.ipaStyleTextHeigth] > 0 Then Me.DimTextHeight = E.fParam[Me.ipaStyleTextHeigth] Else Me.DimTextHeight = E.pStyle.DIMTXT
-    If E.fParam[Me.ipaStyleArrowSize] > 0 Then Me.DimArrowSize = E.fParam[Me.ipaStyleArrowSize] Else Me.DimArrowSize = E.pStyle.DIMASZ
-    Me.DimArrowWidth = Me.DimArrowSize / 3
-
-    ' la linea principal ahora es un arco
-    clsEntities.Addarc(newBlock.entities, [0.0, 0.0], 0, 0, 0, E.colour, E.LineWidth, E.LineType.Index, E.pLayer)
-    eLineaPpal = newBlock.entities.Last
-
-    ' lineas de demarcacion
-    clsEntities.AddLine(newBlock.entities, [0, Me.DimExtension, 0, -Me.DimExtension], E.colour, E.LineWidth, E.LineType.Index, E.pLayer)
-    eExtension1 = newBlock.entities.Last
-
-    clsEntities.AddLine(newBlock.entities, [0, Me.DimExtension, 0, -Me.DimExtension], E.colour, E.LineWidth, E.LineType.Index, E.pLayer)
-    eExtension2 = newBlock.entities.Last
-
-    ' flechas
-
-    clsEntities.Addsolid(newBlock.entities, [0, 0, Me.DimArrowSize, Me.DimArrowWidth, Me.DimArrowSize, -Me.DimArrowWidth, 0, 0], E.colour, E.LineWidth, E.LineType.Index, E.pLayer)
-    eOblique1 = newBlock.entities.Last
-
-    clsEntities.Addsolid(newBlock.entities, [0, 0, -Me.DimArrowSize, Me.DimArrowWidth, -Me.DimArrowSize, -Me.DimArrowWidth, 0, 0], E.colour, E.LineWidth, E.LineType.Index, E.pLayer)
-    eOblique2 = newBlock.entities.Last
-
-    ' texto
-    clsEntities.AddMText(newBlock.entities, [0.0, 0.0, 0.0, 0.0], 0, Me.DimTextHeight, "0.00", E.colour, E.LineWidth, E.LineType.Index, E.pLayer)
-    eText = newBlock.entities.Last
-
-    ' -> el bloque
-
-    E.fParam[cadInsert.ipaEscX] = 1      ' ScaleX del inserto
-    E.fParam[cadInsert.ipaEscY] = 1      ' ScaleY del inserto
-    E.fParam[cadInsert.ipaEscZ] = 1      ' ScaleY del inserto
-
-    E.Visible = True
-
-    '
-    eLineaPpal.fParam[0] = 0          ' radio
-    eLineaPpal.fParam[1] = Ang(E.P[2] - E.P[0], E.P[3] - E.P[1]) * 180 / Pi
-
-    '
-    ' las lineas de extension (las hago HORIZONTALES y las roto)
-    eExtension1.P.Clear
-    eExtension1.P.Insert([-Me.DimExtension, 0, Me.DimExtension, 0])
-    eExtension2.P.Clear
-    eExtension2.P.Insert([-Me.DimExtension, 0, Me.DimExtension, 0])
-
-    ' flechas
-    eOblique1.P.Clear
-    eOblique1.P.Insert([0, 0, -Me.DimArrowWidth, Me.DimArrowSize, Me.DimArrowWidth, Me.DimArrowSize, 0, 0])
-
-    eOblique2.P.Clear
-    eOblique2.P.Insert([0, 0, -Me.DimArrowWidth, -Me.DimArrowSize, Me.DimArrowWidth, -Me.DimArrowSize, 0, 0])
-    '
-
-    ' 2========================================================================================
-
-    eLineaPpal.fParam[2] = Ang(E.P[4] - E.P[0], E.P[5] - E.P[1]) * 180 / Pi
-    '
-
-    ' ' la sexta es el texto
-    If (eLineaPpal.fParam[2] - eLineaPpal.fParam[1]) < 0 Then eLineaPpal.fParam[2] += 360
-
-    E.fParam[cadDimension.ipaRealMeasure] = (eLineaPpal.fParam[2] - eLineaPpal.fParam[1])
-
-    eText.StringData[0] = Format(E.fParam[cadDimension.ipaRealMeasure], Me.DimFormatAng) & "*"
-    fRotXY = puntos.RotateFromPointWithAngle(E.P[0], E.P[1], (eLineaPpal.fParam[2] - eLineaPpal.fParam[1]) / 180 * Pi / 2, E.P[2], E.P[3])
-    '
-    flxTextExt = glPlus.TextExtends(eText.StringData[cadMText.sdaText], 0, 0, eText.fParam[1])
-    '
-    eText.P[0] = fRotXY[0] - E.P[0]
-    eText.P[1] = fRotXY[1] - E.P[1]
-    eText.fParam[cadMText.ipaTextAngle] = (eLineaPpal.fParam[2] + eLineaPpal.fParam[1]) / 2 - 90
-
-    ' 3 ===========================================================================
-
-    ' nuevo radio
-    d = puntos.distancia(E.P[0], E.P[1], E.P[6], E.P[7])
-    eLineaPpal.fParam[0] = d          ' radio del arco
-
-    ' roto
-    eExtension1.Gcd.CCC[e.gender].Rotate(eExtension1, eLineaPpal.fParam[1] / 180 * Pi)
-    eExtension2.Gcd.CCC[e.gender].Rotate(eExtension2, eLineaPpal.fParam[2] / 180 * Pi)
-    eOblique1.Gcd.CCC[e.gender].Rotate(eOblique1, eLineaPpal.fParam[1] / 180 * Pi)
-    eOblique2.Gcd.CCC[e.gender].Rotate(eOblique2, eLineaPpal.fParam[2] / 180 * Pi)
-
-    ' muevo
-    fRotXY = puntos.RotateFromPointWithAngle(E.P[0], E.P[1], eLineaPpal.fParam[1] / 180 * Pi, d + E.P[0], E.P[1])
-    ' traslado una flecha y una linea de extension
-    eExtension1.Gcd.CCC[e.gender].Translate(eExtension1, fRotXY[0] - E.P[0], fRotXY[1] - E.P[1])
-    eOblique1.Gcd.CCC[e.gender].Translate(eOblique1, fRotXY[0] - E.P[0], fRotXY[1] - E.P[1])
-
-    ' muevo
-    fRotXY = puntos.RotateFromPointWithAngle(E.P[0], E.P[1], eLineaPpal.fParam[2] / 180 * Pi, d + E.P[0], E.P[1])
-    ' traslado las otras
-    eExtension2.Gcd.CCC[e.gender].Translate(eExtension2, fRotXY[0] - E.P[0], fRotXY[1] - E.P[1])
-    eOblique2.Gcd.CCC[e.gender].Translate(eOblique2, fRotXY[0] - E.P[0], fRotXY[1] - E.P[1])
-
-    ' la sexta es el texto
-
-    fRotXY = puntos.RotateFromPointWithAngle(E.P[0], E.P[1], (eLineaPpal.fParam[2] + eLineaPpal.fParam[1]) / 180 * Pi / 2, d + E.P[0], E.P[1])
-
-    eText.P[0] = fRotXY[0] - E.P[0]
-    eText.P[1] = fRotXY[1] - E.P[1]
 
 
-    ' X0
+'' Esta rutina se usa para Angulos y Largo del arco
 
-    '===========================================
-    Return newBlock
-
-End
-
-'' iMode= 0 es radial
-'' iMode= 0 es diameter
-
-Public Sub ReBuildBlock2(E As Entity, Optional iMode As Integer) As Block
+Public Sub ReBuildBlock2(E As Entity) As Block
 
     ' esta rutina no sabe si el bloque a reconstruir es desde ENTITYBUILDER o desde
     ' DXF o JSON
@@ -432,8 +289,8 @@ Public Sub ReBuildBlock2(E As Entity, Optional iMode As Integer) As Block
 
 
     ' lineas de demarcacion
-    eExtension1 = cadLine.NewEntity([Me.DimExtension, 0, -Me.DimExtension, 0], True)
-    eExtension2 = cadLine.NewEntity([Me.DimExtension, 0, -Me.DimExtension, 0], True)
+    eExtension1 = cadLine.NewEntity([-Me.DimExtension, 0, Me.DimExtension, 0], True)
+    eExtension2 = cadLine.NewEntity([-Me.DimExtension, 0, Me.DimExtension, 0], True)
     clsEntities.Rotate(eExtension1, eLineaPpal.fParam[1] / 180 * Pi)
     clsEntities.Rotate(eExtension2, eLineaPpal.fParam[2] / 180 * Pi)
 
@@ -468,9 +325,13 @@ Public Sub ReBuildBlock2(E As Entity, Optional iMode As Integer) As Block
     eText.fParam[cadMText.ipaTextHeight] = Me.DimTextHeight
 
     If (eLineaPpal.fParam[2] - eLineaPpal.fParam[1]) < 0 Then eLineaPpal.fParam[2] += 360
-    E.fParam[cadDimension.ipaRealMeasure] = (eLineaPpal.fParam[2] - eLineaPpal.fParam[1])
 
-    eText.StringData[0] = Format(E.fParam[cadDimension.ipaRealMeasure], Me.DimFormatAng) & "*"
+    ' La dimension, segun el modo:
+    If e.Gender = "DIMENSION_ANG3PT" Then
+        E.fParam[cadDimension.ipaRealMeasure] = (eLineaPpal.fParam[2] - eLineaPpal.fParam[1])
+    Else ' L = ang/360 * Pi * diam
+        E.fParam[cadDimension.ipaRealMeasure] = (eLineaPpal.fParam[2] - eLineaPpal.fParam[1]) * Pi / 360 * puntos.distancia(Me.DefCenter.x, Me.DefCenter.y, Me.DefPoint1.x, Me.DefPoint1.y) * 2
+    End If
 
 
     ' agrego todo al bloque
@@ -496,7 +357,11 @@ Public Sub ReBuildBlock2(E As Entity, Optional iMode As Integer) As Block
         sDim = Format(e.fParam[Me.ipaRealMeasure], Me.DimFormat)
     Endif
     ' el texto
-    eText.StringData[cadMText.sdaText] = "\\A1;" & sDim & "°"
+    If e.Gender = "DIMENSION_ANG3PT" Then
+        eText.StringData[cadMText.sdaText] = "\\A1;" & sDim & "°"
+    Else If e.Gender = "ARC_DIMENSION" Then
+        eText.StringData[cadMText.sdaText] = "\\A1;" & "L=" & sDim
+    End If
 
     ' ' veo si entra el texto
     ' flxTextExt = glPlus.TextExtends(sDim, Me.DimTextHeight)
@@ -513,20 +378,34 @@ Public Sub ReBuildBlock2(E As Entity, Optional iMode As Integer) As Block
     e.P[12] = Me.DefTextMidPoint.x  '  11 21 31
     e.P[13] = Me.DefTextMidPoint.y
 
-    e.P[14] = 0 ' baseline          ' 12 22 32
+    e.P[14] = 0 ' baseline, no usado   12 22 32
     e.P[15] = 0
 
-    e.P[16] = 0                      ' 13 23 33
-    e.P[17] = 0
+    ' ahora depende del modo de creacion, si tengo centro o no
+    If e.iParam[Me.iiiMode] = 0 Then ' con centro
+        e.P[16] = eExtension1.P[0]         ' 13 23 33     ' endpoint de la extension line
+        e.P[17] = eExtension1.P[1]
 
-    e.P[14] = 0                      ' 14 24 34
-    e.P[15] = 0
+        e.P[14] = eExtension2.P[0]                      ' 14 24 34' endpoint de la extension line
+        e.P[15] = eExtension2.P[1]
 
-    e.P[20] = Me.DefPoint2.x         ' 15 25 35
-    e.P[21] = Me.DefPoint2.y
+        e.P[20] = Me.DefCenter.x         ' 15 25 35
+        e.P[21] = Me.DefCenter.y
 
-    e.P[22] = 0                      ' 16 26 36
-    e.P[23] = 0
+    Else ' es con dos lineas
+        e.P[16] = eExtension1.P[0]         ' 13 23 33     endpoint de la extension line
+        e.P[17] = eExtension1.P[1]
+
+        e.P[14] = eExtension1.P[2]         ' 14 24 34      endpoint de la extension line
+        e.P[15] = eExtension1.P[3]
+
+        e.P[20] = eExtension2.P[0]         ' 15 25 35   endpoint de la extension line 2
+        e.P[21] = eExtension2.P[1]
+
+        e.P[22] = eExtension2.P[2]          ' 16 26 36 endpoint de la extension line 2
+        e.P[23] = eExtension2.P[3]
+
+    End If
 
     Return newBlock
 

@@ -36,42 +36,55 @@ Public Sub ExportDXFCol(e As Entity, ByRef stxExport As String[]) As Boolean
     stxExport[0] = Me.Gender
     ' sobreescribo el nombre de la entidad
 
-    stxExport.insert(["AcDbAlignedDimension", "100"])
+    stxExport.insert(["AcDbRadialDimensionLarge", "100"])
     ' ===========================================================================
-    stxExport.insert([CStr(e.p[4]), dxf.codX3])                ' first def point
-    stxExport.insert([CStr(e.p[5]), dxf.codY3])
-    stxExport.insert(["0", dxf.codz0])
+    stxExport.insert([CStr(e.p[16]), "13"])
+    stxExport.insert([CStr(e.p[17]), "23"])
+    stxExport.insert(["0", "33"])
 
-    stxExport.insert([CStr(e.p[6]), "14"])                ' text att point
-    stxExport.insert([CStr(e.p[7]), "24"])
+    stxExport.insert([CStr(e.p[18]), "14"])
+    stxExport.insert([CStr(e.p[19]), "24"])
     stxExport.insert(["0", "34"])
+
+    stxExport.insert([CStr(e.p[20]), "15"])
+    stxExport.insert([CStr(e.p[21]), "25"])
+    stxExport.insert(["0", "35"])
+
+
+    stxExport.insert(["0", "40"])
+
 
 End
 
 Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
 
     Dim i As Integer
-    Dim DimTypeSet As Boolean
+    Dim AfterSubclassmarker As Boolean
 
-    DimTypeSet = False
     For i = 0 To sClaves.Max
+        If sClaves[i] = "100" And sValues[i] = "AcDbRadialDimensionLarge" Then AfterSubclassmarker = True
+        If AfterSubclassmarker Then ' lo siguientes codigos
 
-        If sClaves[i] = "2" Then e.pBlock = clsEntities.FIndBlock(sValues[i], gcd.currentDrawing.oBlocks)   ' this could be null
-        If sClaves[i] = "10" Then e.p.Add(CFloat(sValues[i]))         ' X0
-        If sClaves[i] = "20" Then e.P.Add(CFloat(sValues[i]))         ' Y0
+            If sClaves[i] = "13" Then Me.DefPoint1.x = CFloat(sValues[i])
+            If sClaves[i] = "23" Then Me.DefPoint1.y = CFloat(sValues[i])
 
-        '
+            If sClaves[i] = "14" Then Me.DefPoint2.x = CFloat(sValues[i])
+            If sClaves[i] = "24" Then Me.DefPoint2.y = CFloat(sValues[i])
+
+            If sClaves[i] = "15" Then Me.DefPointCentral.x = CFloat(sValues[i])
+            If sClaves[i] = "25" Then Me.DefPointCentral.y = CFloat(sValues[i])
+
+        End If
+
     Next
-    '
-    ' ' en algunos DXF el codigo 70 no esta
-    ' If Not DimTypeSet Then gcd.CCC[e.gender] = cadDIMENSION_LINEAR
 
+
+
+    ' TODO: cuando este terminada la entidad, sacar eso
     ' tengo q presuponer que las escalas son = 1
     e.fParam[Me.ipaEscX] = 1    ' esc X
     e.fParam[Me.ipaEscY] = 1    ' esc Y
     e.fParam[Me.ipaEscZ] = 1    ' esc Z
-
-    ' TODO: cuando este terminada la entidad, sacar eso
     e.pBlock.AbsoluteCoords = True
 
     ' y poner esto
@@ -79,9 +92,10 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
     Return True
 
-    '' catch
+    ' catch
 
     Return False
+
 
 End
 
@@ -254,3 +268,58 @@ Public Sub ReBuildBlock(E As Entity) As Block
     Return newBlock
 
 End
+
+
+'   0 LARGE_RADIAL_DIMENSION
+'   5 12FC
+' 102 {ACAD_REACTORS
+' 330 12FE
+' 102 }
+' 102 {ACAD_XDICTIONARY
+' 360 12FD
+' 102 }
+' 330 2
+' 100 AcDbEntity
+'   8 dimmensions
+' 160               1172
+' 310 airias lineas de cosas
+' 100 AcDbDimension
+' 280      0
+'   2 *D17
+'  10 388.8138643239927
+'  20 209.7637151214733
+'  30 0.0
+'  11 381.6653012244023
+'  21 214.7200167825812
+'  31 0.0
+'  70    169
+'  71      5
+'  42 10.50494238347625
+'  73      0
+'  74      0
+'  75      0
+'   3 standard
+' 100 AcDbRadialDimensionLarge
+'  13 372.4304113047216
+'  23 200.5358546499357
+'  33 0.0
+'  14 376.3056599403601
+'  24 208.1425214901072
+'  34 0.0
+'  15 380.1809085759985
+'  25 215.7491883302789
+'  35 0.0
+'  40 0.0
+' 1001 ACAD
+' 1000 DSTYLE
+' 1002 {
+' 1070     50
+' 1040 0.7853981633974483
+' 1002 }
+' 1001 ACAD_DSTYLE_DIMRADIAL_EXTENSION
+' 1070    387
+' 1070      1
+' 1070    388
+' 1040 0.0
+' 1070    390
+' 1040 0.0
