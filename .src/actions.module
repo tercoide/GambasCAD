@@ -31,7 +31,6 @@ Public Sub FileNew()
     gcd.Regen()
     Try gcd.currentDrawing.HandSeed = Val("&H" & gcd.currentDrawing.oHeader.HandSeed)
 
-
     gcd.UpdateLayersCombo
     gcd.UpdateLineWtCombo
     gcd.UpdateLineTypeCombo
@@ -71,19 +70,19 @@ Public Sub FileOpen(Optional sFile As String = "")
         Dialog.Title = ("Select File")
 
         If main.convODA Or main.convLibreDWG Then
-            Dialog.Filter = ["*.dxf;*.dwg", "Drawings", "*.dxf", "DXF Drawing exchange 2010", "*.dwg", "DWG AutoCAD Drawing file 2010"]
+            Dialog.Filter = ["*.dxf;*.dwg", "Drawings", "*.dxf", "DXF Drawing exchange", "*.dwg", "DWG AutoCAD Drawing file"]
         Else
 
-            Dialog.Filter = ["*.dxf", "Drawings", "*.dxf", "DXF Drawing exchange 2010"]
+            Dialog.Filter = ["*.dxf", "Drawings", "*.dxf", "DXF Drawing exchange"]
 
         End If
+        Dialog.Path = Config.FilesLastPath
         Dialog.OpenFile(False)
         f = Dialog.Path
     Else
 
         f = sfile ' "/home/martin/GAUCHO-TESTING-V2000-online converter.dxf"
     End If
-    Inc Application.Busy
 
     gcd.debugInfo("Opening " & f,,, True)
 
@@ -92,75 +91,24 @@ Public Sub FileOpen(Optional sFile As String = "")
             Select Lower(File.Ext(f))
                 Case "dwg"
 
-                    NewDrawing = New Drawing
-                    NewDrawing.ScaleZoom = gcd.ScreenDensity
-                    NewDrawing.iEntity.Insert([0, 0, 0, 0])
-                    gcd.Drawings.Add(NewDrawing)
-                    gcd.currentDrawing = gcd.Drawings.Last
-                    gcd.currentDrawing.FileName = f
-
-                    fMain.Mouse = Mouse.Wait
                     Inc Application.Busy
-                    'fDxf = dxf.DWGtoDXF(f)
                     If main.convODA Then
                         fDxf = gcd.ODA_DWGtoDXF(f)
                     Else If main.convLibreDWG Then
                         fDxf = gcd.LibreDWGtoDXF(f)
                     End If
+                    Dec Application.Busy
 
                     If fDxf = "" Then
                         Message(("Can't open file: Error On conversion"))
-                        Dec Application.Busy
+
                         Return
                     Endif
 
-                    gcd.currentDrawing.RequiresFileRename = True
-
-                    dxf.LoadFile(fDxf, gcd.currentDrawing, False, False, False, 2, True)
-
-                    gcd.Regen()
-
-                    Try gcd.currentDrawing.HandSeed = Val("&H" & gcd.currentDrawing.oHeader.HandSeed)
-
-                    gcd.UpdateLayersCombo
-                    gcd.UpdateLineWtCombo
-                    gcd.UpdateLineTypeCombo
-                    gcd.UpdatDimTypeTypeCombo
-
-                    gcd.SnapMode = True
-
-                    ' modelo recien cargado
-                    cadZoomE.Start()                                ' por ahora mostramos el dibujo centrado, hasta q leamos el estado anterior
-
-                    fmain.Text = f
-
-                    Dec Application.Busy
-                    fMain.Mouse = Mouse.Arrow
+                    GoSub LoadDXF
                 Case "dxf"
-
-                    NewDrawing = New Drawing
-                    NewDrawing.ScaleZoom = gcd.ScreenDensity
-                    NewDrawing.iEntity.Insert([0, 0, 0, 0])
-                    gcd.Drawings.Add(NewDrawing)
-                    gcd.currentDrawing = gcd.Drawings.Last
-                    dxf.LoadFile(fMinimal, gcd.currentDrawing)
-
-                    gcd.currentDrawing.FileName = f
-
-                    gcd.currentDrawing.RequiresFileRename = False
-
-                    dxf.LoadFile(f, gcd.currentDrawing, False, False, False,, True)
-                    gcd.Regen()
-                    Try gcd.currentDrawing.HandSeed = Val("&H" & gcd.currentDrawing.oHeader.HandSeed)
-
-                    gcd.UpdateLayersCombo
-                    gcd.UpdateLineWtCombo
-                    gcd.UpdateLineTypeCombo
-                    gcd.UpdatDimTypeTypeCombo
-
-                    cadZoomE.Start()                                ' por ahora mostramos el dibujo centrado, hasta q leamos el estado anterior
-
-                    fmain.Text = f
+                    fDxf = f
+                    GoSub LoadDXF
 
             End Select
         Endif
@@ -178,7 +126,46 @@ Public Sub FileOpen(Optional sFile As String = "")
         Me.FileNew
 
     Endif
+
+    Config.FilesLastPath = Utils.PathFromFile(f)
     Dec Application.Busy
+    Return
+
+LoadDXF:
+    Inc Application.Busy
+    NewDrawing = New Drawing
+    NewDrawing.ScaleZoom = gcd.ScreenDensity
+    NewDrawing.iEntity.Insert([0, 0, 0, 0])
+
+    ' esto es necesario porque muchas funciones usan gcd.currentdrawing
+    gcd.currentDrawing = NewDrawing
+
+    dxf.LoadFile(fMinimal, NewDrawing)
+
+    If dxf.LoadFile(fDxf, NewDrawing, False, False, False,, True) Then
+        Message.Error(("There was an error opening the file"))
+        NewDrawing = Null
+        gcd.currentDrawing = gcd.Drawings.Last
+        Return
+    Endif
+
+    gcd.Drawings.Add(NewDrawing)
+    gcd.currentDrawing = gcd.Drawings.Last
+    gcd.currentDrawing.FileName = f
+    gcd.currentDrawing.RequiresFileRename = False
+
+    Try gcd.currentDrawing.HandSeed = Val("&H" & gcd.currentDrawing.oHeader.HandSeed)
+
+    gcd.UpdateLayersCombo
+    gcd.UpdateLineWtCombo
+    gcd.UpdateLineTypeCombo
+    gcd.UpdatDimTypeTypeCombo
+    gcd.Regen()
+    cadZoomE.Start()                                ' por ahora mostramos el dibujo centrado, hasta q leamos el estado anterior
+
+    fmain.Text = f
+
+    Return
 
 End
 
