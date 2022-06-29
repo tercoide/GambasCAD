@@ -63,7 +63,7 @@ End
 
 '' Carga el DXF y lo mete en cModel del dibujo actual
 ' Verbose=0 nada, 1=minimo, 2=grupos, 3=todo
-Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables As Boolean = False, IgnoreBlocks As Boolean = False, IgnoreHeader As Boolean = False, VerboseLevel As Integer = 0, UpdateGraphics As Boolean = True) As Integer
+Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables As Boolean = False, IgnoreBlocks As Boolean = False, IgnoreHeader As Boolean = False, VerboseLevel As Integer = 0, UpdateGraphics As Boolean = True) As Boolean
 
     Dim t As Float = Timer
     Dim cLlaveActual, cSectionActual, cTable As Collection
@@ -186,7 +186,7 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
         End If
         gcd.debuginfo("DXF: fin lectura en " & Str(Timer - t))
     End If
-    Return 0
+    Return False
 
 End
 
@@ -463,7 +463,7 @@ Private Sub Load31Table(cVars As Collection, iEntries As Integer)
 
     'gcd.JSONtoLayers
 
-    Try gcd.debuginfo("DXF: Leidas" & gcd.CurrentDrawing.cModel["LAYERS"].count & " tablas")
+    Try gcd.debuginfo("DXF: Leidas" & cTable.count & " tablas")
 
 End
 
@@ -524,7 +524,7 @@ Private Sub Load4Blocks(cBlocks As Collection)
         Endif
     Loop
 
-    gcd.debuginfo("DXF: Leidos " & gcd.CurrentDrawing.oBlocks.Count & " bloques")
+    gcd.debuginfo("DXF: Leidos " & cBlocks.Count & " bloques")
 
 End
 
@@ -725,7 +725,7 @@ Public Function SaveFile(sName As String, drwToSAve As Drawing, Optional LoadMin
     End If
 
     hFile.Close
-    Return gcd.CurrentDrawing.oEntities.Count
+    Return drwToSAve.oEntities.Count
     'Catch
 Error1:
     hFile.Close
@@ -1415,7 +1415,7 @@ Private Function Save4BlocksDirect(eBlocks As Collection) As Integer
                     clsEntities.DXFExportCommonCol(eEnty, stxEnty)
                     Gcd.CCC[eEnty.gender].ExportDXFCol(eEnty, stxEnty)
                 Else    ' trato de exportar como vino
-                    ' cEnty = gcd.CurrentDrawing.cModel["BLOCKS"][eBlock.name]["entities"][eEnty.Handle]
+
                     gcd.debugInfo(("No puedo guardar este tipo de entidades ") & eEnty.Gender,,, True)
                 End If
                 For i = 0 To stxEnty.max Step 2
@@ -1460,7 +1460,7 @@ Private Function Save5EntitiesDirect(eEntys As Collection) As Integer
             clsEntities.DXFExportCommonCol(eEnty, stxEnty)
             Gcd.CCC[eEnty.gender].ExportDXFCol(eEnty, stxEnty)
         Else    ' trato de exportar como vino
-            '  cEnty = gcd.CurrentDrawing.cModel["ENTITIES"][eEnty.Handle]
+
             gcd.debugInfo(("No puedo guardar este tipo de entidades ") & eEnty.Gender,,, True)
         End If
         For i = 0 To stxEnty.max Step 2
@@ -1613,7 +1613,6 @@ Public Sub ReadLayers(cLaydata As Collection, drw As Drawing)
 
     Dim hLay As Layer
 
-    ' If Not drw Then drw = gcd.currentDrawing
     ' ' primero eliminamos lo q haya
     Drw.oLayers.Clear
     For Each cLay As Collection In cLayData["TABLES"]["LAYER"]
@@ -1783,7 +1782,7 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
     '     Try newBlock.InsertUnits = colBlk["70"]
     '     Try newBlock.Explotability = colBlk["280"]
     '     Try newBlock.Scalability = colBlk["281"]
-    '     gcd.currentDrawing.oBlocks.Add(newBlock, newBlock.handle)
+    '     drw.oBlocks.Add(newBlock, newBlock.handle)
     '
     ' Next
     ' hay DXF sin TAbles
@@ -1817,7 +1816,6 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
             If colBlk.Exist("entities") Then
 
                 DXFtoEntity(colBlk["entities"], Drw.oBlocks[colBlk[dxf.codHandle]].entities)
-                'If gcd.currentDrawing.arrBlocks[i].entities.Count = 0 Then Stop
 
             Else
 
@@ -1870,7 +1868,7 @@ Public Sub DXFtoEntity(cEny As Collection, obx As Collection, Optional NewHandle
                         flgIsPolyline = True
                         pBlockPolyline = New Block
                         pBlockPolyline.entities = New Collection
-                        gcd.currentDrawing.oPolyLines.Add(pBlockPolyline, entNueva.Handle)
+
                         entNueva.pBlock = pBlockPolyline
                     End If
                     If e[dxf.codEntity] = "SEQEND" And flgIsPolyline = True Then
