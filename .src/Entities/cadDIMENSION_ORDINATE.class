@@ -25,9 +25,9 @@ Inherits Caddimension
 Public Const Gender As String = "DIMENSION_ORDINATE"
 Public Const DrawingOrder As Integer = 100 ' 1 a 32.724 esto debe Drawse primero y ser sobreescrito por el resto
 Public Const PointsToDraw As Integer = 1             ' minimal point requered for drawing something usefull
-Public Const CmdLineHelper As String = ("Insert a linear acotation")
-Public Const ParamType As String = "PPR"                             ' that is Point, Point, Float; could be Color Text, etc
-Public Const ParamHelper As String = "Start point;End point;extension"
+Public Const CmdLineHelper As String = ("Insert an ordinate acotation")
+Public Const ParamType As String = "*P"                             ' that is Point, Point, Float; could be Color Text, etc
+Public Const ParamHelper As String = "Point or <B>aseline;Extension"
 
 Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
 
@@ -78,6 +78,24 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
 End
 
+Public Sub ExportDXFCol(e As Entity, ByRef stxExport As String[]) As Boolean
+
+    cadDimension.ExportDXFCol(e, stxExport)
+
+    ' sobreescribo el nombre de la entidad
+
+    stxExport.insert(["AcDbOrdinateDimension", "100"])
+    ' ===========================================================================
+    stxExport.insert([CStr(e.p[14]), dxf.codX3])                ' first def point
+    stxExport.insert([CStr(e.p[15]), dxf.codY3])
+    stxExport.insert(["0", dxf.codz0])
+
+    stxExport.insert([CStr(e.p[16]), "14"])                ' text att point
+    stxExport.insert([CStr(e.p[17]), "24"])
+    stxExport.insert(["0", "34"])
+
+End
+
 Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
 
     ' la linea solo recibe puntos
@@ -85,7 +103,7 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
     If vParam[0] <> "point" Then Return False
 
     If Me.StepsDone = 0 Then
-        Me.DimType = gcd.dimAligned
+        Me.DimType = gcd.dimOrdinate
 
         Try eBuild.P[0] = vParam[1]
         Try eBuild.P[1] = vParam[2]
