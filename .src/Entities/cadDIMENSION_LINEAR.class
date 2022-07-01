@@ -176,6 +176,11 @@ End
 '' iMode= 0 linear (determinada por la posicion)
 '' iMode= 1 es Horizontal
 '' iMode= 2 es Vertical
+'' iMode= 3 es Angled
+'' iMode= 103 es Ordinate Horizontal
+'' iMode= 204 es Ordinate Vertical
+
+
 '' iMode> 1E5 --> 1E5 x fAngle determina el angulo sobre el cual se mide
 '' bContinued fuerza seguir desde el ultimo punto marcado (pasa a ser P1)
 
@@ -242,7 +247,7 @@ Public Sub ReBuildBlock2(E As Entity, Optional iMode As Integer, fAngle As Float
         Me.DefAngle = 0
     Else If iMode = 2 Then
         Me.DefAngle = Pi / 2
-    Else If iMode = 3 Then
+    Else If iMode = 5 Then
         Me.DefAngle = e.fParam[Me.ipaRotacion] '' RADIANS
 
     Endif
@@ -327,9 +332,7 @@ Public Sub ReBuildBlock2(E As Entity, Optional iMode As Integer, fAngle As Float
     Me.DefTextMidPoint.x = Me.DefPointCentral.x - Sin(Me.DefAngle) * Me.DefDeltaT
     Me.DefTextMidPoint.y = Me.DefPointCentral.y + Cos(Me.DefAngle) * Me.DefDeltaT
 
-    ' linea principal
-    eLineaPpal = cadLine.NewEntity([Me.DefPoint1b.x, Me.DefPoint1b.y, Me.DefPoint2b.x, Me.DefPoint2b.y], True)  ' el 2do punto lo tengo que determinar, el primero esta en la posicion final
-
+    eLineaPpal = cadLine.NewEntity([Me.DefPoint1b.x, Me.DefPoint1b.y, Me.DefPoint2b.x, Me.DefPoint2b.y], True)  ' el 2do punto lo tengo que
     ' lineas de demarcacion
     'eExtension1 = cadLine.NewEntity([Me.DefPoint1b.x, Me.DefPoint1b.y - Me.DimExtension, Me.DefPoint1b.x, Me.DefPoint1b.y + Me.DimExtension])
 
@@ -361,13 +364,20 @@ Public Sub ReBuildBlock2(E As Entity, Optional iMode As Integer, fAngle As Float
     eText.fParam[cadMText.ipaTextAngle] = Me.DefAngle
     eText.fParam[cadMText.ipaTextHeight] = Me.DimTextHeight
 
-    ' agrego todo al bloque
+    ' MODIFICO PARA ORDINATE
     newBlock.entities.Add(eLineaPpal, eLineaPpal.Handle)
-    newBlock.entities.Add(eExtension1, eExtension1.Handle)
+    ' agrego todo al bloque
+    If iMode < 100 Then
+
+        newBlock.entities.Add(eExtension1, eExtension1.Handle)
+        newBlock.entities.Add(ePoint1, ePoint1.Handle)
+        newBlock.entities.Add(eOblique1, eOblique1.Handle)
+    Else
+
+
+    End If
     newBlock.entities.Add(eExtension2, eExtension2.Handle)
-    newBlock.entities.Add(ePoint1, ePoint1.Handle)
     newBlock.entities.Add(ePoint2, ePoint2.Handle)
-    newBlock.entities.Add(eOblique1, eOblique1.Handle)
     newBlock.entities.Add(eOblique2, eOblique2.Handle)
     newBlock.entities.Add(eText, eText.Handle)
     newBlock.AbsoluteCoords = True
@@ -396,6 +406,15 @@ Public Sub ReBuildBlock2(E As Entity, Optional iMode As Integer, fAngle As Float
         eOblique2.fParam[cadInsert.ipaRotacion] += 180
     End If
 
+    ' linea principal
+    If iMode > 100 Then
+
+        eLineaPpal.P.Clear
+        eLineaPpal.P.Insert([Me.DefPoint2b.x - flxTextExt[0] * 1.2, Me.DefPoint1b.y, Me.DefPoint2b.x, Me.DefPoint2b.y])
+
+        eText.P.Clear
+        eText.P.Insert([Me.DefPoint2b.x - flxTextExt[0] * 0.7, Me.DefTextMidPoint.y])
+    End If
     ' guardo los puntos para exportar a DXF
 
     e.P[10] = Me.DefPoint2b.x

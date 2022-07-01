@@ -119,7 +119,8 @@ Public Function Start(Optional ElemToBuild As Variant, Optional Mode As Integer 
     '     clsEntities.setEntity(elem)
     ' End If
     ' reset from previous element
-    Gcd.CCC[elem.gender].StepsDone = 0
+
+    ' Gcd.CCC[elem.gender].StepsDone = 0
 
     Try elem.colour = gcd.CurrentColor()
     elem.LineWidth = gcd.CurrentDrawing.CurrLineWt
@@ -137,7 +138,7 @@ Public Function Start(Optional ElemToBuild As Variant, Optional Mode As Integer 
     Try Paramdefault = Split(Gcd.CCC[elem.gender].ParamDefault, ";")                        ' optional
 
     NextParamType = UCase(Mid(Gcd.CCC[elem.gender].ParamType, Gcd.CCC[elem.gender].StepsDone + 1, 1))
-    DrawingAids.CmdLineHelperNext = ParamHelperList[0]
+    DrawingAids.CmdLineHelperNext = ParamHelperList[Gcd.CCC[elem.gender].StepsDone]
 
     ' instructions to FCAD
     gcd.OrthogonalIgnored = Gcd.CCC[elem.gender].OrthogonalIgnored
@@ -169,14 +170,27 @@ Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD
 
     Select Case NextParamType
 
-        Case "P", "+"
+        Case "P", "+", "M"
             errtxt = ", expected a valid point like 12.4,9.5  or @12.34,10.5"
             ' lets filter
             EnteredText = Trim$(UCase$(EnteredText))
+            sText = Left(EnteredText, 1)
             ' So we expect a position x,y , but in some cases it can be
             ' C = close
             ' U = undo, delete last segment
             ' and others
+            If NextParamType = "M" Then
+
+                If InStr("@0123456789.", sText) > 0 Then ' es un numero
+
+                Else    ' es una letra
+
+                    If Gcd.CCC[elem.gender].NewParameter(elem, ["text", sText], True) Then AdvanceStep
+
+                End If
+
+
+            Endif
 
             If Left(EnteredText, 1) = "C" Then          ' close the element
                 ' got othe first point and exit
@@ -227,7 +241,7 @@ Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD
 
             If Gcd.CCC[elem.gender].NewParameter(elem, ["text", sText], True) Then AdvanceStep
 
-        Case "F", "M", "A", "L", "R"                ' Float, Mixed, Angle, Longitud
+        Case "F", "A", "L", "R"                ' Float, Mixed, Angle, Longitud
             errtxt = "enter a valid text size"
 
             If EnteredText = "" Or EnteredText = "U" Then
@@ -319,7 +333,7 @@ Public Sub MouseMove()
 
     ' pero veo si tengo un POI
 
-    If InStr("LAPR", NextParamType) = 0 Then Return ' we are expecting a parameter
+    If InStr("LAPRM", NextParamType) = 0 Then Return ' we are expecting a parameter
 
     ' a very special case
     If elem.Gender = "SPLINE" And (Me.iPoints <> elem.P.Count / 2 - 1) Then Inc iPoints
@@ -400,7 +414,7 @@ Public Sub MouseUp()
     End If
 
     DrawingAids.ErrorMessage = ""
-    If InStr("LAPR", NextParamType) = 0 Then Return ' we are expecting a parameter
+    If InStr("LAPRM", NextParamType) = 0 Then Return ' we are expecting a parameter
 
     ' if we expect a parameter, it will be passed
     If NextParamType = "A" Then
@@ -504,9 +518,10 @@ Public Sub Draw()               ' called by fMain.GLArea1_Draw
 End
 
 '' LLamada cuando se termina de dibujar una nueva entidad.
-Public Sub Finish()
+Public Sub Finish() As Boolean
 
     Dim eEndBlock As Entity
+
 
     ' La entidad se crea sin handle
     If elem.Handle = "" Then elem.Handle = gcd.NewHandle()
