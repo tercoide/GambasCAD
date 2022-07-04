@@ -131,7 +131,7 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
 
         Try eBuild.P[2] = vParam[1]
         Try eBuild.P[3] = vParam[2]
-        eBuild.pBlock = cadDIMENSION_LINEAR.ReBuildBlock2(eBuild, 104)
+        eBuild.pBlock = cadDIMENSION_LINEAR.ReBuildBlock2(eBuild, 103)
         If definitive Then Return True
     Else If Me.StepsDone = 2 Then           ' EXTENSION
         If vParam[0] = "point" Then  ' vino como un punto, entonces la calculo de otra manera
@@ -146,7 +146,7 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
         ' TODO: cuando este terminada la entidad, sacar eso
         ebuild.pBlock.AbsoluteCoords = True
         ' y dejar esto
-        ' eBuild.pBlock = ReBuildBlock(eBuild)
+        eBuild.pBlock = cadDIMENSION_LINEAR.ReBuildBlock2(eBuild, 103)
         If definitive Then
             'Stop
             Return True
@@ -155,150 +155,3 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
 
 End
 
-Public Sub ReBuildBlock(E As Entity) As Block
-
-    Dim flxTextExt As Float[]
-    Dim fRotXY As Float[]
-
-    Dim newBlock As New Block
-    Dim f1, f2 As New Float[]
-    Dim a1 As Float
-    Dim sDim As String
-    Dim invertida As Boolean
-    Dim d, fAngle90 As Single ' para evitar problemas de mantisa cuando Ang=89.99999
-
-    ' para definir este bloque necesito 6 entidades
-    Dim eLineaPpal As Entity
-    Dim eOblique1 As Entity       ' tambien pueden ser flechas Solid
-    Dim eOblique2 As Entity
-    Dim eExtension1 As Entity
-    Dim eExtension2 As Entity
-    Dim eText As Entity
-    Dim ePoint1 As Entity
-    Dim ePoint2 As Entity
-    Dim MyStyle As DimStyle
-    ' vemos los estilos
-    MyStyle = gcd.currentDrawing.CurrDimStyle
-    If E.fParam[Me.ipaStyleTextHeigth] > 0 Then Me.DimTextHeight = E.fParam[Me.ipaStyleTextHeigth] Else Me.DimTextHeight = MyStyle.DIMTXT
-    If E.fParam[Me.ipaStyleArrowSize] > 0 Then Me.DimArrowSize = E.fParam[Me.ipaStyleArrowSize] Else Me.DimArrowSize = MyStyle.DIMASZ
-    Me.DimArrowWidth = Me.DimArrowSize / 3
-
-    newBlock.name = "*D" ' luego se agregara la handle, en entitybuilder
-    newBlock.entities = New Collection
-
-    '               (P23=Text mid)
-    '         (p67) 12.23
-    '         --+--.-----
-    '           ^   (P89=Leader endpoint)
-    '           !
-    '  + (P01=baseline)
-
-    ' Comun para Horiz y Vert
-    ' -> el bloque
-
-    E.fParam[cadInsert.ipaEscX] = 1      ' ScaleX del inserto
-    E.fParam[cadInsert.ipaEscY] = 1      ' ScaleY del inserto
-    E.fParam[cadInsert.ipaEscZ] = 1      ' ScaleY del inserto
-    E.Visible = True
-    ' lineas de demarcacion
-    eExtension2 = cAdLine.NewEntity([0, 0, 0, E.P[9] - E.P[7]])
-    eExtension2 = cadLine.NewEntity([Me.DefPoint2.x, Me.DefPoint2.y, Me.DefPoint2b.x, Me.DefPoint2b.y], True)
-
-    ' puntos base
-    ePoint2 = cadPoint.NewEntity([E.P[0], E.P[1]])
-    ePoint2 = cadPoint.NewEntity([Me.DefPoint2.x, Me.DefPoint2.y], True)
-
-    ' flechas
-    ' la flecha va rotada 90*
-    f2.Insert([Me.DimExtension, 0, Me.DimExtension - Me.DimArrowWidth, -Me.DimArrowSize, Me.DimExtension + Me.DimArrowWidth, -Me.DimArrowSize, Me.DimExtension, 0])
-
-    eOblique2 = cAdsolid.NewEntity(f2)
-    eOblique2 = cadInsert.NewEntity([Me.DefPoint2b.x, Me.DefPoint2b.y], True)
-    eOblique2.pBlock = clsEntities.FIndBlock("_thick2_arrow", gcd.currentDrawing.oBlocks)
-    eOblique2.fParam[cadInsert.ipaEscX] = 1
-    eOblique2.fParam[cadInsert.ipaEscY] = 1
-    eOblique2.fParam[cadInsert.ipaEscZ] = 1
-    eOblique2.fParam[cadInsert.ipaRotacion] = Me.DefAngle * 180 / Pi
-
-    ' texto
-    eText = cAdMText.NewEntity([E.p[2] - E.p[6], E.p[3] - E.p[7]], True)
-    eText.fParam[cadMText.ipaTextHeight] = Me.DimTextHeight
-
-    ' agrego todo al bloque
-    newBlock.entities.Add(eExtension2, eExtension2.Handle)
-    newBlock.entities.Add(ePoint2, ePoint2.Handle)
-    newBlock.entities.Add(eOblique2, eOblique2.Handle)
-    newBlock.entities.Add(eText, eText.Handle)
-    newBlock.AbsoluteCoords = True
-
-    ' Armo directamente de acuerdo a lo que necesito
-    If E.fParam[Me.ipaHorizAngle] = 1 Then                               ' Ordenada X Horizontal (texto y lineas verticales)
-        E.fParam[cadDimension.ipaRealMeasure] = E.P[6] - E.P[0]
-
-        ' esto no cambia la posicion, ya sea mayor o menor que cero
-        ' lineas de demarcacion
-
-        'If elem.fParam[cadDimension.ipaRealMeasure] >= 0 Then
-
-        ' cuadrante superior
-        ' el texto
-        eText.StringData[cadMText.sdaText] = "\\A1;" & Format(E.fParam[cadDimension.ipaRealMeasure], Me.DimFormat)
-
-        'eText.StringData[cadMText.sdaText] = Format(elem.fParam[cadDimension.ipaRealMeasure], Me.DimFormat)
-        ' esta ordenada es horiz, entonces el texto se rota
-        eText.fParam[cadMText.ipaTextAngle] = 90
-
-        flxTextExt = glPlus.TextExtends(eText.StringData[cadMText.sdaText], 0, 0, eText.fParam[cadMText.ipaTextHeight])
-        eExtension2.P[3] = E.P[9] - E.P[7] + flxTextExt[2] / 2
-
-        eOblique2.Gcd.CCC[e.gender].rotate(eOblique2, -Pi / 2 * IIf(E.fParam[cadDimension.ipaRealMeasure] >= 0, 1, -1))
-        eOblique2.Gcd.CCC[e.gender].translate(eOblique2, 0, 3 * Me.DimExtension * IIf(E.fParam[cadDimension.ipaRealMeasure] >= 0, 1, -1))
-
-        'End If
-    Else ' es vertical
-        E.fParam[cadDimension.ipaRealMeasure] = E.P[7] - E.P[1]
-
-        eText.StringData[cadMText.sdaText] = "\\A1;" & Format(E.fParam[cadDimension.ipaRealMeasure], Me.DimFormat)
-        ' esta ordenada es vertical, entonces el texto no se rota
-        eText.fParam[cadMText.ipaTextAngle] = 0
-
-        flxTextExt = glPlus.TextExtends(eText.StringData[cadMText.sdaText], eText.fParam[cadMText.ipaTextHeight])
-        eExtension2.P[2] = E.P[8] - E.P[6] + flxTextExt[0] / 2
-        Gcd.CCC[e.gender].rotate(eOblique2, Pi * IIf(E.fParam[cadDimension.ipaRealMeasure] >= 0, 0, 1))
-        Gcd.CCC[e.gender].translate(eOblique2, Me.DimExtension * IIf(E.fParam[cadDimension.ipaRealMeasure] >= 0, 1, -1), 0)
-
-    End If
-
-    ' texto
-
-    newBlock.x0 = E.P[6] ' el inserto se mete en el def point
-    newBlock.y0 = E.P[7]
-
-    newBlock.AbsoluteCoords = 2
-
-    ' guardo los puntos para exportar a DXF
-
-    e.P[10] = Me.DefPoint2b.x
-    e.P[11] = Me.DefPoint2b.y
-
-    e.P[12] = Me.DefTextMidPoint.x
-    e.P[13] = Me.DefTextMidPoint.y
-
-    e.P[14] = 0 ' baseline
-    e.P[15] = 0
-
-    e.P[16] = Me.DefPoint1.x
-    e.P[17] = Me.DefPoint1.y
-
-    e.P[18] = Me.DefPoint2.x
-    e.P[19] = Me.DefPoint2.y
-
-    e.P[20] = 0
-    e.P[21] = 0
-
-    e.P[22] = 0
-    e.P[23] = 0
-
-    Return newBlock
-
-End
