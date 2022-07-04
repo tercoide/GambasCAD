@@ -183,7 +183,7 @@ End
 '' iMode> 1E5 --> 1E5 x fAngle determina el angulo sobre el cual se mide
 '' bContinued fuerza seguir desde el ultimo punto marcado (pasa a ser P1)
 
-Public Sub ReBuildBlock2(E As Entity, Optional iMode As Integer, fAngle As Float, bContinued As Boolean) As Block
+Public Sub ReBuildBlock2(E As Entity, Optional iMode As Integer = 0, fAngle As Float = -1, bContinued As Boolean = False) As Block
 
     ' esta rutina no sabe si el bloque a reconstruir es desde ENTITYBUILDER o desde
     ' DXF o JSON
@@ -250,10 +250,7 @@ Public Sub ReBuildBlock2(E As Entity, Optional iMode As Integer, fAngle As Float
         Me.DefAngle = Pi / 2
     Else If iMode = 5 Then
         Me.DefAngle = e.fParam[Me.ipaRotacion] '' RADIANS
-    Else If iMode = 103 Then    ' ordinate horiz
-        Me.DefAngle = 0
-    Else If iMode = 104 Then    ' ordinate vert
-        Me.DefAngle = Pi / 2
+
     Endif
 
     ' reduzco este valor a -89.99 -> 90
@@ -314,10 +311,6 @@ Public Sub ReBuildBlock2(E As Entity, Optional iMode As Integer, fAngle As Float
 
     ' verifico el armado, siempre el P1 debe estar a la izq del P2
 
-    ' pero antes determino un dato que me va a servir para DimOrdinate
-    If ((Me.DefPoint2b.x - Me.DefPoint1b.x) < 0) Or ((Me.DefPoint2b.y - Me.DefPoint1b.y) < 0) Then IsNegative = True
-
-
     If Me.DefPoint2b.x < Me.DefPoint1b.x Then ' swapeo los puntos
         Swap Me.DefPoint2b.x, Me.DefPoint1b.x
         Swap Me.DefPoint2b.y, Me.DefPoint1b.y
@@ -376,32 +369,16 @@ Public Sub ReBuildBlock2(E As Entity, Optional iMode As Integer, fAngle As Float
     ' MODIFICO PARA ORDINATE
     newBlock.entities.Add(eLineaPpal, eLineaPpal.Handle)
     ' agrego todo al bloque
-    If iMode > 100 Then
 
-        If IsNegative Then
-            newBlock.entities.Add(eExtension1, eExtension1.Handle)
-            newBlock.entities.Add(ePoint1, ePoint1.Handle)
-            newBlock.entities.Add(eOblique1, eOblique1.Handle)
-        Else
-            newBlock.entities.Add(eExtension2, eExtension2.Handle)
-            newBlock.entities.Add(ePoint2, ePoint2.Handle)
-            newBlock.entities.Add(eOblique2, eOblique2.Handle)
+    newBlock.entities.Add(eExtension2, eExtension2.Handle)
+    newBlock.entities.Add(ePoint2, ePoint2.Handle)
+    newBlock.entities.Add(eOblique2, eOblique2.Handle)
 
 
-        Endif
+    newBlock.entities.Add(eExtension1, eExtension1.Handle)
+    newBlock.entities.Add(ePoint1, ePoint1.Handle)
+    newBlock.entities.Add(eOblique1, eOblique1.Handle)
 
-
-    Else
-        newBlock.entities.Add(eExtension2, eExtension2.Handle)
-        newBlock.entities.Add(ePoint2, ePoint2.Handle)
-        newBlock.entities.Add(eOblique2, eOblique2.Handle)
-
-
-        newBlock.entities.Add(eExtension1, eExtension1.Handle)
-        newBlock.entities.Add(ePoint1, ePoint1.Handle)
-        newBlock.entities.Add(eOblique1, eOblique1.Handle)
-
-    End If
     newBlock.entities.Add(eText, eText.Handle)
     newBlock.AbsoluteCoords = True
 
@@ -429,37 +406,7 @@ Public Sub ReBuildBlock2(E As Entity, Optional iMode As Integer, fAngle As Float
         eOblique2.fParam[cadInsert.ipaRotacion] += 180
     End If
 
-    ' linea principal
-    If iMode > 100 Then
-        eLineaPpal.P.Clear
-        eText.P.Clear
-        If IsNegative Then
 
-            eLineaPpal.P.Insert([Me.DefPoint1b.x + flxTextExt[0] * 1.2 * Cos(Me.DefAngle), Me.DefPoint1b.y + flxTextExt[0] * 1.2 * Sin(Me.DefAngle), Me.DefPoint1b.x, Me.DefPoint1b.y])
-
-
-            If Me.DefAngle = 0 Then ' Horizontal
-                Me.DefTextMidPoint.x = Me.DefPoint1b.x + flxTextExt[0] * 0.7
-
-            Else                    ' vertical
-                Me.DefTextMidPoint.y = Me.DefPoint1b.y + flxTextExt[0] * 0.7
-
-            End If
-
-        Else
-
-            eLineaPpal.P.Insert([Me.DefPoint2b.x - flxTextExt[0] * 1.2 * Cos(Me.DefAngle), Me.DefPoint2b.y - flxTextExt[0] * 1.2 * Sin(Me.DefAngle), Me.DefPoint2b.x, Me.DefPoint2b.y])
-
-            If Me.DefAngle = 0 Then ' Horizontal
-
-                Me.DefTextMidPoint.x = Me.DefPoint2b.x - flxTextExt[0] * 0.7
-            Else
-                Me.DefTextMidPoint.y = Me.DefPoint2b.y - flxTextExt[0] * 0.7
-            End If
-        End If
-        eText.P.Insert([Me.DefTextMidPoint.x, Me.DefTextMidPoint.y])
-
-    End If
     ' guardo los puntos para exportar a DXF
 
     e.P[10] = Me.DefPoint2b.x
