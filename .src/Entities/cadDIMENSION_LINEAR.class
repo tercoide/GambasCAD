@@ -117,18 +117,56 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
 
     If vParam[0] <> "point" Then Return False
 
+    If eBuild.iParam[Me.iiiMode] >= 10 Then
+
+
+        If gcd.currentDrawing.LastDimension Then
+
+            If eBuild.iParam[Me.iiiMode] = 10 Then
+                Me.DimContinued = True
+                eBuild.p[0] = gcd.currentDrawing.LastDimension.P[2]
+                eBuild.p[1] = gcd.currentDrawing.LastDimension.P[3]
+                eBuild.p[4] = gcd.currentDrawing.LastDimension.P[4]
+                eBuild.p[5] = gcd.currentDrawing.LastDimension.P[5]
+            Else If eBuild.iParam[Me.iiiMode] = 20 Then
+                eBuild.p[0] = gcd.currentDrawing.LastDimension.P[0]
+                eBuild.p[1] = gcd.currentDrawing.LastDimension.P[1]
+
+                Me.DimBaseline = True
+            End If
+            If eBuild.iParam[Me.iiiMode] = 0 Then
+                If gcd.currentDrawing.LastDimension.fParam[Me.ipaHorizAngle] = 0 Then
+                    eBuild.iParam[Me.iiiMode] = 1
+                Else If gcd.currentDrawing.LastDimension.fParam[Me.ipaHorizAngle] = Pi / 2 Then
+                    eBuild.iParam[Me.iiiMode] = 2
+                Endif
+
+            End If
+            eBuild.iParam[Me.iiiMode] = Me.LastMode
+        Else
+            Me.DimContinued = False ' no existe dimension anterior para continuar
+            Me.DimBaseline = False ' no existe dimension anterior para continuar
+        End If
+
+
+
+
+
+        If Me.DimContinued Or Me.DimBaseline Then
+            Me.StepsDone = 1
+
+        Endif
+    End If
     If Me.StepsDone = 0 Then
 
         ' supongo que marca el punto de derecha a izq
-        ' el primero es P3 o P67
+
         Try eBuild.p[0] = vParam[1]
         Try eBuild.p[1] = vParam[2]
         eBuild.p[2] = eBuild.P[0]
         eBuild.p[3] = eBuild.P[1]
         eBuild.p[4] = eBuild.p[2]
         eBuild.p[5] = eBuild.P[3]
-        ' Me.DefPoint2.x = Me.DefPoint1.x
-        ' Me.DefPoint2.y = Me.DefPoint1.y
 
         If eBuild.iParam[Me.iiiMode] = 0 Then ' linear (depende de la posicion de la medida)
             iMode = 0
@@ -147,13 +185,17 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
 
         Try eBuild.p[2] = vParam[1]
         Try eBuild.p[3] = vParam[2]
-        eBuild.p[4] = eBuild.p[2]
-        eBuild.p[5] = eBuild.P[3]
+        If Not Me.DimContinued Then
+            eBuild.p[4] = eBuild.p[2]
+            eBuild.p[5] = eBuild.P[3]
 
-        ' Try Me.DefPoint2.x = vParam[1]
-        ' Try Me.DefPoint2.y = vParam[2]
+        End If
         eBuild.pBlock = ReBuildBlock2(eBuild, eBuild.iParam[Me.iiiMode])
-        If definitive Then Return True
+        If definitive Then
+
+            If Me.DimContinued Then Inc Me.StepsDone
+            Return True
+        End If
     Else If Me.StepsDone = 2 Then   ' el tercer punto sera la posicion del texto
 
         ' return the angle from horizontal to us
@@ -183,7 +225,7 @@ End
 '' iMode> 1E5 --> 1E5 x fAngle determina el angulo sobre el cual se mide
 '' bContinued fuerza seguir desde el ultimo punto marcado (pasa a ser P1)
 
-Public Sub ReBuildBlock2(E As Entity, Optional iMode As Integer = 0, fAngle As Float = -1, bContinued As Boolean = False) As Block
+Public Sub ReBuildBlock2(E As Entity, Optional iMode As Integer = 0, fAngle As Float = -1) As Block
 
     ' esta rutina no sabe si el bloque a reconstruir es desde ENTITYBUILDER o desde
     ' DXF o JSON
@@ -429,6 +471,8 @@ Public Sub ReBuildBlock2(E As Entity, Optional iMode As Integer = 0, fAngle As F
 
     e.P[22] = 0
     e.P[23] = 0
+
+    e.fParam[Me.ipaHorizAngle] = Me.DefAngle
 
     Return newBlock
 

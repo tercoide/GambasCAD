@@ -168,7 +168,7 @@ End
 
 '' bContinued fuerza seguir desde el ultimo punto marcado (pasa a ser P1)
 
-Public Sub ReBuildBlock2(E As Entity, Optional iMode As Integer = 0, fAngle As Float = -1, bContinued As Boolean = False) As Block
+Public Sub ReBuildBlock2(E As Entity, Optional iMode As Integer = 0, fAngle As Float = -1) As Block
 
     ' esta rutina no sabe si el bloque a reconstruir es desde ENTITYBUILDER o desde
     ' DXF o JSON
@@ -200,6 +200,7 @@ Public Sub ReBuildBlock2(E As Entity, Optional iMode As Integer = 0, fAngle As F
     If E.fParam[Me.ipaStyleTextHeigth] > 0 Then Me.DimTextHeight = E.fParam[Me.ipaStyleTextHeigth] Else Me.DimTextHeight = MyStyle.DIMTXT
     If E.fParam[Me.ipaStyleArrowSize] > 0 Then Me.DimArrowSize = E.fParam[Me.ipaStyleArrowSize] Else Me.DimArrowSize = MyStyle.DIMASZ
     Me.DimArrowWidth = Me.DimArrowSize / 3
+    Me.DimExtension = Me.DimArrowSize
 
     newBlock.name = "*D" ' luego se agregara la handle, en entitybuilder
     newBlock.entities = New Collection
@@ -275,10 +276,8 @@ Public Sub ReBuildBlock2(E As Entity, Optional iMode As Integer = 0, fAngle As F
     ' linea principal
     eLineaPpal.P.Clear
     eText.P.Clear
+    eExtension2.P.Clear
     If IsNegative Then
-
-        eLineaPpal.P.Insert([Me.DefPoint2.x + flxTextExt[0] * 1.2 * Cos(Me.DefAngle), Me.DefPoint2.y + flxTextExt[0] * 1.2 * Sin(Me.DefAngle), Me.DefPoint2.x, Me.DefPoint2.y])
-
 
         If Me.DefAngle = 0 Then ' Horizontal
             Me.DefPoint2.x = Me.DefPoint2b.x
@@ -289,22 +288,36 @@ Public Sub ReBuildBlock2(E As Entity, Optional iMode As Integer = 0, fAngle As F
             Me.DefTextMidPoint.y = Me.DefPoint2.y + flxTextExt[0] * 0.7
 
         End If
+        eLineaPpal.P.Insert([Me.DefPoint2.x + flxTextExt[0] * 1.2 * Cos(Me.DefAngle), Me.DefPoint2.y + flxTextExt[0] * 1.2 * Sin(Me.DefAngle), Me.DefPoint2.x, Me.DefPoint2.y])
+
 
     Else
 
-        eLineaPpal.P.Insert([Me.DefPoint2.x - flxTextExt[0] * 1.2 * Cos(Me.DefAngle), Me.DefPoint2.y - flxTextExt[0] * 1.2 * Sin(Me.DefAngle), Me.DefPoint2.x, Me.DefPoint2.y])
 
         If Me.DefAngle = 0 Then ' Horizontal
             Me.DefPoint2.x = Me.DefPoint2b.x
-            Me.DefTextMidPoint.x = Me.DefPoint2.x - flxTextExt[0] * 0.7
+            Me.DefTextMidPoint.x = Me.DefPoint2.x - flxTextExt[0] * 0.7         ' texto
         Else
             Me.DefPoint2.y = Me.DefPoint2b.y
             Me.DefTextMidPoint.y = Me.DefPoint2.y - flxTextExt[0] * 0.7
         End If
+
+        eLineaPpal.P.Insert([Me.DefPoint2.x - flxTextExt[0] * 1.2 * Cos(Me.DefAngle), Me.DefPoint2.y - flxTextExt[0] * 1.2 * Sin(Me.DefAngle), Me.DefPoint2.x, Me.DefPoint2.y])
+
+
+
     End If
 
-    eText.P.Insert([Me.DefTextMidPoint.x, Me.DefTextMidPoint.y])
+    ' parametros para la linea de extension
+    Me.DefPointAux1.x = Me.DefPoint2.x - Me.DimExtension * Sgn(Me.DefPoint2.x - Me.DefPoint2b.x)
+    Me.DefPointAux1.y = Me.DefPoint2.y - Me.DimExtension * Sgn(Me.DefPoint2.y - Me.DefPoint2b.y)
 
+    Me.DefPointAux2.x = Me.DefPoint2.x + Me.DimExtension * Sgn(Me.DefPoint2.x - Me.DefPoint2b.x)
+    Me.DefPointAux2.y = Me.DefPoint2.y + Me.DimExtension * Sgn(Me.DefPoint2.y - Me.DefPoint2b.y)
+
+
+    eText.P.Insert([Me.DefTextMidPoint.x, Me.DefTextMidPoint.y])
+    eExtension2.P.Insert([Me.DefPointAux1.x, Me.DefPointAux1.y, Me.DefPointAux2.x, Me.DefPointAux2.y])
     ' flechas
 
     eOblique2 = cadInsert.NewEntity([Me.DefPoint2.x, Me.DefPoint2.y], True)
@@ -313,22 +326,13 @@ Public Sub ReBuildBlock2(E As Entity, Optional iMode As Integer = 0, fAngle As F
     eOblique2.fParam[cadInsert.ipaEscY] = 1
     eOblique2.fParam[cadInsert.ipaEscZ] = 1
     eOblique2.fParam[cadInsert.ipaRotacion] = Me.DefAngle * 180 / Pi
-
+    If IsNegative Then eOblique2.fParam[cadInsert.ipaRotacion] += 180
 
     ' agrego todo al bloque
     newBlock.entities.Add(eLineaPpal, eLineaPpal.Handle)
     newBlock.entities.Add(eExtension2, eExtension2.Handle)
     newBlock.entities.Add(ePoint2, ePoint2.Handle)
     newBlock.entities.Add(eOblique2, eOblique2.Handle)
-
-
-    If IsNegative Then
-        eOblique2.fParam[cadInsert.ipaRotacion] *= -1
-
-    Endif
-
-
-
     newBlock.entities.Add(eText, eText.Handle)
     newBlock.AbsoluteCoords = True
 
