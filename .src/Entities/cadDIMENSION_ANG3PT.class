@@ -82,8 +82,6 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
     Next
 
-
-
     ' TODO: cuando este terminada la entidad, sacar eso
     ' tengo q presuponer que las escalas son = 1
     e.fParam[Me.ipaEscX] = 1    ' esc X
@@ -113,10 +111,9 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
     ' luego se marca la posicion del texto
     ' https://ezdxf.readthedocs.io/en/stable/tutorials/angular_dimension.html
 
-
     If vParam[0] <> "point" Then Return False
 
-    If Me.StepsDone = 0 Then
+    If gcd.StepsDone = 0 Then
         Me.DimType = gcd.dimAligned
 
         Try eBuild.P[0] = vParam[1]
@@ -124,7 +121,7 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
         eBuild.P[2] = eBuild.P[0]
         eBuild.P[3] = eBuild.P[1]
         If definitive Then Return True
-    Else If Me.StepsDone = 1 Then
+    Else If gcd.StepsDone = 1 Then
 
         Try eBuild.P[2] = vParam[1]
         Try eBuild.P[3] = vParam[2]
@@ -133,7 +130,7 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
 
         eBuild.pBlock = ReBuildBlock2(eBuild)
         If definitive Then Return True
-    Else If Me.StepsDone = 2 Then
+    Else If gcd.StepsDone = 2 Then
 
         Try eBuild.P[4] = vParam[1]
         Try eBuild.P[5] = vParam[2]
@@ -142,7 +139,7 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
 
         eBuild.pBlock = ReBuildBlock2(eBuild)
         If definitive Then Return True
-    Else If Me.StepsDone = 3 Then
+    Else If gcd.StepsDone = 3 Then
 
         Try eBuild.P[6] = vParam[1]
         Try eBuild.P[7] = vParam[2]
@@ -153,8 +150,6 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
     Endif
 
 End
-
-
 
 '' Esta rutina se usa para Angulos y Largo del arco
 
@@ -217,7 +212,6 @@ Public Sub ReBuildBlock2(E As Entity) As Block
 
     End If
 
-
     Me.DefAngle = Ang(Me.DefPoint2.x - Me.DefCenter.x, Me.DefPoint2.y - Me.DefCenter.y) - Ang(Me.DefPoint1.x - Me.DefCenter.x, Me.DefPoint1.y - Me.DefCenter.y)
 
     ' reduzco este valor a -89.99 -> 90
@@ -249,7 +243,6 @@ Public Sub ReBuildBlock2(E As Entity) As Block
     ' con esto calculo la posicion del texto
     d = puntos.distancia(Me.DefCenter.x, Me.DefCenter.y, Me.DefPointCentral.x, Me.DefPointCentral.y)
 
-
     fRotXY = puntos.RotateFromPointWithAngle(Me.DefCenter.x, Me.DefCenter.y, (Ang(Me.DefPoint2.x - Me.DefCenter.x, Me.DefPoint2.y - Me.DefCenter.y) + Ang(Me.DefPoint1.x - Me.DefCenter.x, Me.DefPoint1.y - Me.DefCenter.y)) / 2, Me.DefCenter.x + d, Me.DefCenter.y)
     Me.DefTextMidPoint.x = fRotXY[0]
     Me.DefTextMidPoint.y = fRotXY[1]
@@ -261,11 +254,6 @@ Public Sub ReBuildBlock2(E As Entity) As Block
     fRotXY = puntos.RotateFromPointWithAngle(Me.DefCenter.x, Me.DefCenter.y, Ang(Me.DefPoint2.x - Me.DefCenter.x, Me.DefPoint2.y - Me.DefCenter.y), Me.DefCenter.x + d, Me.DefCenter.y)
     Me.DefPoint2b.x = fRotXY[0]
     Me.DefPoint2b.y = fRotXY[1]
-
-
-
-
-
 
     ' ' ahora recalculo la posicion del terxto
     ' ' el centro de la linea principal
@@ -287,7 +275,6 @@ Public Sub ReBuildBlock2(E As Entity) As Block
 
     If (eLineaPpal.fParam[2] - eLineaPpal.fParam[1]) < 0 Then eLineaPpal.fParam[2] += 360
 
-
     ' lineas de demarcacion
     eExtension1 = cadLine.NewEntity([-Me.DimExtension, 0, Me.DimExtension, 0], True)
     eExtension2 = cadLine.NewEntity([-Me.DimExtension, 0, Me.DimExtension, 0], True)
@@ -296,8 +283,6 @@ Public Sub ReBuildBlock2(E As Entity) As Block
 
     clsEntities.Translate(eExtension1, Me.DefPoint1b.x, Me.DefPoint1b.y)
     clsEntities.Translate(eExtension2, Me.DefPoint2b.x, Me.DefPoint2b.y)
-
-
 
     ' puntos base, ya en las ubicaciones finales (coinciden con los clicks)
     ePoint1 = cadPoint.NewEntity([Me.DefPoint1.x, Me.DefPoint1.y], True)
@@ -332,7 +317,6 @@ Public Sub ReBuildBlock2(E As Entity) As Block
     Else ' L = ang/360 * Pi * diam
         E.fParam[cadDimension.ipaRealMeasure] = (eLineaPpal.fParam[2] - eLineaPpal.fParam[1]) * Pi / 360 * puntos.distancia(Me.DefCenter.x, Me.DefCenter.y, Me.DefPoint1.x, Me.DefPoint1.y) * 2
     End If
-
 
     ' agrego todo al bloque
     newBlock.entities.Add(eLineaPpal, eLineaPpal.Handle)

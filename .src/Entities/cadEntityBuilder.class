@@ -44,7 +44,7 @@ Public LastMouseX As Integer               ' change in MouseMove/MouseUp
 Public LastMouseY As Integer
 
 ' indicadores
-'Public Gcd.CCC[elem.gender].StepsDone As Integer = 0          ' La cantidad de puntos que marco para el trabajo actual--->Gurdado en la entidad
+'Public StepsDone As Integer = 0          ' La cantidad de puntos que marco para el trabajo actual--->Gurdado en la entidad
 Public StepsTotal As Integer = 0          ' Tomado de la lista de tipo de paramtros
 Public PointsTotal As Integer = 0          ' Tomado de la lista de tipo de paramtros
 Public NextParamType As String          ' What kind of input the element expects P=point, F=float, C=color, S=string, M=mixed either Point, or Float that is taken from Max(Px-Px', Pz-Pz')
@@ -120,7 +120,7 @@ Public Function Start(Optional ElemToBuild As Variant, Optional Mode As Integer 
     ' End If
     ' reset from previous element
 
-    ' Gcd.CCC[elem.gender].StepsDone = 0
+    gcd.StepsDone = 0
 
     Try elem.colour = gcd.CurrentColor()
     elem.LineWidth = gcd.CurrentDrawing.CurrLineWt
@@ -137,8 +137,8 @@ Public Function Start(Optional ElemToBuild As Variant, Optional Mode As Integer 
     Try Paramhelperlist = Split(Gcd.CCC[elem.gender].ParamHelper, ";")                      ' optional
     Try Paramdefault = Split(Gcd.CCC[elem.gender].ParamDefault, ";")                        ' optional
 
-    NextParamType = UCase(Mid(Gcd.CCC[elem.gender].ParamType, Gcd.CCC[elem.gender].StepsDone + 1, 1))
-    DrawingAids.CmdLineHelperNext = ParamHelperList[Gcd.CCC[elem.gender].StepsDone]
+    NextParamType = UCase(Mid(Gcd.CCC[elem.gender].ParamType, Gcd.StepsDone + 1, 1))
+    DrawingAids.CmdLineHelperNext = ParamHelperList[Gcd.StepsDone]
 
     ' instructions to FCAD
     gcd.OrthogonalIgnored = Gcd.CCC[elem.gender].OrthogonalIgnored
@@ -150,10 +150,9 @@ Public Function Start(Optional ElemToBuild As Variant, Optional Mode As Integer 
 
     End If
 
-    ' armamos el menu contextual
+    ' armamos el menu contextual y lo asignamos a la GL area
+    If Utils.MenuMaker(fMain, "mEntityBuilder", Gcd.CCC[elem.gender].ContextMenu) Then fMain.GLArea1.PopupMenu = "mEntityBuilder"
 
-    Utils.MakeMenu(fMain, "mEntityBuilder", Gcd.CCC[elem.gender].ContextMenu)
-    fMain.GLArea1.PopupMenu = "mEntityBuilder"
     fMain.KeysAccumulator = ""
     DrawingAids.CmdLineHelper = Gcd.CCC[elem.gender].CmdLineHelper & ": "
 
@@ -177,6 +176,13 @@ Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD
     Dim Xt, yt As Float, sText, ErrTxt As String, Relative As Boolean
     Dim bResult As Boolean
 
+    ' primero veo si el entorno nos pide algo
+    Select Case EnteredText
+        Case "CANCEL"
+            Me.Cancel
+            Return
+    End Select
+
     Select Case NextParamType
 
         Case "P", "+", "M"
@@ -188,7 +194,6 @@ Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD
             ' C = close
             ' U = undo, delete last segment
             ' and others
-
 
             If InStr("@0123456789.", sText) > 0 Then ' es un numero
                 If InStr(EnteredText, "@") > 0 Then    ' may be a point
@@ -213,15 +218,11 @@ Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD
                     AdvanceStep
                 End If
 
-
-
             Else    ' es una letra
 
-                If Gcd.CCC[elem.gender].NewParameter(elem, ["text", sText], True) Then AdvanceStep
+                If Gcd.CCC[elem.gender].NewParameter(elem, ["text", EnteredText], True) Then AdvanceStep
 
             End If
-
-
 
             ' esto no se maneja mas a este nivel, cada entidad lo maneja en NewParameter
 
@@ -236,14 +237,12 @@ Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD
             ' Else
             '
 
-
-
         Case "T"
             errtxt = ", expected text, not a point"
             ' its a valid input?
             If EnteredText = "" Then
 
-                sText = ParamDefault[Gcd.CCC[elem.gender].StepsDone]
+                sText = ParamDefault[gcd.StepsDone]
 
             Else
 
@@ -257,7 +256,7 @@ Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD
             errtxt = "enter a valid text size"
 
             If EnteredText = "" Or EnteredText = "U" Then
-                Try bResult = Gcd.CCC[elem.gender].NewParameter(elem, ["float", ParamDefault[Gcd.CCC[elem.gender].StepsDone]], True)
+                Try bResult = Gcd.CCC[elem.gender].NewParameter(elem, ["float", ParamDefault[gcd.StepsDone]], True)
 
             Else
 
@@ -291,29 +290,28 @@ End
 
 Public Sub AdvanceStep()
 
-    Inc Gcd.CCC[elem.gender].StepsDone
-    If Gcd.CCC[elem.gender].StepsDone = StepsTotal Then
+    Inc gcd.StepsDone
+    If gcd.StepsDone = StepsTotal Then
 
         Me.Finish
     Else
 
         ' prepare next stuff
         '
-        NextParamType = UCase(Mid(Gcd.CCC[elem.gender].ParamType, Gcd.CCC[elem.gender].StepsDone + 1, 1))
+        NextParamType = UCase(Mid(Gcd.CCC[elem.gender].ParamType, gcd.StepsDone + 1, 1))
         If NextParamType = "" Then NextParamType = "+"
         If NextParamType = "+" Then ' add another point
             Inc StepsTotal
             NextParamType = "P"
         Endif
 
-        Try DrawingAids.CmdLineHelperNext = ParamHelperList[Gcd.CCC[elem.gender].StepsDone]          ' try in case of lack of desciption or keep last
-        If ParamDefault.Count > Gcd.CCC[elem.gender].StepsDone Then                            ' not null
-            ParamDefault[Gcd.CCC[elem.gender].StepsDone] = Trim$(ParamDefault[Gcd.CCC[elem.gender].StepsDone])
-            If ParamDefault[Gcd.CCC[elem.gender].StepsDone] <> "" Then DrawingAids.CmdLineHelperNext &= "[" & ParamDefault[Gcd.CCC[elem.gender].StepsDone] & "]"           ' try in case of lack of desciption or keep last
+        Try DrawingAids.CmdLineHelperNext = ParamHelperList[gcd.StepsDone]          ' try in case of lack of desciption or keep last
+        If ParamDefault.Count > gcd.StepsDone Then                            ' not null
+            ParamDefault[gcd.StepsDone] = Trim$(ParamDefault[gcd.StepsDone])
+            If ParamDefault[gcd.StepsDone] <> "" Then DrawingAids.CmdLineHelperNext &= "[" & ParamDefault[gcd.StepsDone] & "]"           ' try in case of lack of desciption or keep last
         End If
         Me.MouseMove
     Endif
-
 
     gcd.redraw
 
@@ -559,12 +557,12 @@ Public Sub Finish() As Boolean
     LastEntity = elem                                       ' save it to repeat on rigth click
     If Left(elem.Gender, 3) = "DIM" Then gcd.currentDrawing.LastDimension = elem
 
-
     gcd.CurrentDrawing.RequiresSaving = True
     gcd.DrawHoveredEntity = True
 
     gcd.clsJobPrevious = Me
     gcd.clsJob = cadSelection
+    fMain.GLArea1.PopupMenu = ""
     cadSelection.PoiChecking = True
     DrawingAids.CleanTexts
 
@@ -585,5 +583,6 @@ Public Sub Cancel()
     gcd.clsJob = cadSelection
     DrawingAids.CleanTexts
     gcd.Redraw
+    fMain.GLArea1.PopupMenu = ""
 
 End

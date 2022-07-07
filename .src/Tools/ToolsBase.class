@@ -75,12 +75,23 @@ Public glScale As New Float[]             ' sX, sY, sZ
 Public cursorX As Integer
 Public cursory As Integer
 
+Public Const ContextMenu As String = ("Close;_CLOSE;Undo;_UNDO;End;_END;Cancel;_CANCEL") ' el menu para el boton derecho, los comendos en mayusculas NO se traducen
+
 Public Sub _new()
 
     Me.glTranslate.Insert([0.0, 0.0, 0.0])         ' dX, dY, dZ
     Me.glRotate.Insert([0.0, 0.0, 1.0])            ' rX, rY, rZ
     Me.glAngle = 0                           ' deg
     Me.glScale.Insert([1.0, 1.0, 1.0])             ' sX, sY, sZ
+
+End
+
+Public Function Start(Optional ElemToBuild As Variant, Optional _mode As Integer = 0) As Boolean
+
+    Me.PointsDone = 0
+    Me.mode = _mode
+    Utils.MenuMaker(fMain, "mToolsBase", Me.ContextMenu)
+    fMain.GLArea1.PopupMenu = "mToolsBase"
 
 End
 
@@ -301,6 +312,7 @@ Public Sub MouseUp()
             gcd.clsJob.finish
             gcd.clsJobPrevious = gcd.clsJob
             gcd.clsJob = cadSelection
+            gcd.clsJob.start()
 
         Endif
 
@@ -320,6 +332,7 @@ Public Sub MouseUp()
         Else
 
             gcd.clsJob = gcd.clsJobPreZoom
+            gcd.clsJob.start()
 
         End If
 
@@ -375,13 +388,15 @@ End
 
 Public Sub Finish()
 
+    clsEntities.DeSelection()
     gcd.CurrentDrawing.RequiresSaving = True
     gcd.CurrentDrawing.iEntity.Clear
     gcd.CurrentDrawing.iEntity.Insert([0, 0, -1, -1])
     gcd.clsJobPrevious = Me
     gcd.clsJob = cadSelection
+    gcd.clsJob.start()
     DrawingAids.CleanTexts
-    clsEntities.DeSelection()
+
     gcd.DrawOriginals = False
     Me.Active = False
     gcd.ToolActive = False
@@ -394,6 +409,7 @@ Public Sub Cancel()
     gcd.clsJobPrevious = Me
     gcd.clsJob = cadSelection
     clsEntities.DeSelection()
+    gcd.clsJob.start()
     DrawingAids.CleanTexts
     gcd.Redraw
 
