@@ -118,7 +118,7 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
                 Load3Tables(cLlaveActual)
 
                 ' con las tablas cargadas, llenamoslas colecciones de objetos
-
+                ReadViewports(cToFill, drw)
                 ReadLTypes(cToFill, drw)
                 ReadStyles(cToFill, drw)
                 ReadLayers(cToFill, drw)
@@ -215,45 +215,7 @@ Private Sub ReadData()
 
 End
 
-' Private Sub Load1Headers(cVars As Collection)
-'
-'   ' Los header se guardan asi
-'   '   9                     Indica que es una variable
-'   ' $EXTMAX                 Nombre de la variable
-'   '  10                     Tipo de dato1
-'   ' 198.0411690635561       Dato1
-'   '  20                     Tipo de dato2
-'   ' 178.7767572407179       Dato2
-'   '  30                     etc
-'   '   0
-'
-'   ' Yo usare dos colecciones
-'
-'   Dim sVarName As String
-'   Dim cVariable As Collection
-'
-'   ReadData
-'   Do
-'
-'     If lpCode = "0" And lpValue = "ENDSEC" Then Break
-'
-'     If lpcode = "9" Then ' nueva variable
-'       cVariable = New Collection
-'       cVars.Add(cVariable, lpValue)
-'       Do                          ' este bucle es por si la variable es un array
-'         ReadData
-'         If lpcode = "0" Or lpCode = "9" Then Break
-'         cVariable.Add(lpvalue, lpcode)
-'
-'       Loop
-'
-'     Endif
-'
-'   Loop
-'
-'   'gcd.debuginfo("DXF: Leidas", gcd.CurrDrawing.cModel["HEADER"].Count, "variables de ambiente"
-'
-' End
+
 
 Private Sub Load1HeadersDirect(oHeader As Headers)
 
@@ -689,19 +651,6 @@ End
 
 Public Function SaveFile(sName As String, drwToSAve As Drawing, Optional LoadMinimal As Boolean = False, SaveHeader As Boolean = True, SaveTables As Boolean = True, SaveBlocks As Boolean = True, SaveThumbnail As Boolean = True) As Integer
 
-    Dim cData As Collection
-    Dim f As String
-
-    ' If Not cDrwData Then ' necesito cargar el minimal para tener los datos basicos
-    '   cData = New Collection              ' instanciamos la coleccion
-    '   f = "./minimal/minimal.dxf"
-    '   If Not Exist(f) Then Goto Error1
-    '   LoadFile(f, cData)
-    '
-    ' Else
-    '   cData = cDrwData
-    ' End If
-
     hFile = Open sName For Write Create
 
     LastHandle = 0          ' creamos las handles desde cero
@@ -762,7 +711,7 @@ End
 Private Function Save2Classes(drwSaving As Drawing) As Integer
 
     Dim cClass As CadClass
-    Dim lpValue, lpclave As String
+
     ' Dim i As Integer
 
     Print #hFIle, "  0"
@@ -774,11 +723,6 @@ Private Function Save2Classes(drwSaving As Drawing) As Integer
     For Each cClass In drwSaving.oClasses
         Print #hFIle, "  0"
         Print #hFIle, "CLASS"
-
-        ' lpclave = "0"
-        ' lpvalue = cClass.RecordType
-        ' Print #hFile, lpclave
-        ' Print #hFIle, lpvalue
 
         Print #hFile, "  1"
         Print #hFIle, cClass.RecordName
@@ -1609,6 +1553,39 @@ End Sub
 ' End
 
 '' Reads layers collection and puts data in oLayers
+Public Sub ReadViewports(cVptData As Collection, drw As Drawing)
+
+    Dim vNew As Viewport
+
+    ' ' primero eliminamos lo q haya
+    Drw.oViewports.Clear
+    For Each cViewp As Collection In cVptData["TABLES"]["VPORT"]
+        vNew = New Viewport
+        ' hLay.Name = cLay[dxf.codName]
+        ' hLay.Visible = CInt(cLay[dxf.codColor]) >= 0
+        ' hLay.Colour = Abs(CInt(cLay[dxf.codColor]))
+        ' hLay.handle = cLay[dxf.codHandle]
+        ' If hLay.handle = "" Then hLay.handle = gcd.NewHandle()
+        ' Drw.oLayers.Add(hLay, hLay.handle)
+    Next
+
+    ' ' es inaceptable no tener al menos un layrr
+    ' If drw.oLayers.Count = 0 Then
+    '     hLay = New Layer
+    '     hLay.Name = "0"
+    '     hLay.Visible = True
+    '     hLay.Colour = 0
+    '     hLay.handle = gcd.NewHandle()
+    '     Drw.oLayers.Add(hLay, hLay.handle)
+    ' Endif
+    '
+    ' ' aprovecho para setear el layer actual
+    ' Drw.CurrLayer = Drw.oLayers[Drw.oLayers.First]
+
+End
+
+
+'' Reads layers collection and puts data in oLayers
 Public Sub ReadLayers(cLaydata As Collection, drw As Drawing)
 
     Dim hLay As Layer
@@ -1639,8 +1616,8 @@ Public Sub ReadLayers(cLaydata As Collection, drw As Drawing)
     Drw.CurrLayer = Drw.oLayers[Drw.oLayers.First]
 
 End
-'' Reads Styles and DimStyles collection and puts data in arrStyles
 
+'' Reads Styles and DimStyles collection and puts data in arrStyles
 Public Sub ReadStyles(cData As Collection, drw As Drawing)
 
     Dim hlty As TextStyle
@@ -1705,8 +1682,8 @@ Public Sub ReadStyles(cData As Collection, drw As Drawing)
     End If
 
 End
-'' Reads LineTypes collection and puts data in arrLTypes
 
+'' Reads LineTypes collection and puts data in arrLTypes
 Public Sub ReadLTypes(cData As Collection, drw As Drawing)
 
     Dim hlty As LineType
