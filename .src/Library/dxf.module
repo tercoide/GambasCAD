@@ -15,6 +15,7 @@ Private lpValue As String
 
 Private eExports As Boolean
 
+Private ReadTimes As New Collection
 Public cEntitiesUnread As Collection
 Public nEntitiesUnread As Integer
 Public nEntitiesRead As Integer
@@ -99,12 +100,14 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
                 End If
 
                 Load1HeadersDirect(drw.oHeader)
+                gcd.debugInfo("Leidos Headers",,, True)
 
             End If
 
             If lpCode = "2" And lpValue = "CLASSES" Then
 
                 Load2Classes(drw)
+                gcd.debugInfo("Leidas Classes",,, True)
 
             End If
 
@@ -116,12 +119,15 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
                     cLlaveActual = cToFill["TABLES"]
                 End If
                 Load3Tables(cLlaveActual)
+                gcd.debugInfo("Leidos Tables",,, True)
 
                 ' con las tablas cargadas, llenamoslas colecciones de objetos
                 ReadViewports(cToFill, drw)
                 ReadLTypes(cToFill, drw)
                 ReadStyles(cToFill, drw)
                 ReadLayers(cToFill, drw)
+                gcd.debugInfo("Tables al Drawing",,, True)
+
             End If
 
             '
@@ -130,6 +136,7 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
                 cLlaveActual = New Collection
                 cToFill.Add(cLlaveActual, "BLOCKS")
                 Load4Blocks(cLlaveActual)
+                gcd.debugInfo("Leidos Blocks",,, True)
 
             End If
 
@@ -139,6 +146,7 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
                 cToFill.Add(cLlaveActual, "ENTITIES")
 
                 Load5Entities(cLlaveActual)
+                gcd.debugInfo("Leidas Entidades",,, True)
 
             End If
             '
@@ -152,6 +160,7 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
                 End If
 
                 Load6Objects(cLlaveActual)
+                gcd.debugInfo("Leidos Objetos",,, True)
 
             End If
 
@@ -170,9 +179,12 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
 
         Endif
     Wend
+    gcd.debugInfo("Leidos el DXF",,, True)
 
     If UpdateGraphics Then UpdateGraphicsFromDXF(cToFill, drw,, True)
-
+    For Each ft As Float In ReadTimes
+        gcd.debugInfo(ReadTimes.Key & gb.Tab & gb.Tab & gb.tab & gb.Tab & gb.Tab & gb.tab & Format(fT, "0.0000"))
+    Next
     If VerboseLevel > 1 Then
         If VerboseLevel > 2 Then
             gcd.debuginfo("DXF: Leidas " & nEntitiesread & " entidades")
@@ -214,8 +226,6 @@ Private Sub ReadData()
     End If
 
 End
-
-
 
 Private Sub Load1HeadersDirect(oHeader As Headers)
 
@@ -1584,7 +1594,6 @@ Public Sub ReadViewports(cVptData As Collection, drw As Drawing)
 
 End
 
-
 '' Reads layers collection and puts data in oLayers
 Public Sub ReadLayers(cLaydata As Collection, drw As Drawing)
 
@@ -1815,6 +1824,9 @@ Public Sub DXFtoEntity(cEny As Collection, obx As Collection, Optional NewHandle
     Dim pBlockPolyline As Block
     Dim sHandle As String
 
+    Dim fTime As Float
+    Dim t As Date
+
     For Each e In cEny                                              ' Para cada Coleccion de datos de vrx
         If e.Exist(dxf.codEntity) Then                                     ' es una entidad?
             ' entonces, creamos una nueva
@@ -1827,7 +1839,14 @@ Public Sub DXFtoEntity(cEny As Collection, obx As Collection, Optional NewHandle
                 gcd.debuginfo("Entidad no implementada o con errores: " & e[dxf.codHandle] & "," & e[dxf.codEntity])
 
             Else
+
+                t = Timer
+
                 entNueva = clsEntities.DXFImportToEntity(e, IsDummy)
+                If Not ReadTimes.Exist(entNueva.Gender) Then
+
+                    ReadTimes.Add(fTime, entNueva.Gender)
+                Endif
                 If Not IsNull(entNueva) Then         ' si esta implementada, llenamos los datos
                     If NewHandles Or (entNueva.Handle = "") Then
                         sHandle = gcd.NewHandle()
@@ -1852,9 +1871,12 @@ Public Sub DXFtoEntity(cEny As Collection, obx As Collection, Optional NewHandle
                         flgIsPolyline = False
                         pBlockPolyline = Null
                     End If
+                    fTime = (Timer - t)
+                    ReadTimes[entNueva.Gender] += fTime
                     entNueva = Null                                           ' limpiamos
 
                 Endif
+
             End If
         End If
     Next
@@ -1868,6 +1890,7 @@ Public Function UpdateGraphicsFromDXF(cData As Collection, drw As Drawing, Optio
     gcd.debugInfo("Importing DXF data",,, True)
 
     ImportBlocksFromDXF(cData, drw)
+    gcd.debugInfo("Importados los Blocks",,, True)
 
     If handles.Count = 0 Then                   ' Update all entities
 
@@ -1889,6 +1912,7 @@ Public Function UpdateGraphicsFromDXF(cData As Collection, drw As Drawing, Optio
             Endif
 
         Next
+        gcd.debugInfo("Importadas las Entidades",,, True)
 
     End If
 
