@@ -9,6 +9,9 @@ Public currentFile As String
 Public CursorX As Integer
 Public CursorY As Integer
 
+Public Xr As Float
+Public Yr As Float
+
 Public KeysAccumulator As String
 Public TmrTicks As Integer
 
@@ -26,6 +29,7 @@ Public flgShowingLayers As Boolean
 Public flgWheelCounter As Integer
 
 Public $hDrawTimer As New Timer As "DrawTimer"
+Public $hSearchTimer As New Timer As "SearchTimer"
 
 Public GridSpacing As Float = 0.5
 Public GridActive As Boolean = False         ' use with F7: 0 = no grid, 1 = dots, 2 = lines
@@ -41,6 +45,13 @@ Public Sub DrawTimer_Timer()
     glarea1.Refresh
 
 End Sub
+
+Public Sub SearchTimer_Timer()
+
+    gcd.currentDrawing.HoveredEntity = clsMouseTracking.CheckAboveEntity(xr, yr)
+
+End Sub
+
 
 Public Sub Run() As Boolean
 
@@ -610,16 +621,19 @@ Public Sub GLArea1_draw()
     ' glPlus.Triangles(ftring2, Color.Blue, Color.blue)
     ' en este momento le damos la posibilidad a la clase actuante a que dibuje lo que quiera
 
-    If gcd.currentDrawing.HoveredEntityPrevious Then
-        ' si no esta seleccionada, la resalto
-        'If Not arrEntities[iEntity[3]].Selected Then
-        'iParent = clsEntities.GetParentBlock(gcd.currentDrawing.iEntity[3]) ' esto verifica si tiene que resaltar el bloque completo
+    ' If gcd.currentDrawing.HoveredEntityPrevious Then
+    '     ' si no esta seleccionada, la resalto
+    '     'If Not arrEntities[iEntity[3]].Selected Then
+    '     'iParent = clsEntities.GetParentBlock(gcd.currentDrawing.iEntity[3]) ' esto verifica si tiene que resaltar el bloque completo
+    '
+    '     If gcd.DrawHoveredEntity Then gl.CallList(gcd.currentDrawing.HoveredEntityPrevious.glDrwListRemark)
+    '     '     Gcd.CCC[gcd.currentDrawing.HoveredEntityPrevious.gender].DrawRemark(gcd.currentDrawing.HoveredEntityPrevious)
+    '     ' End If
+    ' End If
 
-        If gcd.DrawHoveredEntity Then gl.CallList(gcd.currentDrawing.HoveredEntityPrevious.glDrwListRemark)
-        '     Gcd.CCC[gcd.currentDrawing.HoveredEntityPrevious.gender].DrawRemark(gcd.currentDrawing.HoveredEntityPrevious)
-        ' End If
+    If gcd.DrawHoveredEntity Then
+        If gcd.currentDrawing.HoveredEntity Then gl.CallList(gcd.currentDrawing.HoveredEntity.glDrwListRemark)
     End If
-
     DrawingAids.DrawCoordenadas
 
     DrawingAids.DibujaHelper
@@ -679,7 +693,7 @@ End
 
 Public Sub GLArea1_MouseMove()
 
-    Dim Xr, Yr As Float
+
 
     If Not gcd.clsJob Then Return
     Xr = gcd.Xreal(Mouse.x)
@@ -697,14 +711,16 @@ Public Sub GLArea1_MouseMove()
     Else If Mouse.Right Then
 
     Else
-        If gcd.flgsearchingallowed Then
-            gcd.currentDrawing.HoveredEntity = clsMouseTracking.CheckAboveEntity(Xr, Yr)
-            If gcd.currentDrawing.HoveredEntityPrevious <> gcd.currentDrawing.HoveredEntity Then
-                gcd.currentDrawing.HoveredEntityPrevious = gcd.currentDrawing.HoveredEntity
-                gcd.currentDrawing.HoveredEntity = Null
-                gcd.redraw
-            Endif
-        End If
+        ' If gcd.flgsearchingallowed Then
+        '     gcd.currentDrawing.HoveredEntity = clsMouseTracking.CheckAboveEntity(Xr, Yr)
+        '     If gcd.currentDrawing.HoveredEntity Then gcd.redraw
+        '     ' If gcd.currentDrawing.HoveredEntityPrevious <> gcd.currentDrawing.HoveredEntity Then
+        '     '     gcd.currentDrawing.HoveredEntityPrevious = gcd.currentDrawing.HoveredEntity
+        '     '     gcd.currentDrawing.HoveredEntity = Null
+        '     '
+        '     ' Endif
+        ' End If
+        ReSearch
 
     End If
 
@@ -746,6 +762,13 @@ End
 Public Sub redraw()
 
     $hDrawTimer.Trigger
+    Wait 0.001
+
+End
+
+Public Sub ReSearch()
+
+    $hSearchTimer.Trigger
     Wait 0.001
 
 End
