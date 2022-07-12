@@ -110,7 +110,7 @@ Public Function CheckAboveEntity(xr As Float, Yr As Float, Optional iTolerance A
 
     Dim iVisible As Integer
     Dim Found As Boolean = True
-    Dim eVisible, eInsertFound As Entity
+    Dim eVisible, eInsertFound, eBounded, ePolyline As Entity
     Dim T As Float = Timer
     Dim Tolerance As Float = gcd.Metros(iTolerance)
     Dim eFound As Entity
@@ -118,6 +118,9 @@ Public Function CheckAboveEntity(xr As Float, Yr As Float, Optional iTolerance A
     gcd.flgSearchingAllowed = False
     iVisible = 0
     Found = False
+    eFound = Null
+    eBounded = Null
+    ePolyline = Null
 
     For Each eVisible In gcd.CurrentDrawing.oVisibleEntities
         Inc iVisible
@@ -129,7 +132,13 @@ Public Function CheckAboveEntity(xr As Float, Yr As Float, Optional iTolerance A
             Found = True
             If eVisible.pBlock Then
                 eInsertFound = eVisible
+            Else If eVisible.Polygon Then
+                eBounded = eVisible
+            Else If eVisible.PolyLine Then
+                ePolyline = eVisible
+
             Else
+
                 eFound = eVisible
 
                 Break
@@ -142,9 +151,11 @@ Public Function CheckAboveEntity(xr As Float, Yr As Float, Optional iTolerance A
 
     gcd.flgSearchingAllowed = True
 
-    If Found Then
-        If eFound Then Return eFound
-        Return eInsertFound
+    If Found Then                           ' devuelvo con orden de prelacion
+        If eFound Then Return eFound        ' primero las lineas
+        If ePolyline Then Return ePolyline  ' luego las Poly
+        If eBounded Then Return eBounded    ' luego Polygonos
+        Return eInsertFound                 ' luego Insertos
     Else
         Return Null
     End If
