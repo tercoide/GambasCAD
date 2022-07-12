@@ -14,6 +14,7 @@ Public Const CmdLineHelper As String = "SPLine"
 Public Const ParamType As String = "P+"                             ' that is Point, Point, Float could be Color Text, etc
 Public Const ParamHelper As String = ("Next Point")      ' a little text that is shown at the prompt waiting for user input during build
 Public Const ParamDefault As String = "Close/Undo"
+Public Const ContextMenu As String = ("Close polyline;_CLOSE;Undo last point;_UNDO;End in last point;_END") ' el menu para el boton derecho, los comandos en mayusculas NO se traducen
 
 ' otras const
 Public Const TypeControls As Integer = 0
@@ -80,16 +81,25 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
             GoSub DoKnots
             Return True
         End If
-    Else If vParam[0] = "close" Then
+    Else If vParam[1] = "CLOSE" Then
         If eBuild.P.Count > 4 Then eBuild.P.Remove(eBuild.P.Max - 1, 2)
-
+        eBuild.P[eBuild.P.Max - 1] = eBuild.P[0]
+        eBuild.P[eBuild.P.Max] = eBuild.P[1]
+        GoSub DoKnots
+        Inc gcd.StepsDone
         Return True
 
-    Else If vParam[0] = "undo" Then
+    Else If vParam[1] = "UNDO" Then
         If eBuild.P.Count > 4 Then
             eBuild.P.Remove(eBuild.P.Max - 1, 2)
             GoSub DoKnots
         End If
+
+        Return True
+    Else If vParam[1] = "END" Then
+        If eBuild.P.Count > 4 Then eBuild.P.Remove(eBuild.P.Max - 1, 2)
+        GoSub DoKnots
+        Inc gcd.StepsDone
 
         Return True
 
