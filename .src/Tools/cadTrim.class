@@ -38,7 +38,7 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
     DrawingAids.CmdLineHelper = ("Trim") & " "
     gcd.clsJob.EntityChecking = True
 
-    If gcd.CurrentDrawing.oSelected.Count = 0 Then                                     ' we have no elements in the selection
+    If gcd.Drawing.oSelected.Count = 0 Then                                     ' we have no elements in the selection
 
         DrawingAids.Helper.texto = DrawingAids.CmdLineHelper & ": " & ("Select cutting edges")
 
@@ -49,11 +49,11 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
 
         ' recolecto las tijeras
 
-        Tijeras = gcd.CurrentDrawing.oSelected
+        Tijeras = gcd.Drawing.oSelected
 
         '
         DrawingAids.Helper.texto = DrawingAids.CmdLineHelper & ": " & ("entities to cut")
-        'DrawingAids.CmdLineHelper = DrawingAids.CmdLineHelper & str(gcd.CurrentDrawing.oSelected.count) & (" elements")
+        'DrawingAids.CmdLineHelper = DrawingAids.CmdLineHelper & str(gcd.Drawing.oSelected.count) & (" elements")
 
     Endif
 
@@ -69,7 +69,7 @@ Public Function MouseDown()
     Me.SelEndyr = gcd.Yreal(mouse.y)
     If Mouse.Left Then
 
-        If gcd.CurrentDrawing.HoveredEntity Then
+        If gcd.Drawing.HoveredEntity Then
 
             DoTrim
 
@@ -81,15 +81,15 @@ End
 '' Esta sub recorta una linea con otras cosas
 Public Sub DoTrim()
 
-    Me.eRecortar = gcd.CurrentDrawing.HoveredEntity
+    Me.eRecortar = gcd.Drawing.HoveredEntity
     Select Case eRecortar.Gender
-    Case "LINE"
+        Case "LINE"
             DoTrimLine
         Case "LWPOLYLINE"
             DoTrimPline
         Case "CIRCLE"
             DoTrimCircle
-    Case "ARC", "ELLIPSE"
+        Case "ARC", "ELLIPSE"
             DoTrimArc
 
     End Select
@@ -179,7 +179,7 @@ Public Sub DoTrimLine()
     C2x = eRecortar.p[2]
     C2y = eRecortar.p[3]
 
-    For Each eTijera In gcd.CurrentDrawing.oSelected
+    For Each eTijera In gcd.Drawing.oSelected
         Select Case eTijera.Gender
             Case "LINE"
                 If puntos.doIntersect(eRecortar.p[0], eRecortar.p[1], eRecortar.p[2], eRecortar.p[3], eTijera.p[0], eTijera.p[1], eTijera.p[2], eTijera.p[3]) Then
@@ -340,7 +340,7 @@ Public Sub DoTrimLine()
 
         ' tareas finales en las entidades
         Gcd.CCC[eNewPart.gender].finish(eNewPart)
-        gcd.CurrentDrawing.oEntities.Add(eNewPart)                ' la agrego al dibujo
+        gcd.Drawing.oEntities.Add(eNewPart, eNewPart.Handle)                ' la agrego al dibujo
 
         eRecortar.p[2] = C1x
         eRecortar.p[3] = C1y
@@ -388,7 +388,7 @@ Public Sub DoTrimPline()
         T2x = eRecortar.p[t + 2]
         T2y = eRecortar.p[t + 3]
 
-        For Each eTijera In gcd.CurrentDrawing.oSelected
+        For Each eTijera In gcd.Drawing.oSelected
             Select Case eTijera.Gender
                 Case "LINE"
                     If puntos.doIntersect(T1x, T1y, T2x, T2y, eTijera.p[0], eTijera.p[1], eTijera.p[2], eTijera.p[3]) Then
@@ -572,7 +572,7 @@ Public Sub DoTrimPline()
 
         ' tareas finales en las entidades
 
-        gcd.CurrentDrawing.oEntities.Add(eNewPart)                ' la agrego al dibujo
+        gcd.Drawing.oEntities.Add(eNewPart, eNewPart.Handle)                ' la agrego al dibujo
 
         eRecortar.P[(TramoC1) * 2] = C1x
         eRecortar.P[(TramoC1) * 2 + 1] = C1y
@@ -621,7 +621,7 @@ Public Sub DoTrimCircle()
         T2x = eRecortar.p[0] + eRecortar.fParam[0] * Cos(theta)
         T2y = eRecortar.p[1] + eRecortar.fParam[0] * Sin(theta)
 
-        For Each eTijera In gcd.CurrentDrawing.oSelected
+        For Each eTijera In gcd.Drawing.oSelected
             Select Case eTijera.Gender
                 Case "LINE"
                     If puntos.doIntersect(T1x, T1y, T2x, T2y, eTijera.p[0], eTijera.p[1], eTijera.p[2], eTijera.p[3]) Then
@@ -747,7 +747,7 @@ Public Sub DoTrimArc()
 
         End If
 
-        For Each eTijera In gcd.CurrentDrawing.oSelected
+        For Each eTijera In gcd.Drawing.oSelected
             Select Case eTijera.Gender
                 Case "LINE"
                     If puntos.doIntersect(T1x, T1y, T2x, T2y, eTijera.p[0], eTijera.p[1], eTijera.p[2], eTijera.p[3]) Then
@@ -821,7 +821,7 @@ Public Sub DoTrimArc()
 
         eNewPart.fParam[1] = C2
 
-        gcd.CurrentDrawing.oEntities.Add(eNewPart)                ' la agrego al dibujo
+        gcd.Drawing.oEntities.Add(eNewPart, eNewPart.Handle)                ' la agrego al dibujo
 
         eRecortar.fParam[2] = C1
 

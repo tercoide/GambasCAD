@@ -41,7 +41,7 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
     DrawingAids.CmdLineHelper = ("Break") & " "
 
     ' chequeamos si hubo seleccion previa
-    Me.SelectionCount = gcd.currentdrawing.oSelected.Count
+    Me.SelectionCount = gcd.Drawing.oSelected.Count
 
     If Me.SelectionCount <> 1 Then
         clsEntities.DeSelection()
@@ -52,10 +52,10 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
 
     Else
         ' verificamos si la entidad puede ser partida
-        Me.iEntitySelected = gcd.CurrentDrawing.arrSelecIndex[0]
+        Me.iEntitySelected = gcd.Drawing.arrSelecIndex[0]
 
-        Select Case gcd.CurrentDrawing.oEntities[Me.iEntitySelected].Gender
-    Case "LINE", "LWPOLYLINE", "CIRCLE", "ARC", "ELLIPSE", "SPLINE"
+        Select Case gcd.Drawing.oEntities[Me.iEntitySelected].Gender
+            Case "LINE", "LWPOLYLINE", "CIRCLE", "ARC", "ELLIPSE", "SPLINE"
                 clsEntities.SelectElem(Me.iEntitySelected)
                 DrawingAids.Helper.texto = ("Breakpoint of entity")
                 Me.PointsDone = 1
@@ -82,11 +82,12 @@ Public Function MouseUp() ' called by FCAD-> DrawingArea_MouseUp
     ' verifico que este sobre la entidad a romper
     If Me.PointsDone = 1 Then ' estoy intentando seleccionar una entidad
 
-        If gcd.CurrentDrawing.iEntity[3] <> Me.iEntitySelected Then ' el mouse se fue de la entidad a romper
+        If gcd.Drawing.iEntity[3] <> Me.iEntitySelected Then ' el mouse se fue de la entidad a romper
             DrawingAids.ErrorMessage = ("Invalid breakpoint")
             Return
         End If
-        e = gcd.CurrentDrawing.oEntities[Me.iEntitySelected]       ' esto lo hago para reducir el largo del codigo
+        ' FIXME error
+        'gcd.Drawing.oEntities[Me.iEntitySelected]       ' esto lo hago para reducir el largo del codigo
         Select Case e.Gender
             Case "LINE"
                 flxIntersec = clsMouseTracking.GetNearestPoint(e, Me.SelStartXr, Me.SelStartYr)
@@ -103,7 +104,7 @@ Public Function MouseUp() ' called by FCAD-> DrawingArea_MouseUp
                 e2.P[3] = flxIntersec[1]
                 Gcd.CCC[e2.gender].finish(e2)
                 ' la agrego al dibujo
-                gcd.CurrentDrawing.oEntities.Add(e2)
+                gcd.Drawing.oEntities.Add(e2, e2.Handle)
 
                 e.P[0] = flxIntersec[0]                ' y ahora recorto la entidad original
                 e.P[1] = flxIntersec[1]
@@ -111,7 +112,7 @@ Public Function MouseUp() ' called by FCAD-> DrawingArea_MouseUp
 
                 ' regenro las listas openGL de ambas entidades
                 clsEntities.glGenDrawList(Me.iEntitySelected)
-                clsEntities.glGenDrawList(gcd.CurrentDrawing.oEntities)
+                clsEntities.glGenDrawList(gcd.Drawing.oEntities)
 
                 Me.Finish
 
