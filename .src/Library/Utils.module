@@ -1,9 +1,6 @@
 ' Gambas module file
 
 '
-' estru3D
-' Software para cálculo de estructuras mediante el método de la rigidez. Calcula estructuras tridimensionales, representa esfuerzos y solicitaciones en apoyos. Gráficas elásticas.
-'
 ' Copyright (C) Ing Martin P Cristia
 '
 ' This program is free software; you can redistribute it and/or modify
@@ -28,6 +25,7 @@ Public LastEntry As String
 
 Public Const DoEventsTime As Float = 0.25
 Public itsTime As Boolean
+Public DeepCounter As Integer = 0
 
 Public MenuEnabled As Integer = 0
 Public MenuChecked As Integer = 1
@@ -491,5 +489,157 @@ Public Function MenuMakerPlus(oParent As Object, sName As String, stxItems As St
     Next
 
     Return True
+
+End
+
+Public Function SaveClass(obj As Object, sFile As String) As Integer
+
+    Dim jConfig As New JSONCollection
+    Dim MyClass As Class = Object.Class(obj)
+    Dim Var As String
+    Dim Valor As Variant
+
+    If sFile = "" Then
+        sFile = User.Home &/ "SaveClass.json"
+    Endif
+
+    jConfig = ClassToCollection(obj)
+
+    If Not Exist(File.Dir(sFile)) Then
+        Shell "mkdir -p " & File.Dir(sFile) Wait
+    Endif
+    File.Save(sFile, Encode2(jConfig))
+
+End
+
+Public Function ClassToCollection(objClass As Object) As Collection
+
+    Dim cClass As New Collection
+    Dim jConfig As New JSONCollection
+    Dim MyClass As Class = Object.Class(objClass)
+    Dim Var As String
+    Dim Valor, valor2 As Variant
+    Dim sClass As Collection
+
+    ' Next
+    For Each Var In myClass.Symbols
+        ' verificamos que sea una propiedad o variable
+        If (MyClass[var].kind = Class.Variable) Or (MyClass[var].kind = Class.Property) Then
+            valor = Object.GetProperty(objClass, var)
+
+            If TypeOf(valor) = gb.Object Then  ' intento llamar recursivamente
+                If valor Is Array Then ' si es un array de clases?
+                    If valor.count > 0 Then
+                        If TypeOf(valor[0]) < 16 Then
+                            jConfig.Add(Valor, var)
+                        Else
+                            Inc DeepCounter
+                            If DeepCounter = 10 Then
+                                Dec DeepCounter
+                                Return Null
+                            End If
+                            valor2 = ClassToCollection(valor)
+                            Dec DeepCounter
+                            jConfig.Add(Valor2, var)
+                        Endif
+                    Else
+                        jConfig.Add("[]", var)
+                    End If
+
+                Else If IsNull(valor) Then
+                    jConfig.Add("null", var)
+                Else
+                    Inc DeepCounter
+                    If DeepCounter = 10 Then
+                        Dec DeepCounter
+                        Return Null
+                    End If
+                    sClass = ClassToCollection(valor)
+                    Dec DeepCounter
+                    jConfig.Add(sClass, var)
+                End If
+            Else
+                jConfig.Add(Valor, var)
+            End If
+        End If
+
+    Next
+    Return jConfig
+
+End
+
+'' Encode in JSON format in a human readable way. Based on a Laurent tool.
+'' Copyrigth M Belmonte
+'' Correction of brakets error By Tercoide 2022-05-1
+Public Function Encode2(vData As Variant) As String
+
+    Dim sInput As String
+    Dim sOutput As String
+    Dim iStream As Stream
+
+    Dim $sReadChar As String
+    Dim $iTab As Integer
+    Dim $bQuote, $bBracket As Boolean
+    Dim $BracketLevel As Integer            ' Nuevo
+
+    sInput = JSON.Encode(vData)
+
+    iStream = Open String sInput For Read
+
+    While (Not Eof(iStream))
+        $sReadChar = Read #iStream, 1
+        If ($sReadChar = "{" And Not $bQuote) Then
+            $iTab += 1
+            $sReadChar &= "\n" & Space$($iTab * 2)
+        Else If ($sReadChar = "}" And Not $bQuote) Then
+            $iTab -= 1
+            $sReadChar = "\n" & Space$($iTab * 2) & $sReadChar
+        Else If ($sReadChar = "\"") Then
+            $bQuote = Not $bQuote
+        Else If ($sReadChar = "[") Then
+
+            Inc $BracketLevel
+
+            $bBracket = True
+
+        Else If ($sReadChar = "]") Then
+            $bBracket = False
+            Dec $BracketLevel
+        Else If ($sReadChar = ":" And Not $bQuote) Then
+            $sReadChar &= " "
+        Else If ($sReadChar = "," And Not $bQuote) Then
+
+            If $BracketLevel > 1 Then             ' solo agrego un salto de linea si no hay abierto nuevos brackets
+                $sReadChar &= " "
+            Else
+                $sReadChar &= "\n" & Space$($iTab * 2)
+            End If
+
+        Endif
+        sOutput &= $sReadChar
+    Wend
+
+    Close iStream
+    ' replace null with ""
+    sOutput = Replace(sOutput, " null", " \"\"")
+
+    Return sOutput
+
+End
+
+Public Sub LoadClass(obj As Object, sFile As String)
+
+    Dim jConfig As Collection
+    Dim sSymbol As String
+    Dim MyClass As Class = Object.Class(obj)
+
+    If Exist(sFile) Then
+        jConfig = JSON.FromString(File.Load(sFile))
+        For Each sSymbol In myClass.Symbols
+            If jConfig.Exist(sSymbol) Then
+                Object.SetProperty(obj, sSymbol, jConfig[sSymbol])
+            Endif
+        Next
+    Endif
 
 End
