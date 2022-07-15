@@ -1,0 +1,173 @@
+' Gambas class file
+
+' m-designer
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+
+' this class gives more life to entities by adding capabilities to react to each other
+' change shape and move across the board at time intervals
+' they also will be able to receive and transmit things like electricity, fluid, gas, data, sounds, etc
+
+Inherits EntityBase
+
+Public Const GAMBASCADENTITY As String = "BIMEntityBase"
+Public Const USEWITH As String = "clsBIMEntityBuilder"
+Public Const DrawingOrder As Integer = 0           ' 1 = draws first
+Public Const OrthogonalIgnored As Boolean = False
+Public Const OrthogonalForced As Boolean = False
+Public Const ParamDefault As String = " "
+Public Const StretchAble As Boolean = True           ' Si lo puedo deformar
+Public Conectors As Float[]
+Public Ensambles As Float[]
+
+Public Sub _new()
+
+End
+
+Public Function _compare(cosas As Object) As Integer
+
+    Return Sgn(Me.DrawingOrder - cosas.DrawingOrder)
+
+End
+
+'' Determines if the entity was selected by a rectanle surrounding al points
+'' by default, if ALL points are selected, it can.
+Public Function SelFull(X1real As Float, Y1real As Float, X2real As Float, Y2real As Float) As Boolean
+
+    Dim i As Integer, puedo As Boolean
+
+    ' Si tengo un bounding poligon, entonces verifico que todos los puntos esten dentro
+    If Me.Polygon.Count > 0 Then
+
+        Return puntos.IsPoligonInsideRect(Me.Polygon, X1real, Y1real, X2real, Y2real)
+
+    Else    ' no tengo un poligono, entonces verifico que todos los puntos definitorios de al entidad esten dentro
+
+        puedo = True                     ' supongamos que puedo, por ahora
+        For i = 0 To Me.p.max Step 2
+            If Not (Me.p[i] >= X1real And Me.p[i] <= X2real) And (Me.p[i + 1] >= Y1real And Me.p[i + 1] <= Y2real) Then
+                puedo = False
+            End If
+        Next
+
+        If puedo Then
+            For i = 0 To Me.PSel.Max
+                Me.PSel[i] = True
+            Next
+
+            Return True
+        Else
+            For i = 0 To Me.PSel.Max
+                Me.PSel[i] = False
+            Next
+
+            Return False
+        End If
+    Endif
+
+End
+
+'' Determines if the entity can be stretched
+'' by default, if ANY point is selected, it can.
+Public Function SelPartial(X1real As Float, Y1real As Float, X2real As Float, Y2real As Float) As Boolean
+
+    Dim i As Integer, puedo As Boolean
+
+    ' Si tengo un bounding poligon, entonces verifico que alguna linea lo cruce
+    If Me.Polygon.Count > 0 Then
+
+        Return puntos.IsPoligonCrossingRect(Me.Polygon, X1real, Y1real, X2real, Y2real)
+
+    Else    ' no tengo un poligono, entonces verifico que todos los puntos definitorios de al entidad esten dentro
+
+        puedo = False
+        For i = 0 To Me.p.max Step 2
+            If (Me.p[i] >= X1real And Me.p[i] <= X2real) And (Me.p[i + 1] >= Y1real And Me.p[i + 1] <= Y2real) Then
+                Me.PSel[i / 2] = True
+                puedo = True
+            End If
+        Next
+
+        If puedo Then
+
+            Return True
+        Else
+            Return False
+        End If
+    End If
+
+End
+
+''      0 No busca nada en particular = Nearest
+''      1       Endpoint
+''      2       Midpoint
+''      4       Perpendicular
+''      8       Center
+''      16      Quadrant
+''      32      Perpendicular
+''      64      Perpendicular
+''      128     Perpendicular
+''      256     Perpendicular
+Public Function AboveMe(Xreal As Float, Yreal As Float, tolerance As Float, mode As Integer, returnData As Float[]) As Boolean
+
+    ' this could be overriden in the child
+
+    returnData.Insert([0, 0, -1])               ' minimal response
+    If Me.P.Count = 0 Then Return
+
+    If puntos.Around(Xreal, yreal, Me.P[0], Me.P[1], fMain.Metros(10)) Then
+
+        returnData[0] = Me.P[0]
+        returnData[1] = Me.P[1]
+        returnData[2] = 0
+        Return True
+
+    Else If Me.Polygon.Count > 0 Then
+
+        If puntos.isInside(Me.Polygon, Xreal, yreal) Then
+            returnData[0] = Xreal
+            returnData[1] = yreal
+            returnData[2] = 0
+
+            Return True
+
+        End If
+
+    Else
+
+        Return False
+    End If
+
+End
+
+Public Sub pointClick(Xr As Float, Yr As Float) As Boolean
+
+    ' this could be overriden in the child
+
+    If Me.Polygon.Count = 0 Then Return False
+
+    If puntos.isInside(Me.Polygon, xr, Yr) Then
+
+        Return True
+    Else
+
+        Return False
+    End If
+
+End

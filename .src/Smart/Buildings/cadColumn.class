@@ -1,0 +1,113 @@
+' Gambas class file
+
+' m-designer
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+
+' Represents a concrete column
+' Element maintained by Terco
+' V3
+Inherits BIMEntityBase
+Public Const Gender As String = "Column"
+Public Const DrawingOrder As Integer = 30
+Public Const PointsToDraw As Integer = 0
+Public Const AllowStretching As Boolean = False                     ' true if element admits deformation of its shape
+Public Const HelperTrabajo As String = ("Insert a column")
+Public Const ParamType As String = "PFF"                             ' that is Point, Float, Float; could be Color Text, etc
+Public Const ParamHelper As String = "Position;Side X;Side Z" ' a little text that is shown at the prompt waiting for user input during build
+Public Const ParamDefault As String = " ;0.20;0.20"
+'          |
+
+Public Sub RebuildBlock(e As Entity)
+
+End
+
+Public Sub Draw()
+
+    ' FIXME: requiere reparacion -> OpenGL
+    Return
+
+    If Not Me.DrawAble Or Not Me.Visible Then Return
+
+    paint.LineWidth = 1
+
+    ' todo: expand for real column size
+    paint.Rectangle(Me.p[0] - 0.1, Me.p[1] + 0.1, Me.fParam[0], Me.fParam[1])
+
+    ' veo si esta seleccionada
+    If Me.selected And gcd.DrawMarcados Then
+        paint.brush = Paint.Color(&HA0A063)
+    Else
+        paint.brush = Paint.Color(Color.Black)
+    End If
+    paint.Fill(True)
+
+    paint.brush = Paint.Color(Color.Black)
+    paint.Stroke
+
+    clsEntities.DrawPoint(Me.p[0], Me.p[1], Color.Black)
+
+End
+
+' This function will return False if the element couldn't be created for some reason: bad or incomple user input
+' True means all is good, False will instruct the clsEntityBuilder to delete it
+Public Sub Finish(ParamsDone As Integer) As Boolean
+    ' FIXME: eliminar variables o argumentos que no se usan
+    ' paramsdone:
+    '               -1 means, self check: probably coming from Load a file, or cloning this element
+    '                n will be provided by clsEntityBuilder
+
+    ' we're set
+    ' check if the user entered all params
+
+    If Me.fParam.Count = 0 Then
+        Me.fParam.Add(0.2)         ' X side of column
+        Me.fParam.Add(0.2)         ' Z side of column
+    Else If Me.fParam.Count = 1 Then
+        Me.fParam.Add(0.2)         ' z side of column
+    End If
+
+    Me.CreatePolygon()
+
+    Me.DrawAble = True
+    Me.Selected = False
+    Me.Finished = True
+
+End
+
+Public Sub CreatePolygon()
+
+    ' this is entity specific
+
+    ' we need 4 points for this
+
+    '                  1+------------+2      ---
+    '                   |            |        ^
+    '                   |me.p[0],me.p[1] |
+    '                   |     +      |   fParam[1]
+    '                   |            |
+    '                   |            |        v
+    '                  3+------------+4     ----
+
+    '                   |<fParam[0]->|
+
+    Me.Polygon.Clear
+    Me.Polygon.Insert([Me.p[0] - Me.fParam[0], Me.p[1] - Me.fParam[1], Me.p[0] + Me.fParam[0], Me.p[1] - Me.fParam[1], Me.p[0] - Me.fParam[0], Me.p[1] + Me.fParam[1], Me.p[0] + Me.fParam[0], Me.p[1] + Me.fParam[1]])
+
+End

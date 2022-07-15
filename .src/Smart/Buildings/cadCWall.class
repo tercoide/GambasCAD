@@ -1,0 +1,142 @@
+' Gambas class file
+
+' m-designer
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+
+' Represents a concrete column wall
+' Element maintained by Terco
+' V3
+Inherits BIMEntityBase
+Public Const Gender As String = "WallColumn"
+Public Const DrawingOrder As Integer = 20 ' 1 a 100 esto debe Drawse primero y ser sobreescrito por el resto
+Public Const PointsToDraw As Integer = 1             ' minimal point requered for drawing something usefull
+Public Const HelperTrabajo As String = ("Insert a wall column")
+Public Const ParamType As String = "PPF"                             ' that is Point, Point, Float; could be Color Text, etc
+Public Const ParamHelper As String = "Start point;End point;Thickness"      ' a little text that is shown at the prompt waiting for user input during build
+Public Const ParamDefault As String = " ;  ; 0.12"
+'                                                                                                      |
+'
+
+Public Sub Draw()
+
+    ' FIXME: requiere reparacion -> OpenGL
+    Return
+
+    If Not Me.DrawAble Or Not Me.Visible Then Return
+
+    Dim l As Float, angulo As Float
+    paint.Save
+
+    paint.LineWidth = 1
+
+    ' La viga puede estar inclinada, entonces debo rotarla
+    l = puntos.distancia(Me.p[0], Me.p[1], Me.p[2], Me.p[3])
+
+    angulo = -Ang(Me.p[2] - Me.p[0], Me.p[1] - Me.p[3])
+
+    ' cruces
+    ' TODO: fix this
+    clsEntities.DrawPoint(Me.p[0], Me.p[1], Color.Black)
+    clsEntities.DrawPoint(Me.p[2], Me.p[3], Color.Black)
+    '
+
+    paint.Translate(Me.p[0], Me.p[1])
+
+    ' rectangulo
+
+    paint.Rectangle(0, -0.1, l, 0.2)
+
+    paint.Rotate(angulo)
+    ' veo si esta seleccionada
+    If Me.selected And gcd.DrawMarcados Then
+        paint.brush = Paint.Color(&HA0A063)
+    Else
+        paint.brush = Paint.Color(Color.Gray)
+    Endif
+    paint.Fill(True)
+
+    paint.brush = Paint.Color(Color.Black)
+
+    paint.Stroke
+    paint.Restore
+
+End
+
+' This function will return False if the element couldn't be created for some reason: bad or incomple user input
+' True means all is good, False will instruct the clsEntityBuilder to delete it
+Public Sub Finish(ParamsDone As Integer) As Boolean
+    ' FIXME: eliminar variables que no se usan
+
+    Me.fParam.add(0.2)         ' TODO: fix this when having params entered correctly
+    Me.CreatePolygon
+
+    Me.DrawAble = True
+    Me.Selected = False
+    Me.Finished = True
+
+End
+
+Public Sub CreatePolygon()
+
+    ' checkk Viga / Beam to see how its done
+
+    Me.Polygon.Clear
+
+    Dim BpX, BpZ, l As Float, Rotated As Float[]
+    l = puntos.distancia(Me.p[0], Me.p[1], Me.p[2], Me.p[3])
+
+    ' From an unrotated point of view, our bouding points look like
+    ' 1
+    BpX = Me.p[0]
+    BpZ = Me.p[1] - Me.fParam[0] / 2  ' thats wall thickness
+
+    ' and, the rotated are
+
+    rotated = puntos.RotateFromPointWithSinCos(Me.p[0], Me.p[1], (Me.p[3] - Me.p[1]) / l, (Me.p[2] - Me.p[0]) / l, BpX, Bpz)
+    Me.Polygon.Insert(rotated)     ' pair
+
+    ' 2
+    BpX = Me.p[0] + l
+    BpZ = Me.p[1] - Me.fParam[0] / 2
+
+    ' and, the rotated are
+
+    rotated = puntos.RotateFromPointWithSinCos(Me.p[0], Me.p[1], (Me.p[3] - Me.p[1]) / l, (Me.p[2] - Me.p[0]) / l, BpX, Bpz)
+    Me.Polygon.Insert(rotated)     ' pair
+
+    ' 3
+    BpX = Me.p[0] + l
+    BpZ = Me.p[1] + Me.fParam[0] / 2
+
+    ' and, the rotated are
+
+    rotated = puntos.RotateFromPointWithSinCos(Me.p[0], Me.p[1], (Me.p[3] - Me.p[1]) / l, (Me.p[2] - Me.p[0]) / l, BpX, Bpz)
+    Me.Polygon.Insert(rotated)     ' pair
+
+    ' 4
+    BpX = Me.p[0]
+    BpZ = Me.p[1] + Me.fParam[0] / 2
+
+    ' and, the rotated are
+
+    rotated = puntos.RotateFromPointWithSinCos(Me.p[0], Me.p[1], (Me.p[3] - Me.p[1]) / l, (Me.p[2] - Me.p[0]) / l, BpX, Bpz)
+    Me.Polygon.Insert(rotated)     ' pair
+
+End
