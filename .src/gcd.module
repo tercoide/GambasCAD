@@ -128,10 +128,10 @@ Public DrawHoveredEntity As Boolean = False
 
 Public dirResources As String   '' para compatibilidad con GambasCAD
 
-Public Drawings As New Drawing[]
 Public DrawingReady As Boolean = False
-Public currentDrawing As Drawing
 Public currenyEntity As Entity
+Public Design As New Design
+Public Drawing As New Drawing
 
 Public MainGLArea As GLArea
 
@@ -140,207 +140,11 @@ Public gColor As New Integer[]      '' Colors list
 ' Vars for entities edition
 Public arrUndo As New Entity[]             '' An array to put an unmodified copy of an entity before modifying it and then restoring it to the previous version.
 
-'' Transfer layers to main windows ComboBox
-Public Sub UpdateLayersCombo()
-
-    Dim i As Integer
-    Dim sName As String = "_menuLay"
-    Dim mLayer As New Menu(fMain), m2 As Menu
-    Dim aLayer As Layer
-
-    For i = 0 To fMain.Menus.Count - 1
-        If fMain.Menus[i].Name = sName Then
-            fMain.Menus[i].Delete
-            Break
-        End If
-    Next
-    mLayer.Name = sName
-    For Each aLayer In currentDrawing.oLayers
-        m2 = New Menu(mLayer)
-        m2.Text = aLayer.Name
-        m2.Picture = paintPlus.picCirculito(8, GetGBColor(aLayer.Colour), Color.ButtonForeground)
-        m2.Action = "layer_change_" & aLayer.Name
-    Next
-    ' fMain.mbtLayers.Menu = sName
-    ' fMain.mbtLayers.Text = mLayer.Children[0].Text
-    ' fMain.mbtLayers.Picture = mLayer.Children[0].Picture
-    If Not currentDrawing.CurrLayer Then currentDrawing.CurrLayer = gcd.currentDrawing.oLayers[gcd.currentDrawing.oLayers.First]
-
-    fMain.grdLayers[0.0, 0.0].Picture = mLayer.Children[0].Picture
-    fMain.grdLayers[0, 4].Text = currentDrawing.CurrLayer.Name
-    fMain.grdLayers[0, 1].Picture = IIf(currentDrawing.CurrLayer.Visible, fLayersOnScreen.picVisibleOn, fLayersOnScreen.picVisibleOff)
-    fMain.grdLayers[0, 2].Picture = IIf(currentDrawing.CurrLayer.Frozen, fLayersOnScreen.picFrozenOn, fLayersOnScreen.picFrozenOff)
-    fMain.grdLayers[0, 3].Picture = IIf(currentDrawing.CurrLayer.Locked, fLayersOnScreen.picLockedOn, fLayersOnScreen.picLockedOff)
-
-    ' fMain.tbnLayersOnScreen.Picture = paintPlus.picTexto(gcd.currentDrawing.arrLayers.First.Name, fMain.Font.H, fMain.tbnLayersOnScreen.w, fMain.tbnLayersOnScreen.h, Color.ButtonForeground, Color.ButtonBackground, Align.Left)
-
-    Return
-
-End
-
-'' Should be called after updating layers
-Public Sub UpdateLineWtCombo()
-
-    Dim imagen As Image
-
-    Dim LW As Float
-    Dim f As Float
-
-    ' lo vacio
-
-    fMain.tblLineWt.tbnChilds.Clear
-
-    ' primero agregamos la correspondiente a ByLayer
-    imagen = New Image(fMain.tblLineWt.w * 0.9, fMain.tblLineWt.h * 0.9, fMain.tblLineWt.Background)
-
-    Paint.Begin(imagen)
-    '  +------------------------------------+
-    '  +   ---------------------  0.00mm    +
-    '  +------------------------------------+
-    Paint.MoveTo(0, imagen.h / 2)
-    lw = currentDrawing.CurrLayer.LineWt '][dxf.codLWht] / 100 * 3
-    Paint.LineWidth = lw
-    If Paint.LineWidth < 1 Then Paint.LineWidth = 1
-    Paint.RelLineTo(imagen.w / 2, 0)
-    Paint.Stroke
-    Paint.MoveTo(imagen.w / 10 * 5.5, imagen.h * 0.1)
-    Paint.LineWidth = 1
-    Paint.Text("ByLayer",,,, imagen.h * 0.6, Align.Left)
-    Paint.Fill
-    Paint.End
-
-    fMain.tblLineWt.AddToolButton("tbnLineWtByLayer",, imagen.Picture, "linewt_change_" & CStr(lw * 100))
-
-    ' ahora espesores especificos
-    For f = 0.1 To 1.2 Step 0.1
-        ' primero agregamos la correspondiente a ByLayer
-        imagen = New Image(fMain.tblLineWt.w * 0.9, fMain.tblLineWt.h * 0.9, fMain.tblLineWt.Background)
-
-        Paint.Begin(imagen)
-        Paint.AntiAlias = True
-        '  +------------------------------------+
-        '  +   ---------------------  0.00mm    +
-        '  +------------------------------------+
-        Paint.MoveTo(0, imagen.h / 2)
-        lw = f * 3
-        Paint.LineWidth = lw
-        If Paint.LineWidth < 1 Then Paint.LineWidth = 1
-        Paint.RelLineTo(imagen.w / 2, 0)
-        Paint.Stroke
-        Paint.MoveTo(imagen.w / 10 * 5.5, imagen.h * 0.1)
-        Paint.LineWidth = 1
-        Paint.Text(Format(f, "0.00mm"),,,, imagen.h * 0.6, Align.Left)
-        Paint.Fill
-        Paint.End
-
-        fMain.tblLineWt.AddToolButton("tbnLineWt" & CStr(f),, imagen.Picture, "linewt_change_" & CStr(lw * 100))
-
-    Next
-
-    '   test id[mm]
-    ' # ¡DIV/0!	0	0
-    ' 0, 05 1 0, 05
-    ' 0, 09 2 0, 09
-    ' 0, 1 3 0, 1
-    ' 0, 13 4 0, 13
-    ' 0, 15 5 0, 15
-    ' 0, 18 6 0, 18
-    ' 0, 2 7 0, 2
-    ' 0, 25 8 0, 25
-    ' 0, 3 9 0, 3
-    ' 0, 35 10 0, 35
-    ' 0, 4 11 0, 4
-    ' 0, 45 12 0, 45
-    ' 0, 5 13 0, 5
-    ' 0, 53 14 0, 53
-    ' 0, 6 15 0, 6
-    ' 0, 65 16 0, 65
-    ' 0, 7 17 0, 7
-    ' 0, 8 18 0, 8
-    ' 0, 9 19 0, 9
-    ' 1 20 1
-    ' 0, 4761904761905 21 1, 06
-    ' 0, 9090909090909 22 1, 2
-    ' 1, 304347826087 23 1, 4
-    ' 1, 6666666666667 24 1, 58
-    ' 2 25 2
-    ' 	26 2, 11
-    ' 	27
-    ' 	28
-    ' ByLayer 29
-    ' ByBlock 30
-    ' Default 31
-
-End
-
-Public Sub UpdateLineTypeCombo()
-
-    ' se define en DXF con los codigos:
-    ' 40 = largo total por tramo ( = suma de Abs(code 49) )
-    ' 73 = numero de elementos (linea,espacio, punto) = 0 si es continua
-    ' 49 = largo de cada elemento: 0 = dot, negativo = espacio, positivo = linea
-    Dim imagen As Image
-    Dim i As Integer
-    Dim lty As LineType
-
-    '  +------------------------------------+
-    '  + Phantom                            +
-    '  + -- - -- - -- - -- - -- - -- - --   +
-    '  +------------------------------------+
-
-    fMain.tblLTypes.tbnChilds.Clear
-
-    ' ahora espesores especificos
-    For Each lty In currentDrawing.oLTYpes
-        Inc i
-
-        ' primero agregamos la correspondiente a ByLayer
-        imagen = New Image(fMain.tblLTypes.w * 0.9, fMain.tblLTypes.h * 0.9, fMain.tblLTypes.Background)
-
-        Paint.Begin(imagen)
-        Paint.AntiAlias = True
-        Paint.MoveTo(0, imagen.h * 0.8)
-        Paint.LineWidth = 1
-        Paint.Dash = lty.TrameLength
-        Paint.RelLineTo(imagen.w, 0)
-        Paint.Stroke
-        Paint.Dash = Null
-        ' Texto
-        Paint.MoveTo(0, 0)
-        Paint.LineWidth = 1
-        Paint.Text(lty.Name,,,, imagen.h * 0.5, Align.topLeft)
-        Paint.Fill
-        Paint.End
-
-        fMain.tblLTypes.AddToolButton("tbnLType" & CStr(i),, imagen.Picture, "ltype_change_" & lty.Name)
-
-    Next
-    gcd.currentDrawing.CurrLineType = currentDrawing.oLTYpes[currentDrawing.oLTYpes.First]
-
-End
-
-Public Function UpdatDimTypeTypeCombo()
-
-    Dim oDimStyle As DimStyle
-    Dim i As Integer
-
-    If IsNull(gcd.currentDrawing.CurrDimStyle) Then gcd.currentDrawing.CurrDimStyle = gcd.currentDrawing.odimStyles[gcd.currentDrawing.odimStyles.First]
-    fMain.cmbDimStyle.Clear
-    For Each oDimStyle In gcd.currentDrawing.oDimStyles
-        fMain.cmbDimStyle.Add(oDimStyle.name)
-
-        If gcd.currentDrawing.CurrDimStyle.name = oDimStyle.name Then i = fMain.cmbDimStyle.Count
-    Next
-    If i = 0 Then i = 1
-    fMain.cmbDimStyle.Index = i - 1
-
-End
-
 Public Function FindStyle(sName As String) As TextStyle
 
     Dim st As TextStyle
 
-    For Each st In gcd.currentDrawing.oStyles
+    For Each st In gcd.Drawing.oStyles
 
         If st.Name = sname Then Return st
 
@@ -354,13 +158,13 @@ Public Function FindStyleByHandle(sHandle As String) As TextStyle
 
     Dim st As TextStyle
 
-    For Each st In gcd.currentDrawing.otextStyles
+    For Each st In gcd.Drawing.otextStyles
 
         If st.handle = sHandle Then Return st
 
     Next
 
-    Return Null 'gcd.currentDrawing.arrStyles.First
+    Return Null 'gcd.Drawing.arrStyles.First
 
 End
 
@@ -368,11 +172,11 @@ Public Function FindEntity(sHandle As String, Optional SearchInBlocks As Boolean
 
     Dim oBlock As Block
 
-    If gcd.currentDrawing.oEntities.Exist(sHandle) Then Return gcd.currentDrawing.oEntities[sHandle]
+    If gcd.Drawing.oEntities.Exist(sHandle) Then Return gcd.Drawing.oEntities[sHandle]
 
     If SearchInBlocks Then
-        For Each oBlock In gcd.currentDrawing.oBlocks
-            If oBlock.entities.Exist(sHandle) Then Return gcd.currentDrawing.oEntities[sHandle]
+        For Each oBlock In gcd.Drawing.oBlocks
+            If oBlock.entities.Exist(sHandle) Then Return gcd.Drawing.oEntities[sHandle]
 
         Next
     Endif
@@ -385,7 +189,7 @@ Public Function FindLType(sName As String) As LineType
 
     Dim LT As LineType
 
-    For Each LT In gcd.currentDrawing.oLTYpes
+    For Each LT In gcd.Drawing.oLTYpes
 
         If LCase(LT.Name) = LCase(sname) Then Return LT
 
@@ -399,9 +203,9 @@ Public Function FindLtIndex(sName As String) As Integer
 
     Dim i As Integer
 
-    For i = 0 To gcd.currentDrawing.arrLTYpes.Max
+    For i = 0 To gcd.Drawing.arrLTYpes.Max
 
-        If LCase(gcd.currentDrawing.arrLTYpes[i].Name) = LCase(sname) Then Return i
+        If LCase(gcd.Drawing.arrLTYpes[i].Name) = LCase(sname) Then Return i
 
     Next
 
@@ -413,9 +217,9 @@ Public Function FindLaIndex(sName As String) As Integer
 
     Dim i As Integer
 
-    For i = 0 To gcd.currentDrawing.arrLayers.Max
+    For i = 0 To gcd.Drawing.arrLayers.Max
 
-        If gcd.currentDrawing.arrLayers[i].Name = sname Then Return i
+        If gcd.Drawing.arrLayers[i].Name = sname Then Return i
 
     Next
 
@@ -436,14 +240,14 @@ End
 
 Public Function Metros(pixeles As Integer) As Float  ' converts pixels to meters
 
-    Return pixeles / gcd.currentDrawing.ScaleZoom
+    Return pixeles / gcd.Drawing.ScaleZoom
 
 End
 
 Public Function Pixels(distancia As Float) As Float  ' converts meters to pixels
     ' transforma Metros en Pixeles sin tener en cuenta el Pan
 
-    Return distancia * gcd.currentDrawing.ScaleZoom
+    Return distancia * gcd.Drawing.ScaleZoom
 
 End
 '' Changes the properties of the seleccted entities with given values
@@ -452,10 +256,10 @@ Public Function EditEntities(sProperty As String, vValue As Variant, Optional Do
 
     Dim e As Entity
 
-    gcd.currentDrawing.uUndo.OpenUndoStage(sProperty, Undo.TypeModify)
+    gcd.Drawing.uUndo.OpenUndoStage(sProperty, Undo.TypeModify)
 
-    For Each e In currentDrawing.oSelected
-        gcd.currentDrawing.uUndo.AddUndoItem(clsEntities.ClonEntity(e, False))
+    For Each e In Drawing.oSelected
+        gcd.Drawing.uUndo.AddUndoItem(clsEntities.ClonEntity(e, False))
         Select Case sProperty
 
             Case "color"
@@ -471,7 +275,7 @@ Public Function EditEntities(sProperty As String, vValue As Variant, Optional Do
         End Select
     Next
 
-    gcd.currentDrawing.uUndo.CloseUndoStage()
+    gcd.Drawing.uUndo.CloseUndoStage()
     If DoRegen Then Regen
 
 End
@@ -532,9 +336,10 @@ Public Sub LoadCommon()
     Dim sBlocksFiles As String
 
     gcd.CommonBlocks.Clear
-    sFiles = Dir(gcd.dirResources &/ "common", "*.dxf")
+    Try sFiles = Dir(gcd.dirResources &/ "common", "*.dxf")
+    If IsNull(sFiles) Then Return
     For Each sBlocksFiles In sFiles
-        FBlocks.AddBlock(gcd.dirResources &/ "common" &/ sBlocksFiles, Utils.FileWithoutExtension(sBlocksFiles), gcd.currentDrawing.oBlocks)
+        FBlocks.AddBlock(gcd.dirResources &/ "common" &/ sBlocksFiles, Utils.FileWithoutExtension(sBlocksFiles), gcd.Drawing.oBlocks)
 
     Next
 
@@ -544,7 +349,7 @@ Public Function GetLayer(LayerName As String) As Layer
 
     Dim Lay As Layer
 
-    For Each Lay In gcd.currentDrawing.oLayers
+    For Each Lay In gcd.Drawing.oLayers
 
         If Lay.Name = LayerName Then Return Lay
     Next
@@ -581,8 +386,8 @@ End
 '     Dim sNextKey As String
 '
 '     ' primero eliminamos lo q haya
-'     currentDrawing.oLTYpes.Clear
-'     For Each c As Collection In currentDrawing.cLtypes
+'     Drawing.oLTYpes.Clear
+'     For Each c As Collection In Drawing.cLtypes
 '         hlty = New LineType
 '         hlty.Name = c[dxf.codName]
 '         hlty.Description = c["3"]
@@ -611,7 +416,7 @@ End
 '
 '         Next
 '
-'         currentDrawing.oLTYpes.Add(hlty, hlty.handle)
+'         Drawing.oLTYpes.Add(hlty, hlty.handle)
 '
 '     Next
 '
@@ -627,9 +432,9 @@ End
 '     Dim RefStyle As TextStyle
 '
 '     ' primero eliminamos lo q haya
-'     currentDrawing.oStyles.Clear
+'     Drawing.oStyles.Clear
 '     ' Leo los TextStyle de texto
-'     For Each c As Collection In gcd.currentDrawing.cModel["TABLES"]["STYLE"]
+'     For Each c As Collection In gcd.Drawing.cModel["TABLES"]["STYLE"]
 '         hlty = New TextStyle
 '
 '         hlty.Name = c[dxf.codName]
@@ -643,15 +448,15 @@ End
 '         ' If hlty.FixedH_40 = 0 Then hlty.FixedH_40 = CFloat(c["42"])
 '
 '         If hlty.handle = "" Then sH2 = hlty.name Else sH2 = hlty.handle
-'         currentDrawing.oStyles.Add(hlty, sh2)
+'         Drawing.oStyles.Add(hlty, sh2)
 '
 '     Next
-'     If currentDrawing.oTextStyles.Count > 0 Then
+'     If Drawing.oTextStyles.Count > 0 Then
 '
 '     Endif
 '
 '     ' Leo lo TextStyle de dimensiones
-'     For Each c As Collection In gcd.currentDrawing.cModel["TABLES"]["DIMSTYLE"]
+'     For Each c As Collection In gcd.Drawing.cModel["TABLES"]["DIMSTYLE"]
 '         hlty = New TextStyle
 '
 '         hlty.Name = c[dxf.codName]
@@ -679,7 +484,7 @@ End
 '             Endif
 '         Endif
 '
-'         currentDrawing.oStyles.Add(hlty, hlty.handle)
+'         Drawing.oStyles.Add(hlty, hlty.handle)
 '
 '     Next
 '
@@ -739,32 +544,32 @@ End
 '' Returns the next available handle
 Public Function NewHandle() As String
 
-    Inc currentDrawing.HandSeed             ' esta es la ultima handle utilizada, le sumo 1
-    Return Hex(currentDrawing.HandSeed)     ' devuelvo la Hex del numero
+    Inc Drawing.HandSeed             ' esta es la ultima handle utilizada, le sumo 1
+    Return Hex(Drawing.HandSeed)     ' devuelvo la Hex del numero
 
 End
 
 Public Function iHeader(VarName As String) As Integer
 
-    Return Val("&H" & currentDrawing.cHeader[VarName][currentDrawing.cHeader[VarName].First])
+    Return Val("&H" & Drawing.cHeader[VarName][Drawing.cHeader[VarName].First])
 
 End
 
 Public Function GetHeaderValue(VarName As String, Optional DefValuer As Variant) As Variant
 
-    If currentDrawing.cHeader.Exist(VarName) Then
-        If currentDrawing.cHeader[VarName].count = 1 Then
-            If currentDrawing.cHeader[VarName][currentDrawing.cHeader[VarName].First].key = "70" Then
-                Return CInt(currentDrawing.cHeader[VarName][currentDrawing.cHeader[VarName].First])
-            Else If currentDrawing.cHeader[VarName][currentDrawing.cHeader[VarName].First].key = "40" Then
-                Return CFloat(currentDrawing.cHeader[VarName][currentDrawing.cHeader[VarName].First])
+    If Drawing.cHeader.Exist(VarName) Then
+        If Drawing.cHeader[VarName].count = 1 Then
+            If Drawing.cHeader[VarName][Drawing.cHeader[VarName].First].key = "70" Then
+                Return CInt(Drawing.cHeader[VarName][Drawing.cHeader[VarName].First])
+            Else If Drawing.cHeader[VarName][Drawing.cHeader[VarName].First].key = "40" Then
+                Return CFloat(Drawing.cHeader[VarName][Drawing.cHeader[VarName].First])
             Else
-                Return currentDrawing.cHeader[VarName][currentDrawing.cHeader[VarName].First]
+                Return Drawing.cHeader[VarName][Drawing.cHeader[VarName].First]
             Endif
 
         Else ' tiene mas de un elemento, Y LOS SUPONGO TODOS VARIANT
             Dim vRet As New Variant[]
-            For Each vVar As Variant In currentDrawing.cHeader[VarName]
+            For Each vVar As Variant In Drawing.cHeader[VarName]
                 vRet.Add(vVar)
             Next
             Return vRet
@@ -897,7 +702,7 @@ Public Function FitEntitiesToImage(cEntities As Collection, imgPreview As Object
         Paint.Translate(-(flxLimits[2] + flxLimits[0]) / 2, -(flxLimits[3] + flxLimits[1]) / 2)
 
         For Each entidad In cEntities
-            If entidad.pLayer = Null Then entidad.pLayer = gcd.currentDrawing.CurrLayer
+            If entidad.pLayer = Null Then entidad.pLayer = gcd.Drawing.CurrLayer
             If iColor < 0 Then
                 Paint.Brush = Paint.Color(gcd.gColor[entidad.colour])
             Else
@@ -936,27 +741,27 @@ Public Function Xreal(ScreenX As Float) As Float
 
     ' voy a tener en cuenta el Snap
 
-    Return Metros((screenx - fmain.glarea1.w / 2 - gcd.currentDrawing.PanX))
+    Return Metros((screenx - fmain.glarea1.w / 2 - gcd.Drawing.PanX))
 
 End
 
 Public Function Yreal(ScreenY As Float) As Float
 
-    Return Metros((-ScreenY + fmain.glarea1.h / 2 - gcd.currentDrawing.PanY))
+    Return Metros((-ScreenY + fmain.glarea1.h / 2 - gcd.Drawing.PanY))
 
 End
 
 Public Function XPix(X As Float) As Float
 
-    'Return Metros((screenx - glarea1.w / 2 - gcd.currentDrawing.PanX))
-    Return Me.Pixels(X) + fmain.glarea1.w / 2 + gcd.currentDrawing.PanX
+    'Return Metros((screenx - glarea1.w / 2 - gcd.Drawing.PanX))
+    Return Me.Pixels(X) + fmain.glarea1.w / 2 + gcd.Drawing.PanX
 
 End
 
 Public Function YPix(Y As Float) As Float
 
-    'Return Metros((-ScreenY + glarea1.h / 2 - gcd.currentDrawing.PanY))
-    Return -(Me.Pixels(Y) - fmain.glarea1.h / 2 + gcd.currentDrawing.PanY)
+    'Return Metros((-ScreenY + glarea1.h / 2 - gcd.Drawing.PanY))
+    Return -(Me.Pixels(Y) - fmain.glarea1.h / 2 + gcd.Drawing.PanY)
 
 End
 
@@ -1009,7 +814,7 @@ Public Sub Regen()
     gcd.debugInfo("Generating GL graphics",,, True)
 
     'clsEntities.glGenBuffers()
-    clsEntities.FillLayersWithEntities(CurrentDrawing)
+    clsEntities.FillLayersWithEntities(Drawing)
     clsEntities.CollectVisibleEntities
     clsEntities.glGenDrawList
     clsEntities.glGenDrawListSel
@@ -1024,7 +829,7 @@ Public Sub RegenList()
     gcd.debugInfo("Generating GL graphics",,, True)
 
     'clsEntities.glGenBuffers()
-    'clsEntities.FillLayersWithEntities(CurrentDrawing)
+    'clsEntities.FillLayersWithEntities(Drawing)
     'clsEntities.CollectVisibleEntities
     'clsEntities.glGenDrawList
     'clsEntities.glGenDrawListSel

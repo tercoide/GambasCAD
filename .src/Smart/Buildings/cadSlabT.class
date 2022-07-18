@@ -1,0 +1,130 @@
+' Gambas class file
+
+' m-designer
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+
+' Represents a triangular concrete slab. Catets must be in the X and Z axis
+' Element maintained by Terco
+' Elem V3
+Inherits BimEntityBase
+
+Public Const Gender As String = "SlabT"
+Public Const DrawingOrder As Integer = 1
+Public Const PointsToDraw As Integer = 1
+Public Const OrthogonalForced As Boolean = True
+Public Const HelperTrabajo As String = ("Insert a triangular slab")
+Public Const ParamType As String = "PPPF"                             ' that is Point, Point, Float; could be Color Text, etc
+Public Const ParamHelper As String = "Start point;First side;Second side;Thickness"      ' a little text that is shown at the prompt waiting for user input during build
+Public Const ParamDefault As String = " ;  ;  ; 0.08"
+'                                                                                                      |
+
+' ESTRU3D
+
+'    P1------------P2
+'      ¬           |        Convencion para la definicion
+'        ¬         |        de las losas triangulares
+'          ¬       |        P2 = vertice
+'            ¬     |        P1 = sobre eje x
+'              ¬   |        P3 = sobre eje z
+'                ¬ P3
+
+Public Sub Draw()
+    ' FIXME: eliminar variables o argumentos que no se usan
+    ' FIXME: requiere reparacion -> OpenGL
+
+    Return
+
+    Dim l As Float, angulo As Float
+
+    If Not Me.DrawAble Or Not Me.Visible Then Return
+
+    If Not Me.Finished And Not Me.psel[2] Then ' i'm in he process of marking the 3rd point
+
+        Me.p[4] = Me.p[2]
+        Me.p[5] = Me.p[3]
+
+    Endif
+
+    paint.LineWidth = 1
+
+    paint.moveto(Me.p[0], Me.p[1])
+    paint.LineTo(Me.p[2], Me.p[3])
+    paint.LineTo(Me.p[4], Me.p[5])
+    paint.ClosePath
+    ' veo si esta seleccionada
+    If Me.selected And gcd.DrawMarcados Then
+        paint.brush = Paint.Color(&HA0A063)
+    Else
+        paint.brush = Paint.Color(&HEBEBEB)
+    End If
+    paint.Fill(True)
+
+    paint.brush = Paint.Color(Color.Black)
+    paint.Stroke
+
+    ' a circle in the middle
+    '
+    If (Abs(Me.p[0] - Me.p[4]) >= 1.5 And Abs(Me.p[5] - Me.p[1]) >= 1.5) And Me.Finished Then
+        paint.brush = Paint.Color(Color.Black)
+        paint.Arc((Me.p[2] + Me.p[0] + Me.p[4]) / 3, (Me.p[3] + Me.p[5] + Me.p[1]) / 3, 0.4)
+
+        paint.Stroke
+    End If
+
+End
+
+Public Function SelPartial() As Boolean
+
+    If (Me.psel[0] And Me.psel[1]) Or (Me.psel[0] And Me.psel[2]) Then
+
+        Return True
+    Else
+
+        Return False
+    End If
+
+End
+
+' This function will return False if the element couldn't be created for some reason: bad or incomple user input
+' True means all is good, False will instruct the clsEntityBuilder to delete it
+Public Sub Finish(ParamsDone As Integer) As Boolean
+
+    If Me.p[0] = Me.p[2] Then ' intercalo los dos extremos
+
+        Swap Me.p[0], Me.p[4]
+        Swap Me.p[1], Me.p[5]
+
+    End If
+    Me.CreatePolygon
+
+    Me.DrawAble = True
+    Me.Selected = False
+    Me.Finished = True
+
+    Me.psel.resize(Me.p.count / 2)
+
+End
+
+Public Sub CreatePolygon()
+
+    Me.Polygon.Clear
+    Me.Polygon.Insert(Me.P.Copy())
+
+End

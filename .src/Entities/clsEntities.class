@@ -67,7 +67,7 @@ Public Function FIndBlockIDbyHandle(BlockHandle As String) As Block
 
     Dim B As Block
 
-    For Each B In gcd.CurrentDrawing.oBlocks
+    For Each B In gcd.Drawing.oBlocks
         If B.handle = BlockHandle Then Return B
     Next
     Return Null
@@ -89,7 +89,7 @@ Public Function FindStyle(sName As String) As Style
 
     Dim b As Style
 
-    For Each b In gcd.CurrentDrawing.oStyles
+    For Each b In gcd.Drawing.oStyles
         If b.name = sName Then Return b
     Next
     Return
@@ -114,22 +114,22 @@ Public Function ReconstruirBloques() As Boolean
 
     gcd.debuginfo("Recostruyendo bloques")
 
-    For i = 0 To gcd.CurrentDrawing.oEntities
-        DrawingAids.CmdLineHelper = ("Loading blocks ") & Format$(i / gcd.CurrentDrawing.oEntities, "0.00%")
+    For i = 0 To gcd.Drawing.oEntities
+        DrawingAids.CmdLineHelper = ("Loading blocks ") & Format$(i / gcd.Drawing.oEntities, "0.00%")
         Wait 0.0001
-        If gcd.CurrentDrawing.oEntities[i].gender = "BLOCK" Then
+        If gcd.Drawing.oEntities[i].gender = "BLOCK" Then
             Dim newBlock As New Block
-            newBlock.name = gcd.CurrentDrawing.oEntities[i].block
-            newBlock.x = gcd.CurrentDrawing.oEntities[i].p[0]
-            newBlock.y = gcd.CurrentDrawing.oEntities[i].p[1]
+            newBlock.name = gcd.Drawing.oEntities[i].block
+            newBlock.x = gcd.Drawing.oEntities[i].p[0]
+            newBlock.y = gcd.Drawing.oEntities[i].p[1]
             newBlock.entities = New Collection
             ' busco los objetos de este bloque y los reconstruyo
-            For i2 = iStart To gcd.CurrentDrawing.oEntities
-                If gcd.CurrentDrawing.oEntities[i2].block = newBlock.name And gcd.CurrentDrawing.oEntities[i2].gender <> "BLOCK" Then ' sin recursividad en bloques
-                    If gcd.CurrentDrawing.oEntities[i2].block = newBlock.name And gcd.CurrentDrawing.oEntities[i2].gender <> "INSERT" Then 'no quiero insertarme a mi mismo
+            For i2 = iStart To gcd.Drawing.oEntities
+                If gcd.Drawing.oEntities[i2].block = newBlock.name And gcd.Drawing.oEntities[i2].gender <> "BLOCK" Then ' sin recursividad en bloques
+                    If gcd.Drawing.oEntities[i2].block = newBlock.name And gcd.Drawing.oEntities[i2].gender <> "INSERT" Then 'no quiero insertarme a mi mismo
                         PartesEncontradas = True
                         Dim o2 As Entity
-                        o2 = ClonEntity(gcd.CurrentDrawing.oEntities[i2])
+                        o2 = ClonEntity(gcd.Drawing.oEntities[i2])
 
                         Gcd.CCC[o2.gender].finish(o2)
                         newBlock.entities.Add(o2)
@@ -143,7 +143,7 @@ Public Function ReconstruirBloques() As Boolean
 
                 Endif
             Next
-            gcd.CurrentDrawing.arrBlocks.Add(newBlock)
+            gcd.Drawing.arrBlocks.Add(newBlock)
         End If
     Next
 
@@ -180,8 +180,8 @@ Public Sub glGenBuffers(Optional eEntity As Entity = Null)
         glPlus.VBOFlush
         'glPlus.InmediateMode = False
 
-        If gcd.CurrentDrawing.oEntities.Count = 0 Then Return
-        For Each e In gcd.CurrentDrawing.oEntities
+        If gcd.Drawing.oEntities.Count = 0 Then Return
+        For Each e In gcd.Drawing.oEntities
 
             'If Not gl.islist(e.glDrwList) Then e.glDrwList = gl.GenLists(1)
             'gl.NewList(e.glDrwList, gl.COMPILE)
@@ -225,7 +225,7 @@ Public Sub glGenBuffers(Optional eEntity As Entity = Null)
         glx.glBindBuffer(glc.ARRAY_BUFFER, 0)      ' finlizo transferencia de datos a la GPU
 
         ' ' lista de entidaes seleccionadas
-        ' For Each e In gcd.CurrentDrawing.oEntities
+        ' For Each e In gcd.Drawing.oEntities
         '     If Not gl.islist(e.glDrwListSel) Then e.glDrwListSel = gl.GenLists(1)
         '     gl.NewList(e.glDrwListSel, gl.COMPILE)
         '     gcd.CCC[e.gender].DrawSelected(e)
@@ -270,7 +270,7 @@ Public Sub glGenDrawList(Optional eEntity As Entity = Null)
         ' If Not gl.islist(gcd.CurrDrawing.GlListAllEntities) Then gcd.CurrDrawing.GlListAllEntities = gl.GenLists(1)
         Dim t As Float = Timer
         ' listas de entidades
-        For Each e In gcd.CurrentDrawing.oEntities
+        For Each e In gcd.Drawing.oEntities
 
             If Not gl.islist(e.glDrwList) Then e.glDrwList = gl.GenLists(1)
 
@@ -281,7 +281,7 @@ Public Sub glGenDrawList(Optional eEntity As Entity = Null)
         Next
 
         ' lista de entidaes seleccionadas
-        For Each e In gcd.CurrentDrawing.oEntities
+        For Each e In gcd.Drawing.oEntities
             If Not gl.islist(e.glDrwListSel) Then e.glDrwListSel = gl.GenLists(1)
             gl.NewList(e.glDrwListSel, gl.COMPILE)
             gcd.CCC[e.gender].DrawSelected(e)
@@ -309,11 +309,11 @@ Public Sub glGenDrawListSel(Optional mode As Integer = 0)
     Dim idDrawing As Integer ' la instancia de dibujo en la que estamos
     Dim i As Integer, e As Entity
 
-    If Not gl.islist(gcd.CurrentDrawing.GlListSelectedEntities) Then gcd.CurrentDrawing.GlListSelectedEntities = gl.GenLists(1)
+    If Not gl.islist(gcd.Drawing.GlListSelectedEntities) Then gcd.Drawing.GlListSelectedEntities = gl.GenLists(1)
 
-    gl.NewList(gcd.CurrentDrawing.GlListSelectedEntities, gl.COMPILE)
+    gl.NewList(gcd.Drawing.GlListSelectedEntities, gl.COMPILE)
 
-    For Each e In gcd.CurrentDrawing.oSelected
+    For Each e In gcd.Drawing.oSelected
 
         If mode = 0 Then gl.CallList(e.glDrwListSel)
         If mode = 1 Then gl.CallList(e.glDrwList)
@@ -330,20 +330,20 @@ Public Sub glGenDrawListAll(Optional ExcludeSelected As Boolean = False)
 
     Dim i As Integer, e As Entity
 
-    gl.NewList(gcd.CurrentDrawing.GlListAllEntities, gl.COMPILE)
+    gl.NewList(gcd.Drawing.GlListAllEntities, gl.COMPILE)
 
-    For Each e In gcd.CurrentDrawing.oEntities
+    For Each e In gcd.Drawing.oEntities
         If Not (e.Selected And ExcludeSelected) Then gl.CallList(e.glDrwList)
 
     Next
 
     gl.EndList
 
-    For Each L As Layer In gcd.CurrentDrawing.oLayers
+    For Each L As Layer In gcd.Drawing.oLayers
         If Not gl.islist(L.glList) Then L.glList = gl.GenLists(1)
         gl.NewList(L.glList, gl.COMPILE)
     Next
-    For Each e In gcd.CurrentDrawing.oEntities
+    For Each e In gcd.Drawing.oEntities
         If Not (e.Selected And ExcludeSelected) Then gl.CallList(e.glDrwList)
 
     Next
@@ -364,7 +364,7 @@ Public Sub glGenDrawListLAyers(Optional aLayer As Layer)
 
         If Not gl.islist(aLayer.glList) Then aLayer.glList = gl.GenLists(1)
         gl.NewList(aLayer.glList, gl.COMPILE)
-        For Each e In gcd.CurrentDrawing.oEntities
+        For Each e In gcd.Drawing.oEntities
 
             If e.pLayer = aLayer Then gl.CallList(e.glDrwList)
 
@@ -373,10 +373,10 @@ Public Sub glGenDrawListLAyers(Optional aLayer As Layer)
 
     Else
 
-        For Each aLayer In gcd.CurrentDrawing.oLayers
+        For Each aLayer In gcd.Drawing.oLayers
             If Not gl.islist(aLayer.glList) Then aLayer.glList = gl.GenLists(1)
             gl.NewList(aLayer.glList, gl.COMPILE)
-            For Each e In gcd.CurrentDrawing.oEntities
+            For Each e In gcd.Drawing.oEntities
                 If e.Gender = "HATCH" And Not gcd.DrawHatch Then Continue
                 If e.PaperSpace Then Continue
 
@@ -402,7 +402,7 @@ End
 '
 '         If Not gl.islist(aLayer.glList) Then aLayer.glList = gl.GenLists(1)
 '         gl.NewList(aLayer.glList, gl.COMPILE)
-'         For Each e In gcd.CurrentDrawing.oEntities
+'         For Each e In gcd.Drawing.oEntities
 '
 '             If e.pLayer = aLayer Then gl.CallList(e.glDrwList)
 '
@@ -411,7 +411,7 @@ End
 '
 '     Else
 '
-'         For Each aLayer In gcd.CurrentDrawing.oLayers
+'         For Each aLayer In gcd.Drawing.oLayers
 '             If Not gl.islist(aLayer.glList) Then aLayer.glList = gl.GenLists(1)
 '             gl.NewList(aLayer.glList, gl.COMPILE)
 '             For Each e In aLayer.Entities
@@ -430,7 +430,7 @@ Public Sub DrawPoiSymbolsAll()
 
     Dim i, total As Integer
 
-    For Each e As Entity In gcd.CurrentDrawing.oSelected
+    For Each e As Entity In gcd.Drawing.oSelected
 
         ' If (e.Gender = "INSERT") Then
         DrawPoiSymbols(e)
@@ -476,7 +476,7 @@ Public Sub Finish(Optional selected As Boolean = True)
     ' creo copias de cada elemento seleccionado
     Dim m As Integer, E As Entity
 
-    For Each E In gcd.CurrentDrawing.oEntities
+    For Each E In gcd.Drawing.oEntities
         If selected Then                                                    ' apply to only the selected ones
             If E.Selected Then gcd.CCC[e.gender].Finish(E)
         Else                                                                ' apply to all
@@ -493,11 +493,11 @@ Public Sub ClonElements(Optional selected As Boolean = True)
     Dim E As Entity
     Dim eClon As Entity
 
-    For Each E In gcd.CurrentDrawing.oSelected
+    For Each E In gcd.Drawing.oSelected
         eClon = Me.ClonEntity(e, True)
-        gcd.CurrentDrawing.oEntities.Add(eClon, eClon.Handle)
+        gcd.Drawing.oEntities.Add(eClon, eClon.Handle)
         Gcd.CCC[eClon.gender].finish(eClon)
-        gcd.CurrentDrawing.CurrLayer.Entities.Add(eClon)
+        gcd.Drawing.CurrLayer.Entities.Add(eClon)
 
     Next
 
@@ -537,9 +537,9 @@ Public Function DeSelection(Optional elementos As String = "todo", Accion As Str
     elementos = LCase(elementos)
 
     '   primero vacio la seleccion anterior
-    gcd.CurrentDrawing.oSelected.Clear
+    gcd.Drawing.oSelected.Clear
 
-    For Each eTesting As Entity In gcd.CurrentDrawing.oEntities
+    For Each eTesting As Entity In gcd.Drawing.oEntities
 
         clase = eTesting.Gender
 
@@ -549,7 +549,7 @@ Public Function DeSelection(Optional elementos As String = "todo", Accion As Str
 
                 If SelFull() And (elementos = "todo" Or elementos = clase) Then
 
-                    gcd.CurrentDrawing.oSelected.Add(eTesting, eTesting.handle)
+                    gcd.Drawing.oSelected.Add(eTesting, eTesting.handle)
                     SelectElem(eTesting)
                     Inc i
 
@@ -562,7 +562,7 @@ Public Function DeSelection(Optional elementos As String = "todo", Accion As Str
             Case "estirar" ' necesito que dos puntos contiguos esten seleccionados
 
                 If SelPArtial() And (elementos = "todo" Or elementos = clase) Then
-                    gcd.CurrentDrawing.oSelected.Add(eTesting, eTesting.handle)
+                    gcd.Drawing.oSelected.Add(eTesting, eTesting.handle)
                     SelectElem(eTesting, False) ' dont touch the points
                     Inc i
 
@@ -593,14 +593,14 @@ End
 '
 '     Dim e As Entity
 '
-'     gcd.CurrentDrawing.oSelected.Clear
-'     For Each e In gcd.CurrentDrawing.oEntities
+'     gcd.Drawing.oSelected.Clear
+'     For Each e In gcd.Drawing.oEntities
 '         If e.Selected Then
 '
-'             gcd.CurrentDrawing.oSelected.Add(e, e.handle)
+'             gcd.Drawing.oSelected.Add(e, e.handle)
 '         End If
 '     Next
-'     Return gcd.CurrentDrawing.oSelected.Count
+'     Return gcd.Drawing.oSelected.Count
 '
 ' End Function
 
@@ -611,17 +611,17 @@ Public Function DeleteSelected() As Integer
 
     '  Purgue will also delete those with .ForDeletion = true
 
-    For Each E In gcd.CurrentDrawing.oEntities
+    For Each E In gcd.Drawing.oEntities
 
         If E.Selected Then
-            gcd.CurrentDrawing.oEntities.Remove(gcd.CurrentDrawing.oEntities.Key)
+            gcd.Drawing.oEntities.Remove(gcd.Drawing.oEntities.Key)
             Inc c
         End If
 
     Next
 
     '   we also need to regenerate the drawing list
-    For Each lay In gcd.CurrentDrawing.oLayers
+    For Each lay In gcd.Drawing.oLayers
         If lay.Visible Then glGenDrawListLayers(lay)
     Next
 
@@ -638,17 +638,17 @@ Public Function SelectFromPoint(Xr As Float, Zr As Float, Optional Autoselect As
 
     Dim i As Integer
 
-    For i = gcd.CurrentDrawing.oEntities To 0 Step -1
+    For i = gcd.Drawing.oEntities To 0 Step -1
         ' last elements are drawn last so the click belongs to them
-        If gcd.CurrentDrawing.oEntities[i].pointClick(Xr, Zr) Then
+        If gcd.Drawing.oEntities[i].pointClick(Xr, Zr) Then
             If Autoselect Then
-                If Not gcd.CurrentDrawing.oEntities[i].Selected Then
-                    SelectElem(gcd.CurrentDrawing.oEntities[i])
+                If Not gcd.Drawing.oEntities[i].Selected Then
+                    SelectElem(gcd.Drawing.oEntities[i])
                 Else
-                    DeSelectElem(gcd.CurrentDrawing.oEntities[i])
+                    DeSelectElem(gcd.Drawing.oEntities[i])
                 End If
             End If
-            Return gcd.CurrentDrawing.oEntities[i]
+            Return gcd.Drawing.oEntities[i]
         End If
 
     Next
@@ -683,7 +683,7 @@ Public Sub SelectElem(eEntity As Entity, Optional AndItsPoints As Boolean = True
         Next
 
     End If
-    gcd.currentDrawing.oSelected.Add(eEntity, eEntity.Handle)
+    gcd.Drawing.oSelected.Add(eEntity, eEntity.Handle)
 
 End
 
@@ -700,7 +700,7 @@ Public Sub DeSelectElem(eEntity As Entity, Optional AndItsPoints As Boolean = Tr
         Next
 
     End If
-    gcd.currentDrawing.oSelected.Remove(eEntity.Handle)
+    gcd.Drawing.oSelected.Remove(eEntity.Handle)
 
 End
 
@@ -745,7 +745,7 @@ Public Sub Move(dX As Float, dY As Float, Optional OnlySelected As Boolean = Fal
     ' crea un backup de todos los puntos
     Dim e As Entity, i As Integer
 
-    For Each e In gcd.CurrentDrawing.oEntities
+    For Each e In gcd.Drawing.oEntities
         If (e.selected And OnlySelected) Or Not OnlySelected Then
 
             gcd.CCC[e.gender].Translate(e, dX, dY, OnlyPointSelected)
@@ -779,7 +779,7 @@ End
 '     ' crea un backup de todos los puntos
 '     Dim e As Entity, i As Integer
 '
-'     For Each e In gcd.CurrentDrawing.oEntities
+'     For Each e In gcd.Drawing.oEntities
 '         If (e.selected And OnlySelected) Or Not OnlySelected Then
 '
 '             gcd.CCC[e.gender].Scale(e, sX, sY)
@@ -798,17 +798,17 @@ Public Function SelectionSquare(X1real As Float, Y1real As Float, X2real As Floa
     NuevaSumaResta = LCase$(NuevaSumaResta)
 
     If NuevaSumaResta = "nueva" Then ' nueva seleccion
-        For Each e In gcd.CurrentDrawing.oEntities
+        For Each e In gcd.Drawing.oEntities
             e.selected = False
             For i2 = 0 To e.Psel.max
                 e.Psel[i2] = False
             Next
         Next
-        gcd.currentDrawing.oSelected.Clear
+        gcd.Drawing.oSelected.Clear
         TotalSeleccionados = 0
     End If
 
-    For Each e In gcd.CurrentDrawing.oEntities
+    For Each e In gcd.Drawing.oEntities
         ' cada entidad debe decidir si esta seleccionada o no
         If crossing Then
             If SelPArtial(e, X1real, Y1real, X2real, Y2real) Then
@@ -844,7 +844,7 @@ Public Function SelectionSquare(X1real As Float, Y1real As Float, X2real As Floa
     ' GetSelectionCount()
 
     ' deprecada
-    ' GetSelectionHandles(gcd.CurrentDrawing.hSelection)
+    ' GetSelectionHandles(gcd.Drawing.hSelection)
 
     Return TotalSeleccionados
 
@@ -865,16 +865,16 @@ Public Function CollectVisibleEntities()
     x1 = gcd.Xreal(gcd.ScreenWidth())
     y0 = gcd.Yreal(gcd.ScreenHeight())
 
-    'If gcd.CurrentDrawing.oEntities > gcd.CurrentDrawing.arrVisibleEntities.Max Then gcd.CurrentDrawing.arrVisibleEntities.Resize(gcd.CurrentDrawing.oEntities.Count)
-    gcd.CurrentDrawing.oVisibleEntities.Clear
-    For Each e In gcd.CurrentDrawing.oEntities
+    'If gcd.Drawing.oEntities > gcd.Drawing.arrVisibleEntities.Max Then gcd.Drawing.arrVisibleEntities.Resize(gcd.Drawing.oEntities.Count)
+    gcd.Drawing.oVisibleEntities.Clear
+    For Each e In gcd.Drawing.oEntities
         If e.pLayer.Visible Then
 
             If Not e.PaperSpace Then
 
                 If SelPArtial(e, x0, y0, x1, y1) Then
 
-                    gcd.CurrentDrawing.oVisibleEntities.Add(e, e.Handle)
+                    gcd.Drawing.oVisibleEntities.Add(e, e.Handle)
 
                 End If
             End If
@@ -896,7 +896,7 @@ Public Function CollectDetectableEntities()
     Dim e As Entity
     Dim i, tot As Integer
 
-    For Each e In gcd.CurrentDrawing.oVisibleEntities
+    For Each e In gcd.Drawing.oVisibleEntities
         Select Case e.Gender
             Case "CIRCLE", "ARC", "SPline", "ELLIPSE"
                 If Config.TrackEntityCurves Then e.Trackable = True Else e.Trackable = False
@@ -921,7 +921,7 @@ Public Sub BuildPoi(Optional entities As Collection, OnlyVisibles As Boolean = T
     Dim e As Entity, i As Integer
     Dim entGroup As Collection
 
-    If Not entities Then entGroup = gcd.CurrentDrawing.oEntities Else entGroup = Entities
+    If Not entities Then entGroup = gcd.Drawing.oEntities Else entGroup = Entities
 
     If entGroup.Count = 0 Then Return
 
@@ -932,7 +932,7 @@ Public Sub BuildPoi(Optional entities As Collection, OnlyVisibles As Boolean = T
                 gcd.CCC[e.gender].BuildPoi(e)
             End If
         Else
-            e.pLayer = gcd.currentDrawing.CurrLayer
+            e.pLayer = gcd.Drawing.CurrLayer
             gcd.CCC[e.gender].BuildPoi(e)
         End If
     Next
@@ -950,7 +950,7 @@ Public Function ComputeLimits(Optional entities As Collection, OnlyVisibles As B
     Dim IsVisible As Boolean
     Dim a As Integer
 
-    If Not entities Then entGroup = gcd.CurrentDrawing.oEntities Else entGroup = Entities
+    If Not entities Then entGroup = gcd.Drawing.oEntities Else entGroup = Entities
 
     If entGroup.Count = 0 Then Return [0, 0, 0, 0]
 
@@ -1254,10 +1254,10 @@ Public Function DXFImportToEntity(c As Collection, Optional IsDummy As Boolean =
         If LT Then
             e.LineType = LT
         Else
-            e.LineType = gcd.CurrentDrawing.oLTypes[gcd.CurrentDrawing.oLTypes.First]
+            e.LineType = gcd.Drawing.oLTypes[gcd.Drawing.oLTypes.First]
         End If
     Else
-        e.LineType = gcd.CurrentDrawing.oLTypes[gcd.CurrentDrawing.oLTypes.First]
+        e.LineType = gcd.Drawing.oLTypes[gcd.Drawing.oLTypes.First]
 
     End If
     If gcd.CCC[e.gender].ImportDXF(e, sClave, sValue) Then
@@ -1345,7 +1345,7 @@ End
 '         If e.LineWidth < 1 Then e.LineWidth = 1
 '         e.LineType = GetLTypeByIndex(c["ltype_flags"])
 '         If Not e.LineType Then
-'             e.LineType = gcd.CurrentDrawing.oLTypes[gcd.CurrentDrawing.oLTypes.First]
+'             e.LineType = gcd.Drawing.oLTypes[gcd.Drawing.oLTypes.First]
 '         End If
 '
 '         clsHandler.Finish(e)
@@ -1368,7 +1368,7 @@ Public Function GetLTypeByName(sName As String) As LineType
 
     Dim LT As LineType
 
-    For Each LT In gcd.currentDrawing.oLTYpes
+    For Each LT In gcd.Drawing.oLTYpes
 
         If LCase(LT.Name) = LCase(sname) Then Return LT
 
@@ -1382,7 +1382,7 @@ Public Function GetLTypeByIndex(sName As String) As LineType
 
     Dim lt As LineType
 
-    For Each lt In gcd.CurrentDrawing.oLTypes
+    For Each lt In gcd.Drawing.oLTypes
 
         If LCase(lt.Name) = LCase(sname) Then Return lt
 
@@ -1396,7 +1396,7 @@ Public Function GetLayerByHandle(sHandle As String) As Layer
 
     Dim Lay As Layer
 
-    For Each Lay In gcd.CurrentDrawing.oLayers
+    For Each Lay In gcd.Drawing.oLayers
 
         If Lay.handle = sHandle Then Return Lay
     Next
@@ -1408,7 +1408,7 @@ Public Function GetLayerByName(LayerName As String) As Layer
 
     Dim Lay As Layer
 
-    For Each Lay In gcd.CurrentDrawing.oLayers
+    For Each Lay In gcd.Drawing.oLayers
 
         If Lay.Name = LayerName Then Return Lay
     Next
@@ -1432,7 +1432,7 @@ Public Sub FillLayersWithEntities(oDrawing As Drawing)
         e.pLayer.Entities.Add(e)
     Next
     ' Esto ya no es posible con Colecciones
-    'currentDrawing.oVisibleEntities.Resize(CurrentDrawing.oEntities.Count)
+    'Drawing.oVisibleEntities.Resize(Drawing.oEntities.Count)
     gcd.debugInfo("Llenados los Layers con las entidades",,, True)
 
 End

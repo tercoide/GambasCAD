@@ -48,7 +48,7 @@ End Sub
 
 Public Sub SearchTimer_Timer()
 
-    gcd.currentDrawing.HoveredEntity = clsMouseTracking.CheckAboveEntity(xr, yr)
+    gcd.Drawing.HoveredEntity = clsMouseTracking.CheckAboveEntity(xr, yr)
 
 End Sub
 
@@ -174,7 +174,7 @@ Public Function Action_Activate(sAction As String) As Boolean
             gcd.clsJob.KeyText(Mid(sAction, 2))
         Case "mentities-copy"
             Dim sToCopy As String
-            For Each e As Entity In gcd.currentDrawing.oSelected
+            For Each e As Entity In gcd.Drawing.oSelected
                 sToCopy &= clsEntities.EntityToJsonString(e)
 
             Next
@@ -184,12 +184,12 @@ Public Function Action_Activate(sAction As String) As Boolean
 
         Case "undo"
 
-            gcd.currentDrawing.uUndo.DoUndo()
+            gcd.Drawing.uUndo.DoUndo()
             gcd.Regen
 
         Case "redo"
 
-            gcd.currentDrawing.uUndo.DoRedo()
+            gcd.Drawing.uUndo.DoRedo()
             gcd.Regen
         Case "config"
 
@@ -211,7 +211,7 @@ Public Function Action_Activate(sAction As String) As Boolean
             '     Printer1.Print
         Case "print"
 
-            If Not gcd.currentDrawing.CurrPrintStyle Then gcd.currentDrawing.CurrPrintStyle = New PrintStyle
+            If Not gcd.Drawing.CurrPrintStyle Then gcd.Drawing.CurrPrintStyle = New PrintStyle
             fPrint.run()
             ' If i = 1 Then
             '
@@ -227,21 +227,21 @@ Public Function Action_Activate(sAction As String) As Boolean
             ' vemos si hay q imprimir algo
 
         Case "undo"
-            gcd.currentDrawing.uUndo.DoUndo()
+            gcd.Drawing.uUndo.DoUndo()
             gcd.Regen
 
         Case "about"
             i = fAbout.ShowModal()
 
             ' Case "redo"
-            '     gcd.currentDrawing.uUndo.DoRedo()
+            '     gcd.Drawing.uUndo.DoRedo()
             '     gcd.Regen
         Case "window_close"
             For i = 0 To gcd.Drawings.Count
-                If gcd.Drawings[i] = gcd.currentDrawing Then
+                If gcd.Drawings[i] = gcd.Drawing Then
                     gcd.Drawings.Remove(i)
                     If gcd.Drawings.Count > 0 Then
-                        gcd.currentDrawing = gcd.Drawings[0]
+                        gcd.Drawing = gcd.Drawings[0]
                         Redraw
                     Else
 
@@ -262,7 +262,7 @@ Public Function Action_Activate(sAction As String) As Boolean
 
             For Each d In gcd.Drawings
                 If sWName = d.FileName Then
-                    gcd.currentDrawing = d
+                    gcd.Drawing = d
                     gcd.UpdateLayersCombo
                     gcd.UpdateLineWtCombo
                     gcd.UpdateLineTypeCombo
@@ -270,7 +270,7 @@ Public Function Action_Activate(sAction As String) As Boolean
                     Me.redraw
                     Me.Text = f
 
-                    FillWindowMenu
+                    'FillWindowMenu
                     Break
                 Endif
             Next
@@ -296,10 +296,10 @@ Public Function Action_Activate(sAction As String) As Boolean
 
         Case "file_save"
 
-            f = gcd.currentDrawing.FileName
+            f = gcd.Drawing.FileName
             fbas = File.Dir(f) &/ File.BaseName(f)
             fBak = "'" & fbas & ".bak'"
-            If gcd.currentDrawing.RequiresFileRename Then
+            If gcd.Drawing.RequiresFileRename Then
                 Me.Action_Activate("file_saveas")
                 Return
             Else
@@ -309,12 +309,12 @@ Public Function Action_Activate(sAction As String) As Boolean
                 End If
 
                 If File.Ext(f) = "dxf" Then
-                    Dxf.SaveFile(f, gcd.currentDrawing)
+                    Dxf.SaveFile(f, gcd.Drawing)
                 Else If File.Ext(f) = "dwg" Then
                     ' guardamos la version DXF en el dir adecuado, con el nombre elegido
                     't = main.dirDxfOut &/ Utils.FileWithoutExtension(Utils.FileFromPath(f)) & ".dxf"
                     t = Temp & ".dxf"
-                    Dxf.SaveFile(t, gcd.currentDrawing)
+                    Dxf.SaveFile(t, gcd.Drawing)
                     t = gcd.oda_dxftodwg(t)
                     ' como el proceso de grabado pudo resultar en error, chequeo la existencia primero
 
@@ -326,7 +326,7 @@ Public Function Action_Activate(sAction As String) As Boolean
 
         Case "file_saveas"
 
-            f = gcd.currentDrawing.FileName
+            f = gcd.Drawing.FileName
             fbas = File.Dir(f) &/ File.BaseName(f)
             fBak = "'" & fbas & ".bak'"
 
@@ -352,8 +352,8 @@ Public Function Action_Activate(sAction As String) As Boolean
                     Shell "mv '" & f & "' '" & fbas & ".bak'" Wait
                 End If
 
-                gcd.currentDrawing.FileName = f
-                gcd.currentDrawing.RequiresFileRename = False
+                gcd.Drawing.FileName = f
+                gcd.Drawing.RequiresFileRename = False
                 Action_Activate("file_save")
 
                 Me.Text = f
@@ -370,10 +370,10 @@ Public Function Action_Activate(sAction As String) As Boolean
             sActionParams = Split(sAction, "&")
             sRunWith = UCase(Mid(sActionParams[0], 4))
             Try iParam = CInt(sActionParams[1])
-            gcd.clsJobPrevious = gcd.clsJob
 
             o = gcd.CCC[sRunWith]
-
+            If Not o Then Return
+            gcd.clsJobPrevious = gcd.clsJob
             ' check if the class needs to be run trough other class
             If o.usewith = "" Then                        ' its a tool
                 gcd.clsJob = o
@@ -393,14 +393,14 @@ Public Function Action_Activate(sAction As String) As Boolean
             sLayerName = Mid(sAction, 14)
 
             ' mbtLayers.Text = sLayerName
-            ' iColor = gcd.currentDrawing.cLayers[sLayerName][dxf.codColor]
+            ' iColor = gcd.Drawing.cLayers[sLayerName][dxf.codColor]
             ' mbtLayers.Picture = paintPlus.picCirculito(8, gcd.gColor[iColor], Color.ButtonForeground)
 
             ' informamos
-            gcd.currentDrawing.CurrLayer = gcd.GetLayer(sLayerName)
+            gcd.Drawing.CurrLayer = gcd.GetLayer(sLayerName)
 
             ' si tengo algo seleccionado, debo cambiar su color a este
-            gcd.EditEntities("layer", gcd.currentDrawing.CurrLayer)
+            gcd.EditEntities("layer", gcd.Drawing.CurrLayer)
 
             clsEntities.DeSelection()
 
@@ -413,7 +413,7 @@ Public Function Action_Activate(sAction As String) As Boolean
 
             mbtColors.Picture = paintPlus.picCirculito(8, gcd.gColor[iColor], Color.ButtonForeground)
 
-            gcd.currentDrawing.CurrColor = iColor
+            gcd.Drawing.CurrColor = iColor
 
             ' si tengo algo seleccionado, debo cambiar su color a este
             gcd.EditEntities("color", iColor)
@@ -428,16 +428,16 @@ Public Function Action_Activate(sAction As String) As Boolean
 
         Case Like "linewt_change_*"
 
-            gcd.currentDrawing.CurrLineWt = CInt(Mid(sAction, 15)) / 100
+            gcd.Drawing.CurrLineWt = CInt(Mid(sAction, 15)) / 100
 
-            gcd.EditEntities("linewt", gcd.currentDrawing.CurrLineWt)
+            gcd.EditEntities("linewt", gcd.Drawing.CurrLineWt)
             clsEntities.DeSelection()
 
         Case Like "ltype_change_*"
 
-            gcd.currentDrawing.CurrLineType = gcd.FindLType(Mid(sAction, 14))
+            gcd.Drawing.CurrLineType = gcd.FindLType(Mid(sAction, 14))
 
-            gcd.EditEntities("linetype", gcd.currentDrawing.CurrLineType)
+            gcd.EditEntities("linetype", gcd.Drawing.CurrLineType)
             clsEntities.DeSelection()
 
         Case "grid"
@@ -593,9 +593,9 @@ Public Sub GLArea1_draw()
 
     gl.LoadIdentity
 
-    gl.Translatef(gcd.currentDrawing.PanX, gcd.currentDrawing.PanY, 0)
+    gl.Translatef(gcd.Drawing.PanX, gcd.Drawing.PanY, 0)
 
-    gl.Scalef(gcd.currentDrawing.ScaleZoom, gcd.currentDrawing.ScaleZoom, 1)
+    gl.Scalef(gcd.Drawing.ScaleZoom, gcd.Drawing.ScaleZoom, 1)
 
     ' el orden del dibujo es importante en paint, porque una cosa tapa a la otra; en openGL aparentemente es al reves, lo primero se dibuja primero
 
@@ -620,26 +620,26 @@ Public Sub GLArea1_draw()
     ' glPlus.Triangles(ftring2, Color.Blue, Color.blue)
     ' en este momento le damos la posibilidad a la clase actuante a que dibuje lo que quiera
 
-    ' If gcd.currentDrawing.HoveredEntityPrevious Then
+    ' If gcd.Drawing.HoveredEntityPrevious Then
     '     ' si no esta seleccionada, la resalto
     '     'If Not arrEntities[iEntity[3]].Selected Then
-    '     'iParent = clsEntities.GetParentBlock(gcd.currentDrawing.iEntity[3]) ' esto verifica si tiene que resaltar el bloque completo
+    '     'iParent = clsEntities.GetParentBlock(gcd.Drawing.iEntity[3]) ' esto verifica si tiene que resaltar el bloque completo
     '
-    '     If gcd.DrawHoveredEntity Then gl.CallList(gcd.currentDrawing.HoveredEntityPrevious.glDrwListRemark)
-    '     '     Gcd.CCC[gcd.currentDrawing.HoveredEntityPrevious.gender].DrawRemark(gcd.currentDrawing.HoveredEntityPrevious)
+    '     If gcd.DrawHoveredEntity Then gl.CallList(gcd.Drawing.HoveredEntityPrevious.glDrwListRemark)
+    '     '     Gcd.CCC[gcd.Drawing.HoveredEntityPrevious.gender].DrawRemark(gcd.Drawing.HoveredEntityPrevious)
     '     ' End If
     ' End If
 
     If gcd.DrawHoveredEntity Then
-        If gcd.currentDrawing.HoveredEntity Then gl.CallList(gcd.currentDrawing.HoveredEntity.glDrwListRemark)
+        If gcd.Drawing.HoveredEntity Then gl.CallList(gcd.Drawing.HoveredEntity.glDrwListRemark)
     End If
     DrawingAids.DrawCoordenadas
 
     DrawingAids.DibujaHelper
 
-    gl.CallList(gcd.currentDrawing.GlListSelectedEntities)
+    gl.CallList(gcd.Drawing.GlListSelectedEntities)
 
-    For Each L In gcd.currentDrawing.oLayers
+    For Each L In gcd.Drawing.oLayers
         If L.Visible Then gl.CallList(L.glList)
     Next
 
@@ -648,23 +648,23 @@ Public Sub GLArea1_draw()
     'clsEntities.DrawArrays()
 
     ' POI dinamicos
-    If gcd.currentDrawing.flgShowPOIinfo Then
+    If gcd.Drawing.flgShowPOIinfo Then
 
-        Select gcd.currentDrawing.iEntity[2]
+        Select gcd.Drawing.iEntity[2]
             Case gcd.poiMidPoint
-                glPlus.PolygonFilled([gcd.currentDrawing.iEntity[0] - gcd.Metros(4), gcd.currentDrawing.iEntity[1], gcd.currentDrawing.iEntity[0], gcd.currentDrawing.iEntity[1] + gcd.Metros(4), gcd.currentDrawing.iEntity[0] + gcd.Metros(4), gcd.currentDrawing.iEntity[1], gcd.currentDrawing.iEntity[0], gcd.currentDrawing.iEntity[1] - gcd.Metros(4)], Color.Blue, Color.Green)
+                glPlus.PolygonFilled([gcd.Drawing.iEntity[0] - gcd.Metros(4), gcd.Drawing.iEntity[1], gcd.Drawing.iEntity[0], gcd.Drawing.iEntity[1] + gcd.Metros(4), gcd.Drawing.iEntity[0] + gcd.Metros(4), gcd.Drawing.iEntity[1], gcd.Drawing.iEntity[0], gcd.Drawing.iEntity[1] - gcd.Metros(4)], Color.Blue, Color.Green)
             Case gcd.poiQuadrant
-                glPlus.PolygonFilled([gcd.currentDrawing.iEntity[0] - gcd.Metros(6), gcd.currentDrawing.iEntity[1], gcd.currentDrawing.iEntity[0], gcd.currentDrawing.iEntity[1] + gcd.Metros(6), gcd.currentDrawing.iEntity[0] + gcd.Metros(6), gcd.currentDrawing.iEntity[1], gcd.currentDrawing.iEntity[0], gcd.currentDrawing.iEntity[1] - gcd.Metros(6)], Color.Cyan, Color.Cyan)
+                glPlus.PolygonFilled([gcd.Drawing.iEntity[0] - gcd.Metros(6), gcd.Drawing.iEntity[1], gcd.Drawing.iEntity[0], gcd.Drawing.iEntity[1] + gcd.Metros(6), gcd.Drawing.iEntity[0] + gcd.Metros(6), gcd.Drawing.iEntity[1], gcd.Drawing.iEntity[0], gcd.Drawing.iEntity[1] - gcd.Metros(6)], Color.Cyan, Color.Cyan)
 
             Case 0
                 ' nada
             Case gcd.poiCenter, gcd.poiBasePoint
 
-                glPlus.CIRCLE([gcd.currentDrawing.iEntity[0], gcd.currentDrawing.iEntity[1]], gcd.Metros(4), Color.Cyan, True, False)
-                'glPlus.Rectangle2D(gcd.currentDrawing.iEntity[0] - gcd.Metros(4), gcd.currentDrawing.iEntity[1] - gcd.Metros(4), gcd.Metros(8), gcd.Metros(8), Color.Blue,,,, Color.Blue, 1, 1)
+                glPlus.CIRCLE([gcd.Drawing.iEntity[0], gcd.Drawing.iEntity[1]], gcd.Metros(4), Color.Cyan, True, False)
+                'glPlus.Rectangle2D(gcd.Drawing.iEntity[0] - gcd.Metros(4), gcd.Drawing.iEntity[1] - gcd.Metros(4), gcd.Metros(8), gcd.Metros(8), Color.Blue,,,, Color.Blue, 1, 1)
 
             Case Else
-                glPlus.Rectangle2D(gcd.currentDrawing.iEntity[0] - gcd.Metros(4), gcd.currentDrawing.iEntity[1] - gcd.Metros(4), gcd.Metros(8), gcd.Metros(8), Color.Blue,,,, Color.Blue, 1, 1)
+                glPlus.Rectangle2D(gcd.Drawing.iEntity[0] - gcd.Metros(4), gcd.Drawing.iEntity[1] - gcd.Metros(4), gcd.Metros(8), gcd.Metros(8), Color.Blue,,,, Color.Blue, 1, 1)
         End Select
 
     Endif
@@ -709,11 +709,11 @@ Public Sub GLArea1_MouseMove()
 
     Else
         ' If gcd.flgsearchingallowed Then
-        '     gcd.currentDrawing.HoveredEntity = clsMouseTracking.CheckAboveEntity(Xr, Yr)
-        '     If gcd.currentDrawing.HoveredEntity Then gcd.redraw
-        '     ' If gcd.currentDrawing.HoveredEntityPrevious <> gcd.currentDrawing.HoveredEntity Then
-        '     '     gcd.currentDrawing.HoveredEntityPrevious = gcd.currentDrawing.HoveredEntity
-        '     '     gcd.currentDrawing.HoveredEntity = Null
+        '     gcd.Drawing.HoveredEntity = clsMouseTracking.CheckAboveEntity(Xr, Yr)
+        '     If gcd.Drawing.HoveredEntity Then gcd.redraw
+        '     ' If gcd.Drawing.HoveredEntityPrevious <> gcd.Drawing.HoveredEntity Then
+        '     '     gcd.Drawing.HoveredEntityPrevious = gcd.Drawing.HoveredEntity
+        '     '     gcd.Drawing.HoveredEntity = Null
         '     '
         '     ' Endif
         ' End If
@@ -770,21 +770,21 @@ Public Sub ReSearch()
 
 End
 
-Public Sub txtInput_KeyRelease()
-
-    If Key.code = Key.Esc Then
-        txtInput.Hide
-        Me.SetFocus
-    End If
-
-    If (Key.code = Key.Enter) Or (Key.code = Key.Return) Then
-        gcd.clsJob.KeyText(txtInput.Text)
-
-        txtInput.Hide
-        Me.SetFocus
-    End If
-
-End
+' Public Sub txtInput_KeyRelease()
+'
+'     If Key.code = Key.Esc Then
+'         txtInput.Hide
+'         Me.SetFocus
+'     End If
+'
+'     If (Key.code = Key.Enter) Or (Key.code = Key.Return) Then
+'         gcd.clsJob.KeyText(txtInput.Text)
+'
+'         txtInput.Hide
+'         Me.SetFocus
+'     End If
+'
+' End
 
 Public Sub Form_Keyrelease()
 
@@ -798,7 +798,7 @@ Public Sub Form_Keyrelease()
     ' Print Key.Code
     Dim t As Float = Timer
 
-    If txtInput.Visible Then Return
+    ' If txtInput.Visible Then Return
 
     Select Key.Code
 
@@ -821,7 +821,7 @@ Public Sub Form_Keyrelease()
             ' For a = 1 To 500000
             '     NE = cadLine.NewEntity([Rnd(-100, 100), Rnd(-100, -100), Rnd(100, 100), Rnd(100, 100)])
             '     Ngcd.CCC[e.gender].finish(ne)
-            '     gcd.currentDrawing.oEntities.Add(ne, ne.Handle)
+            '     gcd.Drawing.oEntities.Add(ne, ne.Handle)
             '
             ' Next
             ' Debug "Creadas", Timer - t
@@ -834,7 +834,7 @@ Public Sub Form_Keyrelease()
             ' Debug "Regen en ", Timer - t
             ' Dim oka As Boolean
             ' t = Timer
-            ' For Each NE In gcd.currentDrawing.oEntities
+            ' For Each NE In gcd.Drawing.oEntities
             '     oka = Ngcd.CCC[e.gender].MouseOverMe(NE, 2000, 2000, 10)
             ' Next
             ' Debug "Tracking via Gcd.CCC[e.gender] en ", Timer - t
@@ -847,14 +847,14 @@ Public Sub Form_Keyrelease()
             '
             ' ' lleno poi
             ' t = Timer
-            ' For Each NE In gcd.currentDrawing.oEntities
+            ' For Each NE In gcd.Drawing.oEntities
             '     Inc a
-            '     gcd.currentDrawing.poiLines.Insert(NE.p.Copy())
-            '     gcd.currentDrawing.oExtras.Add(ne.Handle, Str(a))
+            '     gcd.Drawing.poiLines.Insert(NE.p.Copy())
+            '     gcd.Drawing.oExtras.Add(ne.Handle, Str(a))
             ' Next
             ' Debug "Llenado del POI en ", Timer - t
             ' t = Timer
-            ' a = puntos.inPolySegment(gcd.currentDrawing.poiLines, 2000, 2000, 10)
+            ' a = puntos.inPolySegment(gcd.Drawing.poiLines, 2000, 2000, 10)
             ' Debug "Busqueda via POI en ", Timer - t
             ' Stop
             ' ftring = puntos.PolygonTriangulation3([185, -315, 185, -295, 179, -295, 179, -296, 184, -296, 184, -314, 179, -314, 179, -315])
@@ -864,24 +864,27 @@ Public Sub Form_Keyrelease()
             'puntos.Translate(ftring2, 80, 0)
             ' Dim NE As New Entity
             ' ne = cadLWPolyline.NewEntity(ftring2)
-            ' gcd.currentDrawing.oEntities.Add(ne, ne.Handle)
+            ' gcd.Drawing.oEntities.Add(ne, ne.Handle)
             '
             ' ftring2 = [0, 0, 0, 20, -10, 20, -10, 15, -5, 15, -5, 10, -10, 10, -10, 0, 0, 0]
             ' 'ftring2 = puntos.InvertPolyline(ftring2)
             ' ne = cadLWPolyline.NewEntity(ftring2)
-            ' gcd.currentDrawing.oEntities.Add(ne, ne.Handle)
+            ' gcd.Drawing.oEntities.Add(ne, ne.Handle)
             '
             ' ftring2 = New Float[]
             ' ftring2 = puntos.LinePolyIntersection([-10, 8, -1, 12], ne.p)
             ' Stop
         Case Key.F3
+            ' test
+            Utils.SaveClass(gcd.Drawing.oEntities[gcd.Drawing.oEntities.First], User.home &/ "SaveClassTest.json")
 
+            Utils.SaveClass(gcd.Drawing, User.home &/ "SaveClassTestDrawing.json")
         Case Key.f5
 
             If FInspector.MyState > 0 Then FInspector.Close
 
-            If gcd.currentDrawing.oSelected.Count > 0 Then
-                FInspector.run(gcd.currentDrawing.oSelected[gcd.currentDrawing.oSelected.First])
+            If gcd.Drawing.oSelected.Count > 0 Then
+                FInspector.run(gcd.Drawing.oSelected[gcd.Drawing.oSelected.First])
             End If
 
         Case Key.f6
@@ -973,7 +976,7 @@ Public Sub Form_Keyrelease()
                 '
                 '   Case Asc("a"), Asc("A") ' Select/Unselect All
                 '     SelectMode = True
-                '     For Each aEnty In gcd.currentDrawing.arrEntities
+                '     For Each aEnty In gcd.Drawing.arrEntities
                 '       If aEnty.Selected Then
                 '         SelectMode = False
                 '         Break
@@ -981,13 +984,13 @@ Public Sub Form_Keyrelease()
                 '     Next
                 '
                 '     If SelectMode Then
-                '       For Each aEnty In gcd.currentDrawing.arrEntities
+                '       For Each aEnty In gcd.Drawing.arrEntities
                 '         If aEnty.Selected = False Then
                 '           aEnty.Selected = True
                 '         Endif
                 '       Next
                 '     Else
-                '       For Each aEnty In gcd.currentDrawing.arrEntities
+                '       For Each aEnty In gcd.Drawing.arrEntities
                 '         If aEnty.Selected Then
                 '           aEnty.Selected = False
                 '         Endif
@@ -997,15 +1000,15 @@ Public Sub Form_Keyrelease()
                 '
                 '   Case Asc("z"), Asc("Z") ' Undo
                 '
-                '     If gcd.currentDrawing.arrUndo.Count > 0 Then
-                '       umx = gcd.currentDrawing.arrUndo.Max
+                '     If gcd.Drawing.arrUndo.Count > 0 Then
+                '       umx = gcd.Drawing.arrUndo.Max
                 '
-                '       uEnty = gcd.currentDrawing.arrUndo[umx]
-                '       For Each aEnty In gcd.currentDrawing.arrEntities
+                '       uEnty = gcd.Drawing.arrUndo[umx]
+                '       For Each aEnty In gcd.Drawing.arrEntities
                 '         If aEnty.Handle = uEnty.Handle Then
-                '           gcd.currentDrawing.arrEntities.Remove(imx, 1)
-                '           gcd.currentDrawing.arrEntities.Add(uEnty, imx)
-                '           gcd.currentDrawing.arrUndo.Remove(umx, 1)
+                '           gcd.Drawing.arrEntities.Remove(imx, 1)
+                '           gcd.Drawing.arrEntities.Add(uEnty, imx)
+                '           gcd.Drawing.arrUndo.Remove(umx, 1)
                 '           fMain.regen
                 '           'gcd.Redraw
                 '           Break
@@ -1020,22 +1023,22 @@ Public Sub Form_Keyrelease()
                 ' End Select
 
             Else
-                ' If key.text <> "" Then
-                '
-                '     KeysAccumulator &= Key.Text
-                '     'gcd.clsJob.KeyPress()
-                '
-                '     DrawingAids.ErrorMessage = ""
-                '     DrawingAids.Refresh
-                ' End If
-                If fmain.txtInput.Visible Then Return
-                If Key.Normal <> "" Then
-                    fmain.txtInput.X = fmain.W / 2
-                    fmain.txtInput.Y = fmain.h / 2
-                    fmain.txtInput.SetFocus()
-                    fmain.txtInput.Text = Key.Text
-                    fmain.txtInput.Visible = True
+                If key.text <> "" Then
+
+                    KeysAccumulator &= Key.Text
+                    'gcd.clsJob.KeyPress()
+
+                    DrawingAids.ErrorMessage = ""
+                    DrawingAids.Refresh
                 End If
+                ' If fmain.txtInput.Visible Then Return
+                ' If Key.Normal <> "" Then
+                '     fmain.txtInput.X = fmain.W / 2
+                '     fmain.txtInput.Y = fmain.h / 2
+                '     fmain.txtInput.SetFocus()
+                '     fmain.txtInput.Text = Key.Text
+                '     fmain.txtInput.Visible = True
+                ' End If
 
             Endif
 
@@ -1060,19 +1063,19 @@ Public Sub grdLayers_Click()
 
     Else
         If grdLayers.Column = 1 Then ' Visibility
-            gcd.currentDrawing.CurrLayer.Visible = Not gcd.currentDrawing.CurrLayer.Visible
+            gcd.Drawing.CurrLayer.Visible = Not gcd.Drawing.CurrLayer.Visible
 
-            If gcd.currentDrawing.CurrLayer.Visible Then grdLayers[0, 1].Picture = fLayersOnScreen.picVisibleOn Else grdLayers[0, 1].Picture = fLayersOnScreen.picVisibleOff
+            If gcd.Drawing.CurrLayer.Visible Then grdLayers[0, 1].Picture = fLayersOnScreen.picVisibleOn Else grdLayers[0, 1].Picture = fLayersOnScreen.picVisibleOff
 
         Else If grdLayers.Column = 2 Then ' frozen
-            gcd.currentDrawing.CurrLayer.Frozen = Not gcd.currentDrawing.CurrLayer.Frozen
+            gcd.Drawing.CurrLayer.Frozen = Not gcd.Drawing.CurrLayer.Frozen
 
-            If gcd.currentDrawing.CurrLayer.Frozen Then grdLayers[0, 2].Picture = fLayersOnScreen.picFrozenOn Else grdLayers[0, 2].Picture = fLayersOnScreen.picFrozenOff
+            If gcd.Drawing.CurrLayer.Frozen Then grdLayers[0, 2].Picture = fLayersOnScreen.picFrozenOn Else grdLayers[0, 2].Picture = fLayersOnScreen.picFrozenOff
 
         Else If grdLayers.Column = 3 Then ' lock
-            gcd.currentDrawing.CurrLayer.Locked = Not gcd.currentDrawing.CurrLayer.Locked
+            gcd.Drawing.CurrLayer.Locked = Not gcd.Drawing.CurrLayer.Locked
 
-            If gcd.currentDrawing.CurrLayer.Locked Then grdLayers[0, 3].Picture = fLayersOnScreen.picLockedOn Else grdLayers[0, 3].Picture = fLayersOnScreen.picLockedOff
+            If gcd.Drawing.CurrLayer.Locked Then grdLayers[0, 3].Picture = fLayersOnScreen.picLockedOn Else grdLayers[0, 3].Picture = fLayersOnScreen.picLockedOff
 
         Else
 
@@ -1087,33 +1090,33 @@ Public Sub grdLayers_Click()
 
 End
 
-Public Sub FillWindowMenu()
-
-    Dim d As Drawing
-    Dim mItem As Menu
-
-    mnuWindow.Children.Clear
-
-    For Each d In gcd.Drawings
-        mItem = New Menu(mnuWindow)
-        mItem.Text = d.FileName
-        If d = gcd.currentDrawing Then mItem.Checked = True Else mItem.Checked = False
-        mItem.Action = "windowchange_" & d.FileName
-    Next
-
-    mItem = New Menu(mnuWindow)
-    mItem.Text = "" ' separador
-
-    ' y ahora agrego dos
-    mItem = New Menu(mnuWindow)
-    mItem.Text = ("Close")
-    mItem.Action = "window_close"
-
-    mItem = New Menu(mnuWindow)
-    mItem.Text = ("Close all")
-    mItem.Action = "window_closeall"
-
-End
+' Public Sub FillWindowMenu()
+'
+'     Dim d As Drawing
+'     Dim mItem As Menu
+'
+'     mnuWindow.Children.Clear
+'
+'     For Each d In gcd.Drawings
+'         mItem = New Menu(mnuWindow)
+'         mItem.Text = d.FileName
+'         If d = gcd.Drawing Then mItem.Checked = True Else mItem.Checked = False
+'         mItem.Action = "windowchange_" & d.FileName
+'     Next
+'
+'     mItem = New Menu(mnuWindow)
+'     mItem.Text = "" ' separador
+'
+'     ' y ahora agrego dos
+'     mItem = New Menu(mnuWindow)
+'     mItem.Text = ("Close")
+'     mItem.Action = "window_close"
+'
+'     mItem = New Menu(mnuWindow)
+'     mItem.Text = ("Close all")
+'     mItem.Action = "window_closeall"
+'
+' End
 
 ' Public Sub ToggleButton3_Click()
 '
@@ -1144,12 +1147,12 @@ End
 '     ' el autosave funciona solo si guarde antes, o sea si el dibujo tiene nombre
 '     ' ademas se guarda solo en formato dxf, para acelerar el proceso
 '
-'     If Not gcd.currentDrawing.RequiresFileRename Then
-'         If gcd.currentDrawing.RequiresSaving Then
-'             If Dxf.SaveFile(gcd.currentDrawing.FileName & ".Autosave", gcd.currentDrawing.cModel) < 0 Then
+'     If Not gcd.Drawing.RequiresFileRename Then
+'         If gcd.Drawing.RequiresSaving Then
+'             If Dxf.SaveFile(gcd.Drawing.FileName & ".Autosave", gcd.Drawing.cModel) < 0 Then
 '                 Print "Autosave error"
 '             Else
-'                 Print ("Autosaved to ") & gcd.currentDrawing.FileName & ".Autosave"
+'                 Print ("Autosaved to ") & gcd.Drawing.FileName & ".Autosave"
 '             Endif
 '         End If
 '     End If
@@ -1178,5 +1181,201 @@ Public Sub tbnOrtho2_Click()
 
     gcd.DrawBounds = Not gcd.DrawBounds
     Me.redraw
+
+End
+
+Public Function UpdatDimTypeTypeCombo()
+
+    Dim oDimStyle As DimStyle
+    Dim i As Integer
+
+    If IsNull(gcd.Drawing.CurrDimStyle) Then gcd.Drawing.CurrDimStyle = gcd.Drawing.odimStyles[gcd.Drawing.odimStyles.First]
+    fMain.cmbDimStyle.Clear
+    For Each oDimStyle In gcd.Drawing.oDimStyles
+        fMain.cmbDimStyle.Add(oDimStyle.name)
+
+        If gcd.Drawing.CurrDimStyle.name = oDimStyle.name Then i = fMain.cmbDimStyle.Count
+    Next
+    If i = 0 Then i = 1
+    fMain.cmbDimStyle.Index = i - 1
+
+End
+'' Transfer layers to main windows ComboBox
+
+Public Sub UpdateLayersCombo()
+
+    Dim i As Integer
+    Dim sName As String = "_menuLay"
+    Dim mLayer As New Menu(fMain), m2 As Menu
+    Dim aLayer As Layer
+
+    For i = 0 To fMain.Menus.Count - 1
+        If fMain.Menus[i].Name = sName Then
+            fMain.Menus[i].Delete
+            Break
+        End If
+    Next
+    mLayer.Name = sName
+    For Each aLayer In gcd.Drawing.oLayers
+        m2 = New Menu(mLayer)
+        m2.Text = aLayer.Name
+        m2.Picture = paintPlus.picCirculito(8, gcd.GetGBColor(aLayer.Colour), Color.ButtonForeground)
+        m2.Action = "layer_change_" & aLayer.Name
+    Next
+    ' fMain.mbtLayers.Menu = sName
+    ' fMain.mbtLayers.Text = mLayer.Children[0].Text
+    ' fMain.mbtLayers.Picture = mLayer.Children[0].Picture
+    If Not gcd.Drawing.CurrLayer Then gcd.Drawing.CurrLayer = gcd.Drawing.oLayers[gcd.Drawing.oLayers.First]
+
+    fMain.grdLayers[0.0, 0.0].Picture = mLayer.Children[0].Picture
+    fMain.grdLayers[0, 4].Text = gcd.Drawing.CurrLayer.Name
+    fMain.grdLayers[0, 1].Picture = IIf(gcd.Drawing.CurrLayer.Visible, fLayersOnScreen.picVisibleOn, fLayersOnScreen.picVisibleOff)
+    fMain.grdLayers[0, 2].Picture = IIf(gcd.Drawing.CurrLayer.Frozen, fLayersOnScreen.picFrozenOn, fLayersOnScreen.picFrozenOff)
+    fMain.grdLayers[0, 3].Picture = IIf(gcd.Drawing.CurrLayer.Locked, fLayersOnScreen.picLockedOn, fLayersOnScreen.picLockedOff)
+
+    ' fMain.tbnLayersOnScreen.Picture = paintPlus.picTexto(gcd.Drawing.arrLayers.First.Name, fMain.Font.H, fMain.tbnLayersOnScreen.w, fMain.tbnLayersOnScreen.h, Color.ButtonForeground, Color.ButtonBackground, Align.Left)
+
+    Return
+
+End
+
+'' Should be called after updating layers
+Public Sub UpdateLineWtCombo()
+
+    Dim imagen As Image
+
+    Dim LW As Float
+    Dim f As Float
+
+    ' lo vacio
+
+    fMain.tblLineWt.tbnChilds.Clear
+
+    ' primero agregamos la correspondiente a ByLayer
+    imagen = New Image(fMain.tblLineWt.w * 0.9, fMain.tblLineWt.h * 0.9, fMain.tblLineWt.Background)
+
+    Paint.Begin(imagen)
+    '  +------------------------------------+
+    '  +   ---------------------  0.00mm    +
+    '  +------------------------------------+
+    Paint.MoveTo(0, imagen.h / 2)
+    lw = gcd.Drawing.CurrLayer.LineWt '][dxf.codLWht] / 100 * 3
+    Paint.LineWidth = lw
+    If Paint.LineWidth < 1 Then Paint.LineWidth = 1
+    Paint.RelLineTo(imagen.w / 2, 0)
+    Paint.Stroke
+    Paint.MoveTo(imagen.w / 10 * 5.5, imagen.h * 0.1)
+    Paint.LineWidth = 1
+    Paint.Text("ByLayer",,,, imagen.h * 0.6, Align.Left)
+    Paint.Fill
+    Paint.End
+
+    fMain.tblLineWt.AddToolButton("tbnLineWtByLayer",, imagen.Picture, "linewt_change_" & CStr(lw * 100))
+
+    ' ahora espesores especificos
+    For f = 0.1 To 1.2 Step 0.1
+        ' primero agregamos la correspondiente a ByLayer
+        imagen = New Image(fMain.tblLineWt.w * 0.9, fMain.tblLineWt.h * 0.9, fMain.tblLineWt.Background)
+
+        Paint.Begin(imagen)
+        Paint.AntiAlias = True
+        '  +------------------------------------+
+        '  +   ---------------------  0.00mm    +
+        '  +------------------------------------+
+        Paint.MoveTo(0, imagen.h / 2)
+        lw = f * 3
+        Paint.LineWidth = lw
+        If Paint.LineWidth < 1 Then Paint.LineWidth = 1
+        Paint.RelLineTo(imagen.w / 2, 0)
+        Paint.Stroke
+        Paint.MoveTo(imagen.w / 10 * 5.5, imagen.h * 0.1)
+        Paint.LineWidth = 1
+        Paint.Text(Format(f, "0.00mm"),,,, imagen.h * 0.6, Align.Left)
+        Paint.Fill
+        Paint.End
+
+        fMain.tblLineWt.AddToolButton("tbnLineWt" & CStr(f),, imagen.Picture, "linewt_change_" & CStr(lw * 100))
+
+    Next
+
+    '   test id[mm]
+    ' # ¡DIV/0!	0	0
+    ' 0, 05 1 0, 05
+    ' 0, 09 2 0, 09
+    ' 0, 1 3 0, 1
+    ' 0, 13 4 0, 13
+    ' 0, 15 5 0, 15
+    ' 0, 18 6 0, 18
+    ' 0, 2 7 0, 2
+    ' 0, 25 8 0, 25
+    ' 0, 3 9 0, 3
+    ' 0, 35 10 0, 35
+    ' 0, 4 11 0, 4
+    ' 0, 45 12 0, 45
+    ' 0, 5 13 0, 5
+    ' 0, 53 14 0, 53
+    ' 0, 6 15 0, 6
+    ' 0, 65 16 0, 65
+    ' 0, 7 17 0, 7
+    ' 0, 8 18 0, 8
+    ' 0, 9 19 0, 9
+    ' 1 20 1
+    ' 0, 4761904761905 21 1, 06
+    ' 0, 9090909090909 22 1, 2
+    ' 1, 304347826087 23 1, 4
+    ' 1, 6666666666667 24 1, 58
+    ' 2 25 2
+    ' 	26 2, 11
+    ' 	27
+    ' 	28
+    ' ByLayer 29
+    ' ByBlock 30
+    ' Default 31
+
+End
+
+Public Sub UpdateLineTypeCombo()
+
+    ' se define en DXF con los codigos:
+    ' 40 = largo total por tramo ( = suma de Abs(code 49) )
+    ' 73 = numero de elementos (linea,espacio, punto) = 0 si es continua
+    ' 49 = largo de cada elemento: 0 = dot, negativo = espacio, positivo = linea
+    Dim imagen As Image
+    Dim i As Integer
+    Dim lty As LineType
+
+    '  +------------------------------------+
+    '  + Phantom                            +
+    '  + -- - -- - -- - -- - -- - -- - --   +
+    '  +------------------------------------+
+
+    fMain.tblLTypes.tbnChilds.Clear
+
+    ' ahora espesores especificos
+    For Each lty In gcd.Drawing.oLTYpes
+        Inc i
+
+        ' primero agregamos la correspondiente a ByLayer
+        imagen = New Image(fMain.tblLTypes.w * 0.9, fMain.tblLTypes.h * 0.9, fMain.tblLTypes.Background)
+
+        Paint.Begin(imagen)
+        Paint.AntiAlias = True
+        Paint.MoveTo(0, imagen.h * 0.8)
+        Paint.LineWidth = 1
+        Paint.Dash = lty.TrameLength
+        Paint.RelLineTo(imagen.w, 0)
+        Paint.Stroke
+        Paint.Dash = Null
+        ' Texto
+        Paint.MoveTo(0, 0)
+        Paint.LineWidth = 1
+        Paint.Text(lty.Name,,,, imagen.h * 0.5, Align.topLeft)
+        Paint.Fill
+        Paint.End
+
+        fMain.tblLTypes.AddToolButton("tbnLType" & CStr(i),, imagen.Picture, "ltype_change_" & lty.Name)
+
+    Next
+    gcd.Drawing.CurrLineType = gcd.Drawing.oLTYpes[gcd.Drawing.oLTYpes.First]
 
 End

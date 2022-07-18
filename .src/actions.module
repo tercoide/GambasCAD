@@ -24,17 +24,16 @@ Public Sub FileNew()
     NewDrawing = New Drawing
     NewDrawing.ScaleZoom = gcd.ScreenDensity
     NewDrawing.iEntity.Insert([0, 0, 0, 0])
-    gcd.Drawings.Add(NewDrawing)
-    gcd.currentDrawing = gcd.Drawings.Last
-    gcd.currentDrawing.FileName = main.dirTemplates &/ "drawing1.dxf"
-    dxf.LoadFile(fMinimal, gcd.currentDrawing,,,,, True)
+    gcd.Drawing = NewDrawing
+    gcd.Drawing.FileName = main.dirTemplates &/ "drawing1.dxf"
+    dxf.LoadFile(fMinimal, gcd.Drawing,,,,, True)
     gcd.Regen()
-    Try gcd.currentDrawing.HandSeed = Val("&H" & gcd.currentDrawing.oHeader.HandSeed)
+    Try gcd.Drawing.HandSeed = Val("&H" & gcd.Drawing.oHeader.HandSeed)
 
-    gcd.UpdateLayersCombo
-    gcd.UpdateLineWtCombo
-    gcd.UpdateLineTypeCombo
-    gcd.UpdatDimTypeTypeCombo
+    fmain.UpdateLayersCombo
+    fmain.UpdateLineWtCombo
+    fmain.UpdateLineTypeCombo
+    fmain.UpdatDimTypeTypeCombo
     fmain.Text = f
     gcd.DrawingReady = True
 
@@ -120,7 +119,7 @@ Public Sub FileOpen(Optional sFile As String = "")
             End Select
         Endif
 
-        fmain.FillWindowMenu
+        'main.FillWindowMenu
         gcd.debugInfo("Showing drawing",,, True)
         gcd.DrawingReady = True
         ' this is what we are doing now
@@ -150,29 +149,29 @@ LoadDXF:
     NewDrawing.ScaleZoom = gcd.ScreenDensity
     NewDrawing.iEntity.Insert([0, 0, 0, 0])
 
-    ' esto es necesario porque muchas funciones usan gcd.currentdrawing
-    gcd.currentDrawing = NewDrawing
+    ' esto es necesario porque muchas funciones usan gcd.Drawing
+    gcd.Drawing = NewDrawing
 
     dxf.LoadFile(fMinimal, NewDrawing)
 
     If dxf.LoadFile(fDxf, NewDrawing, False, False, False,, True) Then
         Message.Error(("There was an error opening the file"))
         NewDrawing = Null
-        gcd.currentDrawing = gcd.Drawings.Last
+        gcd.Drawing = gcd.Drawings.Last
         Return
     Endif
 
-    gcd.Drawings.Add(NewDrawing)
-    gcd.currentDrawing = gcd.Drawings.Last
-    gcd.currentDrawing.FileName = f
-    gcd.currentDrawing.RequiresFileRename = False
+    gcd.Drawing = NewDrawing
 
-    Try gcd.currentDrawing.HandSeed = Val("&H" & gcd.currentDrawing.oHeader.HandSeed)
+    gcd.Drawing.FileName = f
+    gcd.Drawing.RequiresFileRename = False
 
-    gcd.UpdateLayersCombo
-    gcd.UpdateLineWtCombo
-    gcd.UpdateLineTypeCombo
-    gcd.UpdatDimTypeTypeCombo
+    Try gcd.Drawing.HandSeed = Val("&H" & gcd.Drawing.oHeader.HandSeed)
+
+    fmain.UpdateLayersCombo
+    fmain.UpdateLineWtCombo
+    fmain.UpdateLineTypeCombo
+    fmain.UpdatDimTypeTypeCombo
     gcd.Regen()
     cadZoomE.Start()                                ' por ahora mostramos el dibujo centrado, hasta q leamos el estado anterior
 
@@ -188,36 +187,38 @@ Public Sub ExitProgram()
     Dim e As Entity
     Dim L As Layer
 
-    For Each d In gcd.Drawings
-        For Each e In d.oEntities
-            e.Polygon.Clear
-            e.P.Clear
-            e.Psel.Clear
-            e.PolyLine.Clear
-            e.PoiPoints.Clear
-            e.StringData.Clear
-            e.fParam.Clear
-            e.iParam.Clear
-            gcd.CCC[e.gender] = Null
-            e.PoiType.Clear
-            gl.DeleteLists(e.glDrwList, 1)
-            gl.DeleteLists(e.glDrwListSel, 1)
-            gl.DeleteLists(e.glDrwListPOI, 1)
-        Next
-        d.oEntities.Clear
-        d.oBlocks.Clear
-        d.handles.Clear
-        For Each L In d.oLayers
-            L.Entities.Clear
-        Next
-        d.oLayers.Clear
-        d.oLTYpes.Clear
-        d.oVisibleEntities.Clear
-        d.otextStyles.Clear
-        d.odimStyles.Clear
-
+    'For Each d In gcd.Drawings
+    d = gcd.Drawing
+    For Each e In d.oEntities
+        e.Polygon.Clear
+        e.P.Clear
+        e.Psel.Clear
+        e.PolyLine.Clear
+        e.PoiPoints.Clear
+        e.StringData.Clear
+        e.fParam.Clear
+        e.iParam.Clear
+        gcd.CCC[e.gender] = Null
+        e.PoiType.Clear
+        gl.DeleteLists(e.glDrwList, 1)
+        gl.DeleteLists(e.glDrwListSel, 1)
+        gl.DeleteLists(e.glDrwListPOI, 1)
     Next
-    Config.Save
+    d.oEntities.Clear
+    d.oBlocks.Clear
+    d.handles.Clear
+    For Each L In d.oLayers
+        L.Entities.Clear
+    Next
+    d.oLayers.Clear
+    d.oLTYpes.Clear
+    d.oVisibleEntities.Clear
+    d.otextStyles.Clear
+    d.odimStyles.Clear
+
+    'Next
+
+    Utils.SaveClass(Config, Config.ConfigFile)
 
     main.MyLog.Close()
 

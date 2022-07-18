@@ -1,0 +1,64 @@
+' Gambas class file
+
+Create Private
+Inherits CadEntityBuilder
+
+'' LLamada cuando se termina de dibujar una nueva entidad.
+Public Sub Finish() As Boolean
+
+    Dim eEndBlock As Entity
+
+    ' La entidad se crea sin handle
+    If Me.elem.Handle = "" Then Me.elem.Handle = gcd.NewHandle()
+    Me.elem.HandleOwner = "1"
+    gcd.Drawing.oEntities.Add(Me.elem, Me.elem.Handle)
+    gcd.Drawing.CurrLayer.Entities.Add(Me.elem)
+    gcd.Drawing.oVisibleEntities.add(Me.elem, Me.elem.Handle)
+
+    If Me.elem.pBlock Then
+        ' para las DIMENSION
+        If Me.elem.pBlock.name = "*D" Then
+            Me.elem.pBlock.name &= Me.elem.Handle
+            Me.elem.pBlock.handle = gcd.NewHandle()
+            gcd.Drawing.oBlocks.Add(Me.elem.pBlock, Me.elem.pBlock.handle)
+
+            ' ademas agrego una ultima entidad a su bloque
+            eEndBlock = cadEndBlk.NewEntity(, True)
+            Me.elem.pBlock.entities.Add(eEndBlock, eendblock.handle)
+        End If
+    Endif
+
+    Gcd.CCC[Me.elem.gender].Finish(Me.elem)
+    Try Gcd.CCC[Me.elem.gender].LastMode = Me.elem.iParam[Gcd.CCC[Me.elem.gender].iiiMode]
+    Me.LastEntity = Me.elem                                       ' save it to repeat on rigth click
+    If Left(Me.elem.Gender, 3) = "DIM" Then gcd.Drawing.LastDimension = Me.elem
+
+    gcd.Drawing.RequiresSaving = True
+    gcd.DrawHoveredEntity = True
+
+    gcd.clsJobPrevious = Me
+    gcd.clsJob = cadSelection
+    fMain.GLArea1.PopupMenu = ""
+    cadSelection.PoiChecking = True
+    DrawingAids.CleanTexts
+
+    ' Genero la lista de dibujado de OpenGL de esta entidad en particular
+    clsEntities.GLGenDrawList(Me.elem)
+
+    ' y renuevo la lista para este layer
+    clsEntities.glGenDrawListLayers(Me.elem.pLayer)
+
+    gcd.redraw
+
+End
+
+Public Sub Cancel()
+
+    Me.elem = Null
+    gcd.clsJobPrevious = Me
+    gcd.clsJob = cadSelection
+    DrawingAids.CleanTexts
+    gcd.Redraw
+    fMain.GLArea1.PopupMenu = ""
+
+End
