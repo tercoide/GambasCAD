@@ -39,10 +39,12 @@ Public MyPrinter As Printer
 
 Public ftring As New Float[]
 Public ftring2 As New Float[]
+Public GLArea1 As GLArea
 
 Public Sub DrawTimer_Timer()
 
-    glarea1.Refresh
+    gcd.Drawing.GLAreaInUse.Refresh
+    'glarea1.Refresh
 
 End Sub
 
@@ -62,7 +64,7 @@ Public Sub Run() As Boolean
     Me.grdLayers.w = 146
     Me.Menus.Hide
     'Me.tbnLayersOnScreen.w = 96
-    Me.tabFile[0].Visible = Config.ShowConsoleTab
+    Me.tabDrawings[0].Visible = Config.ShowConsoleTab
 
     'PanelBlockFit.Visible = False 'ag = CStr(PanelBlockFit.h)
     'PanelBlockFit.h = 0
@@ -330,7 +332,7 @@ Public Function Action_Activate(sAction As String) As Boolean
             fbas = File.Dir(f) &/ File.BaseName(f)
             fBak = "'" & fbas & ".bak'"
 
-            Dialog.AutoExt = True
+            'Dialog.AutoExt = True
             Dialog.Filter = ["*.dxf", "DXF Drawing exchange 2010", "*.dwg", "DWG AutoCAD Drawing file 2010"]
             If Dialog.SaveFile() Then Return ' cancel saving
 
@@ -1377,5 +1379,55 @@ Public Sub UpdateLineTypeCombo()
 
     Next
     gcd.Drawing.CurrLineType = gcd.Drawing.oLTYpes[gcd.Drawing.oLTYpes.First]
+
+End
+
+Public Sub tabDrawings_Click()
+
+    gcd.Drawing = tabDrawings[tabDrawings.Index].Tag
+
+End
+
+'' Crea una nueva Tab para alojar un nuevo grafico
+Public Function NewTabForDrawing(sName As String) As Drawing
+
+    Dim i As Integer
+    Dim nDrawing As New Drawing
+
+    NDrawing.iEntity.Insert([0, 0, 0, 0])
+    NDrawing.ScaleZoom = gcd.ScreenDensity
+
+    Me.tabDrawings.Count += 1
+    i = Me.tabDrawings.Count - 1
+    Me.tabDrawings[i].Text = Left(Utils.FileFromPath(sName), 12)
+    'Me.tabDrawings[i].Tooltip = sName
+    Me.tabDrawings[i].Expand = True
+    Me.tabDrawings[i].tag = nDrawing
+    Me.tabDrawings.Index = i
+    Dim tabFileNew As New TabPanel(Me.tabDrawings[i])
+    tabFileNew.Count = 2
+    tabFileNew.Expand = True
+    tabFileNew.Arrangement = Arrange.Fill
+    tabFileNew.Orientation = Align.Bottom
+
+    tabFileNew[0].Text = "Model"
+    tabFileNew[1].Text = "Paper"
+    Dim glaFile As New GLArea(tabFileNew[0])
+    glaFile.Expand = True
+    glaFile.Tracking = True
+    Object.Attach(glaFile, Me, "GLArea1")
+
+
+    gcd.Drawing = nDrawing
+    gcd.Drawing.GLAreaInUse = glaFile
+    fmain.GLArea1 = gcd.Drawing.GLAreaInUse
+
+    Me.Refresh
+
+    Return nDrawing
+
+
+
+
 
 End
