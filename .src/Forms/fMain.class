@@ -339,6 +339,8 @@ Public Function Action_Activate(sAction As String) As Boolean
 
             f = Dialog.Path
 
+            If File.Ext(f) = "" Then f = File.SetExt(f, "dxf")
+
             If Exist(f) Then
                 If Message.Question(("The file exist"), ("Replace"), ("Cancel")) = 2 Then
                     f = ""
@@ -1387,6 +1389,7 @@ End
 Public Sub tabDrawings_Click()
 
     gcd.Drawing = tabDrawings[tabDrawings.Index].Tag
+    Try Me.GLArea1 = gcd.Drawing.GLAreaInUse
 
 End
 
@@ -1432,5 +1435,42 @@ Public Function NewTabForDrawing(sName As String) As Drawing
 
 
 
+
+End
+
+Public Sub tabDrawings_Close(Index As Integer)
+
+    Dim c, c2 As Control
+    Dim childs As Integer
+    ' tengo q elminar todos los controles que tiene adentro antes de eliminar el tab
+    For Each c In tabDrawings[tabDrawings.Index].Children
+        childs = 0
+
+
+        Try childs = c.Children.count
+        If childs = 0 Then
+            c.Delete
+        Else
+            For Each c2 In c.Children
+                c2.Delete
+            Next
+            c.Delete
+        End If
+
+        tabDrawings[tabDrawings.Index].Delete
+    Next
+
+    tabDrawings.Index = tabDrawings.Count - 1
+    tabDrawings_Click
+
+End
+
+Public Sub tabDrawings_CloseAll()
+
+    Dim i As Integer
+
+    For i = tabDrawings.Count - 1 To 0 Step -1
+        tabDrawings_Close(i)
+    Next
 
 End
