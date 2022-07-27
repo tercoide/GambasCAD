@@ -730,7 +730,8 @@ Public Sub GetBoundLimits2(fxlPoints As Float[])
 
 End
 
-Fast Unsafe Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
+'Fast Unsafe
+Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
 
     ' reeleno usando un pattern manual
     ' https://knowledge.autodesk.com/support/autocad-lt/learn-explore/caas/CloudHelp/cloudhelp/2018/ENU/AutoCAD-LT/files/GUID-79B99823-7600-4CAB-BD12-04D5103D90CB-htm.html
@@ -743,7 +744,7 @@ Fast Unsafe Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para 
     ' StringData[0]: nombre del patron del sombreado
 
     Dim e As Entity
-    Dim fPAtternSide As Float
+    Dim fPAtternSide, fDashTotal, fDistance As Float
     Dim iPatternOffset, iPatternN As Integer
     Dim nx As Integer
     Dim ny As Integer
@@ -781,8 +782,11 @@ Fast Unsafe Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para 
 
     oloop = entToFill.pBlock.oBoundaryPath
 
-    'If entToFill.Handle = "3DF" Then Stop
+
+
+    'If entToFill.Handle = "35256" Then Stop
     'If entToFill.StringData[0] = "ANSI31" Then Stop
+    'If entToFill.StringData[0] = "GRAVEL" Then entToFill.Colour = 2
 
     MakeBorder2(oLoop)
 
@@ -824,7 +828,12 @@ Fast Unsafe Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para 
         SinA = Sin(entToFill.fParam[Me.ipaRotation] * Pi / 180)
 
         For Each oPat In entToFill.pBlock.Patterns
-            Utils.DoEvents(250)
+            fDashTotal = 0
+            For Each DashTrame In oPat.DashLength
+                DashTrame *= Scale                  ' aplico la escala aqui mismo
+                fDashTotal += Abs(DashTrame)
+            Next
+
             iHatchLinesDrawn = 0
             NoMoreIntersections = False
             OffsetDirection = 1
@@ -845,24 +854,37 @@ Fast Unsafe Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para 
             ' SinA = Sin(entToFill.fParam[Me.ipaRotation] * Pi / 180)
             DistCg = 1e100
             Do
+                Utils.DoEvents(100)
                 If iPatternOffset > 1e3 Then Break 'Stop
 
                 ' el Offset entre lineas del patron ya tiene incorporado el angulo del hatch
-                BaseX = SeedX + oPat.BaseX + iPatternOffset * OffsetDirection * oPat.OffsetX * Scale
-                BaseY = SeedY + oPat.BaseY + iPatternOffset * OffsetDirection * oPat.OffsetY * Scale
+                BaseX = SeedX + oPat.BaseX + iPatternOffset * OffsetDirection * oPat.OffsetX
+                BaseY = SeedY + oPat.BaseY + iPatternOffset * OffsetDirection * oPat.OffsetY
 
                 Mucho = 1e10
 
-                If Abs(Xmayor - BaseX) > mucho Then mucho = Abs(Xmayor - BaseX)
-                If Abs(Ymayor - BaseY) > mucho Then mucho = Abs(Ymayor - BaseY)
-                If Abs(Xmenor - BaseX) > mucho Then mucho = Abs(Xmenor - BaseX)
-                If Abs(Ymenor - BaseY) > mucho Then mucho = Abs(Ymenor - BaseY)
+                ' If Abs(Xmayor - BaseX) * CosB > mucho Then mucho = Abs(Xmayor - BaseX)
+                ' If Abs(Ymayor - BaseY) * SinB > mucho Then mucho = Abs(Ymayor - BaseY)
+                ' If Abs(Xmenor - BaseX) * CosB > mucho Then mucho = Abs(Xmenor - BaseX)
+                ' If Abs(Ymenor - BaseY) * sinB > mucho Then mucho = Abs(Ymenor - BaseY)
 
                 StartX = BaseX - cosB * mucho
                 StartY = BaseY - SinB * Mucho
 
                 FinalX = BaseX + CosB * Mucho
                 FinalY = BaseY + SinB * Mucho
+
+                ' normalizo esto
+                If CSingle(StartX) > CSingle(FinalX) Then
+                    Swap StartX, FinalX
+                    Swap StartY, FinalY
+                Else If CSingle(StartX) = CSingle(FinalX) Then
+                    If StartY > FinalY Then
+                        Swap StartX, FinalX
+                        Swap StartY, FinalY
+                    Endif
+
+                Endif
 
                 '
                 ' 'If MuchoViejo = 0 Then MuchoViejo = Mucho
@@ -875,13 +897,14 @@ Fast Unsafe Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para 
 
                 Inc iPatternOffset
 
-                ' La linea recortada al contorno es:
+                ' La linea recortada al contorno es (OJO, esto puede ser un conjunto de lineas):
                 flxTrimmedLine = puntos.LinePolyIntersection([StartX, StartY, FinalX, FinalY], flxContorno)
 
                 ' ahora aplico los dashes
 
                 flxPatternLines.Clear
                 If flxTrimmedLine.Count > 0 Then
+                    ' If flxTrimmedLine[0] > flxTrimmedLine[flxTrimmedLine.Max - 1] Then Stop
                     'flxFirstPass.Insert(flxTrimmedLine.Copy())
                     'entToFill.PolyLine.Insert(flxTrimmedLine.Copy())
                     'oPat.Dashes = 0
@@ -890,17 +913,47 @@ Fast Unsafe Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para 
                         Inc iHatchLinesDrawn
 
                     Else ' armo los dashes y despue los recorto al contorno
+
+                        ' Acomodo las lineas trimadas de manera que contemplen el punto base semilla
+
+                        ' If BaseX < flxTrimmedLine[0] Then
+                        '     fDistance = puntos.distancia(flxTrimmedLine[0], flxTrimmedLine[1], basex, basey)
+                        '     iPatternN = CInt(fDistance / fDashTotal) - 1
+                        '     BaseX += iPatternN * fDashTotal e * Abs(CosB)
+                        '     BaseY += iPatternN * fDashTotal  * SinB
+                        '
+                        ' Else If BaseX > flxTrimmedLine[flxTrimmedLine.Max - 1] Then
+                        '     fDistance = puntos.distancia(flxTrimmedLine[flxTrimmedLine.Max - 1], flxTrimmedLine[flxTrimmedLine.Max], basex, basey)
+                        '     iPatternN = CInt(fDistance / fDashTotal) - 1
+                        '     BaseX += iPatternN * fDashTotal  * Abs(CosB)
+                        '     BaseY += iPatternN * fDashTotal  * SinB
+                        '
+                        ' Endif
+
                         ' direccion +
-                        DashBaseX = BaseX
-                        DashBaseY = BaseY
+                        ' fDistance = puntos.distancia(flxTrimmedLine[0], flxTrimmedLine[1], basex, basey)
+                        ' iPatternN = CInt(fDistance / fDashTotal)
+                        '
+                        ' If (baseX > flxTrimmedLine[0]) And (CosB > 0) Then
+                        '     DashBaseX = BaseX + (iPatternN - 1) * fDashTotal  * CosB
+                        '     DashBaseY = BaseY + (iPatternN - 1) * fDashTotal  * sinB
+                        ' Else If (baseX < flxTrimmedLine[0]) And (CosB > 0) Then
+                        '     DashBaseX = BaseX - (iPatternN + 1) * fDashTotal  * CosB
+                        '     DashBaseY = BaseY - (iPatternN + 1) * fDashTotal  * sinB
+                        ' Endif
+                        ' Debug iPatternN
+                        ' veo si voy para un lado o el otro
+
+                        DashBaseX = BaseX '+ iPatternN * fDashTotal  * CosB
+                        DashBaseY = BaseY '+ iPatternN * fDashTotal  * sinB
                         Do
 
                             For Each DashTrame In oPat.DashLength
                                 ' If DashTrame = 0 Then ' es un punto, intentamos dibujar un pixel
                                 '     DashTrame = gcd.Pixels(0.5)
                                 ' End If
-                                DashFinalX = DashBaseX + Abs(DashTrame) * CosB * Scale
-                                DashFinalY = DashBaseY + Abs(DashTrame) * SinB * Scale
+                                DashFinalX = DashBaseX + Abs(DashTrame) * CosB
+                                DashFinalY = DashBaseY + Abs(DashTrame) * SinB
 
                                 If DashTrame > 0 Then
                                     flxFirstPass.insert(puntos.LinePolyIntersection([DashBaseX, DashBaseY, DashFinalX, DashFinalY], flxContorno))
@@ -938,8 +991,8 @@ Fast Unsafe Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para 
 
                             For i = oPat.DashLength.Max To 0 Step -1
                                 DashTrame = oPat.DashLength[i]
-                                DashFinalX = DashBaseX - Abs(DashTrame) * CosB * Scale
-                                DashFinalY = DashBaseY - Abs(DashTrame) * SinB * Scale
+                                DashFinalX = DashBaseX - Abs(DashTrame) * CosB
+                                DashFinalY = DashBaseY - Abs(DashTrame) * SinB
                                 If DashTrame > 0 Then
                                     flxFirstPass.insert(puntos.LinePolyIntersection([DashBaseX, DashBaseY, DashFinalX, DashFinalY], flxContorno))
                                 Else If DashTrame = 0 Then
