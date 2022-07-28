@@ -776,6 +776,8 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
     Dim CorrectionScale As Float = 1 '0.01 ' 0.1
     Dim iHatchLinesDrawn As Integer
 
+    Dim UsarNuevaFuncion As Boolean = False     ' TODO ver como hacer andar esto
+
     If entToFill.fParam[cadHatch.ipaScale] = 0 Then
         entToFill.fParam[cadHatch.ipaScale] = 1
     Else
@@ -914,89 +916,96 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
 
                     Else ' armo los dashes y despue los recorto al contorno
 
+                        If UsarNuevaFuncion Then
+
+                            flxFirstPass = puntos.DashedLineStrip(basex, basey, flxTrimmedLine, oPat.DashLength)
+                        Else
 
 
-                        DashBaseX = BaseX
-                        DashBaseY = BaseY
+
+                            DashBaseX = BaseX
+                            DashBaseY = BaseY
 
 
-                        Do
+                            Do
 
-                            For Each DashTrame In oPat.DashLength
+                                For Each DashTrame In oPat.DashLength
 
-                                DashFinalX = DashBaseX + Abs(DashTrame) * CosB * Scale
-                                DashFinalY = DashBaseY + Abs(DashTrame) * SinB * Scale
+                                    DashFinalX = DashBaseX + Abs(DashTrame) * CosB * Scale
+                                    DashFinalY = DashBaseY + Abs(DashTrame) * SinB * Scale
 
-                                If DashTrame > 0 Then
-                                    flxInter = puntos.LinePolyIntersection([DashBaseX, DashBaseY, DashFinalX, DashFinalY], flxContorno)
-                                    If flxInter.Count > 0 Then flxFirstPass.insert(flxInter)
+                                    If DashTrame > 0 Then
+                                        flxInter = puntos.LinePolyIntersection([DashBaseX, DashBaseY, DashFinalX, DashFinalY], flxContorno)
+                                        If flxInter.Count > 0 Then flxFirstPass.insert(flxInter)
 
-                                Else If DashTrame = 0 Then
-                                    If puntos.isInside(flxContorno, DashBaseX, DashBaseY) Then
-                                        flxFirstPass.insert([DashBaseX, DashBaseY, DashFinalX, DashFinalY])
-                                    Endif
-                                End If
-
-
-                                DashBaseX = DashFinalX
-                                DashBaseY = DashFinalY
-                            Next
-
-                            ' veo si necesito seguir cargando la linea de puntos
-                            If cosB >= 0 Then
-                                If (DashFinalX > Xmayor) Then Break
-                            Else
-                                If (DashFinalX < Xmenor) Then Break
-                            Endif
-                            If SinB >= 0 Then
-                                If (DashFinalY > Ymayor) Then Break
-                            Else
-                                If (DashFinalY < Ymenor) Then Break
-                            Endif
-
-                        Loop
+                                    Else If DashTrame = 0 Then
+                                        If puntos.isInside(flxContorno, DashBaseX, DashBaseY) Then
+                                            flxFirstPass.insert([DashBaseX, DashBaseY, DashFinalX, DashFinalY])
+                                        Endif
+                                    End If
 
 
-                        ' direccion -
-                        DashBaseX = BaseX '+ iPatternN * fDashTotal  * CosB
-                        DashBaseY = BaseY '+ iPatternN * fDashTotal  * sinB
+                                    DashBaseX = DashFinalX
+                                    DashBaseY = DashFinalY
+                                Next
 
-                        Do
+                                ' veo si necesito seguir cargando la linea de puntos
+                                If cosB >= 0 Then
+                                    If (DashFinalX > Xmayor) Then Break
+                                Else
+                                    If (DashFinalX < Xmenor) Then Break
+                                Endif
+                                If SinB >= 0 Then
+                                    If (DashFinalY > Ymayor) Then Break
+                                Else
+                                    If (DashFinalY < Ymenor) Then Break
+                                Endif
 
-                            For i = oPat.DashLength.Max To 0 Step -1
-                                DashTrame = oPat.DashLength[i]
-                                DashFinalX = DashBaseX - Abs(DashTrame) * CosB * Scale
-                                DashFinalY = DashBaseY - Abs(DashTrame) * SinB * Scale
-                                If DashTrame > 0 Then
-                                    flxInter = puntos.LinePolyIntersection([DashBaseX, DashBaseY, DashFinalX, DashFinalY], flxContorno)
-
-                                    If flxInter.Count > 0 Then flxFirstPass.insert(flxInter)
+                            Loop
 
 
-                                Else If DashTrame = 0 Then
-                                    If puntos.isInside(flxContorno, DashBaseX, DashBaseY) Then
-                                        flxFirstPass.insert([DashBaseX, DashBaseY, DashFinalX, DashFinalY])
-                                    Endif
-                                End If
+                            ' direccion -
+                            DashBaseX = BaseX '+ iPatternN * fDashTotal  * CosB
+                            DashBaseY = BaseY '+ iPatternN * fDashTotal  * sinB
 
-                                DashBaseX = DashFinalX
-                                DashBaseY = DashFinalY
+                            Do
 
-                            Next
-                            ' veo si necesito seguir cargando la linea de puntos
-                            If cosB < 0 Then
-                                If (DashFinalX > Xmayor) Then Break
-                            Else
-                                If (DashFinalX < Xmenor) Then Break
-                            Endif
+                                For i = oPat.DashLength.Max To 0 Step -1
+                                    DashTrame = oPat.DashLength[i]
+                                    DashFinalX = DashBaseX - Abs(DashTrame) * CosB * Scale
+                                    DashFinalY = DashBaseY - Abs(DashTrame) * SinB * Scale
+                                    If DashTrame > 0 Then
+                                        flxInter = puntos.LinePolyIntersection([DashBaseX, DashBaseY, DashFinalX, DashFinalY], flxContorno)
 
-                            If SinB < 0 Then
-                                If (DashFinalY > Ymayor) Then Break
-                            Else
-                                If (DashFinalY < Ymenor) Then Break
-                            Endif
+                                        If flxInter.Count > 0 Then flxFirstPass.insert(flxInter)
 
-                        Loop
+
+                                    Else If DashTrame = 0 Then
+                                        If puntos.isInside(flxContorno, DashBaseX, DashBaseY) Then
+                                            flxFirstPass.insert([DashBaseX, DashBaseY, DashFinalX, DashFinalY])
+                                        Endif
+                                    End If
+
+                                    DashBaseX = DashFinalX
+                                    DashBaseY = DashFinalY
+
+                                Next
+                                ' veo si necesito seguir cargando la linea de puntos
+                                If cosB < 0 Then
+                                    If (DashFinalX > Xmayor) Then Break
+                                Else
+                                    If (DashFinalX < Xmenor) Then Break
+                                Endif
+
+                                If SinB < 0 Then
+                                    If (DashFinalY > Ymayor) Then Break
+                                Else
+                                    If (DashFinalY < Ymenor) Then Break
+                                Endif
+
+                            Loop
+
+                        Endif
 
 
                     End If

@@ -275,7 +275,7 @@ Public Sub Rectangle2D(x1 As Float, y1 As Float, w As Float, h As Float, Optiona
 End
 
 '' Dibuja un serie de lineas
-Public Function Lines(fVertices As Float[], Optional colour As Integer = 0, LineWidth As Float = 1, dashes As Float[])
+Public Function Lines(fVertices As Float[], Optional colour As Integer = 0, LineWidth As Float = 1, dashes As Float[] = [])
 
     Dim i As Integer
     Dim r As Float, g As Float, b As Float
@@ -291,7 +291,7 @@ Public Function Lines(fVertices As Float[], Optional colour As Integer = 0, Line
     If InmediateMode Then
         'glColorRGB(colour)
         gl.LineWidth(LineWidth) ' obsoleto en WebGL
-        If dashes Then
+        If dashes.Count > 0 Then
             Vertices = puntos.DashedLineStrip(fvertices[0], fvertices[1], fvertices, dashes, 1)
         Else
 
@@ -381,7 +381,7 @@ End
 '' Siempre gira en sentido anti-horario
 '' Las medidas de los angulo inicial y recorrido estan en RADIANES
 
-Fast Unsafe Public Function ARC(Optional radio As Float, start_angle As Float, length As Float, colour As Integer = 0, LineWidth As Float = 1, dashes As Integer)
+Fast Unsafe Public Function ARC(Optional radio As Float, start_angle As Float, length As Float, colour As Integer = 0, LineWidth As Float = 1, dashes As Float[])
 
     GL.Begin(gl.LINE_STRIP)
     Dim theta, angle_increment As Float
@@ -437,26 +437,27 @@ Fast Unsafe Public Function ArcPoly(Optional radio As Float, start_angle As Floa
 
 End
 
-Fast Unsafe Public Function PolyLines(fVertices As Float[], Optional colour As Integer = 0, LineWidth As Float = 1, dashes As Float[], Optional iClosed As Boolean = False)
+'Fast Unsafe
+Public Function PolyLines(fVertices As Float[], Optional colour As Integer = 0, LineWidth As Float = 1, dashes As Float[], iClosed As Boolean = False)
 
     Dim i As Integer
-    Dim vertices As Float[]
+    Dim vertices, vertices2 As Float[]
 
+    If fvertices.Count < 2 Then Return
     gl.LineWidth(LineWidth) ' obsoleto en WebGL
-    If dashes Then
-        Vertices = puntos.DashedLineStrip(fvertices[0], fvertices[1], fvertices, dashes, 1)
+    If dashes.Count > 0 Then
+
+
+        Vertices = puntos.DashedLineStrip(fvertices[0], fvertices[1], fvertices, dashes, 1, iClosed)
 
         gl.Begin(gl.LINES)
-
 
         For i = 0 To vertices.Max Step 2
             glColorRGB(colour)
             gl.Vertex2f(vertices[i], vertices[i + 1])
         Next
 
-        If iClosed Then
-            gl.Vertex2f(vertices[0], vertices[1])
-        End If
+
 
     Else
 
@@ -482,14 +483,14 @@ Fast Unsafe Public Function PolyLines(fVertices As Float[], Optional colour As I
 
 End
 
-Fast Unsafe Public Function Triangles(vertices As Float[], Optional colour As Integer = 0, FillColor As Integer = 0, LineWidth As Float = 1, dashes As Float[])
+Fast Unsafe Public Function Triangles(vertices As Float[], Optional colour As Integer = 0, FillColor As Integer = 0, LineWidth As Float = 1, dashes As Float[] = [])
 
     Dim i As Integer
 
     'glColorRGB(colour)
     gl.LineWidth(LineWidth) ' obsoleto en WebGL
 
-    If dashes Then
+    If dashes.Count > 0 Then
 
         PolyLines(vertices, colour, linewidth, dashes, True)
 
@@ -508,7 +509,7 @@ End
 
 '' Dibuja un circulo
 
-Fast Unsafe Public Function CIRCLE(center As Float[], radious As Float, Optional colour As Integer = 0, Filled As Boolean = False, LineWidth As Float = 1, dashes As Float[])
+Fast Unsafe Public Function CIRCLE(center As Float[], radious As Float, Optional colour As Integer = 0, Filled As Boolean = False, LineWidth As Float = 1, dashes As Float[] = [])
 
     Dim x, y, theta, angle_increment As Float
 
@@ -528,7 +529,7 @@ Fast Unsafe Public Function CIRCLE(center As Float[], radious As Float, Optional
         gl.End
     Else
 
-        GL.Begin(gl.LINE_STRIP)
+
         angle_increment = Pi * 2 / 360
         For theta = 0 To 2 * Pi Step angle_increment
             ' el punto considerando 0,0 al centro
@@ -537,15 +538,8 @@ Fast Unsafe Public Function CIRCLE(center As Float[], radious As Float, Optional
             fvertices.Add(x)
             fvertices.Add(y)
         Next
-        If dashes Then
-            Vertices = puntos.DashedLineStrip(fvertices[0], fvertices[1], fvertices, dashes, 1)
-        Else
 
-            Vertices = fvertices
-
-        Endif
-
-        PolyLines(Vertices, colour, linewidth,, True)
+        PolyLines(fVertices, colour, linewidth, dashes, True)
 
 
     End If

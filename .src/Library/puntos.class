@@ -31,7 +31,7 @@
 
 Create Static       ' This two preposition are the same as creating a module instead of a
 Create Private      ' class in Gambas.
-' Fast Unsafe        ' TODO: alwways set this after debugging
+Fast Unsafe        ' TODO: alwways set this after debugging
 Public HookSize As Integer = 16                       ' for use with poi
 Public NumericTolerance As Float = 1e-7
 
@@ -1247,7 +1247,7 @@ Public Function Limits(Points As Float[]) As Float[]
 End
 
 '' Devuelve una linea de puntos confinada en los segmentos flxStrip, segun el patron estilo CAD flxDashes, usando el punto base.
-Public Function DashedLineStrip(BaseX As Float, BaseY As Float, flxStrip As Float[], flxDashes As Float[], fScale As Float) As Float[]
+Public Function DashedLineStrip(BaseX As Float, BaseY As Float, flxStrip As Float[], flxDashes As Float[], Optional fScale As Float = 1, iClosed As Boolean = False) As Float[]
 
     Dim fTrame, fOffset, fDashTotal, fDistance, DashLength, DashTrame As Float
     Dim iPatternOffset, iPatternN As Integer
@@ -1260,7 +1260,7 @@ Public Function DashedLineStrip(BaseX As Float, BaseY As Float, flxStrip As Floa
     Dim bSpace As Boolean
 
     ' calculamos el largo total de los dashes
-    If fScale = 0 Then fScale = 1
+
     fDashTotal = 0
     For Each DashTrame In flxDashes
         DashTrame *= fScale                  ' aplico la escala aqui mismo
@@ -1274,13 +1274,21 @@ Public Function DashedLineStrip(BaseX As Float, BaseY As Float, flxStrip As Floa
 
     fOffset = Utils.fMod(fDistance, fDashTotal)                             ' el offset donde arranco
 
-    For i = 0 To flxStrip.Max - 3 Step 2
+    For i = 0 To flxStrip.Max - 1 Step 2
 
         X0 = flxStrip[i]
         Y0 = flxStrip[i + 1]
-        X1 = flxStrip[i + 2]
-        Y1 = flxStrip[i + 3]
-
+        If i = flxStrip.Count - 2 Then
+            If iClosed Then
+                X1 = flxStrip[0]
+                Y1 = flxStrip[1]
+            Else
+                Break
+            End If
+        Else
+            X1 = flxStrip[i + 2]
+            Y1 = flxStrip[i + 3]
+        End If
         fTrame = distancia(x0, y0, x1, y1)      ' largo del tramo a rellenar
 
         fAngle = Ang(X1 - X0, Y1 - Y0)
