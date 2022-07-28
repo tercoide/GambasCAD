@@ -275,25 +275,27 @@ Public Sub Rectangle2D(x1 As Float, y1 As Float, w As Float, h As Float, Optiona
 End
 
 '' Dibuja un serie de lineas
-Public Function Lines(vertices As Float[], Optional colour As Integer = 0, LineWidth As Float = 1, dashes As Integer = 0)
+Public Function Lines(fVertices As Float[], Optional colour As Integer = 0, LineWidth As Float = 1, dashes As Float[])
 
     Dim i As Integer
     Dim r As Float, g As Float, b As Float
+    Dim Vertices As Float[]
 
     'If gbcolor > 0 Then Stop
     r = (Shr(Colour, 16) And 255) / 256
     g = (Shr(Colour, 8) And 255) / 256
     b = (Colour And 255) / 256
 
+    If fvertices.Count < 2 Then Return
+
     If InmediateMode Then
         'glColorRGB(colour)
         gl.LineWidth(LineWidth) ' obsoleto en WebGL
-        If dashes > 0 Then
-            gl.LineStipple(LineStippleScales[dashes], LineStipples[dashes])
-            gl.Enable(GL.LINE_STIPPLE)
+        If dashes Then
+            Vertices = puntos.DashedLineStrip(fvertices[0], fvertices[1], fvertices, dashes, 1)
         Else
 
-            gl.Disable(GL.LINE_STIPPLE)
+            Vertices = fvertices
 
         Endif
 
@@ -306,7 +308,6 @@ Public Function Lines(vertices As Float[], Optional colour As Integer = 0, LineW
         Next
         gl.end
 
-        If dashes > 0 Then gl.Disable(GL.LINE_STIPPLE)
     Else ' we as writing to an array
         For i = 0 To vertices.Max Step 2
             VBO_vertex.Add(vertices[i])         'X
@@ -328,14 +329,14 @@ Public Function Lines(vertices As Float[], Optional colour As Integer = 0, LineW
 End
 
 '' Dibuja un seria de polilinea
-Fast Unsafe Public Function PolygonFilled(vertices As Float[], Optional colour As Integer = 0, FillColor As Integer = 0, LineWidth As Float = 1, dashes As Integer)
+Fast Unsafe Public Function PolygonFilled(vertices As Float[], Optional colour As Integer = 0, FillColor As Integer = 0, LineWidth As Float = 1, dashes As Float[])
 
     Dim i As Integer
 
     'glColorRGB(colour)
     gl.LineWidth(LineWidth) ' obsoleto en WebGL
 
-    If dashes > 0 Then
+    If dashes Then
         gl.LineStipple(LineStippleScales[dashes], LineStipples[dashes])
         gl.Enable(GL.LINE_STIPPLE)
     Else
@@ -356,20 +357,13 @@ Fast Unsafe Public Function PolygonFilled(vertices As Float[], Optional colour A
 End
 
 '' Dibuja un seria de polilinea
-Fast Unsafe Public Function Polygon(vertices As Float[], Optional colour As Integer = 0, LineWidth As Float = 1, dashes As Integer)
+Fast Unsafe Public Function Polygon(vertices As Float[], Optional colour As Integer = 0, LineWidth As Float = 1, dashes As Float[])
 
     Dim i As Integer
 
     'glColorRGB(colour)
     gl.LineWidth(LineWidth) ' obsoleto en WebGL
-    If dashes > 0 Then
-        gl.LineStipple(LineStippleScales[dashes], LineStipples[dashes])
-        gl.Enable(GL.LINE_STIPPLE)
-    Else
 
-        gl.Disable(GL.LINE_STIPPLE)
-
-    Endif
 
     gl.Begin(gl.LINE_LOOP)
 
@@ -380,7 +374,7 @@ Fast Unsafe Public Function Polygon(vertices As Float[], Optional colour As Inte
     Next
     gl.end
 
-    If dashes > 0 Then gl.Disable(GL.LINE_STIPPLE)
+
 
 End
 '' Dibuja un arco, suponiendo que el centro esta en 0,0 (despues de un Translate())
@@ -443,69 +437,61 @@ Fast Unsafe Public Function ArcPoly(Optional radio As Float, start_angle As Floa
 
 End
 
-Fast Unsafe Public Function PolyLines(vertices As Float[], Optional colour As Integer = 0, LineWidth As Float = 1, dashes As Integer, Optional iClosed As Boolean = False)
+Fast Unsafe Public Function PolyLines(fVertices As Float[], Optional colour As Integer = 0, LineWidth As Float = 1, dashes As Float[], Optional iClosed As Boolean = False)
 
     Dim i As Integer
-    'glColorRGB(colour)
+    Dim vertices As Float[]
+
     gl.LineWidth(LineWidth) ' obsoleto en WebGL
-    If dashes > 0 Then
-        gl.LineStipple(LineStippleScales[dashes], LineStipples[dashes])
-        gl.Enable(GL.LINE_STIPPLE)
+    If dashes Then
+        Vertices = puntos.DashedLineStrip(fvertices[0], fvertices[1], fvertices, dashes, 1)
+
+        gl.Begin(gl.LINES)
+
+
+        For i = 0 To vertices.Max Step 2
+            glColorRGB(colour)
+            gl.Vertex2f(vertices[i], vertices[i + 1])
+        Next
+
+        If iClosed Then
+            gl.Vertex2f(vertices[0], vertices[1])
+        End If
+
     Else
 
-        gl.Disable(GL.LINE_STIPPLE)
+        Vertices = fvertices
+        gl.Begin(gl.LINE_STRIP)
+
+
+        For i = 0 To vertices.Max Step 2
+            glColorRGB(colour)
+            gl.Vertex2f(vertices[i], vertices[i + 1])
+        Next
+
+        If iClosed Then
+            gl.Vertex2f(vertices[0], vertices[1])
+        End If
 
     Endif
 
-    gl.Begin(gl.LINE_STRIP)
 
-    ' Select vertices.Count
-    '     Case 2
-    '
-    '         For i = 0 To 1 ' Step 2
-    '             glColorRGB(colour)
-    '             gl.Vertex2f(vertices[i], vertices[i + 1])
-    '
-    '         Next
-    '     Case 3
-    '         For i = 0 To 2 'Step 2
-    '             glColorRGB(colour)
-    '             gl.Vertex2f(vertices[i], vertices[i + 1])
-    '         Next
-    '
-    '     Case Else
-    '
-    '         gcd.debuginfo("Error mas puntos"
-    '
-    ' End Select
-    '
-    For i = 0 To vertices.Max Step 2
-        glColorRGB(colour)
-        gl.Vertex2f(vertices[i], vertices[i + 1])
-    Next
-
-    If iClosed Then
-        gl.Vertex2f(vertices[0], vertices[1])
-    End If
 
     gl.end
-    If dashes > 0 Then gl.Disable(GL.LINE_STIPPLE)
+
 
 End
 
-Fast Unsafe Public Function Triangles(vertices As Float[], Optional colour As Integer = 0, FillColor As Integer = 0, LineWidth As Float = 1, dashes As Integer)
+Fast Unsafe Public Function Triangles(vertices As Float[], Optional colour As Integer = 0, FillColor As Integer = 0, LineWidth As Float = 1, dashes As Float[])
 
     Dim i As Integer
 
     'glColorRGB(colour)
     gl.LineWidth(LineWidth) ' obsoleto en WebGL
 
-    If dashes > 0 Then
-        gl.LineStipple(LineStippleScales[dashes], LineStipples[dashes])
-        gl.Enable(GL.LINE_STIPPLE)
-    Else
+    If dashes Then
 
-        gl.Disable(GL.LINE_STIPPLE)
+        PolyLines(vertices, colour, linewidth, dashes, True)
 
     Endif
 
@@ -522,35 +508,52 @@ End
 
 '' Dibuja un circulo
 
-Fast Unsafe Public Function CIRCLE(center As Float[], radious As Float, Optional colour As Integer = 0, Filled As Boolean = False, LineWidth As Float = 1, dashes As Integer = 0)
+Fast Unsafe Public Function CIRCLE(center As Float[], radious As Float, Optional colour As Integer = 0, Filled As Boolean = False, LineWidth As Float = 1, dashes As Float[])
 
     Dim x, y, theta, angle_increment As Float
 
+    Dim vertices, fVertices As New Float[]
+
     gl.LineWidth(LineWidth) ' obsoleto en WebGL
-    If dashes > 0 Then
-        gl.LineStipple(LineStippleScales[dashes], LineStipples[dashes])
-        gl.Enable(GL.LINE_STIPPLE)
-    Else
-
-        gl.Disable(GL.LINE_STIPPLE)
-
-    Endif
 
     If filled Then
         GL.Begin(gl.POLYGON)
+        angle_increment = Pi * 2 / 360
+        For theta = 0 To 2 * Pi Step angle_increment
+            ' el punto considerando 0,0 al centro
+            x = center[0] + radious * Cos(theta)
+            y = center[1] + radious * Sin(theta)
+            Vertex2D(x, y, Colour)
+        Next
+        gl.End
     Else
+
         GL.Begin(gl.LINE_STRIP)
+        angle_increment = Pi * 2 / 360
+        For theta = 0 To 2 * Pi Step angle_increment
+            ' el punto considerando 0,0 al centro
+            x = center[0] + radious * Cos(theta)
+            y = center[1] + radious * Sin(theta)
+            fvertices.Add(x)
+            fvertices.Add(y)
+        Next
+        If dashes Then
+            Vertices = puntos.DashedLineStrip(fvertices[0], fvertices[1], fvertices, dashes, 1)
+        Else
+
+            Vertices = fvertices
+
+        Endif
+
+        PolyLines(Vertices, colour, linewidth,, True)
+
+
     End If
 
-    angle_increment = Pi * 2 / 360
-    For theta = 0 To 2 * Pi Step angle_increment
-        ' el punto considerando 0,0 al centro
-        x = center[0] + radious * Cos(theta)
-        y = center[1] + radious * Sin(theta)
-        Vertex2D(x, y, Colour)
-    Next
-    gl.End
-    If dashes > 0 Then gl.Disable(GL.LINE_STIPPLE)
+
+
+
+
 
 End
 

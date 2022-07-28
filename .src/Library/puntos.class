@@ -31,7 +31,7 @@
 
 Create Static       ' This two preposition are the same as creating a module instead of a
 Create Private      ' class in Gambas.
-Fast Unsafe        ' TODO: alwways set this after debugging
+' Fast Unsafe        ' TODO: alwways set this after debugging
 Public HookSize As Integer = 16                       ' for use with poi
 Public NumericTolerance As Float = 1e-7
 
@@ -202,10 +202,8 @@ End
 '' Returns n 2D trianlges x0,y0,x1,y1,x2,y2 , x0,y0,x1,y1,x2,y2 and so on
 Public Function ArcTriangulation(center As Float[], fPolygon As Float[]) As Float[]
 
-
     Dim Triangles As New Float[]
     Dim i As Integer
-
 
     For i = 0 To fPolygon.count - 4 Step 2
         Triangles.Insert([center[0], center[1], fPolygon[i], fPolygon[i + 1], fPolygon[i + 2], fPolygon[i + 3]])
@@ -460,7 +458,6 @@ Public Function isInside(fPolygon As Float[], px As Float, py As Float, Optional
 
     ' There must be at least 3 vertices In polygon[]
 
-
     If vertices = 0 Then vertices = fPolygon.Count / 2
 
     If (Vertices < 3) Then
@@ -672,9 +669,7 @@ Public Function LinePolyIntersection2(flxLine As Float[], flxPoly As Float[]) As
     ' la linea es de dos puntos , si esta afuera de la polilinea, se devuelve un array vacio
     ' Chequeos previos:
 
-
     Dim i As Integer
-
 
     If flxLine.Count <> 4 Then Return []
 
@@ -955,13 +950,9 @@ Public Function PointOverLine(fPoint As Float[], fLine As Float[], Optional fTol
         If fPoint[1] + fTolerance < fLine[3] Then Return False
         If fPoint[1] - fTolerance > fLine[1] Then Return False
 
-
     Endif
 
-
     If Abs(PointToLineDistance(fPoint, fLine)) < fTolerance Then Return True Else Return False
-
-
 
 End
 
@@ -1199,7 +1190,6 @@ End
 '' Devuelve True si el poligono cruza la linea x0,y0 - x1,y1
 Public Function IsPoligonCrossingRect(poligon As Float[], x0 As Float, y0 As Float, x1 As Float, y1 As Float, Optional StartIndex As Integer = 0, TotalElements As Integer = 0) As Boolean
 
-
     If Not poligon Then Return False
     If poligon.Count = 0 Then Return False
     If IsPoligonCrossingLine(poligon, x0, y0, x1, y0, StartIndex, TotalElements) Then Return True
@@ -1253,5 +1243,109 @@ Public Function Limits(Points As Float[]) As Float[]
 
     Next
     Return [Xmenor, ymenor, Xmayor, Ymayor]
+
+End
+
+'' Devuelve una linea de puntos confinada en los segmentos flxStrip, segun el patron estilo CAD flxDashes, usando el punto base.
+Public Function DashedLineStrip(BaseX As Float, BaseY As Float, flxStrip As Float[], flxDashes As Float[], fScale As Float) As Float[]
+
+    Dim fTrame, fOffset, fDashTotal, fDistance, DashLength, DashTrame As Float
+    Dim iPatternOffset, iPatternN As Integer
+    Dim ie, i, AlPedo, Sirve, nTrames As Integer
+    Dim flxTrimmedLine, flxPatternLimits, flxContorno, flxFirstPass, flxSecondPass, flxInter As New Float[]
+    Dim CosA, SinA, DashBaseX, DashBaseY, DashFinalX, DashFinalY As Float
+    Dim SeedX, SeedY, SeedIndex, CosB, SinB, TanB, CosAB, SinAB, TanAB, fAngle As Float
+    Dim X0, X1, Y0, Y1 As Float
+    Dim DashCut As Float
+    Dim bSpace As Boolean
+
+    ' calculamos el largo total de los dashes
+    If fScale = 0 Then fScale = 1
+    fDashTotal = 0
+    For Each DashTrame In flxDashes
+        DashTrame *= fScale                  ' aplico la escala aqui mismo
+        fDashTotal += Abs(DashTrame)
+    Next
+
+    If fDashTotal = 0 Then Return flxStrip
+    If flxStrip.Count < 4 Then Return flxStrip
+
+    fDistance = puntos.distancia(flxStrip[0], flxStrip[1], BaseX, BaseY)    ' calculo la distancia al punto base
+
+    fOffset = Utils.fMod(fDistance, fDashTotal)                             ' el offset donde arranco
+
+    For i = 0 To flxStrip.Max - 3 Step 2
+
+        X0 = flxStrip[i]
+        Y0 = flxStrip[i + 1]
+        X1 = flxStrip[i + 2]
+        Y1 = flxStrip[i + 3]
+
+        fTrame = distancia(x0, y0, x1, y1)      ' largo del tramo a rellenar
+
+        fAngle = Ang(X1 - X0, Y1 - Y0)
+
+        CosB = Cos(fAngle)
+        SinB = Sin(fAngle)
+
+
+        DashBaseX = X0
+        DashBaseY = Y0
+
+
+        Do                                      ' Trazo los dashed a lo largo de la linea
+
+            For Each DashTrame In flxDashes
+                If DashTrame < 0 Then bSpace = True Else bSpace = False
+
+                DashCut = Abs(DashTrame)
+
+                If fOffset > 0 Then
+                    fOffset -= Abs(DashTrame)
+                    If fOffset < 0 Then             ' con este tramo ya contemplo todo el offset
+                        DashCut = -fOffset
+                        fOffset = 0
+                    Else                        ' este dash no se traza
+                        Continue
+                    Endif
+                Endif
+
+                ' ahora verifico que no me pase de la linea
+                If DashCut > fTrame Then ' me estoy pasando
+                    fOffset = fTrame ' este offset pasa al siguiente tramo a rellenar
+                    DashCut = fTrame
+                    fTrame = 0
+                Else
+                    fTrame -= DashCut
+                End If
+
+                DashFinalX = DashBaseX + DashCut * CosB
+                DashFinalY = DashBaseY + DashCut * SinB
+
+                If Not bSpace Then
+                    flxFirstPass.insert([DashBaseX, DashBaseY, DashFinalX, DashFinalY])
+
+                    ' Else If DashCut = 0 Then
+                    '     If puntos.isInside(flxContorno, DashBaseX, DashBaseY) Then
+                    '         flxFirstPass.insert([DashBaseX, DashBaseY, DashFinalX, DashFinalY])
+                    '     Endif
+                End If
+
+
+                DashBaseX = DashFinalX
+                DashBaseY = DashFinalY
+
+                If fTrame = 0 Then Break
+            Next
+
+            If fTrame = 0 Then Break
+
+        Loop
+
+
+
+    Next
+
+    Return flxFirstPass
 
 End
