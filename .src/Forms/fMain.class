@@ -41,6 +41,11 @@ Public ftring As New Float[]
 Public ftring2 As New Float[]
 Public GLArea1 As GLArea
 
+Public tabViews As TabPanel
+
+'Public Printer1 As New Printer
+
+
 Public Sub DrawTimer_Timer()
 
     gcd.Drawing.GLAreaInUse.Refresh
@@ -668,7 +673,7 @@ Public Sub GLArea1_draw()
                 'glPlus.Rectangle2D(gcd.Drawing.iEntity[0] - gcd.Metros(4), gcd.Drawing.iEntity[1] - gcd.Metros(4), gcd.Metros(8), gcd.Metros(8), Color.Blue,,,, Color.Blue, 1, 1)
 
             Case Else
-                glPlus.Rectangle2D(gcd.Drawing.iEntity[0] - gcd.Metros(4), gcd.Drawing.iEntity[1] - gcd.Metros(4), gcd.Metros(8), gcd.Metros(8), Color.Blue,,,, Color.Blue, 1, 1)
+                glPlus.Rectangle2D(gcd.Drawing.iEntity[0] - gcd.Metros(4), gcd.Drawing.iEntity[1] - gcd.Metros(4), gcd.Metros(8), gcd.Metros(8), Color.Blue,,,, Color.Blue, 1)
         End Select
 
     Endif
@@ -693,6 +698,7 @@ Public Sub GLArea1_DblClick()
     gcd.clsJob.DblClick()
 
 End
+
 
 Public Sub GLArea1_MouseMove()
 
@@ -751,6 +757,74 @@ End
 Public Sub GLArea1_MouseWheel()
 
     gcd.clsJob.MouseWHEEL()
+
+End
+
+Public Sub GLPaper_Draw()
+
+    Dim iParent As Integer
+    Dim i As Integer
+    Dim L As Layer
+    Dim vpt As Viewport
+
+    If Not gcd.DrawingReady Then Return
+
+    glPlus.ClearColor(Color.red) 'gcd.gColor[Color.Red))
+
+    gl.Clear(gl.DEPTH_BUFFER_BIT Or gl.COLOR_BUFFER_BIT)
+
+    gl.LoadIdentity
+
+    gl.Translatef(gcd.Drawing.CurrView.PanX, gcd.Drawing.CurrView.PanY, 0)
+
+    gl.Scalef(gcd.Drawing.CurrView.ScaleZoom, gcd.Drawing.CurrView.ScaleZoom, 1)
+
+    ' el orden del dibujo es importante en paint, porque una cosa tapa a la otra; en openGL aparentemente es al reves, lo primero se dibuja primero
+
+    ' Primero la grid
+    ' DrawingAids.DrawGrid
+
+    ' ' TEST
+    ' Dim fArcParams As Float[]
+    '
+    ' ' aqui podria usar una rutina de arco entre 3 puntos
+    ' fArcParams = puntos.Arc3Point(0, 0, -100, 50, -300, 20)
+    ' ' traslado el centro
+    ' gl.Translatef(fArcParams[0], fArcParams[1], 0)
+    ' glPlus.ARC(fArcParams[2], fArcParams[3], fArcParams[4] - fArcParams[3], Color.Blue, 1, 0)
+    ' gl.Translatef(-fArcParams[0], -fArcParams[1], 0)
+    ' fArcParams = Null
+    '
+
+    ' If gcd.Drawing.HoveredEntityPrevious Then
+    '     ' si no esta seleccionada, la resalto
+    '     'If Not arrEntities[iEntity[3]].Selected Then
+    '     'iParent = clsEntities.GetParentBlock(gcd.Drawing.iEntity[3]) ' esto verifica si tiene que resaltar el bloque completo
+    '
+    '     If gcd.DrawHoveredEntity Then gl.CallList(gcd.Drawing.HoveredEntityPrevious.glDrwListRemark)
+    '     '     Gcd.CCC[gcd.Drawing.HoveredEntityPrevious.gender].DrawRemark(gcd.Drawing.HoveredEntityPrevious)
+    '     ' End If
+    ' End If
+
+    ' If gcd.DrawHoveredEntity Then
+    '     If gcd.Drawing.HoveredEntity Then gl.CallList(gcd.Drawing.HoveredEntity.glDrwListRemark)
+    ' End If
+    ' DrawingAids.DrawCoordenadas
+    '
+    ' DrawingAids.DibujaHelper
+    '
+    ' gl.CallList(gcd.Drawing.GlListSelectedEntities)
+    For Each vpt In gcd.Drawing.CurrView.vViewports
+        gl.LoadIdentity
+        gl.Translatef(vpt.PanX, vpt.PanY, 0)
+        gl.Scalef(vpt.ScaleZoom, vpt.ScaleZoom, 1)
+        gl.Scissor()
+        For Each L In vpt.Layers
+            If L.Visible Then gl.CallList(L.glList)
+        Next
+    Next
+
+    gcd.clsJob.Draw()
 
 End
 
@@ -1391,6 +1465,14 @@ Public Sub tabDrawings_Click()
 
 End
 
+Public Sub tabViews_Click()
+
+    gcd.Drawing.GLAreaInUse = tabViews[tabViews.Index].Tag
+    'Try Me.GLArea1 = gcd.Drawing.GLAreaInUse
+
+
+End
+
 '' Crea una nueva Tab para alojar un nuevo grafico
 Public Function NewTabForDrawing(sName As String) As Drawing
 
@@ -1412,17 +1494,32 @@ Public Function NewTabForDrawing(sName As String) As Drawing
     tabFileNew.Expand = True
     tabFileNew.Arrangement = Arrange.Fill
     tabFileNew.Orientation = Align.Bottom
+    Object.Attach(tabFileNew, Me, "tabViews")
 
     tabFileNew[0].Text = "Model"
     tabFileNew[1].Text = "Paper"
+
+    ' model
     Dim glaFile As New GLArea(tabFileNew[0])
     glaFile.Background = Config.BackgroundColor
     glaFile.Expand = True
     glaFile.Tracking = True
+    tabFileNew[0].Tag = glaFile
     Object.Attach(glaFile, Me, "GLArea1")
+
+    ' paper
+    Dim glaFile2 As New GLArea(tabFileNew[1])
+    glaFile2.Background = Config.BackgroundColor
+    glaFile2.Expand = True
+    glaFile2.Tracking = True
+    tabFileNew[1].Tag = glaFile2
+    Object.Attach(glaFile2, Me, "GLPaper")
+
 
     gcd.Drawing = nDrawing
     gcd.Drawing.GLAreaInUse = glaFile
+    tabViews = tabFileNew
+    'gcd.Drawing.CurrView = tabFileNew[0].Text      FIXME: no se como hacer
     fmain.GLArea1 = gcd.Drawing.GLAreaInUse
 
     Me.Refresh
@@ -1466,3 +1563,4 @@ Public Sub tabDrawings_CloseAll()
     Next
 
 End
+
