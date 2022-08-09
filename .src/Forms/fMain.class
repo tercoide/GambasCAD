@@ -40,6 +40,7 @@ Public MyPrinter As Printer
 Public ftring As New Float[]
 Public ftring2 As New Float[]
 Public GLArea1 As GLArea
+Public GLPaper As GLArea
 
 Public tabViews As TabPanel
 
@@ -586,13 +587,25 @@ Public Sub glarea1_Resize()
 
     GLplus.Resize(glarea1)
 
+
 End
+
+
+Public Sub GLPaper_resize()
+
+    GLplus.Resize(GLPaper)
+
+
+End
+
 
 Public Sub GLArea1_draw()
 
     Dim iParent As Integer
     Dim i As Integer
     Dim L As Layer
+    Dim vpt As Viewport
+    Dim e As Entity
 
     If Not gcd.DrawingReady Then Return
 
@@ -602,42 +615,66 @@ Public Sub GLArea1_draw()
 
     gl.LoadIdentity
 
-    gl.Translatef(gcd.Drawing.PanX, gcd.Drawing.PanY, 0)
+    gl.Translatef(gcd.Drawing.currViewport.PanX, gcd.Drawing.currViewport.PanY, 0)
 
-    gl.Scalef(gcd.Drawing.ScaleZoom, gcd.Drawing.ScaleZoom, 1)
+    gl.Scalef(gcd.Drawing.currViewport.ScaleZoom, gcd.Drawing.currViewport.ScaleZoom, 1)
+
+
+    gcd.clsJob.Draw()
+    If gcd.Drawing.CurrSheet Then   ' Sheet view
+
+
+        For Each vpt In gcd.Drawing.CurrSheet.vViewports
+            gl.LoadIdentity
+
+            gl.Translatef(gcd.Drawing.currViewport.PanX, gcd.Drawing.currViewport.PanY, 0)
+
+            gl.Scalef(gcd.Drawing.currViewport.ScaleZoom, gcd.Drawing.currViewport.ScaleZoom, 1)
+
+            gl.Translatef(vpt.PanX, vpt.PanY, 0)
+            gl.Scalef(vpt.ScaleZoom, vpt.ScaleZoom, 1)
+
+            ' el scissor no se ve afectado por las trnasformaciones!!!!!!!!
+            gl.Scissor(vpt.X0, vpt.Y0, vpt.X1 - vpt.x0, vpt.Y1 - vpt.y0)
+            gl.Enable(GL.sCISSOR_TEST)
+
+            For Each L In vpt.Layers
+                If L.Visible Then gl.CallList(L.glList)
+            Next
+            gl.Disable(gl.SCISSOR_TEST)
+        Next
+
+
+
+        gl.LoadIdentity
+
+        gl.Translatef(gcd.Drawing.currViewport.PanX, gcd.Drawing.currViewport.PanY, 0)
+
+        gl.Scalef(gcd.Drawing.currViewport.ScaleZoom, gcd.Drawing.currViewport.ScaleZoom, 1)
+
+        For Each e In gcd.Drawing.CurrSheet.Entities.Entities
+            gcd.CCC[e.gender].Draw(e)
+        Next
+
+        ' esto representa la hoja a imprimir
+        glPlus.Rectangle2D(0, 0, gcd.Drawing.CurrSheet.pPrintStyle.PaperSizeW, gcd.Drawing.CurrSheet.pPrintStyle.PaperSizeH, gcd.Drawing.CurrSheet.BackGroundColor)
+
+    Else ' Model view
+
+
+        For Each L In gcd.Drawing.oLayers
+            If L.Visible Then gl.CallList(L.glList)
+        Next
+
+    End If
 
     ' el orden del dibujo es importante en paint, porque una cosa tapa a la otra; en openGL aparentemente es al reves, lo primero se dibuja primero
 
-    ' Primero la grid
-    ' DrawingAids.DrawGrid
 
-    ' ' TEST
-    ' Dim fArcParams As Float[]
-    '
-    ' ' aqui podria usar una rutina de arco entre 3 puntos
-    ' fArcParams = puntos.Arc3Point(0, 0, -100, 50, -300, 20)
-    ' ' traslado el centro
-    ' gl.Translatef(fArcParams[0], fArcParams[1], 0)
-    ' glPlus.ARC(fArcParams[2], fArcParams[3], fArcParams[4] - fArcParams[3], Color.Blue, 1, 0)
-    ' gl.Translatef(-fArcParams[0], -fArcParams[1], 0)
-    ' fArcParams = Null
     '
     If gcd.DrawBounds Then DrawingAids.DrawPolygons
 
-    ' glPlus.Triangles(ftring, Color.Red, Color.Red)
-    '
-    ' glPlus.Triangles(ftring2, Color.Blue, Color.blue)
-    ' en este momento le damos la posibilidad a la clase actuante a que dibuje lo que quiera
 
-    ' If gcd.Drawing.HoveredEntityPrevious Then
-    '     ' si no esta seleccionada, la resalto
-    '     'If Not arrEntities[iEntity[3]].Selected Then
-    '     'iParent = clsEntities.GetParentBlock(gcd.Drawing.iEntity[3]) ' esto verifica si tiene que resaltar el bloque completo
-    '
-    '     If gcd.DrawHoveredEntity Then gl.CallList(gcd.Drawing.HoveredEntityPrevious.glDrwListRemark)
-    '     '     Gcd.CCC[gcd.Drawing.HoveredEntityPrevious.gender].DrawRemark(gcd.Drawing.HoveredEntityPrevious)
-    '     ' End If
-    ' End If
 
     If gcd.DrawHoveredEntity Then
         If gcd.Drawing.HoveredEntity Then gl.CallList(gcd.Drawing.HoveredEntity.glDrwListRemark)
@@ -648,11 +685,9 @@ Public Sub GLArea1_draw()
 
     gl.CallList(gcd.Drawing.GlListSelectedEntities)
 
-    For Each L In gcd.Drawing.oLayers
-        If L.Visible Then gl.CallList(L.glList)
-    Next
 
-    gcd.clsJob.Draw()
+
+
     '
     'clsEntities.DrawArrays()
 
@@ -693,11 +728,23 @@ Public Sub GLArea1_MouseDown()
 
 End
 
+' Public Sub GLPaper_MouseDown()
+'
+'     gcd.clsJob.mouseDown()
+'
+' End
+
 Public Sub GLArea1_DblClick()
 
     gcd.clsJob.DblClick()
 
 End
+
+' Public Sub GLPaper_MouseMove()
+'
+'     GLArea1_MouseMove
+'
+' End
 
 
 Public Sub GLArea1_MouseMove()
@@ -754,79 +801,136 @@ Public Sub GLArea1_MouseUp()
 
 End
 
+' Public Sub GLPaper_MouseUp()
+'
+'     gcd.clsJob.MouseUp()
+'
+' End
+
 Public Sub GLArea1_MouseWheel()
 
     gcd.clsJob.MouseWHEEL()
 
 End
 
-Public Sub GLPaper_Draw()
-
-    Dim iParent As Integer
-    Dim i As Integer
-    Dim L As Layer
-    Dim vpt As Viewport
-
-    If Not gcd.DrawingReady Then Return
-
-    glPlus.ClearColor(Color.red) 'gcd.gColor[Color.Red))
-
-    gl.Clear(gl.DEPTH_BUFFER_BIT Or gl.COLOR_BUFFER_BIT)
-
-    gl.LoadIdentity
-
-    gl.Translatef(gcd.Drawing.CurrView.PanX, gcd.Drawing.CurrView.PanY, 0)
-
-    gl.Scalef(gcd.Drawing.CurrView.ScaleZoom, gcd.Drawing.CurrView.ScaleZoom, 1)
-
-    ' el orden del dibujo es importante en paint, porque una cosa tapa a la otra; en openGL aparentemente es al reves, lo primero se dibuja primero
-
-    ' Primero la grid
-    ' DrawingAids.DrawGrid
-
-    ' ' TEST
-    ' Dim fArcParams As Float[]
-    '
-    ' ' aqui podria usar una rutina de arco entre 3 puntos
-    ' fArcParams = puntos.Arc3Point(0, 0, -100, 50, -300, 20)
-    ' ' traslado el centro
-    ' gl.Translatef(fArcParams[0], fArcParams[1], 0)
-    ' glPlus.ARC(fArcParams[2], fArcParams[3], fArcParams[4] - fArcParams[3], Color.Blue, 1, 0)
-    ' gl.Translatef(-fArcParams[0], -fArcParams[1], 0)
-    ' fArcParams = Null
-    '
-
-    ' If gcd.Drawing.HoveredEntityPrevious Then
-    '     ' si no esta seleccionada, la resalto
-    '     'If Not arrEntities[iEntity[3]].Selected Then
-    '     'iParent = clsEntities.GetParentBlock(gcd.Drawing.iEntity[3]) ' esto verifica si tiene que resaltar el bloque completo
-    '
-    '     If gcd.DrawHoveredEntity Then gl.CallList(gcd.Drawing.HoveredEntityPrevious.glDrwListRemark)
-    '     '     Gcd.CCC[gcd.Drawing.HoveredEntityPrevious.gender].DrawRemark(gcd.Drawing.HoveredEntityPrevious)
-    '     ' End If
-    ' End If
-
-    ' If gcd.DrawHoveredEntity Then
-    '     If gcd.Drawing.HoveredEntity Then gl.CallList(gcd.Drawing.HoveredEntity.glDrwListRemark)
-    ' End If
-    ' DrawingAids.DrawCoordenadas
-    '
-    ' DrawingAids.DibujaHelper
-    '
-    ' gl.CallList(gcd.Drawing.GlListSelectedEntities)
-    For Each vpt In gcd.Drawing.CurrView.vViewports
-        gl.LoadIdentity
-        gl.Translatef(vpt.PanX, vpt.PanY, 0)
-        gl.Scalef(vpt.ScaleZoom, vpt.ScaleZoom, 1)
-        gl.Scissor()
-        For Each L In vpt.Layers
-            If L.Visible Then gl.CallList(L.glList)
-        Next
-    Next
-
-    gcd.clsJob.Draw()
-
-End
+' Public Sub GLPaper_Draw()
+'
+'     Dim iParent As Integer
+'     Dim i As Integer
+'     Dim L As Layer
+'
+'     Dim vpt As Viewport
+'     Dim e As Variant
+'
+'     If Not gcd.DrawingReady Then Return
+'
+'     glPlus.ClearColor(Color.Black) 'gcd.gColor[Color.Red))
+'
+'     gl.Clear(gl.DEPTH_BUFFER_BIT Or gl.COLOR_BUFFER_BIT)
+'
+'     gl.LoadIdentity
+'
+'     gl.Translatef(gcd.Drawing.CurrSheet.PanX, gcd.Drawing.CurrSheet.PanY, 0)
+'
+'     gl.Scalef(gcd.Drawing.CurrSheet.ScaleZoom, gcd.Drawing.CurrSheet.ScaleZoom, 1)
+'
+'     ' el orden del dibujo es importante en paint, porque una cosa tapa a la otra; en openGL aparentemente es al reves, lo primero se dibuja primero
+'
+'     ' Primero la grid
+'     ' DrawingAids.DrawGrid
+'
+'     ' ' TEST
+'     ' Dim fArcParams As Float[]
+'     '
+'     ' ' aqui podria usar una rutina de arco entre 3 puntos
+'     ' fArcParams = puntos.Arc3Point(0, 0, -100, 50, -300, 20)
+'     ' ' traslado el centro
+'     ' gl.Translatef(fArcParams[0], fArcParams[1], 0)
+'     ' glPlus.ARC(fArcParams[2], fArcParams[3], fArcParams[4] - fArcParams[3], Color.Blue, 1, 0)
+'     ' gl.Translatef(-fArcParams[0], -fArcParams[1], 0)
+'     ' fArcParams = Null
+'     '
+'
+'     ' If gcd.Drawing.HoveredEntityPrevious Then
+'     '     ' si no esta seleccionada, la resalto
+'     '     'If Not arrEntities[iEntity[3]].Selected Then
+'     '     'iParent = clsEntities.GetParentBlock(gcd.Drawing.iEntity[3]) ' esto verifica si tiene que resaltar el bloque completo
+'     '
+'     '     If gcd.DrawHoveredEntity Then gl.CallList(gcd.Drawing.HoveredEntityPrevious.glDrwListRemark)
+'     '     '     Gcd.CCC[gcd.Drawing.HoveredEntityPrevious.gender].DrawRemark(gcd.Drawing.HoveredEntityPrevious)
+'     '     ' End If
+'     ' End If
+'
+'     ' If gcd.DrawHoveredEntity Then
+'     '     If gcd.Drawing.HoveredEntity Then gl.CallList(gcd.Drawing.HoveredEntity.glDrwListRemark)
+'     ' End If
+'     ' DrawingAids.DrawCoordenadas
+'     '
+'     ' DrawingAids.DibujaHelper
+'     '
+'     ' gl.CallList(gcd.Drawing.GlListSelectedEntities)
+'     glPlus.Rectangle2D(0, 0, gcd.Drawing.CurrSheet.pPrintStyle.PaperSizeW, gcd.Drawing.CurrSheet.pPrintStyle.PaperSizeH, gcd.Drawing.CurrSheet.BackGroundColor)
+'
+'     For Each vpt In gcd.Drawing.CurrSheet.vViewports
+'         gl.LoadIdentity
+'         gl.Translatef(vpt.PanX, vpt.PanY, 0)
+'         gl.Scalef(vpt.ScaleZoom, vpt.ScaleZoom, 1)
+'         gl.Scissor()
+'         For Each L In vpt.Layers
+'             If L.Visible Then gl.CallList(L.glList)
+'         Next
+'     Next
+'
+'     For Each e In gcd.Drawing.CurrSheet.Entities
+'         gcd.CCC[e.gender].Draw(e)
+'     Next
+'
+'     gcd.clsJob.Draw()
+'
+' End
+'
+' ' El objetivo es que el zoom dinamico se haga manteniendo el dibujo que esta en la pos del mouse
+' Public Sub GLPaper_MouseWheel()
+'
+'     Dim px, py, dx, dy, factor As Float
+'     ' chequeamos si vale la pena seguir dibujando la grid, o sea, menos de 3 pixels
+'     ' Inc flgWheelCounter
+'     ' Debug "Mouse weel", flgWheelCounter
+'
+'     ' TODO: revisar la siguiente linea
+'     'If gcd.Pixels(FMain.GridSpacing) < 5 Then FMain.GridActive = False Else FMain.GridActive = True
+'     '
+'     ' px = gcd.Xreal(Mouse.x) ' posicion real en donde esta el mouse, previo al zoom
+'     ' py = gcd.Yreal(Mouse.y)
+'
+'     ' TODO: , redondear para que la escala sea 1:100 1:75 1:50 etc
+'
+'     factor = (1 + 0.075 * Mouse.Delta)
+'
+'     gcd.Drawing.CurrSheet.ScaleZoom *= factor
+'
+'     Debug "ScaleZoom", gcd.Drawing.CurrSheet.ScaleZoom
+'     '
+'     ' dx = gcd.Xreal(Mouse.x) ' posicion real en donde esta el mouse, posterior al zoom
+'     ' dy = gcd.Yreal(Mouse.y)
+'
+'     ' pero con ciertos limites TODO: imponer
+'     ' If ScaleZoom < 0.001 Then ScaleZoom = 0.001
+'     ' If ScaleZoom > 50 Then ScaleZoom = 50
+'
+'     ' nuevo metodo (el Pan esta en pixels)
+'     ' gcd.Drawing.PanX += gcd.pixels(dx - px)
+'     ' gcd.Drawing.PanY += gcd.pixels(dy - py)
+'     '
+'     ' gcd.flgNewPosition = True
+'     '
+'     ' gcd.redraw 'glarea1.Refresh
+'     gcd.Drawing.CurrSheet.GLSheet.Refresh
+'     ' despues de actualizar la pantalla, recolectamos las entidades visibles
+'
+'     ' Dec flgWheelCounter
+'
+' End
 
 Public Sub tabFile_MouseWheel()
 
@@ -1467,9 +1571,21 @@ End
 
 Public Sub tabViews_Click()
 
-    gcd.Drawing.GLAreaInUse = tabViews[tabViews.Index].Tag
-    'Try Me.GLArea1 = gcd.Drawing.GLAreaInUse
-
+    If tabViews Then
+        If tabViews[tabViews.Index].Tag Then
+            gcd.Drawing.LastLayer = gcd.Drawing.CurrLayer
+            gcd.Drawing.CurrSheet = gcd.Drawing.Sheets[tabViews[tabViews.Index].Tag]
+            gcd.Drawing.GLAreaInUse = gcd.Drawing.CurrSheet.GLSheet
+            gcd.Drawing.CurrViewport = gcd.Drawing.CurrSheet.MainViewport
+            ' si es una Sheet, no hay layers, sino una unica capa donde se enserta todo
+            gcd.Drawing.CurrLayer = gcd.Drawing.CurrSheet.Entities
+            'Try Me.GLArea1 = gcd.Drawing.GLAreaInUse
+        Else
+            gcd.Drawing.CurrSheet = Null
+            gcd.Drawing.CurrLayer = gcd.Drawing.LastLayer
+            gcd.Drawing.CurrViewport = gcd.Drawing.ModelViewport
+        End If
+    End If
 
 End
 
@@ -1480,7 +1596,7 @@ Public Function NewTabForDrawing(sName As String) As Drawing
     Dim nDrawing As New Drawing
 
     NDrawing.iEntity.Insert([0, 0, 0, 0])
-    NDrawing.ScaleZoom = gcd.ScreenDensity
+    NDrawing.CurrViewport.ScaleZoom = gcd.ScreenDensity
 
     Me.tabDrawings.Count += 1
     i = Me.tabDrawings.Count - 1
@@ -1490,41 +1606,78 @@ Public Function NewTabForDrawing(sName As String) As Drawing
     Me.tabDrawings[i].tag = nDrawing
     Me.tabDrawings.Index = i
     Dim tabFileNew As New TabPanel(Me.tabDrawings[i])
-    tabFileNew.Count = 2
+    tabFileNew.Count = 1
     tabFileNew.Expand = True
     tabFileNew.Arrangement = Arrange.Fill
     tabFileNew.Orientation = Align.Bottom
     Object.Attach(tabFileNew, Me, "tabViews")
 
     tabFileNew[0].Text = "Model"
-    tabFileNew[1].Text = "Paper"
+
 
     ' model
     Dim glaFile As New GLArea(tabFileNew[0])
     glaFile.Background = Config.BackgroundColor
     glaFile.Expand = True
     glaFile.Tracking = True
-    tabFileNew[0].Tag = glaFile
+    'tabFileNew[0].Tag = glaFile
     Object.Attach(glaFile, Me, "GLArea1")
 
-    ' paper
-    Dim glaFile2 As New GLArea(tabFileNew[1])
-    glaFile2.Background = Config.BackgroundColor
-    glaFile2.Expand = True
-    glaFile2.Tracking = True
-    tabFileNew[1].Tag = glaFile2
-    Object.Attach(glaFile2, Me, "GLPaper")
+    ' ' paper
+    ' Dim glaFile2 As New GLArea(tabFileNew[1])
+    ' glaFile2.Background = Config.BackgroundColor
+    ' glaFile2.Expand = True
+    ' glaFile2.Tracking = True
+    ' tabFileNew[1].Tag = glaFile2
+    ' Object.Attach(glaFile2, Me, "GLPaper")
+    ' Dim s As New Sheet
+    ' s.Handle = gcd.NewHandle()
+    ' s.Name = "Sheet1"
+    ' nDrawing.Sheets.Add(s, s.Handle)
+    ' nDrawing.currSheet = s
+    '
+    ' tabFileNew[1].Text = s.Name
+    Dim s As New Sheet
+    s.Handle = gcd.NewHandle()
+    s.Name = "Sheet"
 
+    NewSheet(tabFileNew, s)
 
     gcd.Drawing = nDrawing
     gcd.Drawing.GLAreaInUse = glaFile
+    gcd.Drawing.currSheet = Null
+    'gcd.Drawing.CurrSheet.GLSheet = glaFile2
     tabViews = tabFileNew
-    'gcd.Drawing.CurrView = tabFileNew[0].Text      FIXME: no se como hacer
+    'gcd.Drawing.CurrSheet = tabFileNew[0].Text      FIXME: no se como hacer
     fmain.GLArea1 = gcd.Drawing.GLAreaInUse
 
     Me.Refresh
 
     Return nDrawing
+
+End
+
+'' Crea una nueva Tab para alojar una nueva hoja
+Public Function NewSheet(tabSheets As TabPanel, s As Sheet)
+
+    Dim i As Integer
+
+
+    tabSheets.Count += 1
+    tabSheets[tabSheets.Count - 1].Text = s.Name
+
+    Dim glaFile2 As New GLArea(tabSheets[tabSheets.Count - 1])
+    glaFile2.Background = Config.BackgroundColor
+    glaFile2.Expand = True
+    glaFile2.Tracking = True
+
+    Object.Attach(glaFile2, Me, "GLArea1")
+
+    gcd.Drawing.Sheets.Add(s, s.Handle)
+    gcd.Drawing.currSheet = s
+    gcd.Drawing.CurrSheet.GLSheet = glaFile2
+    tabSheets[tabSheets.Count - 1].Tag = s.Handle
+    GLPaper = glaFile2
 
 End
 
@@ -1564,3 +1717,12 @@ Public Sub tabDrawings_CloseAll()
 
 End
 
+
+Public Sub tbnNewSheet_Click()
+
+    fSheet.ShowModal()
+    GLPaper.Refresh
+
+
+
+End
