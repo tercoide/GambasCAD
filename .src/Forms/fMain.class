@@ -609,8 +609,6 @@ Public Sub GLArea1_draw()
 
     If Not gcd.DrawingReady Then Return
 
-    gcd.drwDrawingClass = gcd.drwOpenGLClass
-
     gl.Clear(gl.DEPTH_BUFFER_BIT Or gl.COLOR_BUFFER_BIT)
 
     gl.LoadIdentity
@@ -618,6 +616,12 @@ Public Sub GLArea1_draw()
     gl.Translatef(gcd.Drawing.currViewport.PanX, gcd.Drawing.currViewport.PanY, 0)
 
     gl.Scalef(gcd.Drawing.currViewport.ScaleZoom, gcd.Drawing.currViewport.ScaleZoom, 1)
+
+    If gcd.DrawHoveredEntity Then
+        If gcd.Drawing.HoveredEntity Then
+            gl.CallList(gcd.Drawing.HoveredEntity.glDrwListRemark)
+        End If
+    End If
 
 
     gcd.clsJob.Draw()
@@ -631,12 +635,18 @@ Public Sub GLArea1_draw()
 
             gl.Scalef(gcd.Drawing.currViewport.ScaleZoom, gcd.Drawing.currViewport.ScaleZoom, 1)
 
-            gl.Translatef(vpt.PanX, vpt.PanY, 0)
-            gl.Scalef(vpt.ScaleZoom, vpt.ScaleZoom, 1)
+
 
             ' el scissor no se ve afectado por las trnasformaciones!!!!!!!!
-            gl.Scissor(vpt.X0, vpt.Y0, vpt.X1 - vpt.x0, vpt.Y1 - vpt.y0)
-            gl.Enable(GL.sCISSOR_TEST)
+            ' gl.Scissor(gcd.XPix(vpt.X0), gcd.YPix(vpt.Y0), gcd.Pixels(vpt.X1 - vpt.x0), gcd.Pixels(vpt.Y1 - vpt.y0))
+            ' gl.Enable(GL.sCISSOR_TEST)
+            'gl.Viewport(gcd.XPix(vpt.X0), gcd.YPix(vpt.Y0), gcd.Pixels(vpt.X1 - vpt.x0), gcd.Pixels(vpt.Y1 - vpt.y0))
+
+            'glPlus.Rectangle2D(vpt.X0, vpt.Y0, vpt.X1 - vpt.x0, vpt.Y1 - vpt.y0, Color.DarkBlue)
+
+            gl.Translatef(vpt.PanX, vpt.PanY, 0)
+            gl.Scalef(vpt.ScaleZoom, vpt.ScaleZoom, 1)
+            'glPlus.Rectangle2D(0, 0, 50, 100, Color.Cyan)
 
             For Each L In vpt.Layers
                 If L.Visible Then gl.CallList(L.glList)
@@ -645,6 +655,7 @@ Public Sub GLArea1_draw()
         Next
 
 
+        'gl.Viewport(0, 0, gcd.Drawing.GLAreaInUse.W, gcd.Drawing.GLAreaInUse.h)
 
         gl.LoadIdentity
 
@@ -652,7 +663,7 @@ Public Sub GLArea1_draw()
 
         gl.Scalef(gcd.Drawing.currViewport.ScaleZoom, gcd.Drawing.currViewport.ScaleZoom, 1)
 
-        For Each e In gcd.Drawing.CurrSheet.Entities.Entities
+        For Each e In gcd.Drawing.CurrSheet.MainLayer.Entities
             gcd.CCC[e.gender].Draw(e)
         Next
 
@@ -660,6 +671,8 @@ Public Sub GLArea1_draw()
         glPlus.Rectangle2D(0, 0, gcd.Drawing.CurrSheet.pPrintStyle.PaperSizeW, gcd.Drawing.CurrSheet.pPrintStyle.PaperSizeH, gcd.Drawing.CurrSheet.BackGroundColor)
 
     Else ' Model view
+
+
 
 
         For Each L In gcd.Drawing.oLayers
@@ -676,9 +689,7 @@ Public Sub GLArea1_draw()
 
 
 
-    If gcd.DrawHoveredEntity Then
-        If gcd.Drawing.HoveredEntity Then gl.CallList(gcd.Drawing.HoveredEntity.glDrwListRemark)
-    End If
+
     DrawingAids.DrawCoordenadas
 
     DrawingAids.DibujaHelper
@@ -756,7 +767,8 @@ Public Sub GLArea1_MouseMove()
     ' Universal:
     gcd.clsJob.MouseMove()
 
-    Me.lblCoord.Text = Format(Xr, Config.FormatCoord) & " : " & Format(Yr, config.FormatInquiries)
+    Me.lblCoord.Text = Mouse.x & ":" & Mouse.y & "-" & Format(Xr, Config.FormatCoord) & " : " & Format(Yr, config.FormatInquiries)
+    Me.lblCoord.Refresh
 
     If Mouse.Middle Then
         cadPan.MouseMove()
@@ -1578,7 +1590,7 @@ Public Sub tabViews_Click()
             gcd.Drawing.GLAreaInUse = gcd.Drawing.CurrSheet.GLSheet
             gcd.Drawing.CurrViewport = gcd.Drawing.CurrSheet.MainViewport
             ' si es una Sheet, no hay layers, sino una unica capa donde se enserta todo
-            gcd.Drawing.CurrLayer = gcd.Drawing.CurrSheet.Entities
+            gcd.Drawing.CurrLayer = gcd.Drawing.CurrSheet.MainLayer
             'Try Me.GLArea1 = gcd.Drawing.GLAreaInUse
         Else
             gcd.Drawing.CurrSheet = Null
@@ -1664,6 +1676,7 @@ Public Function NewSheet(tabSheets As TabPanel, s As Sheet)
 
 
     tabSheets.Count += 1
+
     tabSheets[tabSheets.Count - 1].Text = s.Name
 
     Dim glaFile2 As New GLArea(tabSheets[tabSheets.Count - 1])
