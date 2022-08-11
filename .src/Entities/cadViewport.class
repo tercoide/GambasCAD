@@ -69,6 +69,8 @@ Public Sub Finish(oE As Entity) As Boolean
     Dim l As Layer
     Dim c As Collection
 
+    oe.PaperSpace = True
+
     Me.BuildGeometry(oe)
     Dim w, h As Float
     w = oE.p[2] - oE.p[0]
@@ -96,15 +98,67 @@ Public Sub Finish(oE As Entity) As Boolean
     v.Y0 = oe.P[1]
     v.X1 = oe.P[2]
     v.Y1 = oe.P[3]
-    v.ScaleZoom = 1
-    v.PanX = (oe.P[2] + oe.P[0]) / 2
-    v.PanY = (oe.P[3] + oe.P[1]) / 2
+
+    If v.x0 > v.x1 Then Swap v.x0, v.x1
+    If v.y0 > v.y1 Then Swap v.y0, v.y1
+
+    v.PanX = (v.x1 + v.x0) / 2
+    v.PanY = (v.y1 + v.y0) / 2
 
     gcd.Drawing.CurrSheet.vViewports.Add(v, v.Handle)
     c = gcd.Drawing.CurrSheet.vViewports[gcd.Drawing.CurrSheet.vViewports.Last].layers
     For Each l In gcd.Drawing.oLayers
         If l.Visible Then c.add(l, l.handle)
     Next
+
+    ' pero tengo que hacer algo mas aca, centrar el grafico en el viewport
+    gcd.Drawing.CurrViewport = v
+    'cadZoomE.Start()
+
+
+    ' esto es un copy/paste de cadZoomE
+    Dim limits As New Float[]
+
+    limits = clsEntities.ComputeLimits()
+
+    gcd.Drawing.xmenor = limits[0]
+    gcd.Drawing.Ymenor = limits[1]
+    gcd.Drawing.xmayor = limits[2]
+    gcd.Drawing.ymayor = limits[3]
+
+    If gcd.Drawing.oEntities.Count = 0 Then Return
+
+    Dim SZx As Float
+    ' ahora calculo donde estaria el centro de este dibujo
+
+    Dim cx, cy As Float
+    Dim px, py As Integer           ' coordenadas del punto medio
+
+    cx = (gcd.Drawing.xmayor - gcd.Drawing.xmenor) ' tamaño del mundo
+    cy = (gcd.Drawing.Ymayor - gcd.Drawing.Ymenor)
+
+    If cx = 0 Then cx = 0.00001
+    If cy = 0 Then cy = 0.00001
+    gcd.Drawing.currViewport.ScaleZoom = (v.y1 - v.y0) / cy * 0.9
+
+    szx = (v.x1 - v.x0) / cx * 0.9
+
+    If szx < gcd.Drawing.currViewport.ScaleZoom Then gcd.Drawing.currViewport.ScaleZoom = szx
+
+    ' posicion del punto medio
+    px = (gcd.Drawing.xmayor + gcd.Drawing.xmenor) / 2
+    py = (gcd.Drawing.Ymayor + gcd.Drawing.Ymenor) / 2
+
+    gcd.Drawing.currViewport.PanX += -gcd.Pixels(px)
+    gcd.Drawing.currViewport.PanY += -gcd.Pixels(py)
+
+    If gcd.Drawing.currViewport.ScaleZoom > 1e6 Or gcd.Drawing.currViewport.ScaleZoom < 1e-6 Then
+        gcd.Drawing.currViewport.ScaleZoom = 1
+        gcd.Drawing.currViewport.PanX = 0
+        gcd.Drawing.currViewport.PanY = 0
+    End If
+
+    gcd.Drawing.CurrViewport = gcd.Drawing.CurrSheet.MainViewport
 
 End
 
