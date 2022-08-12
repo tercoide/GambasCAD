@@ -37,6 +37,8 @@ Public fBlockScaleY As Float = 1
 Public fBlockDegRotation As Float = 0
 Public fBlockInvert As Integer = 1
 
+Public cAttdef As New Collection
+
 Public Function Start(Optional sfilename As Variant, Optional _mode As Integer = 0) As Boolean
 
     If sfilename = 0 Then fBlocks.Show
@@ -98,6 +100,7 @@ Public Sub SetInsert(sBlockName As String, ScaleXYZ As Float, Rotation As Float,
 
     'Debug "Create", iStage
     ' Armo una entidad Insert y la meto en oSelected para que sea dibujada
+
     eInsert = New Entity
     eInsert = cadInsert.NewEntity()'New Entity
     eInsert.Gender = cadInsert.Gender
@@ -115,6 +118,34 @@ Public Sub SetInsert(sBlockName As String, ScaleXYZ As Float, Rotation As Float,
     fBlockScaleY = ScaleXYZ
 
     If bInvert Then fBlockInvert = -1 Else fBlockInvert = 1
+    Dim e As Entity
+    Dim c As New Collection, sDetails As String[]
+    ' buen momento para ver si tiene ATTDEF
+    gcd.cATTDEF = New Collection
+    For Each e In eInsert.pBlock.entities
+        If e.Gender = "ATTDEF" Then
+            sDetails = New String[]
+            sDetails.Add(e.stringdata[cadAttrib.sdaTag])
+            sDetails.Add(e.stringdata[cadAttrib.sdaPromt])
+            sDetails.Add(e.stringdata[cadText.sdaText]) ' respuesta
+            gcd.cAttdef.Add(sDetails, e.Handle)
+
+        Endif
+    Next
+    If gcd.cATTDEF.Count > 0 Then
+
+        FAttrib.SetAttribs()
+        For Each e In eInsert.pBlock.entities
+            If e.Gender = "ATTDEF" Then
+
+                e.StringData[0] = gcd.cATTDEF[e.Handle][2]
+                e.Gender = "ATTRIB"
+
+            Endif
+        Next
+
+    End If
+    'fatt.Showmodal()
 
     clsEntities.glGenDrawList(eInsert)
 
