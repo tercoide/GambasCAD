@@ -135,18 +135,78 @@ Public Sub SetInsert(sBlockName As String, ScaleXYZ As Float, Rotation As Float,
     If gcd.cATTDEF.Count > 0 Then
 
         FAttrib.SetAttribs()
-        For Each e In eInsert.pBlock.entities
-            If e.Gender = "ATTDEF" Then
 
-                e.StringData[0] = gcd.cATTDEF[e.Handle][2]
-                e.Gender = "ATTRIB"
-
-            Endif
-        Next
+        Me.ATTDEF_List(eInsert.pBlock.entities, eInsert, gcd.Drawing.oEntities)
+        ' For Each e In eInsert.pBlock.entities
+        '     If e.Gender = "ATTDEF" Then
+        '
+        '         e.StringData[0] = gcd.cATTDEF[e.Handle][2]
+        '         e.Gender = "ATTRIB"
+        '
+        '     Endif
+        ' Next
 
     End If
     'fatt.Showmodal()
 
     clsEntities.glGenDrawList(eInsert)
+
+End
+
+Public Sub ATTDEF_List(eList As Collection, eParent As Entity, cDestination As Collection, Optional InsertionPlace As Integer = 0)
+    'insertion place:
+    ' 0 = entity.P[0],[1]
+    ' 1 = entity.pBlock.entities.P[0],[1]
+    ' 2 = entity.pBlock.x0,y0
+
+    Dim et, etnew As Entity
+
+    ' gl.PushMatrix
+    ' If InsertionPlace = 0 Then
+    '     gl.Translatef(fMain.pixels(eParent.p[0]) / gcd.CurrDrawing.ScaleZoom, fMain.pixels(eParent.p[1]) / gcd.CurrDrawing.ScaleZoom, 0)
+    ' Else If InsertionPlace = 1 Then
+    '     ' absolute coordinate, so each entity has its own position
+    '     ' nothing to translate
+    ' Else If InsertionPlace = 2 Then
+    '     gl.Translatef(fMain.pixels(eParent.pBlock.x0) / gcd.CurrDrawing.ScaleZoom, fMain.pixels(eParent.pBlock.y0) / gcd.CurrDrawing.ScaleZoom, 0)
+    '
+    ' End If
+    '
+    ' gl.Rotatef(eParent.fParam[Me.ipaRotacion], 0, 0, 1)
+    '
+    ' gl.Scalef(eParent.fParam[Me.ipaEscX], eParent.fParam[Me.ipaEscY], eParent.fParam[Me.ipaEscZ])
+
+    For Each ET In eList
+
+        If (et.Gender = "INSERT") Then
+
+            If et.pBlock Then ATTDEF_List(et.pBlock.entities, et, cDestination)
+
+        Else
+
+            If et.Gender = "ATTDEF" Then
+
+                ' creo una entidad nueva
+                etnew = clsEntities.ClonEntity(et)
+                etnew.Gender = "ATTRIB"
+                etnew.visible = True
+                etnew.LineType = eParent.LineType
+                etnew.colour = eParent.colour
+                etnew.LineWidth = eParent.LineWidth
+                etnew.StringData[0] = gcd.cATTDEF[et.Handle][2]
+                Gcd.CCC[etnew.gender].Scale(etnew, eParent.fParam[cadInsert.ipaEscX], eParent.fParam[cadInsert.ipaEscY])
+                Gcd.CCC[etnew.gender].Rotate(etnew, eParent.fParam[cadInsert.ipaRotacion])
+                If InsertionPlace = 0 Then
+                    Gcd.CCC[etnew.gender].translate(etnew, eParent.p[0], eParent.p[1])
+                End If
+
+                Gcd.CCC[etnew.gender].Finish(etnew)
+
+                cDestination.Add(etnew, etnew.Handle)
+            End If
+        End If
+        clsEntities.glGenDrawList(etnew)
+
+    Next
 
 End
