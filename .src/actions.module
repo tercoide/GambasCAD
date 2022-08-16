@@ -21,16 +21,14 @@ Public sActionParams As String[]
 
 Public Sub FileNew()
 
-    NewDrawing = fmain.NewTabForDrawing("<new drawing>")
-    gcd.Drawing = NewDrawing
-    gcd.Drawings.Add(NewDrawing)
-    ' fmain.tabDrawings.Count += 1
-    ' fmain.tabDrawings.Text = ("< new >")
-    gcd.Drawing.FileName = main.dirTemplates &/ "drawing1.dxf"
-    dxf.LoadFile(fMinimal, gcd.Drawing,,,,, True)
+    ' Vamos a tratar de armar todo para que se pueda dibujar, sin necesidad de cargar un DXF base.
+
+    NewDrawing = gcd.NewDrawing("<new drawing>")            'Creo una nueva petaña, que me devuelve un Drawing con una Sheet
+    gcd.Drawing = NewDrawing                                'Apunto Gcd.Drawing a este nuevo Drawing
+    gcd.Drawings.Add(NewDrawing)                            'Lo agrego al listado de dibujos abiertos
+    fmain.NewTabForDrawing(NewDrawing)
 
     gcd.Regen()
-    Try gcd.Drawing.HandSeed = Val("&H" & gcd.Drawing.oHeader.HandSeed)
 
     fmain.UpdateLayersCombo
     fmain.UpdateLineWtCombo
@@ -150,11 +148,13 @@ Public Sub FileOpen(Optional sFile As String = "")
 
 LoadDXF:
     Inc Application.Busy
-    NewDrawing = fmain.NewTabForDrawing(f)
+    ' NewDrawing = gcd.NewDrawing(f)
+    ' fmain.NewTabForDrawing(NewDrawing)
+    NewDrawing = New Drawing
 
     ' esto es necesario porque muchas funciones usan gcd.Drawing
 
-    dxf.LoadFile(fMinimal, NewDrawing)
+    'dxf.LoadFile(fMinimal, NewDrawing)
 
     If dxf.LoadFile(fDxf, NewDrawing, False, False, False,, True) Then
         Message.Error(("There was an error opening the file"))
@@ -192,13 +192,13 @@ Public Sub ExitProgram()
 
     For Each d In gcd.Drawings
 
-        For Each e In d.oEntities
+        For Each e In d.Entities
             e.Polygon.Clear
             e.P.Clear
             e.Psel.Clear
             e.PolyLine.Clear
             e.PoiPoints.Clear
-            e.StringData.Clear
+            e.sParam.Clear
             e.fParam.Clear
             e.iParam.Clear
             gcd.CCC[e.gender] = Null
@@ -207,17 +207,17 @@ Public Sub ExitProgram()
             gl.DeleteLists(e.glDrwListSel, 1)
             gl.DeleteLists(e.glDrwListPOI, 1)
         Next
-        d.oEntities.Clear
-        d.oBlocks.Clear
+        d.Entities.Clear
+        d.Blocks.Clear
         d.handles.Clear
-        For Each L In d.oLayers
+        For Each L In d.Layers
             L.Entities.Clear
         Next
-        d.oLayers.Clear
-        d.oLTYpes.Clear
+        d.Layers.Clear
+        d.LineTypes.Clear
         d.oVisibleEntities.Clear
         d.otextStyles.Clear
-        d.odimStyles.Clear
+        d.DimStyles.Clear
 
     Next
 

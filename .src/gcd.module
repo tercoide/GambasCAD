@@ -174,11 +174,11 @@ Public Function FindEntity(sHandle As String, Optional SearchInBlocks As Boolean
 
     Dim oBlock As Block
 
-    If gcd.Drawing.oEntities.Exist(sHandle) Then Return gcd.Drawing.oEntities[sHandle]
+    If gcd.Drawing.Entities.Exist(sHandle) Then Return gcd.Drawing.Entities[sHandle]
 
     If SearchInBlocks Then
-        For Each oBlock In gcd.Drawing.oBlocks
-            If oBlock.entities.Exist(sHandle) Then Return gcd.Drawing.oEntities[sHandle]
+        For Each oBlock In gcd.Drawing.Blocks
+            If oBlock.entities.Exist(sHandle) Then Return gcd.Drawing.Entities[sHandle]
 
         Next
     Endif
@@ -191,7 +191,7 @@ Public Function FindLType(sName As String) As LineType
 
     Dim LT As LineType
 
-    For Each LT In gcd.Drawing.oLTYpes
+    For Each LT In gcd.Drawing.LineTypes
 
         If LCase(LT.Name) = LCase(sname) Then Return LT
 
@@ -345,7 +345,7 @@ Public Sub LoadCommon()
     Try sFiles = Dir(gcd.dirResources &/ "common", "*.dxf")
     If IsNull(sFiles) Then Return
     For Each sBlocksFiles In sFiles
-        FBlocks.AddBlock(gcd.dirResources &/ "common" &/ sBlocksFiles, Utils.FileWithoutExtension(sBlocksFiles), gcd.Drawing.oBlocks)
+        FBlocks.AddBlock(gcd.dirResources &/ "common" &/ sBlocksFiles, Utils.FileWithoutExtension(sBlocksFiles), gcd.Drawing.Blocks)
 
     Next
 
@@ -355,7 +355,7 @@ Public Function GetLayer(LayerName As String) As Layer
 
     Dim Lay As Layer
 
-    For Each Lay In gcd.Drawing.oLayers
+    For Each Lay In gcd.Drawing.Layers
 
         If Lay.Name = LayerName Then Return Lay
     Next
@@ -372,13 +372,14 @@ Public Sub FillLayers(drw As Drawing)
     gcd.debugInfo("Filling layers",,, True)
 
     ' primero eliminamos lo q haya
-    For Each hLay In drw.oLayers
+    For Each hLay In drw.Layers
         hLay.Entities.Clear
     Next
-
-    For Each e In drw.oEntities
-        If e.pLayer Then e.pLayer.Entities.Add(e)
-    Next
+    If drw.Entities Then
+        For Each e In drw.Entities
+            If e.pLayer Then e.pLayer.Entities.Add(e)
+        Next
+    End If
     gcd.debugInfo("Llenados los Layers",,, True)
 
 End
@@ -548,10 +549,16 @@ End
 ' End
 
 '' Returns the next available handle
-Public Function NewHandle() As String
+Public Function NewHandle(Optional d As Drawing) As String
 
-    Inc Drawing.HandSeed             ' esta es la ultima handle utilizada, le sumo 1
-    Return Hex(Drawing.HandSeed)     ' devuelvo la Hex del numero
+    If d Then
+        Inc D.HandSeed             ' esta es la ultima handle utilizada, le sumo 1
+        Return Hex(D.HandSeed)     ' devuelvo la Hex del numero
+
+    Else
+        Inc Drawing.HandSeed             ' esta es la ultima handle utilizada, le sumo 1
+        Return Hex(Drawing.HandSeed)     ' devuelvo la Hex del numero
+    End If
 
 End
 
@@ -739,7 +746,7 @@ Public Function FitDxfToImage(sDXFfile As String, imgPreview As Object, Optional
 
     Dxf.LoadFile(sDxfFile, drwTemp, True, False, True)
 
-    FitEntitiesToImage(drwTemp.oEntities, imgPreview, iColor, fLineWidth)
+    FitEntitiesToImage(drwTemp.Entities, imgPreview, iColor, fLineWidth)
 
 End
 
@@ -931,5 +938,37 @@ Public Sub debugInfo(txt As String, Optional MismaLineaAnterior As Boolean = Fal
     End If
 
     Utils.doevents
+
+End
+
+'' Prepara un dibujo y lo devuelve listo para usarse
+Public Sub NewDrawing(sName As String) As Drawing
+
+    Dim D As New Drawing
+
+    d.FileName = sname
+    Dim S As New Sheet
+    s.Name = "Model"
+    s.IsModel = True
+    s.Handle = gcd.NewHandle(d)
+    D.Sheets.Add(s, s.Handle)
+    d.CurrSheet = s
+    D.Entities = d.CurrSheet.Entities
+
+    Dim L As New Layer
+    l.Name = "0"
+    l.handle = gcd.NewHandle(d)
+    D.Layers.Add(l, l.handle)                     'Agrego un layer
+    Dim LT As New LineType
+    lt.Name = "CONTINUOUS"
+    lt.handle = gcd.NewHandle(d)
+    D.LineTypes.Add(lt, lt.handle)                ' Agrego un LineType
+
+    Dim DS As New DimStyle
+    DS.handle = gcd.NewHandle(d)
+    D.DimStyles.Add(ds, ds.handle)                ' Agrego un DimStyle
+
+    Return D
+
 
 End

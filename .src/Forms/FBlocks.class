@@ -120,7 +120,7 @@ Public Sub CreateBlock()
         Message.Error(("Block name is empty"))
         Return
     Endif
-    For Each tmpBlock In gcd.Drawing.oBlocks
+    For Each tmpBlock In gcd.Drawing.Blocks
         If TmpBlock.name = sBlockName Then
             Message.Error(("Block name is in use"))
             Return
@@ -152,9 +152,9 @@ Public Sub CreateBlock()
 
     If chkIncludeData.Value = False Then
         For Each tmpEnty In cEntitiesBlock
-            tmpEnty.pLayer = gcd.Drawing.oLayers[gcd.Drawing.oLayers.First]
-            tmpEnty.pDimStyle = gcd.Drawing.oDimStyles[gcd.Drawing.oDimStyles.First]
-            tmpEnty.LineType = gcd.Drawing.oLTYpes[gcd.Drawing.oLTYpes.First]
+            tmpEnty.pLayer = gcd.Drawing.Layers[gcd.Drawing.Layers.First]
+            tmpEnty.pDimStyle = gcd.Drawing.DimStyles[gcd.Drawing.DimStyles.First]
+            tmpEnty.LineType = gcd.Drawing.LineTypes[gcd.Drawing.LineTypes.First]
             tmpEnty.Colour = 0
         Next
     Endif
@@ -181,16 +181,16 @@ Public Sub CreateBlock()
     tmpBlock.handle = gcd.NewHandle()
 
     ' ahora agrego el Block al dibujo actual
-    gcd.Drawing.oBlocks.Add(tmpBlock, tmpBlock.handle)
+    gcd.Drawing.Blocks.Add(tmpBlock, tmpBlock.handle)
 
     ' si lo voy a exportar, verifico que el archivo no exista
     If chkExportToDatabase.Value = True Then
 
-        tmpDrawing.oEntities = cEntitiesBlock
+        tmpDrawing.Entities = cEntitiesBlock
         If Not chkExplode.Value Then ' tengo que grabar los bloques tambien
             For Each tmpEnty In cEntitiesBlock
                 If (tmpEnty.Gender = "INSERT") Or (tmpEnty.Gender Like "DIM*") Then
-                    tmpDrawing.oBlocks.Add(gcd.Drawing.oBlocks[tmpEnty.pBlock.name], tmpEnty.pBlock.handle)
+                    tmpDrawing.Blocks.Add(gcd.Drawing.Blocks[tmpEnty.pBlock.name], tmpEnty.pBlock.handle)
                 Endif
             Next
 
@@ -275,7 +275,7 @@ Public Sub LoadBlocksInUse()
     Dim blkTemp As Block
 
     icvBlocksInUse.Clear
-    For Each blkTemp In gcd.Drawing.oBlocks
+    For Each blkTemp In gcd.Drawing.Blocks
 
         ' verifico si tengo que mostrar los que estan en uso
         If Left(blkTemp.name, 1) = "*" Then
@@ -311,7 +311,7 @@ Public Sub btnAddToDrawing_Click()
             sPath = Config.BlocksLibraryPath &/ ComboBox1.current.Text &/ ComboBox2.Current.Text &/ icvItem.Text & ".dxf"
             ' busco que no exista
             sNewName = icvItem.Text
-            For Each blkTemp In gcd.Drawing.oBlocks
+            For Each blkTemp In gcd.Drawing.Blocks
                 If blkTemp.name = icvItem.Text Then
                     iRest = Message.Question(("The block is already in use, you can:"), ("Replace"), ("Rename"), ("Cancel"))
                     If iRest = 2 Then
@@ -322,16 +322,16 @@ Public Sub btnAddToDrawing_Click()
                         For i = 0 To 10000
                             sNewName = icvItem.Text & Str(i)
                             InUse = False
-                            For Each blkNew In gcd.Drawing.oBlocks
+                            For Each blkNew In gcd.Drawing.Blocks
                                 If sNewName = blkNew.name Then InUse = True
                             Next
                             If Not InUse Then Break
                         Next
 
                     Else    ' LO VAMOS A REEMPLAZAR
-                        For Each blkNew In gcd.Drawing.oBlocks
+                        For Each blkNew In gcd.Drawing.Blocks
                             If blkNew.name = sNewName Then
-                                gcd.Drawing.oBlocks.Remove(gcd.Drawing.oBlocks.Last)
+                                gcd.Drawing.Blocks.Remove(gcd.Drawing.Blocks.Last)
                             Endif
                         Next
 
@@ -339,7 +339,7 @@ Public Sub btnAddToDrawing_Click()
                 Endif
             Next
             ' y ahora lo agregamos
-            If Not InUse Then AddBlock(sPath, sNewName, gcd.Drawing.oBlocks) 'GoSub AddBlock
+            If Not InUse Then AddBlock(sPath, sNewName, gcd.Drawing.Blocks) 'GoSub AddBlock
 
         Endif
         icvLibrary.MoveNext
@@ -374,7 +374,7 @@ Public Sub AddBlock(sPath As String, sBlockName As String, sContainer As Collect
 
     Dim drwTemp As Drawing, blkNew As Block, eBlockl As Entity
 
-    drwTemp = New Drawing
+    drwTemp = gcd.NewDrawing(sPath)
     dxf.LoadFile(sPath, drwTemp,,,,, True)
     ' todo el dibujo sera un bloque
 
@@ -382,7 +382,7 @@ Public Sub AddBlock(sPath As String, sBlockName As String, sContainer As Collect
     blkNew.name = sBlockName
     blkNew.entities = New Collection
     blkNew.handle = gcd.NewHandle()
-    For Each eBlockl In drwTemp.oEntities
+    For Each eBlockl In drwTemp.Entities
         blkNew.entities.Add(eBlockl, gcd.NewHandle())
     Next
     ' y agregamos la entidad ENDBLK
@@ -418,7 +418,7 @@ Public Sub btnRemoveFromDrawing_Click()
     Dim e As Entity
     Dim InUse As Boolean
 
-    For Each e In gcd.Drawing.oEntities
+    For Each e In gcd.Drawing.Entities
         If e.pBlock Then
             If e.pBlock.name = icvBlocksInUse.Item.text Then
                 Message.Error(("There is an Insert using this Block, can't be removed"))
@@ -430,7 +430,7 @@ Public Sub btnRemoveFromDrawing_Click()
     Next
 
     If Not InUse Then
-        gcd.Drawing.oBlocks.Remove(icvBlocksInUse.Item.Key)
+        gcd.Drawing.Blocks.Remove(icvBlocksInUse.Item.Key)
         icvBlocksInUse.Remove(icvBlocksInUse.Item.Key)
     Endif
 

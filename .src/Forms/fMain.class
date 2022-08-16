@@ -619,7 +619,7 @@ Public Sub GLArea1_draw()
     End If
 
     gcd.clsJob.Draw()
-    If gcd.Drawing.CurrSheet Then   ' Sheet view
+    If Not gcd.Drawing.CurrSheet.IsModel Then   ' Sheet view
 
         For Each vpt In gcd.Drawing.CurrSheet.vViewports
             gl.LoadIdentity
@@ -661,7 +661,7 @@ Public Sub GLArea1_draw()
 
     Else ' Model view
 
-        For Each L In gcd.Drawing.oLayers
+        For Each L In gcd.Drawing.Layers
             If L.Visible Then gl.CallList(L.glList)
         Next
 
@@ -1048,7 +1048,7 @@ Public Sub Form_Keyrelease()
             ' Stop
         Case Key.F3
             ' test
-            Utils.SaveClass(gcd.Drawing.oEntities[gcd.Drawing.oEntities.First], User.home &/ "SaveClassTest.json")
+            Utils.SaveClass(gcd.Drawing.Entities[gcd.Drawing.Entities.First], User.home &/ "SaveClassTest.json")
 
             Utils.SaveClass(gcd.Drawing, User.home &/ "SaveClassTestDrawing.json")
         Case Key.f5
@@ -1361,9 +1361,9 @@ Public Function UpdatDimTypeTypeCombo()
     Dim oDimStyle As DimStyle
     Dim i As Integer
 
-    If IsNull(gcd.Drawing.CurrDimStyle) Then gcd.Drawing.CurrDimStyle = gcd.Drawing.odimStyles[gcd.Drawing.odimStyles.First]
+    If IsNull(gcd.Drawing.CurrDimStyle) Then gcd.Drawing.CurrDimStyle = gcd.Drawing.DimStyles[gcd.Drawing.DimStyles.First]
     fMain.cmbDimStyle.Clear
-    For Each oDimStyle In gcd.Drawing.oDimStyles
+    For Each oDimStyle In gcd.Drawing.DimStyles
         fMain.cmbDimStyle.Add(oDimStyle.name)
 
         If gcd.Drawing.CurrDimStyle.name = oDimStyle.name Then i = fMain.cmbDimStyle.Count
@@ -1388,7 +1388,7 @@ Public Sub UpdateLayersCombo()
         End If
     Next
     mLayer.Name = sName
-    For Each aLayer In gcd.Drawing.oLayers
+    For Each aLayer In gcd.Drawing.Layers
         m2 = New Menu(mLayer)
         m2.Text = aLayer.Name
         m2.Picture = paintPlus.picCirculito(8, gcd.GetGBColor(aLayer.Colour), Color.ButtonForeground)
@@ -1397,7 +1397,7 @@ Public Sub UpdateLayersCombo()
     ' fMain.mbtLayers.Menu = sName
     ' fMain.mbtLayers.Text = mLayer.Children[0].Text
     ' fMain.mbtLayers.Picture = mLayer.Children[0].Picture
-    If Not gcd.Drawing.CurrLayer Then gcd.Drawing.CurrLayer = gcd.Drawing.oLayers[gcd.Drawing.oLayers.First]
+    If Not gcd.Drawing.CurrLayer Then gcd.Drawing.CurrLayer = gcd.Drawing.Layers[gcd.Drawing.Layers.First]
 
     fMain.grdLayers[0.0, 0.0].Picture = mLayer.Children[0].Picture
     fMain.grdLayers[0, 4].Text = gcd.Drawing.CurrLayer.Name
@@ -1524,7 +1524,7 @@ Public Sub UpdateLineTypeCombo()
     fMain.tblLTypes.tbnChilds.Clear
 
     ' ahora espesores especificos
-    For Each lty In gcd.Drawing.oLTYpes
+    For Each lty In gcd.Drawing.LineTypes
         Inc i
 
         ' primero agregamos la correspondiente a ByLayer
@@ -1548,7 +1548,7 @@ Public Sub UpdateLineTypeCombo()
         fMain.tblLTypes.AddToolButton("tbnLType" & CStr(i),, imagen.Picture, "ltype_change_" & lty.Name)
 
     Next
-    gcd.Drawing.CurrLineType = gcd.Drawing.oLTYpes[gcd.Drawing.oLTYpes.First]
+    gcd.Drawing.CurrLineType = gcd.Drawing.LineTypes[gcd.Drawing.LineTypes.First]
 
 End
 
@@ -1561,88 +1561,82 @@ End
 
 Public Sub tabViews_Click()
 
-    If tabViews Then
-        If tabViews[tabViews.Index].Tag Then
-            gcd.Drawing.LastLayer = gcd.Drawing.CurrLayer
-            gcd.Drawing.CurrSheet = gcd.Drawing.Sheets[tabViews[tabViews.Index].Tag]
-            gcd.Drawing.GLAreaInUse = gcd.Drawing.CurrSheet.GLSheet
-            gcd.Drawing.CurrViewport = gcd.Drawing.CurrSheet.MainViewport
-            ' si es una Sheet, no hay layers, sino una unica capa donde se enserta todo
-            gcd.Drawing.CurrLayer = gcd.Drawing.CurrSheet.MainLayer
-            'Try Me.GLArea1 = gcd.Drawing.GLAreaInUse
-        Else
-            gcd.Drawing.CurrSheet = Null
-            gcd.Drawing.CurrLayer = gcd.Drawing.LastLayer
-            gcd.Drawing.CurrViewport = gcd.Drawing.ModelViewport
-        End If
+    If Last.current.tag Then
+        gcd.Drawing.LastLayer = gcd.Drawing.CurrLayer
+        gcd.Drawing.CurrSheet = gcd.Drawing.Sheets[Last.current.tag]
+        gcd.Drawing.Entities = gcd.Drawing.CurrSheet.Entities
+        gcd.Drawing.GLAreaInUse = gcd.Drawing.CurrSheet.GLSheet
+        gcd.Drawing.CurrViewport = gcd.Drawing.CurrSheet.MainViewport
+        ' si es una Sheet, no hay layers, sino una unica capa donde se enserta todo
+        gcd.Drawing.CurrLayer = gcd.Drawing.CurrSheet.MainLayer
+        '     'Try Me.GLArea1 = gcd.Drawing.GLAreaInUse
+        ' Else
+        '     gcd.Drawing.CurrSheet = Null
+        '     gcd.Drawing.CurrLayer = gcd.Drawing.LastLayer
+        '     gcd.Drawing.CurrViewport = gcd.Drawing.ModelViewport
     End If
+    'End If
+
+    If gcd.Drawing.GLAreaInUSe Then clsEntities.CollectVisibleEntities
 
 End
 
 '' Crea una nueva Tab para alojar un nuevo grafico
-Public Function NewTabForDrawing(sName As String) As Drawing
+Public Function NewTabForDrawing(nDrawing As Drawing)
 
     Dim i As Integer
-    Dim nDrawing As New Drawing
+    Dim s As Sheet
 
     NDrawing.iEntity.Insert([0, 0, 0, 0])
     NDrawing.CurrViewport.ScaleZoom = gcd.ScreenDensity
 
     Me.tabDrawings.Count += 1
     i = Me.tabDrawings.Count - 1
-    Me.tabDrawings[i].Text = Left(Utils.FileFromPath(sName), 12)
+    Me.tabDrawings[i].Text = Left(Utils.FileFromPath(nDrawing.FileName), 12)
     'Me.tabDrawings[i].Tooltip = sName
     Me.tabDrawings[i].Expand = True
     Me.tabDrawings[i].tag = nDrawing
     Me.tabDrawings.Index = i
-    Dim tabFileNew As New TabPanel(Me.tabDrawings[i])
-    tabFileNew.Count = 1
+    Dim tabFileNew As New TabPanel(Me.tabDrawings[i]) As "tabViews"
     tabFileNew.Expand = True
     tabFileNew.Arrangement = Arrange.Fill
     tabFileNew.Orientation = Align.Bottom
     Object.Attach(tabFileNew, Me, "tabViews")
+    For Each s In nDrawing.Sheets
+        NewSheet(tabFileNew, s)
+        'Dim tabFileNew As New TabPanel(Me.tabDrawings[i])
+        ' tabFileNew.Count += 1
+        ' tabFileNew.Expand = True
+        ' tabFileNew.Arrangement = Arrange.Fill
+        ' tabFileNew.Orientation = Align.Bottom
+        ' Object.Attach(tabFileNew, Me, "tabViews")
+        ' tabFileNew[0].Text = s.Name
+        ' Dim glaFile As New GLArea(tabFileNew[0])
+        ' glaFile.Background = Config.BackgroundColor
+        ' glaFile.Expand = True
+        ' glaFile.Tracking = True
+        ' Object.Attach(glaFile, Me, "GLArea1")
+        '
+        '
+        '
+        ' s.Handle = gcd.NewHandle()
+        ' s.Name = "Sheet"
+        '
+        ' NewSheet(tabFileNew, s)
+        '
+        ' gcd.Drawing = nDrawing
 
-    tabFileNew[0].Text = "Model"
+        ' gcd.Drawing.currSheet = Null
+        ' 'gcd.Drawing.CurrSheet.GLSheet = glaFile2
+        ' tabViews = tabFileNew
+        ' 'gcd.Drawing.CurrSheet = tabFileNew[0].Text      FIXME: no se como hacer
+        '
+    Next
 
-    ' model
-    Dim glaFile As New GLArea(tabFileNew[0])
-    glaFile.Background = Config.BackgroundColor
-    glaFile.Expand = True
-    glaFile.Tracking = True
-    'tabFileNew[0].Tag = glaFile
-    Object.Attach(glaFile, Me, "GLArea1")
-
-    ' ' paper
-    ' Dim glaFile2 As New GLArea(tabFileNew[1])
-    ' glaFile2.Background = Config.BackgroundColor
-    ' glaFile2.Expand = True
-    ' glaFile2.Tracking = True
-    ' tabFileNew[1].Tag = glaFile2
-    ' Object.Attach(glaFile2, Me, "GLPaper")
-    ' Dim s As New Sheet
-    ' s.Handle = gcd.NewHandle()
-    ' s.Name = "Sheet1"
-    ' nDrawing.Sheets.Add(s, s.Handle)
-    ' nDrawing.currSheet = s
-    '
-    ' tabFileNew[1].Text = s.Name
-    Dim s As New Sheet
-    s.Handle = gcd.NewHandle()
-    s.Name = "Sheet"
-
-    NewSheet(tabFileNew, s)
-
-    gcd.Drawing = nDrawing
-    gcd.Drawing.GLAreaInUse = glaFile
-    gcd.Drawing.currSheet = Null
-    'gcd.Drawing.CurrSheet.GLSheet = glaFile2
-    tabViews = tabFileNew
-    'gcd.Drawing.CurrSheet = tabFileNew[0].Text      FIXME: no se como hacer
     fmain.GLArea1 = gcd.Drawing.GLAreaInUse
-
     Me.Refresh
 
-    Return nDrawing
+    Return
 
 End
 
@@ -1651,7 +1645,7 @@ Public Function NewSheet(tabSheets As TabPanel, s As Sheet)
 
     Dim i As Integer
 
-    tabSheets.Count += 1
+    If Not s.IsModel Then tabSheets.Count += 1
 
     tabSheets[tabSheets.Count - 1].Text = s.Name
 
@@ -1667,6 +1661,7 @@ Public Function NewSheet(tabSheets As TabPanel, s As Sheet)
     gcd.Drawing.CurrSheet.GLSheet = glaFile2
     tabSheets[tabSheets.Count - 1].Tag = s.Handle
     GLPaper = glaFile2
+    gcd.Drawing.GLAreaInUse = glaFile2
 
 End
 

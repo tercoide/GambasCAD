@@ -67,7 +67,7 @@ Public Function FIndBlockIDbyHandle(BlockHandle As String) As Block
 
     Dim B As Block
 
-    For Each B In gcd.Drawing.oBlocks
+    For Each B In gcd.Drawing.Blocks
         If B.handle = BlockHandle Then Return B
     Next
     Return Null
@@ -114,22 +114,22 @@ Public Function ReconstruirBloques() As Boolean
 
     gcd.debuginfo("Recostruyendo bloques")
 
-    For i = 0 To gcd.Drawing.oEntities
-        DrawingAids.CmdLineHelper = ("Loading blocks ") & Format$(i / gcd.Drawing.oEntities, "0.00%")
+    For i = 0 To gcd.Drawing.Entities
+        DrawingAids.CmdLineHelper = ("Loading blocks ") & Format$(i / gcd.Drawing.Entities, "0.00%")
         Wait 0.0001
-        If gcd.Drawing.oEntities[i].gender = "BLOCK" Then
+        If gcd.Drawing.Entities[i].gender = "BLOCK" Then
             Dim newBlock As New Block
-            newBlock.name = gcd.Drawing.oEntities[i].block
-            newBlock.x = gcd.Drawing.oEntities[i].p[0]
-            newBlock.y = gcd.Drawing.oEntities[i].p[1]
+            newBlock.name = gcd.Drawing.Entities[i].block
+            newBlock.x = gcd.Drawing.Entities[i].p[0]
+            newBlock.y = gcd.Drawing.Entities[i].p[1]
             newBlock.entities = New Collection
             ' busco los objetos de este bloque y los reconstruyo
-            For i2 = iStart To gcd.Drawing.oEntities
-                If gcd.Drawing.oEntities[i2].block = newBlock.name And gcd.Drawing.oEntities[i2].gender <> "BLOCK" Then ' sin recursividad en bloques
-                    If gcd.Drawing.oEntities[i2].block = newBlock.name And gcd.Drawing.oEntities[i2].gender <> "INSERT" Then 'no quiero insertarme a mi mismo
+            For i2 = iStart To gcd.Drawing.Entities
+                If gcd.Drawing.Entities[i2].block = newBlock.name And gcd.Drawing.Entities[i2].gender <> "BLOCK" Then ' sin recursividad en bloques
+                    If gcd.Drawing.Entities[i2].block = newBlock.name And gcd.Drawing.Entities[i2].gender <> "INSERT" Then 'no quiero insertarme a mi mismo
                         PartesEncontradas = True
                         Dim o2 As Entity
-                        o2 = ClonEntity(gcd.Drawing.oEntities[i2])
+                        o2 = ClonEntity(gcd.Drawing.Entities[i2])
 
                         Gcd.CCC[o2.gender].finish(o2)
                         newBlock.entities.Add(o2)
@@ -180,8 +180,8 @@ Public Sub glGenBuffers(Optional eEntity As Entity = Null)
         glPlus.VBOFlush
         'glPlus.InmediateMode = False
 
-        If gcd.Drawing.oEntities.Count = 0 Then Return
-        For Each e In gcd.Drawing.oEntities
+        If gcd.Drawing.Entities.Count = 0 Then Return
+        For Each e In gcd.Drawing.Entities
 
             'If Not gl.islist(e.glDrwList) Then e.glDrwList = gl.GenLists(1)
             'gl.NewList(e.glDrwList, gl.COMPILE)
@@ -270,7 +270,7 @@ Public Sub glGenDrawList(Optional eEntity As Entity = Null)
         ' If Not gl.islist(gcd.CurrDrawing.GlListAllEntities) Then gcd.CurrDrawing.GlListAllEntities = gl.GenLists(1)
         Dim t As Float = Timer
         ' listas de entidades
-        For Each e In gcd.Drawing.oEntities
+        For Each e In gcd.Drawing.Entities
 
             If Not gl.islist(e.glDrwList) Then e.glDrwList = gl.GenLists(1)
 
@@ -281,7 +281,7 @@ Public Sub glGenDrawList(Optional eEntity As Entity = Null)
         Next
 
         ' lista de entidaes seleccionadas
-        For Each e In gcd.Drawing.oEntities
+        For Each e In gcd.Drawing.Entities
             If Not gl.islist(e.glDrwListSel) Then e.glDrwListSel = gl.GenLists(1)
             gl.NewList(e.glDrwListSel, gl.COMPILE)
             gcd.CCC[e.gender].DrawSelected(e)
@@ -332,18 +332,18 @@ Public Sub glGenDrawListAll(Optional ExcludeSelected As Boolean = False)
 
     gl.NewList(gcd.Drawing.GlListAllEntities, gl.COMPILE)
 
-    For Each e In gcd.Drawing.oEntities
+    For Each e In gcd.Drawing.Entities
         If Not (e.Selected And ExcludeSelected) Then gl.CallList(e.glDrwList)
 
     Next
 
     gl.EndList
 
-    For Each L As Layer In gcd.Drawing.oLayers
+    For Each L As Layer In gcd.Drawing.Layers
         If Not gl.islist(L.glList) Then L.glList = gl.GenLists(1)
         gl.NewList(L.glList, gl.COMPILE)
     Next
-    For Each e In gcd.Drawing.oEntities
+    For Each e In gcd.Drawing.Entities
         If Not (e.Selected And ExcludeSelected) Then gl.CallList(e.glDrwList)
 
     Next
@@ -364,7 +364,7 @@ Public Sub glGenDrawListLAyers(Optional aLayer As Layer)
 
         If Not gl.islist(aLayer.glList) Then aLayer.glList = gl.GenLists(1)
         gl.NewList(aLayer.glList, gl.COMPILE)
-        For Each e In gcd.Drawing.oEntities
+        For Each e In gcd.Drawing.Entities
 
             If e.pLayer = aLayer Then gl.CallList(e.glDrwList)
 
@@ -373,10 +373,10 @@ Public Sub glGenDrawListLAyers(Optional aLayer As Layer)
 
     Else
 
-        For Each aLayer In gcd.Drawing.oLayers
+        For Each aLayer In gcd.Drawing.Layers
             If Not gl.islist(aLayer.glList) Then aLayer.glList = gl.GenLists(1)
             gl.NewList(aLayer.glList, gl.COMPILE)
-            For Each e In gcd.Drawing.oEntities
+            For Each e In gcd.Drawing.Entities
                 If e.Gender = "HATCH" And Not gcd.DrawHatch Then Continue
                 If e.PaperSpace Then Continue
 
@@ -476,7 +476,7 @@ Public Sub Finish(Optional selected As Boolean = True)
     ' creo copias de cada elemento seleccionado
     Dim m As Integer, E As Entity
 
-    For Each E In gcd.Drawing.oEntities
+    For Each E In gcd.Drawing.Entities
         If selected Then                                                    ' apply to only the selected ones
             If E.Selected Then gcd.CCC[e.gender].Finish(E)
         Else                                                                ' apply to all
@@ -495,7 +495,7 @@ Public Sub ClonElements(Optional selected As Boolean = True)
 
     For Each E In gcd.Drawing.oSelected
         eClon = Me.ClonEntity(e, True)
-        gcd.Drawing.oEntities.Add(eClon, eClon.Handle)
+        gcd.Drawing.Entities.Add(eClon, eClon.Handle)
         Gcd.CCC[eClon.gender].finish(eClon)
         gcd.Drawing.CurrLayer.Entities.Add(eClon)
 
@@ -539,7 +539,7 @@ Public Function DeSelection(Optional elementos As String = "todo", Accion As Str
     '   primero vacio la seleccion anterior
     gcd.Drawing.oSelected.Clear
 
-    For Each eTesting As Entity In gcd.Drawing.oEntities
+    For Each eTesting As Entity In gcd.Drawing.Entities
 
         clase = eTesting.Gender
 
@@ -611,17 +611,17 @@ Public Function DeleteSelected() As Integer
 
     '  Purgue will also delete those with .ForDeletion = true
 
-    For Each E In gcd.Drawing.oEntities
+    For Each E In gcd.Drawing.Entities
 
         If E.Selected Then
-            gcd.Drawing.oEntities.Remove(gcd.Drawing.oEntities.Key)
+            gcd.Drawing.Entities.Remove(gcd.Drawing.Entities.Key)
             Inc c
         End If
 
     Next
 
     '   we also need to regenerate the drawing list
-    For Each lay In gcd.Drawing.oLayers
+    For Each lay In gcd.Drawing.Layers
         If lay.Visible Then glGenDrawListLayers(lay)
     Next
 
@@ -638,17 +638,17 @@ Public Function SelectFromPoint(Xr As Float, Zr As Float, Optional Autoselect As
 
     Dim i As Integer
 
-    For i = gcd.Drawing.oEntities To 0 Step -1
+    For i = gcd.Drawing.Entities To 0 Step -1
         ' last elements are drawn last so the click belongs to them
-        If gcd.Drawing.oEntities[i].pointClick(Xr, Zr) Then
+        If gcd.Drawing.Entities[i].pointClick(Xr, Zr) Then
             If Autoselect Then
-                If Not gcd.Drawing.oEntities[i].Selected Then
-                    SelectElem(gcd.Drawing.oEntities[i])
+                If Not gcd.Drawing.Entities[i].Selected Then
+                    SelectElem(gcd.Drawing.Entities[i])
                 Else
-                    DeSelectElem(gcd.Drawing.oEntities[i])
+                    DeSelectElem(gcd.Drawing.Entities[i])
                 End If
             End If
-            Return gcd.Drawing.oEntities[i]
+            Return gcd.Drawing.Entities[i]
         End If
 
     Next
@@ -713,7 +713,7 @@ Public Sub CopyElemData(origen As Entity, destino As Entity)
     destino.fparam.resize(origen.fparam.count)
     destino.iparam.resize(origen.iparam.count)
     destino.psel.resize(origen.psel.count)
-    destino.StringData.resize(origen.StringData.count)
+    destino.sParam.resize(origen.sParam.count)
     For i = 0 To origen.p.Max
         destino.P[i] = origen.P[i]
     Next
@@ -723,8 +723,8 @@ Public Sub CopyElemData(origen As Entity, destino As Entity)
     For i = 0 To origen.iparam.Max
         destino.iparam[i] = origen.iparam[i]
     Next
-    For i = 0 To origen.StringData.Max
-        destino.StringData[i] = origen.StringData[i]
+    For i = 0 To origen.sParam.Max
+        destino.sParam[i] = origen.sParam[i]
     Next
 
     destino.Gender = origen.Gender
@@ -745,7 +745,7 @@ Public Sub Move(dX As Float, dY As Float, Optional OnlySelected As Boolean = Fal
     ' crea un backup de todos los puntos
     Dim e As Entity, i As Integer
 
-    For Each e In gcd.Drawing.oEntities
+    For Each e In gcd.Drawing.Entities
         If (e.selected And OnlySelected) Or Not OnlySelected Then
 
             gcd.CCC[e.gender].Translate(e, dX, dY, OnlyPointSelected)
@@ -798,7 +798,7 @@ Public Function SelectionSquare(X1real As Float, Y1real As Float, X2real As Floa
     NuevaSumaResta = LCase$(NuevaSumaResta)
 
     If NuevaSumaResta = "nueva" Then ' nueva seleccion
-        For Each e In gcd.Drawing.oEntities
+        For Each e In gcd.Drawing.Entities
             e.selected = False
             For i2 = 0 To e.Psel.max
                 e.Psel[i2] = False
@@ -808,7 +808,7 @@ Public Function SelectionSquare(X1real As Float, Y1real As Float, X2real As Floa
         TotalSeleccionados = 0
     End If
 
-    For Each e In gcd.Drawing.oEntities
+    For Each e In gcd.Drawing.Entities
         ' cada entidad debe decidir si esta seleccionada o no
         If crossing Then
             If SelPArtial(e, X1real, Y1real, X2real, Y2real) Then
@@ -867,7 +867,7 @@ Public Function CollectVisibleEntities()
 
     'If gcd.Drawing.oEntities > gcd.Drawing.arrVisibleEntities.Max Then gcd.Drawing.arrVisibleEntities.Resize(gcd.Drawing.oEntities.Count)
     gcd.Drawing.oVisibleEntities.Clear
-    For Each e In gcd.Drawing.oEntities
+    For Each e In gcd.Drawing.Entities
         If e.pLayer.Visible Then
 
             If Not e.PaperSpace Then
@@ -921,8 +921,13 @@ Public Sub BuildPoi(Optional entities As Collection, OnlyVisibles As Boolean = T
     Dim e As Entity, i As Integer
     Dim entGroup As Collection
 
-    If Not entities Then entGroup = gcd.Drawing.oEntities Else entGroup = Entities
+    If Not entities Then
+        entGroup = gcd.Drawing.Entities
+    Else
+        entGroup = Entities
+    End If
 
+    If Not entGroup Then Return
     If entGroup.Count = 0 Then Return
 
     For Each e In entGroup
@@ -950,7 +955,7 @@ Public Function ComputeLimits(Optional entities As Collection, OnlyVisibles As B
     Dim IsVisible As Boolean
     Dim a As Integer
 
-    If Not entities Then entGroup = gcd.Drawing.oEntities Else entGroup = Entities
+    If Not entities Then entGroup = gcd.Drawing.Entities Else entGroup = Entities
 
     If entGroup.Count = 0 Then Return [0, 0, 0, 0]
 
@@ -1255,10 +1260,10 @@ Public Function DXFImportToEntity(c As Collection, Optional IsDummy As Boolean =
         If LT Then
             e.LineType = LT
         Else
-            e.LineType = gcd.Drawing.oLTypes[gcd.Drawing.oLTypes.First]
+            e.LineType = gcd.Drawing.LineTypes[gcd.Drawing.LineTypes.First]
         End If
     Else
-        e.LineType = gcd.Drawing.oLTypes[gcd.Drawing.oLTypes.First]
+        e.LineType = gcd.Drawing.LineTypes[gcd.Drawing.LineTypes.First]
 
     End If
     If gcd.CCC[e.gender].ImportDXF(e, sClave, sValue) Then
@@ -1284,9 +1289,9 @@ Public Function GetEntityIndex(dDrawing As Drawing, sHandle As String, Optional 
 
     Dim i As Integer
 
-    For i = iStart To dDrawing.oEntities
+    For i = iStart To dDrawing.Entities
 
-        If dDrawing.oEntities[i].Handle = sHandle Then Return i
+        If dDrawing.Entities[i].Handle = sHandle Then Return i
 
     Next
 
@@ -1369,7 +1374,7 @@ Public Function GetLTypeByName(sName As String) As LineType
 
     Dim LT As LineType
 
-    For Each LT In gcd.Drawing.oLTYpes
+    For Each LT In gcd.Drawing.LineTypes
 
         If LCase(LT.Name) = LCase(sname) Then Return LT
 
@@ -1383,7 +1388,7 @@ Public Function GetLTypeByIndex(sName As String) As LineType
 
     Dim lt As LineType
 
-    For Each lt In gcd.Drawing.oLTypes
+    For Each lt In gcd.Drawing.LineTypes
 
         If LCase(lt.Name) = LCase(sname) Then Return lt
 
@@ -1397,7 +1402,7 @@ Public Function GetLayerByHandle(sHandle As String) As Layer
 
     Dim Lay As Layer
 
-    For Each Lay In gcd.Drawing.oLayers
+    For Each Lay In gcd.Drawing.Layers
 
         If Lay.handle = sHandle Then Return Lay
     Next
@@ -1409,7 +1414,7 @@ Public Function GetLayerByName(LayerName As String) As Layer
 
     Dim Lay As Layer
 
-    For Each Lay In gcd.Drawing.oLayers
+    For Each Lay In gcd.Drawing.Layers
 
         If Lay.Name = LayerName Then Return Lay
     Next
@@ -1424,14 +1429,16 @@ Public Sub FillLayersWithEntities(oDrawing As Drawing)
     Dim e As Entity
 
     ' primero eliminamos lo q haya
-    For Each hLay In oDrawing.oLayers
+    For Each hLay In oDrawing.Layers
         hLay.Entities.Clear
     Next
 
-    For Each e In oDrawing.oEntities
-        'e.pLayer = CurrDrawing.arrLayers[gcd.FindLaIndex(e.pLayer)]
-        e.pLayer.Entities.Add(e)
-    Next
+    If oDrawing.Entities Then
+        For Each e In oDrawing.Entities
+            'e.pLayer = CurrDrawing.arrLayers[gcd.FindLaIndex(e.pLayer)]
+            e.pLayer.Entities.Add(e)
+        Next
+    End If
     ' Esto ya no es posible con Colecciones
     'Drawing.oVisibleEntities.Resize(Drawing.oEntities.Count)
     gcd.debugInfo("Llenados los Layers con las entidades",,, True)
@@ -1464,7 +1471,7 @@ Public Sub EntityToJsonString(e As Entity) As String
 
     j.Add(e.Gender, "Entity")
     j.Add(e.p, "Points")                    '' X,Y pairs
-    j.Add(e.StringData, "ParamString")      '' Array of Strings
+    j.Add(e.sParam, "ParamString")      '' Array of Strings
     j.Add(e.fparam, "ParamFloat")           '' Array of floats
     j.Add(e.iParam, "ParamInt")             '' Array of integers
     j.Add(e.Colour, "Color")                '' CAD color code
