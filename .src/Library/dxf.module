@@ -181,7 +181,7 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
     Wend
     gcd.debugInfo("Leidos el DXF",,, True)
 
-    If UpdateGraphics Then UpdateGraphicsFromDXF(cToFill, drw,, True)
+    If UpdateGraphics Then UpdateGraphicsFromDXF(cToFill, drw)
     For Each ft As Float In ReadTimes
         gcd.debugInfo(ReadTimes.Key & gb.Tab & gb.Tab & gb.tab & gb.Tab & gb.Tab & gb.tab & Format(fT, "0.0000"))
     Next
@@ -1756,6 +1756,7 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
     Dim hEnty As Variant, iEnty As Integer
     Dim cEnty As Variant[]
     Dim i As Integer
+    Dim S As New Sheet
 
     If Not colData.Exist("BLOCKS") Then Return
     ' For Each colBlk In colData["TABLES"]["BLOCK_RECORD"]
@@ -1794,14 +1795,41 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
             Try newBlock.y0 = colBlk[dxf.codY0]
             If colBlk.Exist(dxf.codZ0) Then newBlock.z0 = colBlk[dxf.codZ0]
             newBlock.flags = colBlk["70"]
-            Drw.Blocks.Add(newBlock, newBlock.handle)
+
+            If Left(newBlock.name, 1) = "*" Then
+                If newBlock.name = "*Model_Space" Then
+                    ' creo la Sheet
+                    S = New Sheet
+                    s.Name = "Model"
+                    s.IsModel = True
+                    s.Handle = newBlock.HandleOwner
+                    Drw.Sheets.Add(s, s.Handle)
+                    drw.CurrSheet = s
+                Else If newBlock.name = "*Paper_Space" Then
+                    ' creo la Sheet
+                    S = New Sheet
+                    s.Name = "Sheet1"
+                    s.IsModel = False
+                    s.Handle = newBlock.HandleOwner
+                    Drw.Sheets.Add(s, s.Handle)
+
+                Else
+                    drw.Inserts.Add(newBlock, newBlock.handle)
+                End If
+            Else
+                Drw.Blocks.Add(newBlock, newBlock.handle)
+            End If
 
         Next
         For Each colBlk In colData["BLOCKS"]
 
-            If colBlk.Exist("entities") Then
+            If colBlk.Exist("entities") And Drw.Blocks.Exist(colBlk[dxf.codHandle]) Then
 
-                DXFtoEntity(colBlk["entities"], Drw.Blocks[colBlk[dxf.codHandle]].entities)
+                DXFtoEntity(colBlk["entities"], Drw.Blocks[colBlk[dxf.codHandle]].entities, drw)
+
+            Else If colBlk.Exist("entities") And Drw.Inserts.Exist(colBlk[dxf.codHandle]) Then
+
+                DXFtoEntity(colBlk["entities"], Drw.inserts[colBlk[dxf.codHandle]].entities, drw)
 
             Else
 
@@ -1811,17 +1839,29 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
             Inc i
 
         Next
+
+        ' voy a hacer un chequeo final, porque algunos DXF vienen sin el bloque Model
+        If Drw.Sheets.Count = 0 Then
+            ' creo la Sheet
+            S = New Sheet
+            s.Name = "Model"
+            s.IsModel = True
+            s.Handle = newBlock.HandleOwner
+            Drw.Sheets.Add(s, s.Handle)
+            drw.CurrSheet = s
+        End If
+
     End If
 
 End
 
 '' Importa las cosas de manera descentralizada
-Public Sub DXFtoEntity(cEny As Collection, obx As Collection, Optional NewHandles As Boolean = False)
+Public Sub DXFtoEntity(cEny As Collection, obx As Collection, drw As Drawing, Optional NewHandles As Boolean = False)
 
     Dim e As Collection               ' current Entity
     Dim entNueva As Entity
     Dim flgIsPolyline, IsDummy As Boolean
-    Dim pBlockPolyline As Block
+    Dim pBlockPolyline, b As Block
     Dim sHandle As String
 
     Dim fTime As Float
@@ -1857,7 +1897,14 @@ Public Sub DXFtoEntity(cEny As Collection, obx As Collection, Optional NewHandle
                     If flgIsPolyline Then
                         pBlockPolyline.entities.Add(entNueva, sHandle)
                     Else
-                        If obx.Exist(entNueva.HandleOwner) Then obx[entNueva.HandleOwner].Entities.Add(entNueva, sHandle)
+
+                        If entNueva.Gender = "INSERT" Then
+                            b = New Block
+                            b.entities = New Collection
+                            drw.Inserts.Add(b, entNueva.Handle)
+                        Endif
+                        'If obx.Exist(entNueva.HandleOwner) Then obx[entNueva.HandleOwner].Entities.Add(entNueva, sHandle)
+                        obx.Add(entNueva, sHandle)
                     End If
 
                     If e[dxf.codEntity] = "POLYLINE" Then
@@ -1885,7 +1932,7 @@ Public Sub DXFtoEntity(cEny As Collection, obx As Collection, Optional NewHandle
 
 End
 
-Public Function UpdateGraphicsFromDXF(cData As Collection, drw As Drawing, Optional handles As String[] = [], DoRegen As Boolean = True)
+Public Function UpdateGraphicsFromDXF(cData As Collection, drw As Drawing, Optional handles As String[] = [])
 
     Dim cEntity As Collection, entNueva As Entity
 
@@ -1896,7 +1943,7 @@ Public Function UpdateGraphicsFromDXF(cData As Collection, drw As Drawing, Optio
 
     If handles.Count = 0 Then                   ' Update all entities
 
-        DXFtoEntity(cData["ENTITIES"], drw.sheets, False)
+        DXFtoEntity(cData["ENTITIES"], drw.Entities, drw, False)
 
     Else                                        ' Update only entities with handles provided
 
@@ -1919,8 +1966,10 @@ Public Function UpdateGraphicsFromDXF(cData As Collection, drw As Drawing, Optio
     End If
 
     gcd.FillLayers(drw)         ' esto necesita que arrLayers y arrEntities esten cargados
+    gcd.FillSheets(drw)
+    gcd.FillInserts(drw)
     clsEntities.BuildPoi()
 
-    If DoRegen Then gcd.Regen
+
 
 End

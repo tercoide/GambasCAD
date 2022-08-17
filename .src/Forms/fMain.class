@@ -40,7 +40,7 @@ Public MyPrinter As Printer
 Public ftring As New Float[]
 Public ftring2 As New Float[]
 Public GLArea1 As GLArea
-Public GLPaper As GLArea
+'Public GLPaper As GLArea
 
 Public tabViews As TabPanel
 
@@ -181,7 +181,7 @@ Public Function Action_Activate(sAction As String) As Boolean
             gcd.clsJob.KeyText(Mid(sAction, 2))
         Case "mentities-copy"
             Dim sToCopy As String
-            For Each e As Entity In gcd.Drawing.oSelected
+            For Each e As Entity In gcd.Drawing.SelectedEntities
                 sToCopy &= clsEntities.EntityToJsonString(e)
 
             Next
@@ -588,11 +588,11 @@ Public Sub glarea1_Resize()
 
 End
 
-Public Sub GLPaper_resize()
-
-    GLplus.Resize(GLPaper)
-
-End
+' Public Sub GLPaper_resize()
+'
+'     GLplus.Resize(GLPaper)
+'
+' End
 
 Public Sub GLArea1_draw()
 
@@ -1055,8 +1055,8 @@ Public Sub Form_Keyrelease()
 
             If FInspector.MyState > 0 Then FInspector.Close
 
-            If gcd.Drawing.oSelected.Count > 0 Then
-                FInspector.run(gcd.Drawing.oSelected[gcd.Drawing.oSelected.First])
+            If gcd.Drawing.SelectedEntities.Count > 0 Then
+                FInspector.run(gcd.Drawing.SelectedEntities[gcd.Drawing.SelectedEntities.First])
             End If
 
         Case Key.f6
@@ -1369,7 +1369,7 @@ Public Function UpdatDimTypeTypeCombo()
         If gcd.Drawing.CurrDimStyle.name = oDimStyle.name Then i = fMain.cmbDimStyle.Count
     Next
     If i = 0 Then i = 1
-    fMain.cmbDimStyle.Index = i - 1
+    If fMain.cmbDimStyle.Count > 0 Then fMain.cmbDimStyle.Index = i - 1
 
 End
 '' Transfer layers to main windows ComboBox
@@ -1515,6 +1515,7 @@ Public Sub UpdateLineTypeCombo()
     Dim imagen As Image
     Dim i As Integer
     Dim lty As LineType
+    Dim d As Float
 
     '  +------------------------------------+
     '  + Phantom                            +
@@ -1526,6 +1527,9 @@ Public Sub UpdateLineTypeCombo()
     ' ahora espesores especificos
     For Each lty In gcd.Drawing.LineTypes
         Inc i
+        For Each d In lty.TrameLength
+            d = Abs(d)
+        Next
 
         ' primero agregamos la correspondiente a ByLayer
         imagen = New Image(fMain.tblLTypes.w * 0.9, fMain.tblLTypes.h * 0.9, fMain.tblLTypes.Background)
@@ -1576,7 +1580,7 @@ Public Sub tabViews_Click()
         '     gcd.Drawing.CurrViewport = gcd.Drawing.ModelViewport
     End If
     'End If
-
+    'gcd.Drawing.GLAreaInUSe.Resize(gcd.Drawing.CurrSheet.GLSheet.W, gcd.Drawing.CurrSheet.GLSheet.h)
     If gcd.Drawing.GLAreaInUSe Then clsEntities.CollectVisibleEntities
 
 End
@@ -1604,32 +1608,7 @@ Public Function NewTabForDrawing(nDrawing As Drawing)
     Object.Attach(tabFileNew, Me, "tabViews")
     For Each s In nDrawing.Sheets
         NewSheet(tabFileNew, s)
-        'Dim tabFileNew As New TabPanel(Me.tabDrawings[i])
-        ' tabFileNew.Count += 1
-        ' tabFileNew.Expand = True
-        ' tabFileNew.Arrangement = Arrange.Fill
-        ' tabFileNew.Orientation = Align.Bottom
-        ' Object.Attach(tabFileNew, Me, "tabViews")
-        ' tabFileNew[0].Text = s.Name
-        ' Dim glaFile As New GLArea(tabFileNew[0])
-        ' glaFile.Background = Config.BackgroundColor
-        ' glaFile.Expand = True
-        ' glaFile.Tracking = True
-        ' Object.Attach(glaFile, Me, "GLArea1")
-        '
-        '
-        '
-        ' s.Handle = gcd.NewHandle()
-        ' s.Name = "Sheet"
-        '
-        ' NewSheet(tabFileNew, s)
-        '
-        ' gcd.Drawing = nDrawing
 
-        ' gcd.Drawing.currSheet = Null
-        ' 'gcd.Drawing.CurrSheet.GLSheet = glaFile2
-        ' tabViews = tabFileNew
-        ' 'gcd.Drawing.CurrSheet = tabFileNew[0].Text      FIXME: no se como hacer
         '
     Next
 
@@ -1656,12 +1635,12 @@ Public Function NewSheet(tabSheets As TabPanel, s As Sheet)
 
     Object.Attach(glaFile2, Me, "GLArea1")
 
-    gcd.Drawing.Sheets.Add(s, s.Handle)
-    gcd.Drawing.currSheet = s
-    gcd.Drawing.CurrSheet.GLSheet = glaFile2
+
+    s.GLSheet = glaFile2
     tabSheets[tabSheets.Count - 1].Tag = s.Handle
-    GLPaper = glaFile2
+    'GLPaper = glaFile2
     gcd.Drawing.GLAreaInUse = glaFile2
+    glaFile2.Refresh
 
 End
 
@@ -1704,6 +1683,7 @@ End
 Public Sub tbnNewSheet_Click()
 
     fSheet.ShowModal()
-    GLPaper.Refresh
+
+    GLArea1.Refresh
 
 End
