@@ -242,14 +242,14 @@ End
 
 Public Function Metros(pixeles As Integer) As Float  ' converts pixels to meters
 
-    Return pixeles / gcd.Drawing.currViewport.ScaleZoom
+    Return pixeles / gcd.Drawing.Sheet.ScaleZoom
 
 End
 
 Public Function Pixels(distancia As Float) As Float  ' converts meters to pixels
     ' transforma Metros en Pixeles sin tener en cuenta el Pan
 
-    Return distancia * gcd.Drawing.currViewport.ScaleZoom
+    Return distancia * gcd.Drawing.Sheet.ScaleZoom
 
 End
 '' Changes the properties of the seleccted entities with given values
@@ -396,6 +396,9 @@ Public Sub FillSheets(drw As Drawing)
         For Each e In drw.Entities
             If drw.Sheets.Exist(e.HandleOwner) Then
                 drw.Sheets[e.HandleOwner].entities.Add(e, e.Handle)
+            Else ' las coloco en Model
+                e.HandleOwner = drw.Model.Handle
+                drw.Model.Entities.Add(e, e.Handle)
             Endif
         Next
     End If
@@ -791,27 +794,27 @@ Public Function Xreal(ScreenX As Float) As Float
 
     ' voy a tener en cuenta el Snap
 
-    Return Metros((screenx - gcd.Drawing.GLAreaInUSe.w / 2 - gcd.Drawing.CurrViewport.PanX))
+    Return Metros((screenx - gcd.Drawing.GLAreaInUSe.w / 2 - gcd.Drawing.Sheet.PanX))
 
 End
 
 Public Function Yreal(ScreenY As Float) As Float
 
-    Return Metros((-ScreenY + gcd.Drawing.GLAreaInUSe.h / 2 - gcd.Drawing.currViewport.PanY))
+    Return Metros((-ScreenY + gcd.Drawing.GLAreaInUSe.h / 2 - gcd.Drawing.Sheet.PanY))
 
 End
 
 Public Function XPix(X As Float) As Float
 
     'Return Metros((screenx - glarea1.w / 2 - gcd.Drawing.PanX))
-    Return Me.Pixels(X) + gcd.Drawing.GLAreaInUSe.w / 2 + gcd.Drawing.currViewport.PanX
+    Return Me.Pixels(X) + gcd.Drawing.GLAreaInUSe.w / 2 + gcd.Drawing.Sheet.PanX
 
 End
 
 Public Function YPix(Y As Float) As Float
 
     'Return Metros((-ScreenY + glarea1.h / 2 - gcd.Drawing.PanY))
-    Return -(Me.Pixels(Y) - gcd.Drawing.GLAreaInUSe.h / 2 + gcd.Drawing.currViewport.PanY)
+    Return -(Me.Pixels(Y) - gcd.Drawing.GLAreaInUSe.h / 2 + gcd.Drawing.Sheet.PanY)
 
 End
 
@@ -989,8 +992,9 @@ Public Sub NewDrawing(sName As String) As Drawing
     s.IsModel = True
     s.Handle = gcd.NewHandle(d)
     D.Sheets.Add(s, s.Handle)
-    d.CurrSheet = s
-    D.Entities = d.CurrSheet.Entities
+    d.Sheet = s
+    D.Entities = d.Sheet.Entities
+    d.Model = s
 
     Dim L As New Layer
     l.Name = "0"

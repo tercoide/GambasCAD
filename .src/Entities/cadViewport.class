@@ -30,10 +30,7 @@ Public Sub Draw(oE As Entity)
 
     GLplus.PolyLines(flxPoly, Color.Blue, oe.LineWidth, oe.LineType.TrameLength, True)
 
-    glPlus.Rectangle2D(oE.p[0] - gcd.Metros(4), oE.p[1] - gcd.Metros(4), gcd.Metros(8), gcd.Metros(8), Color.Blue,,,, Color.Blue, 1)
-    glPlus.Rectangle2D(oE.p[0] + W - gcd.Metros(4), oE.p[1] - gcd.Metros(4), gcd.Metros(8), gcd.Metros(8), Color.Blue,,,, Color.Blue, 1)
-    glPlus.Rectangle2D(oE.p[0] + W - gcd.Metros(4), oE.p[1] + H - gcd.Metros(4), gcd.Metros(8), gcd.Metros(8), Color.Blue,,,, Color.Blue, 1)
-    glPlus.Rectangle2D(oE.p[0] - gcd.Metros(4), oE.p[1] + H - gcd.Metros(4), gcd.Metros(8), gcd.Metros(8), Color.Blue,,,, Color.Blue, 1)
+
 
     ' test
 
@@ -41,8 +38,18 @@ End
 
 Public Sub DrawSelected(oE As Entity)
 
+    Dim w, h As Float
+
+    w = oE.p[2] - oE.p[0]
+    h = oE.p[3] - oE.p[1]
+
     GLplus.PolyLines(oE.Polygon, config.WindowBackColor, oE.LineWidth, gcd.stiDashed, oe.iParam[Me.iiiPolylineClosed])
     GLplus.PolyLines(oE.Polygon, config.ColorForSelected, oE.LineWidth, oE.LineType.TrameLength, oe.iParam[Me.iiiPolylineClosed])
+
+    glPlus.Rectangle2D(oE.p[0] - gcd.Metros(4), oE.p[1] - gcd.Metros(4), gcd.Metros(8), gcd.Metros(8), Color.Blue,,,, Color.Blue, 1)
+    glPlus.Rectangle2D(oE.p[0] + W - gcd.Metros(4), oE.p[1] - gcd.Metros(4), gcd.Metros(8), gcd.Metros(8), Color.Blue,,,, Color.Blue, 1)
+    glPlus.Rectangle2D(oE.p[0] + W - gcd.Metros(4), oE.p[1] + H - gcd.Metros(4), gcd.Metros(8), gcd.Metros(8), Color.Blue,,,, Color.Blue, 1)
+    glPlus.Rectangle2D(oE.p[0] - gcd.Metros(4), oE.p[1] + H - gcd.Metros(4), gcd.Metros(8), gcd.Metros(8), Color.Blue,,,, Color.Blue, 1)
 
 End
 
@@ -105,28 +112,25 @@ Public Sub Finish(oE As Entity) As Boolean
     v.PanX = (v.x1 + v.x0) / 2
     v.PanY = (v.y1 + v.y0) / 2
 
-    gcd.Drawing.CurrSheet.vViewports.Add(v, v.Handle)
-    c = gcd.Drawing.CurrSheet.vViewports[gcd.Drawing.CurrSheet.vViewports.Last].layers
+    gcd.Drawing.Sheet.vViewports.Add(v, v.Handle)
+    c = gcd.Drawing.Sheet.vViewports[gcd.Drawing.Sheet.vViewports.Last].layers
     For Each l In gcd.Drawing.Layers
         If l.Visible Then c.add(l, l.handle)
     Next
 
     ' pero tengo que hacer algo mas aca, centrar el grafico en el viewport
-    gcd.Drawing.CurrViewport = v
-    'cadZoomE.Start()
-
 
     ' esto es un copy/paste de cadZoomE
     Dim limits As New Float[]
 
-    limits = clsEntities.ComputeLimits(gcd.Drawing.Sheets[gcd.Drawing.Sheets.First].Entities)
+    limits = clsEntities.ComputeLimits(gcd.Drawing.model.Entities)
 
     gcd.Drawing.xmenor = limits[0]
     gcd.Drawing.Ymenor = limits[1]
     gcd.Drawing.xmayor = limits[2]
     gcd.Drawing.ymayor = limits[3]
 
-    If gcd.Drawing.Entities.Count = 0 Then Return
+    If gcd.Drawing.model.Entities.Count = 0 Then Return
 
     Dim SZx As Float
     ' ahora calculo donde estaria el centro de este dibujo
@@ -139,26 +143,27 @@ Public Sub Finish(oE As Entity) As Boolean
 
     If cx = 0 Then cx = 0.00001
     If cy = 0 Then cy = 0.00001
-    gcd.Drawing.currViewport.ScaleZoom = (v.y1 - v.y0) / cy * 0.9
+    v.ScaleZoom = (v.y1 - v.y0) / cy * 0.9
 
     szx = (v.x1 - v.x0) / cx * 0.9
 
-    If szx < gcd.Drawing.currViewport.ScaleZoom Then gcd.Drawing.currViewport.ScaleZoom = szx
+    If szx < v.ScaleZoom Then v.ScaleZoom = szx
 
     ' posicion del punto medio
     px = (gcd.Drawing.xmayor + gcd.Drawing.xmenor) / 2
     py = (gcd.Drawing.Ymayor + gcd.Drawing.Ymenor) / 2
 
-    gcd.Drawing.currViewport.PanX += -gcd.Pixels(px)
-    gcd.Drawing.currViewport.PanY += -gcd.Pixels(py)
+    v.PanX += -gcd.Pixels(px)
+    v.PanY += -gcd.Pixels(py)
 
-    If gcd.Drawing.currViewport.ScaleZoom > 1e6 Or gcd.Drawing.currViewport.ScaleZoom < 1e-6 Then
-        gcd.Drawing.currViewport.ScaleZoom = 1
-        gcd.Drawing.currViewport.PanX = 0
-        gcd.Drawing.currViewport.PanY = 0
+    If v.ScaleZoom > 1e6 Or v.ScaleZoom < 1e-6 Then
+        v.ScaleZoom = 1
+        v.PanX = 0
+        v.PanY = 0
     End If
 
-    gcd.Drawing.CurrViewport = gcd.Drawing.CurrSheet.MainViewport
+    gcd.Drawing.Sheet.Viewport = v
+
 
 End
 

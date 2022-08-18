@@ -54,52 +54,53 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
 
 End
 
-Public Sub DblClick()
-
-    Dim k As Single
-    Dim e As Entity
-    Dim te As Entity
-    'Dim ftx As FText
-
-    Me.EntityForEdit = clsMouseTracking.CheckAboveEntity(gcd.Xreal(Mouse.x), gcd.Yreal(Mouse.y))
-    Return
-
-    If Not gcd.flgSearchingPOI Then
-        gcd.Drawing.iEntity = clsMouseTracking.CheckPOI(gcd.Xreal(mouse.x), gcd.Yreal(mouse.Y))
-    Else    ' estoy buscando, pero me movi, asi que me desengancho del POI anterior
-
-        gcd.Drawing.iEntity[0] = gcd.Xreal(mouse.x)
-        gcd.Drawing.iEntity[1] = gcd.Yreal(mouse.y)
-        gcd.Drawing.iEntity[2] = -1                 ' POI type
-
-    End If
-
-    If gcd.Drawing.iEntity[3] >= 0 Then
-
-        'Stop
-        ' I comment the abobe line because its stop my tool also. What is the idea whit stop?
-        '  aca podes lanzar tu editor de texto u otras propiedades
-        k = gcd.Drawing.iEntity[3]
-        e = gcd.Drawing.Entities[k]
-
-        ' Select e.Gender
-        '   Case "Text"
-        '     If EditingText = False Then
-        '       ' Copying the entity for undo
-        '       te = clsEntities.ClonEntity(e)
-        '       te.Handle = e.Handle
-        '       ftx = New FText([pnlDrawing.ScreenX + 7, pnlDrawing.ScreenY + pnlDrawing.H - 7], e)
-        '       ftx.Run()
-        '       While EditingText = False
-        '         Wait 0.1
-        '       Wend
-        '       gcd.regen
-        '       EditingText = False
-        '     Endif
-        ' End Select
-    Endif
-
-End
+' Public Sub DblClick()
+'
+'     Dim k As Single
+'     Dim e As Entity
+'     Dim te As Entity
+'
+'
+'
+'     Me.EntityForEdit = clsMouseTracking.CheckAboveEntity(gcd.Xreal(Mouse.x), gcd.Yreal(Mouse.y))
+'     Return
+'
+'     If Not gcd.flgSearchingPOI Then
+'         gcd.Drawing.iEntity = clsMouseTracking.CheckPOI(gcd.Xreal(mouse.x), gcd.Yreal(mouse.Y))
+'     Else    ' estoy buscando, pero me movi, asi que me desengancho del POI anterior
+'
+'         gcd.Drawing.iEntity[0] = gcd.Xreal(mouse.x)
+'         gcd.Drawing.iEntity[1] = gcd.Yreal(mouse.y)
+'         gcd.Drawing.iEntity[2] = -1                 ' POI type
+'
+'     End If
+'
+'     If gcd.Drawing.iEntity[3] >= 0 Then
+'
+'         'Stop
+'         ' I comment the abobe line because its stop my tool also. What is the idea whit stop?
+'         '  aca podes lanzar tu editor de texto u otras propiedades
+'         k = gcd.Drawing.iEntity[3]
+'         e = gcd.Drawing.Entities[k]
+'
+'         ' Select e.Gender
+'         '   Case "Text"
+'         '     If EditingText = False Then
+'         '       ' Copying the entity for undo
+'         '       te = clsEntities.ClonEntity(e)
+'         '       te.Handle = e.Handle
+'         '       ftx = New FText([pnlDrawing.ScreenX + 7, pnlDrawing.ScreenY + pnlDrawing.H - 7], e)
+'         '       ftx.Run()
+'         '       While EditingText = False
+'         '         Wait 0.1
+'         '       Wend
+'         '       gcd.regen
+'         '       EditingText = False
+'         '     Endif
+'         ' End Select
+'     Endif
+'
+' End
 
 Public Function MouseDown()
 
@@ -123,48 +124,62 @@ Public Function MouseDown()
     Me.PoiChecking = False
     If Mouse.Left Then
 
+        If gcd.Drawing.Sheet.Viewport Then
 
-        If Me.Mode = Me.SelectModeRect Then
-            Me.Active = True
+            ' si el click esta fuera del viewport, lo desestimo
+            If Me.SelStartXr < gcd.Drawing.Sheet.Viewport.X0 Or Me.SelStartXr > gcd.Drawing.Sheet.Viewport.X1 Or Me.SelStartYr < gcd.Drawing.Sheet.Viewport.Y0 Or Me.SelStartYr > gcd.Drawing.Sheet.Viewport.Y1 Then
+                gcd.Drawing.Sheet.Viewport = Null ' Desactivo el viewport
+            Else
 
+                gcd.Drawing.GLAreaInUse.Mouse = Mouse.SizeAll
+                Me.active = True
+            End If
         Else
-            If gcd.Drawing.HoveredEntity Then                         ' 1.1.2 el mouse no esta enganchado, pero esta arriba de una entidad
 
-                If gcd.Drawing.HoveredEntity.selected Then
 
-                    ' veo si esta en un grip
-                    For i = 0 To gcd.Drawing.HoveredEntity.PoiType.Max
-                        If puntos.Around(Me.SelStartXr, Me.SelStartYr, gcd.Drawing.HoveredEntity.PoiPoints[i * 2], gcd.Drawing.HoveredEntity.poiPoints[i * 2 + 1], gcd.Metros(8)) Then
 
-                            ' estoy editando la entidad desde un grip
-                            EntityForEdit = gcd.Drawing.HoveredEntity
-                            GripPoint = i
+            If Me.Mode = Me.SelectModeRect Then
+                Me.Active = True
 
-                            ' chequeo
-                            If EntityForEdit.PoiType[GripPoint] = gcd.poiQuadrant Then
-                                dx = EntityForEdit.P[0]
-                                dY = EntityForEdit.P[1]
+            Else
+                If gcd.Drawing.HoveredEntity Then                         ' 1.1.2 el mouse no esta enganchado, pero esta arriba de una entidad
+
+                    If gcd.Drawing.HoveredEntity.selected Then
+
+                        ' veo si esta en un grip
+                        For i = 0 To gcd.Drawing.HoveredEntity.PoiType.Max
+                            If puntos.Around(Me.SelStartXr, Me.SelStartYr, gcd.Drawing.HoveredEntity.PoiPoints[i * 2], gcd.Drawing.HoveredEntity.poiPoints[i * 2 + 1], gcd.Metros(8)) Then
+
+                                ' estoy editando la entidad desde un grip
+                                EntityForEdit = gcd.Drawing.HoveredEntity
+                                GripPoint = i
+
+                                ' chequeo
+                                If EntityForEdit.PoiType[GripPoint] = gcd.poiQuadrant Then
+                                    dx = EntityForEdit.P[0]
+                                    dY = EntityForEdit.P[1]
+
+                                Endif
+
+                                Me.PoiChecking = True
+                                gcd.Drawing.flgShowPOIinfo = True
+
+                                Break
 
                             Endif
+                        Next
 
-                            Me.PoiChecking = True
-                            gcd.Drawing.flgShowPOIinfo = True
+                        If GripPoint < 0 Then clsEntities.deSelectElem(gcd.Drawing.HoveredEntity)               '   -> la deselecciono
+                    Else
+                        clsEntities.SelectElem(gcd.Drawing.HoveredEntity)                 '   -> la selecciono
 
-                            Break
+                    Endif
+                    Me.Active = False
 
-                        Endif
-                    Next
-
-                    If GripPoint < 0 Then clsEntities.deSelectElem(gcd.Drawing.HoveredEntity)               '   -> la deselecciono
-                Else
-                    clsEntities.SelectElem(gcd.Drawing.HoveredEntity)                 '   -> la selecciono
-
-                Endif
-                Me.Active = False
-
-                clsEntities.GLGenDrawListSel(0)
+                    clsEntities.GLGenDrawListSel(0)
 
 
+                End If
             End If
         End If
     End If
@@ -185,6 +200,14 @@ Public Sub MouseUp()
     Me.StartYr = gcd.Yreal(Me.SelStartY)
     Me.EndXr = gcd.Xreal(Me.SelEndX)
     Me.Endyr = gcd.Yreal(Me.SelEndy)
+
+    If gcd.Drawing.Sheet.Viewport Then
+        '
+        gcd.Drawing.GLAreaInUse.Mouse = Mouse.Cross
+        gcd.flgNewPosition = True
+        Me.active = False
+        Return
+    End If
 
     If Mouse.Right Then
 
@@ -283,7 +306,16 @@ Public Sub MouseMove() ' esta rutina es llamada por FCAD en el evento DrawingAre
     Me.SelEndXr = gcd.Xreal(Me.SelEndX)
     Me.SelEndyr = gcd.Yreal(Me.SelEndy)
 
+
+
     If Me.Active Then
+        If gcd.Drawing.Sheet.viewport Then
+            gcd.Drawing.Sheet.viewport.PanX += (mouse.x - Me.SelStartX)
+            gcd.Drawing.Sheet.viewport.PanY -= (mouse.y - Me.SelStartY)
+
+            Me.SelStartX = mouse.x
+            Me.SelStartY = mouse.y
+        End If
 
         gcd.Redraw
 
@@ -386,6 +418,9 @@ Public Sub Draw() ' esta rutina es llamada por FCAD en el evento DrawingArea_Dra
 
     dash = gcd.Metros(10)
     If Me.Active Then
+
+        ' si estamos dentro un viewport no hay nada que dibujar, porque no estamos seleccionando nada
+        If gcd.Drawing.Sheet.Viewport Then Return
 
         If Me.SelStartX > Me.SelEndX Then                               ' Seleccion crossing, o sea que si cualquier arista del rectangulo cruza el bounding poligon, queda seleccionado
 

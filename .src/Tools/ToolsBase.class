@@ -213,7 +213,31 @@ End
 Public Sub DblClick()
     ' veo si encuentro una entidad debao del mouse
 
-    clsMouseTracking.CheckAboveEntity(gcd.Xreal(Mouse.x), gcd.Yreal(Mouse.y))
+    Dim v As Viewport
+
+    Me.SelStartX = mouse.X
+    Me.SelStartY = mouse.Y
+    Me.SelStartXr = gcd.Xreal(Me.SelStartX)
+    Me.SelStartYr = gcd.Yreal(Me.SelStartY)
+
+    'clsMouseTracking.CheckAboveEntity(gcd.Xreal(Mouse.x), gcd.Yreal(Mouse.y))
+
+    If gcd.Drawing.Sheet.Viewport Then
+
+        ' si el click esta fuera del viewport, lo desestimo
+        If Me.SelStartXr < gcd.Drawing.Sheet.Viewport.X0 Or Me.SelStartXr > gcd.Drawing.Sheet.Viewport.X1 Or Me.SelStartYr < gcd.Drawing.Sheet.Viewport.Y0 Or Me.SelStartYr > gcd.Drawing.Sheet.Viewport.Y1 Then
+            gcd.Drawing.Sheet.Viewport = Null ' Desactivo el viewport
+        End If
+    Endif
+
+    ' ahora veo si el click esta dentro de algun viewport
+    For Each v In gcd.Drawing.Sheet.vViewports
+        If Me.SelStartXr >= v.X0 And Me.SelStartXr <= v.X1 And Me.SelStartYr >= v.Y0 And Me.SelStartYr <= v.Y1 Then
+            gcd.Drawing.Sheet.Viewport = v ' Activo el viewport
+        End If
+    Next
+
+
 
 End
 
@@ -344,40 +368,85 @@ End
 Public Sub MouseWheel()
 
     Dim px, py, dx, dy, factor As Float
-    ' chequeamos si vale la pena seguir dibujando la grid, o sea, menos de 3 pixels
-    ' Inc flgWheelCounter
-    ' Debug "Mouse weel", flgWheelCounter
+    Dim outside As Boolean
 
-    ' TODO: revisar la siguiente linea
-    'If gcd.Pixels(FMain.GridSpacing) < 5 Then FMain.GridActive = False Else FMain.GridActive = True
-    '
-    px = gcd.Xreal(Mouse.x) ' posicion real en donde esta el mouse, previo al zoom
-    py = gcd.Yreal(Mouse.y)
+    Me.SelStartX = mouse.X
+    Me.SelStartY = mouse.Y
+    Me.SelStartXr = gcd.Xreal(Me.SelStartX)
+    Me.SelStartYr = gcd.Yreal(Me.SelStartY)
 
-    ' TODO: , redondear para que la escala sea 1:100 1:75 1:50 etc
+    If gcd.Drawing.Sheet.Viewport Then
+        ' si el click esta fuera del viewport, lo desestimo
+        If Me.SelStartXr < gcd.Drawing.Sheet.Viewport.X0 Or Me.SelStartXr > gcd.Drawing.Sheet.Viewport.X1 Or Me.SelStartYr < gcd.Drawing.Sheet.Viewport.Y0 Or Me.SelStartYr > gcd.Drawing.Sheet.Viewport.Y1 Then
+            outside = True
+        Else
+            outside = False
+        End If
 
-    factor = (1 + 0.075 * Mouse.Delta)
 
-    gcd.Drawing.currViewport.ScaleZoom = gcd.Drawing.currViewport.ScaleZoom * factor
 
-    dx = gcd.Xreal(Mouse.x) ' posicion real en donde esta el mouse, posterior al zoom
-    dy = gcd.Yreal(Mouse.y)
+    Else
+        outside = True
+    End If
 
-    ' pero con ciertos limites TODO: imponer
-    ' If ScaleZoom < 0.001 Then ScaleZoom = 0.001
-    ' If ScaleZoom > 50 Then ScaleZoom = 50
 
-    ' nuevo metodo (el Pan esta en pixels)
-    gcd.Drawing.currViewport.PanX += gcd.pixels(dx - px)
-    gcd.Drawing.currViewport.PanY += gcd.pixels(dy - py)
+    If outside Then
 
-    gcd.flgNewPosition = True
+        ' TODO: revisar la siguiente linea
+        'If gcd.Pixels(FMain.GridSpacing) < 5 Then FMain.GridActive = False Else FMain.GridActive = True
+        '
+        px = gcd.Xreal(Mouse.x) ' posicion real en donde esta el mouse, previo al zoom
+        py = gcd.Yreal(Mouse.y)
 
+        ' TODO: , redondear para que la escala sea 1:100 1:75 1:50 etc
+
+        factor = (1 + 0.075 * Mouse.Delta)
+
+        gcd.Drawing.Sheet.ScaleZoom = gcd.Drawing.Sheet.ScaleZoom * factor
+
+        dx = gcd.Xreal(Mouse.x) ' posicion real en donde esta el mouse, posterior al zoom
+        dy = gcd.Yreal(Mouse.y)
+
+        ' pero con ciertos limites TODO: imponer
+        ' If ScaleZoom < 0.001 Then ScaleZoom = 0.001
+        ' If ScaleZoom > 50 Then ScaleZoom = 50
+
+        ' nuevo metodo (el Pan esta en pixels)
+        gcd.Drawing.Sheet.PanX += gcd.pixels(dx - px)
+        gcd.Drawing.Sheet.PanY += gcd.pixels(dy - py)
+
+        gcd.flgNewPosition = True
+    Else
+
+
+        '
+        px = gcd.Xreal(Mouse.x) ' posicion real en donde esta el mouse, previo al zoom
+        py = gcd.Yreal(Mouse.y)
+
+        px -= gcd.Drawing.Sheet.Viewport.X0
+        py -= gcd.Drawing.Sheet.Viewport.Y0
+
+        ' TODO: , redondear para que la escala sea 1:100 1:75 1:50 etc
+
+        factor = (1 + 0.075 * Mouse.Delta)
+
+        gcd.Drawing.Sheet.Viewport.ScaleZoom *= factor
+
+        dx = gcd.Xreal(Mouse.x) - gcd.Drawing.Sheet.Viewport.X0 ' posicion real en donde esta el mouse, posterior al zoom
+        dy = gcd.Yreal(Mouse.y) - gcd.Drawing.Sheet.Viewport.Y0
+
+        ' pero con ciertos limites TODO: imponer
+        ' If ScaleZoom < 0.001 Then ScaleZoom = 0.001
+        ' If ScaleZoom > 50 Then ScaleZoom = 50
+
+        ' nuevo metodo (el Pan esta en pixels)
+        gcd.Drawing.Sheet.Viewport.PanX += gcd.pixels(dx - px)
+        gcd.Drawing.Sheet.Viewport.PanY += gcd.pixels(dy - py)
+
+    End If
     gcd.redraw 'glarea1.Refresh
 
-    ' despues de actualizar la pantalla, recolectamos las entidades visibles
 
-    ' Dec flgWheelCounter
 
 End
 
