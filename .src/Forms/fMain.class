@@ -27,7 +27,7 @@ Public flgShowInspector As Boolean = False
 Public flgShowingLayers As Boolean
 
 Public flgWheelCounter As Integer
-
+Public InUse As Boolean                         ' variable auxiliar para evitar eventos indeseados
 Public $hDrawTimer As New Timer As "DrawTimer"
 Public $hSearchTimer As New Timer As "SearchTimer"
 
@@ -626,19 +626,25 @@ Public Sub GLArea1_draw()
         For Each vpt In gcd.Drawing.Sheet.vViewports
             gl.LoadIdentity
 
+            ' el scissor no se ve afectado por las trnasformaciones!!!!!!!!
+
+            'glPlus.Rectangle2D(-GLArea1.W / 2 + gcd.XPix(vpt.X0), GLArea1.h / 2 - gcd.YPix(vpt.Y0), gcd.Pixels(vpt.X1 - vpt.x0), gcd.Pixels(vpt.Y1 - vpt.y0))
+
+            'gl.Scissor(-GLArea1.W / 2 + gcd.XPix(vpt.X0), GLArea1.h / 2 - gcd.YPix(vpt.Y0), gcd.Pixels(vpt.X1 - vpt.x0), gcd.Pixels(vpt.Y1 - vpt.y0))
+
+
             gl.Translatef(gcd.Drawing.Sheet.PanX, gcd.Drawing.Sheet.PanY, 0)
 
             gl.Scalef(gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom, 1)
 
-            ' el scissor no se ve afectado por las trnasformaciones!!!!!!!!
-            ' gl.Scissor(gcd.XPix(vpt.X0), gcd.YPix(vpt.Y0), gcd.Pixels(vpt.X1 - vpt.x0), gcd.Pixels(vpt.Y1 - vpt.y0))
-            ' gl.Enable(GL.sCISSOR_TEST)
-            'gl.Viewport(gcd.XPix(vpt.X0), gcd.YPix(vpt.Y0), gcd.Pixels(vpt.X1 - vpt.x0), gcd.Pixels(vpt.Y1 - vpt.y0))
 
-            'glPlus.Rectangle2D(vpt.X0, vpt.Y0, vpt.X1 - vpt.x0, vpt.Y1 - vpt.y0, Color.DarkBlue)
 
             gl.Translatef(vpt.PanX, vpt.PanY, 0)
             gl.Scalef(vpt.ScaleZoom, vpt.ScaleZoom, 1)
+
+
+
+            'gl.Enable(GL.sCISSOR_TEST)
 
             For Each L In vpt.Layers
                 If L.Visible Then gl.CallList(L.glList)
@@ -654,9 +660,12 @@ Public Sub GLArea1_draw()
 
         gl.Scalef(gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom, 1)
 
-        For Each e In gcd.Drawing.Sheet.Layer.Entities
-            gcd.CCC[e.gender].Draw(e)
+        For Each e In gcd.Drawing.Sheet.Entities
+            'gcd.CCC[e.gender].Draw(e)
+            gl.CallList(e.glDrwList)
         Next
+
+        'gl.CallList(gcd.Drawing.Sheet.Layer.glList)
 
         ' esto representa la hoja a imprimir
 
@@ -757,7 +766,7 @@ Public Sub GLArea1_MouseMove()
     ' Universal:
     gcd.clsJob.MouseMove()
 
-    Me.lblCoord.Text = Mouse.x & ":" & Mouse.y & "-" & Format(Xr, Config.FormatCoord) & " : " & Format(Yr, config.FormatInquiries)
+    Me.lblCoord.Text = Mouse.x & ":" & Mouse.y & " <-> " & Format(Xr, Config.FormatCoord) & " : " & Format(Yr, config.FormatInquiries)
     Me.lblCoord.Refresh
 
     If Mouse.Middle Then
@@ -1401,6 +1410,7 @@ Public Sub UpdateLayersCombo()
     Next
     mLayer.Name = sName
     For Each aLayer In gcd.Drawing.Layers
+        If aLayer.Hidden Then Continue
         m2 = New Menu(mLayer)
         m2.Text = aLayer.Name
         m2.Picture = paintPlus.picCirculito(8, gcd.GetGBColor(aLayer.Colour), Color.ButtonForeground)
@@ -1577,13 +1587,13 @@ End
 
 Public Sub tabViews_Click()
 
+    If InUse Then Return
+
     If Last.current.tag Then
         gcd.Drawing.LastLayer = gcd.Drawing.CurrLayer
         gcd.Drawing.Sheet = gcd.Drawing.Sheets[Last.current.tag]
-        gcd.Drawing.Entities = gcd.Drawing.Sheet.Entities
         gcd.Drawing.GLAreaInUse = gcd.Drawing.Sheet.GLSheet
         ' si es una Sheet, no hay layers, sino una unica capa donde se enserta todo
-        gcd.Drawing.CurrLayer = gcd.Drawing.Sheet.Layer
         '     'Try Me.GLArea1 = gcd.Drawing.GLAreaInUse
         ' Else
         '     gcd.Drawing.CurrSheet = Null
@@ -1620,9 +1630,8 @@ Public Function NewTabForDrawing(nDrawing As Drawing)
     For Each s In nDrawing.Sheets
         NewSheet(tabFileNew, s)
 
-        '
     Next
-
+    gcd.Drawing.GLAreaInUse = nDrawing.Model.GLSheet
     fmain.GLArea1 = gcd.Drawing.GLAreaInUse
     Me.Refresh
 
@@ -1635,6 +1644,8 @@ Public Function NewSheet(tabSheets As TabPanel, s As Sheet)
 
     Dim i As Integer
 
+    InUse = True
+
     If Not s.IsModel Then tabSheets.Count += 1
 
     tabSheets[tabSheets.Count - 1].Text = s.Name
@@ -1643,15 +1654,12 @@ Public Function NewSheet(tabSheets As TabPanel, s As Sheet)
     glaFile2.Background = Config.BackgroundColor
     glaFile2.Expand = True
     glaFile2.Tracking = True
-
     Object.Attach(glaFile2, Me, "GLArea1")
-
-
     s.GLSheet = glaFile2
     tabSheets[tabSheets.Count - 1].Tag = s.Handle
-    'GLPaper = glaFile2
     gcd.Drawing.GLAreaInUse = glaFile2
-    glaFile2.Refresh
+
+    InUse = False
 
 End
 

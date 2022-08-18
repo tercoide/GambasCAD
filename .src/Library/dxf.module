@@ -1847,7 +1847,7 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
             S = New Sheet
             s.Name = "Model"
             s.IsModel = True
-            s.Handle = newBlock.HandleOwner
+            s.Handle = "1"
             Drw.Sheets.Add(s, s.Handle)
             drw.Sheet = s
             drw.Model = s
@@ -1905,8 +1905,15 @@ Public Sub DXFtoEntity(cEny As Collection, obx As Collection, drw As Drawing, Op
                             b.entities = New Collection
                             drw.Inserts.Add(b, entNueva.Handle)
                         Endif
-                        'If obx.Exist(entNueva.HandleOwner) Then obx[entNueva.HandleOwner].Entities.Add(entNueva, sHandle)
-                        obx.Add(entNueva, sHandle)
+                        If entNueva.PaperSpace Then
+                            If drw.Sheets.Exist(entNueva.HandleOwner) Then
+                                drw.Sheets[entNueva.HandleOwner].Entities.Add(entNueva, sHandle)
+                            Else
+                                Debug "No existe el contenedor", entNueva.HandleOwner
+                            End If
+                        Else
+                            obx.Add(entNueva, sHandle)
+                        End If
                     End If
 
                     If e[dxf.codEntity] = "POLYLINE" Then
@@ -1967,8 +1974,8 @@ Public Function UpdateGraphicsFromDXF(cData As Collection, drw As Drawing, Optio
 
     End If
 
-    gcd.FillLayers(drw)         ' esto necesita que arrLayers y arrEntities esten cargados
-    gcd.FillSheets(drw)
+    'gcd.FillLayers(drw)         ' esto necesita que arrLayers y arrEntities esten cargados
+    'gcd.FillSheets(drw)
     gcd.FillInserts(drw)
     clsEntities.BuildPoi()
 

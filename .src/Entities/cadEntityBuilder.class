@@ -127,6 +127,7 @@ Public Function Start(Optional ElemToBuild As Variant, Optional Mode As Integer 
     Try elem.colour = gcd.CurrentColor()
     elem.LineWidth = gcd.Drawing.CurrLineWt
     If elem.LineWidth = 0 Then elem.LineWidth = 1
+    If gcd.Drawing.Sheet.IsModel Then elem.PaperSpace = False Else elem.PaperSpace = True
 
     iPoints = 0
     iFloat = 0
@@ -539,9 +540,12 @@ Public Sub Finish() As Boolean
     ' La entidad se crea sin handle
     If elem.Handle = "" Then elem.Handle = gcd.NewHandle()
     elem.HandleOwner = gcd.Drawing.Sheet.Handle
-    gcd.Drawing.Sheet.Entities.Add(elem, elem.Handle)
-    gcd.Drawing.CurrLayer.Entities.Add(elem)
-    gcd.Drawing.Sheet.EntitiesVisibles.add(elem, elem.Handle)
+    If gcd.Drawing.Sheet.IsModel Then
+        gcd.Drawing.Entities.Add(elem, elem.Handle)
+        gcd.Drawing.EntitiesVisibles.add(elem, elem.Handle) ' FIXME: esto puede ser redundante
+    Else
+        gcd.Drawing.Sheet.Entities.Add(elem, elem.Handle)
+    End If
 
     If elem.pBlock Then
         ' para las DIMENSION

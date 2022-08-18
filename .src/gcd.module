@@ -89,6 +89,20 @@ Public Const poiPerpendicular As Integer = 64
 Public Const poiNearest As Integer = 128
 Public Const poiBasePoint As Integer = 256
 
+' CAD colors
+Public Const ColorBlack As Integer = 0
+Public Const ColorRed As Integer = 1
+Public Const ColorBlue As Integer = 2
+Public Const ColorGreen As Integer = 3
+Public Const ColorYellow As Integer = 4
+Public Const ColorGray As Integer = 5
+Public Const ColorLightGray As Integer = 6
+Public Const ColorLightBlue As Integer = 7
+Public Const ColorWhite As Integer = 8
+Public Const ColorByBlock As Integer = 256
+Public Const ColorByLayer As Integer = 257
+
+
 ' Stipple lines
 Public stiDashed As New Float[]
 
@@ -364,25 +378,25 @@ Public Function GetLayer(LayerName As String) As Layer
 End
 
 '' Reads entities and fill arrLayers
-Public Sub FillLayers(drw As Drawing)
-
-    Dim hLay As Layer
-    Dim e As Entity
-
-    gcd.debugInfo("Filling layers",,, True)
-
-    ' primero eliminamos lo q haya
-    For Each hLay In drw.Layers
-        hLay.Entities.Clear
-    Next
-    If drw.Entities Then
-        For Each e In drw.Entities
-            If e.pLayer Then e.pLayer.Entities.Add(e)
-        Next
-    End If
-    gcd.debugInfo("Llenados los Layers",,, True)
-
-End
+' Public Sub FillLayers(drw As Drawing)
+'
+'     Dim hLay As Layer
+'     Dim e As Entity
+'
+'     gcd.debugInfo("Filling layers",,, True)
+'
+'     ' primero eliminamos lo q haya
+'     For Each hLay In drw.Layers
+'         hLay.Entities.Clear
+'     Next
+'     If drw.Entities Then
+'         For Each e In drw.Entities
+'             If e.pLayer Then e.pLayer.Entities.Add(e)
+'         Next
+'     End If
+'     gcd.debugInfo("Llenados los Layers",,, True)
+'
+' End
 
 '' Reads entities and fill arrLayers
 Public Sub FillSheets(drw As Drawing)
@@ -539,25 +553,48 @@ End
 
 Public Function GetGBColor(CADcolor As Integer, Optional pLayer As Layer) As Integer
 
-    If IsNull(pLayer) Then Return gColor[CADcolor]
+    Dim iColor As Integer
+    ' agrego la parte de PaperSpace
+
+
+    If Not pLayer Then iColor = CADcolor Else iColor = player.Colour
+
     ' color
     If CADcolor = 256 Then          ' buscar color del layer
 
-        If pLayer Then Return gColor[player.Colour]
-        Return gcd.flgWhiteAndBlack
+        iColor = gColor[iColor]
+
 
     Else If CADcolor = 257 Then     ' buscar color del objeto
 
-        Return gColor[pLayer.Colour]
+        iColor = gColor[iColor]
 
     Else If CADcolor = 0 Then
-        ' buscar color del bloque
-        Return gColor[pLayer.Colour]
+
+        iColor = gColor[iColor]
     Else
 
-        Return gColor[CADcolor]
+        iColor = gColor[CADcolor]
 
     Endif
+
+    If Drawing.Sheet.IsModel Then
+
+        Return iColor
+    Else
+
+        If iColor = Config.WhiteAndBlack Then iColor = Color.Invert(icolor)
+
+        If Drawing.Sheet.pPrintStyle.ColorStyle = 2 Then
+
+            Return iColor
+        Else If Drawing.Sheet.pPrintStyle.ColorStyle = 1 Then
+            Return Color.Desaturate(iColor)
+        Else
+            Return Drawing.Sheet.WhiteAndBlack
+        End If
+
+    End If
 
 End
 
@@ -867,7 +904,7 @@ Public Sub Regen()
     gcd.debugInfo("Generating GL graphics",,, True)
     gcd.StepsDone = 0
     'clsEntities.glGenBuffers()
-    clsEntities.FillLayersWithEntities(Drawing)
+    'clsEntities.FillLayersWithEntities(Drawing)
     clsEntities.CollectVisibleEntities
     clsEntities.glGenDrawList
     clsEntities.glGenDrawListSel
@@ -993,7 +1030,7 @@ Public Sub NewDrawing(sName As String) As Drawing
     s.Handle = gcd.NewHandle(d)
     D.Sheets.Add(s, s.Handle)
     d.Sheet = s
-    D.Entities = d.Sheet.Entities
+    'D.Entities = d.Sheet.Entities
     d.Model = s
 
     Dim L As New Layer
