@@ -131,9 +131,9 @@ Public Sub btnPrint_Click()
     End With
 
     ' fMain.Printer1.Paper = cmbPaperSize.Text  ' REEMPLAZADO POR LOS SIGUIENTES
-    Printer1.PaperHeight = gcd.Drawing.CurrPrintStyle.PaperSizeH
-    Printer1.PaperWidth = gcd.Drawing.CurrPrintStyle.PaperSizeW
-    Printer1.Orientation = gcd.Drawing.CurrPrintStyle.PrintOrientation
+    Printer1.PaperHeight = gcd.Drawing.Sheet.pPrintStyle.PaperSizeH
+    Printer1.PaperWidth = gcd.Drawing.Sheet.pPrintStyle.PaperSizeW
+    Printer1.Orientation = gcd.Drawing.Sheet.pPrintStyle.PrintOrientation
 
     If cmbPrinter.Index = 0 Then
         Printer1.OutputFile = User.Home &/ "print.pdf"
@@ -182,7 +182,7 @@ End
 Public Sub run()
 
     gcd.DrawingReady = False
-    Me.ShowModal
+    Me.Show
 
 End
 
@@ -295,14 +295,22 @@ End
 
 Public Sub Printer1_Draw()
 
+    If gcd.Drawing.Sheet.IsModel Then PrintModel(gcd.Drawing.CurrPrintStyle) Else PrintSheet(gcd.Drawing.Sheet)
+
+End
+
+
+Public Sub PrintModel(psy As PrintStyle)
+
+
     Dim flxLimits As New Float[]
     Dim scaleX, scaleY As Float
-    Dim PSY As PrintStyle
+
     Dim dX, dY, sX, sY As Float
 
     gcd.debuginfo("Printing pages")
     '  Dim jPrint As New JSONCollection
-    PSY = gcd.Drawing.CurrPrintStyle
+
 
     ' DETERMINO LO QUE HAY QUE IMPRIMIR
     If PSY.PrintArea = 0 Then ' all drawing
@@ -409,31 +417,112 @@ Public Sub Printer1_Draw()
     End If
 
     Dim L As Layer, E, E2 As Entity
-    For Each L In gcd.Drawing.Layers
-        If L.Visible Then
-            For Each E2 In L.Entities
-                If Not e2.Visible Then Continue
-                If PSY.PrintArea <> 0 Then E = clsEntities.TrimmedEntity(E2, PSY.PrintAreaX0, PSY.PrintAreaY0, PSY.PrintAreaX1, PSY.PrintAreaY1) Else e = e2
-                If IsNull(e) Then Continue
-                If e.LineWidth = 0 Then e.LineWidth = 1
-                ' If jPrint.Exist("Monochrome") Then
-                '   If jPrint["Monochrome"] Then
-                '     e.colour = 255
-                '   Endif
-                ' Endif
-                Paint.Brush = Paint.Color(Color.Black)
+    For Each E2 In gcd.Drawing.Sheet.Entities
+        If e2.pLayer.Visible Then
 
-                ' TODO: aplicar las puntas segun color de la entidad
-                Paint.LineWidth = 0.15 / gcd.PrintingScale  ' punta 0.15mm
-                Paint.Save  ' guardamos la matriz de transformacion por si la entidad la modifica
-                If InStr("TEXT MTEXT ATTRIB ATTDEF", e.Gender) Then
-                    paint.Font.Size = Abs(e.fParam[cadText.ipaTextHeight] / gcd.PrintingScale * 2)   ' TODO: verificar
-                End If
+            If Not e2.Visible Then Continue
+            If PSY.PrintArea <> 0 Then E = clsEntities.TrimmedEntity(E2, PSY.PrintAreaX0, PSY.PrintAreaY0, PSY.PrintAreaX1, PSY.PrintAreaY1) Else e = e2
+            If IsNull(e) Then Continue
+            If e.LineWidth = 0 Then e.LineWidth = 1
+            ' If jPrint.Exist("Monochrome") Then
+            '   If jPrint["Monochrome"] Then
+            '     e.colour = 255
+            '   Endif
+            ' Endif
+            Paint.Brush = Paint.Color(Color.Black)
 
-                gcd.CCC[e.gender].draw2(e)
-                Paint.Restore ' restauramos la matriz
-            Next
+            ' TODO: aplicar las puntas segun color de la entidad
+            Paint.LineWidth = 0.15 / gcd.PrintingScale  ' punta 0.15mm
+            Paint.Save  ' guardamos la matriz de transformacion por si la entidad la modifica
+            If InStr("TEXT MTEXT ATTRIB ATTDEF", e.Gender) Then
+                paint.Font.Size = Abs(e.fParam[cadText.ipaTextHeight] / gcd.PrintingScale * 2)   ' TODO: verificar
+            End If
+
+            gcd.CCC[e.gender].draw2(e)
+            Paint.Restore ' restauramos la matriz
+
         End If
     Next
 
 End
+
+Public Sub PrintSheet(s As Sheet)
+
+
+    Dim flxLimits As New Float[]
+    Dim scaleX, scaleY As Float
+    Dim dX, dY, sX, sY As Float
+
+    gcd.debuginfo("Printing pages")
+    '  Dim jPrint As New JSONCollection
+
+
+    gcd.debuginfo("Printing")
+    gcd.DrawingReady = False
+
+    Paint.Reset ' vuelvo escalas y traslados a cero
+
+    ' fMain.Printer1.Paper = cmbPaperSize.Text  ' REEMPLAZADO POR LOS SIGUIENTES
+    Printer1.PaperHeight = S.pPrintStyle.PaperSizeH
+    Printer1.PaperWidth = S.pPrintStyle.PaperSizeW
+    Printer1.Orientation = S.pPrintStyle.PrintOrientation
+
+    sX = Paint.Width / Printer1.PaperWidth
+    sY = Paint.Height / Printer1.PaperHeight
+    ' primero aplico la escala, Unidades de dibujo:Metros
+    gcd.PrintingScale = 1' 000 ' S.pPrintStyle.PrintScale * 1000 ' para pasar de mm a metros
+    sX *= gcd.PrintingScale
+    sY *= gcd.PrintingScale
+
+    Paint.Translate(0, Paint.H) ' centro el dibujo
+    Paint.Scale(sX, -sY)
+
+    dX = -S.pPrintStyle.PrintAreaX0
+    dY = -S.pPrintStyle.PrintAreaY0
+    Paint.Translate(dX, dY)
+
+
+    If cmbPrinter.Index = 0 Then
+        Printer1.OutputFile = User.Home &/ "print.pdf"
+    Else
+        Printer1.OutputFile = ""
+        Printer1.Name = cmbPrinter.Text
+    End If
+
+
+
+
+    ' APLICO LA ESCALA
+
+    Dim L As Layer, E, E2 As Entity
+
+    gcd.PrintingScale = 0.1
+    For Each E2 In gcd.Drawing.Sheet.Entities
+        If e2.pLayer.Visible Then
+
+            If Not e2.Visible Then Continue
+            e = e2
+            If IsNull(e) Then Continue
+            If e.LineWidth = 0 Then e.LineWidth = 1
+            ' If jPrint.Exist("Monochrome") Then
+            '   If jPrint["Monochrome"] Then
+            '     e.colour = 255
+            '   Endif
+            ' Endif
+            Paint.Brush = Paint.Color(Color.Black)
+
+            ' TODO: aplicar las puntas segun color de la entidad
+            Paint.LineWidth = 0.15 / 10  ' punta 0.15mm
+            Paint.Save  ' guardamos la matriz de transformacion por si la entidad la modifica
+            If InStr("TEXT MTEXT ATTRIB ATTDEF", e.Gender) Then
+                paint.Font.Size = Abs(e.fParam[cadText.ipaTextHeight] / gcd.PrintingScale * 2)   ' TODO: verificar
+            End If
+
+            gcd.CCC[e.gender].draw2(e)
+            Paint.Restore ' restauramos la matriz
+
+        End If
+    Next
+
+End
+

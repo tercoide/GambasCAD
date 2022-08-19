@@ -70,6 +70,68 @@ Public Sub DrawRemark(oE As Entity)
 
 End
 
+Public Function Draw2(oE As Entity)
+
+    '
+    Dim v As Viewport
+
+    ' obtengo el viewport
+    v = gcd.Drawing.Sheets[oe.HandleOwner].vViewports[oe.sParam[0]]
+
+    If Not v Then Return
+    '
+    Paint.Save
+
+    Dim r As New Rect
+
+    r.X = v.X0
+    r.y = v.y0
+    r.W = v.X1 - v.X0
+    r.H = v.Y1 - v.Y0
+
+    'Paint.ClipRect = r
+    'Paint.Clip()
+
+
+    Paint.translate(v.X0, v.Y0)                 ' trasladamos al viewport
+
+    Paint.Translate(v.PanX, v.PanY)             ' trasladamos el paneo que se hizo dentro del Viewport
+
+    Paint.Scale(v.ScaleZoom)
+
+
+
+
+    ' tengo que invertir el sentido de giro porque en fPrint tengo EscY invertida
+    ' Paint.Rotate(-eParent.fParam[Me.ipaRotacion] * Pi / 180)
+    '
+    ' Paint.Scale(eParent.fParam[Me.ipaEscX], eParent.fParam[Me.ipaEscY])
+    '
+    Dim L As Layer, E, E2 As Entity
+    For Each E In gcd.Drawing.Entities
+        If v.Layers.Exist(e.pLayer.handle) Then
+
+            If e.LineWidth = 0 Then e.LineWidth = 1
+
+            Paint.Brush = Paint.Color(Color.Black)
+
+            ' TODO: aplicar las puntas segun color de la entidad
+            Paint.LineWidth = 0.15 / v.ScaleZoom  ' punta 0.15mm
+            Paint.Save  ' guardamos la matriz de transformacion por si la entidad la modifica
+            If InStr("TEXT MTEXT ATTRIB ATTDEF", e.Gender) Then
+                paint.Font.Size = Abs(e.fParam[cadText.ipaTextHeight] / gcd.PrintingScale * 2)   ' TODO: verificar
+            End If
+
+            gcd.CCC[e.gender].draw2(e)
+            Paint.Restore ' restauramos la matriz
+
+        End If
+    Next
+    'Paint.ResetCli()
+    Paint.Restore
+
+End
+
 Public Sub Finish(oE As Entity) As Boolean
 
     ' tareas finales de armado del objeto
@@ -163,6 +225,11 @@ Public Sub Finish(oE As Entity) As Boolean
     End If
 
     gcd.Drawing.Sheet.Viewport = v
+
+    ' agrego el Handle del viewport a la entidad
+    oe.sParam.Clear
+    oe.sParam.Add(v.Handle)
+
 
 
 End
