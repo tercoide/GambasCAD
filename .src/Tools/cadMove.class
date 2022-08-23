@@ -48,6 +48,10 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
         'DrawingAids.CmdLineHelper = DrawingAids.CmdLineHelper & ": " & ("Base point")
         DrawingAids.CmdLineHelper = ("Move") & " " & Str(gcd.Drawing.SelectedEntities.Count) & " " & ("elements") & ": " & ("Base point")
 
+        ' armamos el menu contextual y lo asignamos a la GL area
+        gcd.Drawing.GLAreaInUse.PopupMenu = Me.Gender
+
+
         ' genero drawing lists
 
         clsEntities.GLGenDrawListSel(0)
@@ -104,8 +108,7 @@ Public Function MouseUp()
             ' job finished correctly
 
             ' and now we move
-            clsEntities.Move(Me.SelEndXr - Me.SelStartXr, Me.SelEndyr - Me.SelStartYr, True)
-            '
+            clsEntities.Move(Me.SelEndXr - Me.SelStartXr, Me.SelEndyr - Me.SelStartYr)
 
             clsEntities.Finish
             gcd.Drawing.uUndo.CloseUndoStage()
@@ -124,21 +127,37 @@ Public Function MouseMove() ' called by FCAD-> DrawingArea_MouseMove
         ' represente by the mouse now, taking account that the drawing
         ' could have being moved by the mouse wheel
 
-        ' new Real position is
+        ' we are waiting for a point
+
         Me.SelEndXr = gcd.Near(gcd.Xreal(mouse.x))
-        Me.SelEndyr = gcd.Near(gcd.Yreal(mouse.y))
+        Me.SelEndYr = gcd.Near(gcd.Yreal(mouse.y))
 
-        If gcd.Orthogonal Then
+        ' yo soy el responsable de chequear POI
+        If Not gcd.flgSearchingPOI Then
+            gcd.Drawing.iEntity = clsMouseTracking.CheckPOI(Me.SelEndXr, Me.SelEndYr)
+        End If
 
-            If Abs(Me.SelEndXr - Me.SelStartXr) > Abs(Me.SelEndyr - Me.SelStartYr) Then ' X prevails
+        ' y si tengo enganche?
 
-                Me.SelEndyr = Me.SelStartYr
+        If (gcd.Drawing.iEntity[2] > 0) Then
 
-            Else
+            ' esto re enganchado
 
-                Me.SelEndXr = Me.SelStartXr
+            Me.SelEndXr = gcd.Drawing.iEntity[0]
+            Me.SelEndyr = gcd.Drawing.iEntity[1]
 
-            Endif
+            ' aca tengo que verificar el ortogonal
+
+        Else                                                                        ' puedo hacer ortogonal
+            If gcd.Orthogonal Then          ' hablame de operadores logicos
+
+                If Abs(Me.SelEndXr - Me.SelStartXr) > Abs(Me.SelEndyr - Me.SelStartYr) Then ' prevalece X
+                    Me.SelEndyr = Me.SelStartYr
+                Else
+                    Me.SelEndXr = Me.SelStartXr
+                Endif
+
+            End If
 
         End If
 
