@@ -31,6 +31,8 @@ Public MenuEnabled As Integer = 0
 Public MenuChecked As Integer = 1
 Public MenuRadio As Integer = 2
 Public MenuTag As Integer = 3
+Public MenuSubMenu As Integer = 4
+
 
 '' Equivale a Mod pero para numeros FLoat
 Public Sub fMod(fNumber As Float, fDivi As Float) As Float
@@ -486,27 +488,49 @@ Public Function MenuMaker(oParent As Object, sName As String, sItems As String) 
 
 End
 
-'' Makes a menu, sItems=[text1;action1;picture1;status1;text2;action2;picture2;status2....]
-Public Function MenuMakerPlus(oParent As Object, sName As String, stxItems As String[]) As Boolean
+'' Makes a menu, sItems es un String con los datos que vienen en cuartetos
+'' separados por ';' :
+'' text = el texto
+'' action = la accion a ejecutar en el contexto ej Action_Activate
+'' picture = un icono a mostrar a la derecha del texto
+'' mode = 4 si es sub menu del anterior
+Public Function MenuMakerPlus(oParent As Object, sName As String, sItems As String) As Boolean
 
-    Dim mItem As Menu
+    Dim mItem, mSubItem As Menu
     Dim mEntities As New Menu(oParent)
     Dim i As Integer
-    Dim mode As Integer
+    Dim mode As Integer, bEnabled As Boolean
+    Dim stxItems As String[]
 
+    stxItems = Split(sItems, ";")
     If stxItems.Count < 1 Then Return False
 
     mEntities.Name = sName
     For i = 0 To stxItems.max Step 4
-        mItem = New Menu(mEntities)
-        mItem.Text = stxItems[i]
-        Try mItem.Action = stxItems[i + 1]
-        Try mItem.Picture = Picture[stxItems[i + 2]]
-        mode = CInt(stxItems[i + 3])
-        If BTst(mode, Me.MenuEnabled) Then mItem.Enabled = True Else mItem.Enabled = False
-        If BTst(mode, Me.MenuChecked) Then mItem.Checked = True Else mItem.Checked = False
-        If BTst(mode, Me.MenuRadio) Then mItem.Radio = True Else mItem.Radio = False
-        If BTst(mode, Me.MenuTag) Then mItem.Tag = True Else mItem.tag = False
+        If stxItems[i + 3] <> "" Then mode = CInt(stxItems[i + 3]) Else mode = 0
+        If mode = Me.MenuSubMenu Then
+            mSubItem = New Menu(mItem)
+
+            mSubItem.Text = stxItems[i]
+            Try mSubItem.Action = stxItems[i + 1]
+            Try mSubItem.Picture = Picture[stxItems[i + 2]]
+            'If BTst(mode, Me.MenuEnabled) Then mSubItem.Enabled = True Else mSubItem.Enabled = False
+            If BTst(mode, Me.MenuChecked) Then mSubItem.Checked = True Else mSubItem.Checked = False
+            If BTst(mode, Me.MenuRadio) Then mSubItem.Radio = True Else mSubItem.Radio = False
+            If BTst(mode, Me.MenuTag) Then mSubItem.Tag = True Else mSubItem.tag = False
+
+        Else
+            mItem = New Menu(mEntities)
+            mItem.Text = stxItems[i]
+            Try mItem.Action = stxItems[i + 1]
+            Try mItem.Picture = Picture[stxItems[i + 2]]
+
+            'If BTst(mode, Me.MenuEnabled) Then mItem.Enabled = True Else mItem.Enabled = False
+            If BTst(mode, Me.MenuChecked) Then mItem.Checked = True Else mItem.Checked = False
+            If BTst(mode, Me.MenuRadio) Then mItem.Radio = True Else mItem.Radio = False
+            If BTst(mode, Me.MenuTag) Then mItem.Tag = True Else mItem.tag = False
+        End If
+
 
     Next
 
