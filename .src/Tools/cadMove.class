@@ -52,9 +52,10 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
         gcd.Drawing.GLAreaInUse.PopupMenu = Me.Gender
 
 
-        ' genero drawing lists
 
-        clsEntities.GLGenDrawListSel(0)
+        gcd.SnapMode = Config.SnapModeSaved                 ' vuelvo al Snap Guardado
+
+        clsEntities.GLGenDrawListSel(0)                     ' genero drawing lists
         clsEntities.GLGenDrawListAll(True)
 
         gcd.Drawing.uUndo.OpenUndoStage("Move entities", Undo.TypeModify)
@@ -90,14 +91,16 @@ Public Function MouseUp()
         Inc Me.PointsDone
 
         If Me.PointsDone = 1 Then ' acabo de marcar el punto base
+            ' volvemos el Snap al original
+            gcd.SnapMode = Config.SnapModeSaved
 
             ' ya tengo cosas seleccionadas
             DrawingAids.Helper.texto = ("Final point")
             DrawingAids.CmdLineHelper = ("Move") & " " & Str(gcd.Drawing.SelectedEntities.Count) & " " & ("elements") & ": " & ("Final point")
 
-            ' punto real base
-            Me.SelStartXr = gcd.Near(gcd.Xreal(mouse.x))
-            Me.SelStartYr = gcd.Near(gcd.Yreal(mouse.y))
+            ' ' punto real base
+            ' Me.SelStartXr = gcd.Near(gcd.Xreal(mouse.x))
+            ' Me.SelStartYr = gcd.Near(gcd.Yreal(mouse.y))
 
             ' prevenir acciones tontas como hacer click en otro elemento antes de terminar con el actual
             ' TODO: reparar -> gcd.CurrDrawing.DesHabilitarBotones
@@ -120,46 +123,54 @@ Public Function MouseUp()
 
 End
 
-Public Function MouseMove() ' called by FCAD-> DrawingArea_MouseMove
+Public Function MouseMove()
 
-    If Me.PointsDone = 1 Then
-        ' we compare Real values from the starting point to the location
-        ' represente by the mouse now, taking account that the drawing
-        ' could have being moved by the mouse wheel
 
-        ' we are waiting for a point
+    Dim X, Y As Float
+    ' we are waiting for a point
 
-        Me.SelEndXr = gcd.Near(gcd.Xreal(mouse.x))
-        Me.SelEndYr = gcd.Near(gcd.Yreal(mouse.y))
+    X = gcd.Near(gcd.Xreal(mouse.x))
+    Y = gcd.Near(gcd.Yreal(mouse.y))
 
-        ' yo soy el responsable de chequear POI
-        If Not gcd.flgSearchingPOI Then
-            gcd.Drawing.iEntity = clsMouseTracking.CheckPOI(Me.SelEndXr, Me.SelEndYr)
-        End If
+    ' yo soy el responsable de chequear POI
+    If Not gcd.flgSearchingPOI Then
+        gcd.Drawing.iEntity = clsMouseTracking.CheckPOI(X, Y)
 
-        ' y si tengo enganche?
 
         If (gcd.Drawing.iEntity[2] > 0) Then
 
             ' esto re enganchado
 
-            Me.SelEndXr = gcd.Drawing.iEntity[0]
-            Me.SelEndyr = gcd.Drawing.iEntity[1]
+            X = gcd.Drawing.iEntity[0]
+            Y = gcd.Drawing.iEntity[1]
+        End If
+    End If
 
-            ' aca tengo que verificar el ortogonal
 
-        Else                                                                        ' puedo hacer ortogonal
-            If gcd.Orthogonal Then          ' hablame de operadores logicos
+    If Me.PointsDone = 0 Then
+        Me.SelStartXr = X
+        Me.SelStartYr = Y
 
-                If Abs(Me.SelEndXr - Me.SelStartXr) > Abs(Me.SelEndyr - Me.SelStartYr) Then ' prevalece X
-                    Me.SelEndyr = Me.SelStartYr
-                Else
-                    Me.SelEndXr = Me.SelStartXr
-                Endif
+    Else If Me.PointsDone = 1 Then
+        ' we compare Real values from the starting point to the location
+        ' represente by the mouse now, taking account that the drawing
+        ' could have being moved by the mouse wheel
+        Me.SelEndXr = X
+        Me.SelEndYr = Y
 
-            End If
+
+
+        If gcd.Orthogonal Then          ' hablame de operadores logicos
+
+            If Abs(Me.SelEndXr - Me.SelStartXr) > Abs(Me.SelEndyr - Me.SelStartYr) Then ' prevalece X
+                Me.SelEndyr = Me.SelStartYr
+            Else
+                Me.SelEndXr = Me.SelStartXr
+            Endif
 
         End If
+
+
 
         Me.glTranslate[0] = Me.SelEndXr - Me.SelStartXr
         Me.glTranslate[1] = Me.SelEndyr - Me.SelStartYr

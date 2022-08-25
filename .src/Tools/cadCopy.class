@@ -83,9 +83,8 @@ Public Function MouseUp()
         ' ya tengo cosas seleccionadas
         DrawingAids.Helper.texto = ("Final point")
 
-        ' punto real base
-        Me.SelStartXr = gcd.Near(gcd.Xreal(mouse.x))
-        Me.SelStartYr = gcd.Near(gcd.Yreal(mouse.y))
+        ' volvemos el Snap al original
+        gcd.SnapMode = Config.SnapModeSaved
 
         ' prevenir acciones tontas como hacer click en otro elemento antes de terminar con el actual
         ' TODO: reparar -> gcd.CurrDrawing.DesHabilitarBotones
@@ -109,14 +108,38 @@ End
 
 Public Function MouseMove()
 
-    If Me.PointsDone = 1 Then
+    Dim X, Y As Float
+    ' we are waiting for a point
+
+    X = gcd.Near(gcd.Xreal(mouse.x))
+    Y = gcd.Near(gcd.Yreal(mouse.y))
+
+    ' yo soy el responsable de chequear POI
+    If Not gcd.flgSearchingPOI Then
+        gcd.Drawing.iEntity = clsMouseTracking.CheckPOI(X, Y)
+
+
+        If (gcd.Drawing.iEntity[2] > 0) Then
+
+            ' esto re enganchado
+
+            X = gcd.Drawing.iEntity[0]
+            Y = gcd.Drawing.iEntity[1]
+        End If
+    End If
+
+    If Me.PointsDone = 0 Then
+        Me.SelStartXr = X
+        Me.SelStartYr = Y
+
+    Else If Me.PointsDone = 1 Then
         ' we compare Real values from the starting point to the location
         ' represente by the mouse now, taking account that the drawing
         ' could have being moved by the mouse wheel
 
         ' new Real position is
-        Me.SelEndXr = gcd.Near(gcd.Xreal(mouse.x))
-        Me.SelEndyr = gcd.Near(gcd.Yreal(mouse.y))
+        Me.SelEndXr = X
+        Me.SelEndyr = Y
 
         If gcd.Orthogonal Then
 
