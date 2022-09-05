@@ -24,7 +24,6 @@ Private RawFlag As Boolean = False
 'variables de ambiente
 Public flgShowInspector As Boolean = False
 
-Public flgShowingLayers As Boolean
 
 Public flgWheelCounter As Integer
 Public InUse As Boolean                         ' variable auxiliar para evitar eventos indeseados
@@ -70,6 +69,11 @@ Public Sub Run() As Boolean
     Me.Menus.Hide
     'Me.tbnLayersOnScreen.w = 96
     Me.tabDrawings[0].Visible = Config.ShowConsoleTab
+
+    pnlCoords.W = pnlToolbarLeft.W
+    pnlBarBottom.H = 32
+
+
 
     'PanelBlockFit.Visible = False 'ag = CStr(PanelBlockFit.h)
     'PanelBlockFit.h = 0
@@ -225,7 +229,7 @@ Public Function Action_Activate(sAction As String) As Boolean
         Case "print"
 
             If Not gcd.Drawing.CurrPrintStyle Then gcd.Drawing.CurrPrintStyle = New PrintStyle
-            fPrint.run()
+            fPrint.Show '.run()
             ' If i = 1 Then
             '
             '     Printer1.Print
@@ -691,7 +695,7 @@ Public Sub GLArea1_draw()
 
     End If
 
-    ' el orden del dibujo es importante en paint, porque una cosa tapa a la otra; en openGL aparentemente es al reves, lo primero se dibuja primero
+    ' el orden del dibujo es importante en paint, porque una cosa tapa a la otra; en openGL aparentemente es al reves, lo primero se dibuja ultimo
 
     '
     If gcd.DrawBounds Then DrawingAids.DrawPolygons
@@ -706,7 +710,7 @@ Public Sub GLArea1_draw()
     'clsEntities.DrawArrays()
 
     ' POI dinamicos
-    If gcd.Drawing.flgShowPOIinfo Then
+    If gcd.Drawing.flgShowPOIinfo And gcd.Drawing.iEntity.Count > 0 Then
 
         Select gcd.Drawing.iEntity[2]
             Case gcd.poiMidPoint
@@ -769,8 +773,11 @@ Public Sub GLArea1_MouseMove()
     ' Universal:
     gcd.clsJob.MouseMove()
 
-    Me.lblCoord.Text = Mouse.x & ":" & Mouse.y & " <-> " & Format(Xr, Config.FormatCoord) & " : " & Format(Yr, config.FormatInquiries)
-    Me.lblCoord.Refresh
+    'Me.lblCoordX.Text = Mouse.x & ":" & Mouse.y & " <-> " & Format(Xr, Config.FormatCoord) & " : " & Format(Yr, config.FormatInquiries)
+    Me.lblCoordX.Text = "X: " & Mouse.x & " -> " & Format(Xr, Config.FormatCoord)
+    Me.lblCoordY.Text = "Y: " & Mouse.y & " -> " & Format(Yr, config.FormatCoord)
+    Me.lblCoordX.Refresh
+    Me.lblCoordY.Refresh
 
     If Mouse.Middle Then
         cadPan.MouseMove()
@@ -1253,9 +1260,9 @@ End
 
 Public Sub grdLayers_Click()
 
-    If flgShowingLayers Then
+    If gcd.flgShowingLayers Then
         fLayersOnScreen.Hide
-        flgShowingLayers = False
+        gcd.flgShowingLayers = False
 
     Else
         If grdLayers.Column = 1 Then ' Visibility
@@ -1275,12 +1282,13 @@ Public Sub grdLayers_Click()
 
         Else
 
-            flgShowingLayers = True
-            fLayersOnScreen.Show()
-            fLayersOnScreen.Move(grdLayers.ScreenX, grdLayers.ScreenY + grdLayers.h + 1)
+            gcd.flgShowingLayers = True
+
+            fLayersOnScreen.Run()
+            'fLayersOnScreen.Move(grdLayers.ScreenX, grdLayers.ScreenY + grdLayers.h + 1)
             ' puede venir un cambio de Layers, lo que con una seleccion implica que se cambian
             ' las propiedades de dichas entidades y hay que regenerar
-            fLayersOnScreen.Y = grdLayers.ScreenY + grdLayers.h + 1
+            'fLayersOnScreen.Y = grdLayers.ScreenY + grdLayers.h + 1
         End If
     End If
 

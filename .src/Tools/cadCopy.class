@@ -46,13 +46,8 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
 
         DrawingAids.CmdLineHelper = ("Copy") & " " & Str(gcd.Drawing.SelectedEntities.count) & " " & ("elements") & ": " & ("Base point")
 
-        ' permitimos el uso de Snap
 
-        ' UNDO STUFF
-        gcd.Drawing.uUndo.OpenUndoStage("Copy entities", Undo.TypeCreate)
-        For Each E In gcd.Drawing.SelectedEntities
-            gcd.Drawing.uUndo.AddUndoItem(clsEntities.ClonEntity(E, False))
-        Next
+
 
     Endif
 
@@ -90,15 +85,6 @@ Public Function MouseUp()
         ' TODO: reparar -> gcd.CurrDrawing.DesHabilitarBotones
     Else If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
         ' permitir otros trabajos
-        ' TODO: reparar -> gcd.CurrDrawing.HabilitarBotones
-
-        clsEntities.ClonElements(True) ' let make a copy of them
-        ' and now we move
-        clsEntities.Move(Me.SelEndXr - Me.SelStartXr, Me.SelEndyr - Me.SelStartYr)
-        clsEntities.Finish()
-
-        ' UNDO STUFF
-        gcd.Drawing.uUndo.CloseUndoStage()
 
         Me.Finish
 
@@ -163,3 +149,38 @@ Public Function MouseMove()
     gcd.Redraw
 
 End
+
+Public Sub Finish()
+
+    Dim e As Entity
+    Dim cContainer As Collection
+
+    cContainer = clsEntities.ClonElements(, False) ' let make a copy of them
+    ' and now we move
+    clsEntities.Move(Me.SelEndXr - Me.SelStartXr, Me.SelEndyr - Me.SelStartYr, cContainer)
+
+
+    gcd.Drawing.uUndo.OpenUndoStage("Copy entities", Undo.TypeCreate)
+    For Each E In cContainer
+        clsEntities.glGenDrawList(e)
+        gcd.Drawing.uUndo.AddUndoItem(E)
+        gcd.Drawing.Entities.Add(e, e.Handle)
+    Next
+    gcd.Drawing.uUndo.CloseUndoStage()
+
+    clsEntities.glGenDrawListLAyers()
+
+    clsEntities.DeSelection()
+    gcd.Drawing.RequiresSaving = True
+    gcd.Drawing.iEntity.Clear
+    gcd.clsJobPrevious = Me
+    gcd.clsJob = cadSelection
+    gcd.clsJob.start()
+    DrawingAids.CleanTexts
+    gcd.StepsDone = 0
+    gcd.DrawOriginals = False
+    Me.Active = False
+    gcd.ToolActive = False
+
+End
+
