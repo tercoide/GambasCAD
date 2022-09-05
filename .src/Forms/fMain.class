@@ -1592,6 +1592,7 @@ End
 Public Sub tabDrawings_Click()
 
     gcd.Drawing = tabDrawings[tabDrawings.Index].Tag
+    If gcd.Drawing Then FillBlocks
     Try Me.GLArea1 = gcd.Drawing.GLAreaInUse
 
 End
@@ -1604,6 +1605,7 @@ Public Sub tabViews_Click()
         gcd.Drawing.LastLayer = gcd.Drawing.CurrLayer
         gcd.Drawing.Sheet = gcd.Drawing.Sheets[Last.current.tag]
         gcd.Drawing.GLAreaInUse = gcd.Drawing.Sheet.GLSheet
+
         ' si es una Sheet, no hay layers, sino una unica capa donde se enserta todo
         '     'Try Me.GLArea1 = gcd.Drawing.GLAreaInUse
         ' Else
@@ -1801,6 +1803,51 @@ Public Sub LoadButtons(Optional iSize As Integer = 32, iColumns As Integer = 2)
 
 End
 
+Public Sub FillBlocks()
+
+    Dim sFilename As String
+    Dim imgPreview As Image
+    Dim entScale As Float
+    Dim entidad As Entity
+    Dim sFActor As Float = 1.5
+    Dim b As Block
+    Dim iSize As Integer = 40
+    Dim i, iRow, iCol As Integer
+
+
+    GridView1.Clear
+    GridView1.Columns.Count = (GridView1.W) / iSize ' deberia poder conocer el ancho del scrollview
+    For i = 0 To GridView1.Columns.Count - 1
+        GridView1.Columns[i].W = iSize
+    Next
+    GridView1.rows.Count = gcd.Drawing.Blocks.Count / GridView1.Columns.Count
+    For i = 0 To GridView1.rows.Count - 1
+        GridView1.rows[i].h = iSize
+    Next
+
+    'ListView1.Clear
+
+    'ListView1.GridSize = iSize
+
+    i = 0
+    For Each b In gcd.Drawing.Blocks
+        If Left(b.name, 1) = "_" Or Left(b.name, 1) = "*" Then Continue
+
+        iRow = Int(i / GridView1.Columns.Count)
+        iCol = i Mod GridView1.Columns.Count
+        i += 1
+        imgPreview = New Image(iSize, iSize, Color.Black)
+
+        gcd.FitEntitiesToImage(b.entities, imgPreview, Config.WhiteAndBlack, 0)
+        GridView1.Row = iRow
+        GridView1.Column = iCol
+        GridView1.Current.Picture = imgPreview.Picture
+        GridView1.Current.Tag = b.handle
+        'ListView1.Add(b.handle, "", imgPreview.Picture)
+
+    Next
+
+End
 
 
 
@@ -1809,5 +1856,12 @@ Public Sub togSnap_MouseDown()
 
     If Mouse.Right Then fPoiOptions.show
 
+
+End
+
+Public Sub GridView1_MouseWheel()
+
+    GridView1.ScrollY += Mouse.Delta * 40
+    'GridView1.Scroll(0, GridView1.ScrollYMouse.Delta * 40)
 
 End
