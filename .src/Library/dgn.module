@@ -1,0 +1,298 @@
+' Gambas module file
+
+Public Function libdgnread(f As String) As String
+
+    Dim str As String
+    Dim sCmd As String
+
+    sCmd = "dgndump '" & f & "'"
+
+    Shell sCmd To str
+    str = Replace(str, "\t", " ")
+
+    Return str
+
+End
+
+Public Function ReadDGN(f As String, Optional aEnty As String[]) As Collection
+
+    Dim aHead As String[] = ["Cell Header", "Text", "Line", "Line String", "Shape", "Complex Shape Header", "Ellipse", "Arc", "B-Spline Pole", "B-Spline Knot", "B-Spline Curve Header", "B-Spline Weight Factor"]
+
+    Dim aUgly As String[] = ["Application Element", "Tag Value", "Digitizer Setup", "TCB", "Level Symbology", "Group Data"]
+
+    Dim s As String
+    Dim aLines As String[]
+    Dim aElement As New String[]
+    Dim vElements As New Variant[]
+    Dim oElements As New Collection
+    Dim sTemp As String
+    Dim iCline As Integer
+    Dim sLine As String
+    Dim sText As String
+    Dim sKey As String
+    Dim fp As New Float[]
+    Dim flo As Float
+    Dim i As Integer
+    Dim r As Integer
+    Dim e As Integer
+    Dim cTmp As New Collection
+    Dim iLine As Integer
+    Dim aProp As String[]
+
+    s = libdgnread(f)
+    aLines = Split(s, gb.Lf, Chr(140))
+
+    If aLines.Count > 0 Then
+        For Each sLine In aLines
+            If sLine = "" Then
+                If aElement.Count > 0 Then
+                    vElements.Add(aElement.Copy())
+                    aElement.Clear
+                Endif
+            Else
+                aElement.Add(sLine)
+            Endif
+        Next
+    Endif
+
+    If vElements.Count > 0 Then
+        For e = 0 To vElements.Max
+            aLines = vElements[e]
+            cTmp.Clear
+            fp.Clear
+            sLine = aLines[0]
+            sText = Trim2(Replace(sLine, "Element:", ""))
+            sText = Replace(sText, "  ", " ")
+            sText = Replace(sText, " Level: ", " Level:")
+            sText = Replace(sText, " Level:", "\t")
+            sText = Replace(sText, " id:", "\t")
+            sText = Replace(sText, "  ", "\t")
+
+            cTmp["object"] = Split(sText, "\t")[0]
+
+            If aHead.Exist(cTmp["object"]) Then
+
+                cTmp["layer"] = Split(sText, "\t")[1]
+                If InStr(sText, "(") > 0 Then
+                    cTmp["index"] = Split(Split(sText, "\t")[2], " ")[0]
+                    cTmp["flag"] = Upper(Split(sText, "()")[1])
+                Else
+                    cTmp["index"] = Split(sText, "\t")[2]
+                Endif
+
+                For r = 1 To aLines.Max
+                    sLine = aLines[r]
+                    If String.Left(sLine, 2) = "  " Then
+                        Select String.Left(sLine, 3)
+                            Case "  (" ''Coordinates
+                                sText = Split(sLine, "()")[1]
+                                'sText = Replace(sText, ")", "")
+                                fp = Split(sText, ",")
+                                If Not cTmp.Exist("points") Then
+                                    cTmp["points"] = [fp.Copy()]
+                                Else
+                                    cTmp["points"].Add(fp.Copy())
+                                Endif
+
+                            Case "  a"
+                                    "  axes=(0.00700,0.00700), start angle=0.000000, sweep=360.000000"
+                                sText = Replace(sLine, "  axes=(", "")
+                                sText = Replace(sText, "), start angle=", "\t")
+                                sText = Replace(sText, ", sweep=", "\t")
+
+                                fp = Split(Split(sText, "\t")[0], ",")
+                                cTmp["axes"] = fp.Copy()
+
+                                flo = Split(sText, "\t")[1]
+                                cTmp["angle"] = flo
+
+                                flo = Split(sText, "\t")[2]
+                                cTmp["sweep"] = flo
+
+                            Case "  o"
+                                If String.Left(sLine, 9) = "  offset=" Then
+                                    sText = Trim2(Replace(sLine, "  offset=", ""))
+                                    sText = Replace(sText, "  ", " ")
+                                    sText = Replace(sText, " size=", "\t")
+                                    sText = Replace(sText, " bytes", "")
+                                    i = Split(sText, "\t")[0]
+                                    cTmp["offset"] = i
+                                    i = Split(sText, "\t")[1]
+                                    cTmp["size"] = i
+
+                                Else
+                                    If String.Left(sLine, 9) = "  origin=" Then
+                                        sText = Trim2(Replace(sLine, "  origin=(", ""))
+                                        If InStr(sText, "rotation") > 0 Then
+                                            sText = Replace(sText, "), rotation=", "\t")
+                                            fp = Split(Split(sText, "\t")[0], ",")
+                                            cTmp["rotation"] = Rad(CFloat(Split(sText, "\t")[1]))
+                                        Else
+                                            sText = Replace(sText, ")", "")
+                                            fp = Split(sText, ",")
+                                        Endif
+                                        cTmp["points"] = fp.Copy()
+                                    Endif
+                                Endif
+
+                                '  properties=3584,ATTRIBUTES,MODIFIED,NEW
+                            Case "  p"
+                                sText = Trim2(Replace(sLine, "  properties=", ""))
+                                sText = Replace(sText, " ", "")
+                                sText = Replace(sText, ",", "\t")
+                                aProp = Split(sText, "\t")
+                                cTmp["prop"] = aProp.Copy()
+                                aProp.Clear
+                                'File.Log("/tmp/da.log", cTmp["object"] & "\t" & aProp.Join(","))
+
+                                'sKey = Bin(CInt(aProp[0]), 8)
+                                'b = CByte(Mid(String.Right(t, iPos), 1, 1))
+
+                            Case "  g"
+                                sText = Trim2(Replace(sLine, "  graphic_group:", ""))
+                                sText = Replace(sText, "  ", " ")
+                                sText = Replace(sText, " color:", "\t")
+                                sText = Replace(sText, " weight:", "\t")
+                                sText = Replace(sText, " style:", "\t")
+
+                                i = Split(sText, "\t")[0]
+                                cTmp["group"] = i
+
+                                i = Split(sText, "\t")[1]
+                                cTmp["color"] = i
+
+                                i = Split(sText, "\t")[2]
+                                cTmp["weight"] = i
+
+                                i = Split(sText, "\t")[3]
+                                cTmp["style"] = i
+
+                            Case "  f"
+                                sText = Trim2(Replace(sLine, "  font=", ""))
+                                sText = Replace(sText, ", just=", "\t")
+                                sText = Replace(sText, ", length_mult=", "\t")
+                                sText = Replace(sText, ", height_mult=", "\t")
+
+                                i = Split(sText, "\t")[0]
+                                cTmp["font"] = i
+
+                                i = Split(sText, "\t")[1]
+                                cTmp["just"] = i
+
+                                flo = Split(sText, "\t")[2]
+                                cTmp["height"] = flo
+                                flo = Split(sText, "\t")[3]
+                                cTmp["width"] = flo
+
+                            Case "m"
+                                sText = Trim2(Replace(sLine, "  max_length=", ""))
+                                sText = Replace(sText, "  ", " ")
+                                sText = Replace(sText, ", used=", "\t")
+                                sText = Replace(sText, ", node_number=", "\t")
+
+                                i = Split(sText, "\t")[0]
+                                cTmp["node_max"] = i
+                                i = Split(sText, "\t")[1]
+                                cTmp["node_used"] = i
+                                i = Split(sText, "\t")[2]
+                                cTmp["node_number"] = i
+
+                            Case "  s"
+                                sText = Replace(sLine, "  string = ", "")
+                                If String.Left(sText) = "\"" Then
+                                    sText = String.Mid(sText, 2)
+                                    If String.Right(sText) = "\"" Then
+                                        sText = String.Mid(sText, 1, String.Len(sText) - 1)
+                                    Endif
+                                Endif
+                                sText = Replace(sText, "\"", "´´")
+                                cTmp["text"] = sText
+
+                            Case "  t"
+                                sText = Trim2(Replace(sLine, "  totlength=", ""))
+                                sText = Replace(sText, "  ", " ")
+
+                                Select cTmp["object"]
+                                    Case "Text Node"
+                                        sText = Replace(sText, "  ", " ")
+                                        sText = Replace(sText, ", num_texts=", "\t")
+                                        i = Split(sText, "\t")[1]
+                                        cTmp["num_texts"] = i
+
+                                    Case "Complex Shape Header", "Complex Chain Header"
+                                        sText = Replace(sText, "  ", " ")
+                                        sText = Replace(sText, ", numelems=", "\t")
+                                        i = Split(sText, "\t")[1]
+                                        cTmp["num_elems"] = i
+
+                                    Case "Cell Header"
+                                        sText = Replace(sText, "  ", " ")
+                                        sText = Replace(sText, ", name=", "\t")
+                                        sText = Replace(sText, ", class=", "\t")
+                                        sText = Replace(sText, ", levels=", "\t")
+
+                                        cTmp["block_name"] = Split(sText, "\t")[1]
+
+                                        i = Split(sText, "\t")[2]
+                                        cTmp["block_class"] = i
+                                        cTmp["block_levels"] = Split(sText, "\t")[3]
+
+                                End Select
+
+                                i = Split(sText, "\t")[0]
+                                cTmp["totlength"] = i
+
+                            Case "  r"
+                                If String.Left(sLine, 10) = "  rnghigh=" Then
+                                    sText = Trim2(Replace(sLine, "  rnghigh=(", ""))
+                                    sText = Replace(sText, ")", "")
+                                    fp = Split(sText, ",")
+                                    cTmp["rnghigh"] = fp.Copy()
+                                Else
+                                    If String.Left(sLine, 10) = "  rnglow=(" Then
+                                        sText = Trim2(Replace(sLine, "  rnglow=(", ""))
+                                        sText = Replace(sText, ")", "")
+                                        fp = Split(sText, ",")
+                                        cTmp["rnglow"] = fp.Copy()
+                                    Endif
+                                Endif
+
+                            Case "  x"
+                                sText = Trim2(Replace(sLine, "  xscale=", ""))
+                                sText = Replace(sText, "  ", " ")
+                                sText = Replace(sText, ", yscale=", "\t")
+                                sText = Replace(sText, ", rotation=", "\t")
+
+                                flo = Split(sText, "\t")[0]
+                                cTmp["xscale"] = i
+
+                                flo = Split(sText, "\t")[1]
+                                cTmp["yscale"] = i
+
+                                flo = Split(sText, "\t")[2]
+                                cTmp["rotation"] = Rad(flo)
+
+                        End Select
+                    Endif
+                    oElements.Add(cTmp.Copy(), cTmp["index"])
+                Next
+            Endif
+        Next
+    Endif
+
+    Return oElements
+
+End
+
+Public Function Trim2(s As String) As String
+
+    Dim sOut As String
+
+    sOut = Trim(RTrim(s))
+    While InStr(sOut, "  ")
+        sOut = Replace(sOut, "  ", " ")
+    Wend
+
+    Return sOut
+
+End
