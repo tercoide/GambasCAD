@@ -76,7 +76,7 @@ Public Sub FileOpen(Optional sFile As String = "")
         Dialog.Title = ("Select File")
 
         If main.convODA Or main.convLibreDWG Then
-            Dialog.Filter = ["*.dxf;*.dwg", "Drawings", "*.dxf", "DXF Drawing exchange", "*.dwg", "DWG AutoCAD Drawing file"]
+            Dialog.Filter = ["*.dxf;*.dwg;*.dgn", "Drawings", "*.dxf", "DXF Drawing exchange", "*.dwg", "DWG AutoCAD Drawing file", "*.dgn", "DGN Microstation Drawing file"]
         Else
 
             Dialog.Filter = ["*.dxf", "Drawings", "*.dxf", "DXF Drawing exchange"]
@@ -96,6 +96,42 @@ Public Sub FileOpen(Optional sFile As String = "")
     If Exist(f) Then
         If Stat(f).Type = gb.File Then
             Select Lower(File.Ext(f))
+                Case "dgn"
+
+                    Inc Application.Busy
+                    NewDrawing = New Drawing
+
+                    ' esto es necesario porque muchas funciones usan gcd.Drawing
+                    gcd.Drawing = NewDrawing
+
+
+                    If Not dgn.LoadDGN(f, NewDrawing) Then
+                        Message.Error(("There was an error opening the file"))
+                        NewDrawing = Null
+                        gcd.Drawing = gcd.Drawings.Last
+                        Return
+                    Endif
+
+
+                    gcd.Drawings.Add(NewDrawing)
+
+                    gcd.Drawing.FileName = f
+                    gcd.Drawing.RequiresFileRename = False
+
+                    Try gcd.Drawing.HandSeed = Val("&H" & gcd.Drawing.oHeader.HandSeed)
+
+                    fmain.UpdateLayersCombo
+                    fmain.UpdateLineWtCombo
+                    fmain.UpdateLineTypeCombo
+                    fmain.UpdatDimTypeTypeCombo
+                    fmain.NewTabForDrawing(NewDrawing)
+                    gcd.Regen()
+                    cadZoomE.Start()                                ' por ahora mostramos el dibujo centrado, hasta q leamos el estado anterior
+
+                    fmain.Text = f
+
+
+
                 Case "dwg"
 
                     Inc Application.Busy

@@ -1,5 +1,16 @@
 ' Gambas module file
 
+Public Function LoadDGN(sFile As String, drw As Drawing) As Boolean
+
+    Dim c As Collection
+
+    c = ReadDGN(sFile)
+    Return DgnToDrw(c, drw)
+
+
+End
+
+
 Public Function libdgnread(f As String) As String
 
     Dim str As String
@@ -294,5 +305,131 @@ Public Function Trim2(s As String) As String
     Wend
 
     Return sOut
+
+End
+
+
+Public Function DgnToDrw(cDGN As Collection, drw As Drawing) As Boolean
+
+    Dim cElement As Collection
+    Dim lNew As Layer
+    Dim e As Entity
+    Dim points As Float[]
+    Dim s As Sheet
+    Dim hlty As LineType
+
+    If Drw.Sheets.Count = 0 Then
+        ' creo la Sheet
+        S = New Sheet
+        s.Name = "Model"
+        s.IsModel = True
+        s.Entities = drw.Entities
+        s.Handle = "1"
+        Drw.Sheets.Add(s, s.Handle)
+        drw.Sheet = s
+        drw.Model = s
+        drw.HandSeed = 1000
+    End If
+
+    'Linetypes
+    If DRW.LineTypes.Count = 0 Then
+        hlty = New LineType
+        hlty.Name = "CONTINUOUS"
+        hlty.Description = ""
+        hlty.handle = gcd.NewHandle()
+        hlty.nTrames = 0
+        drw.LineTypes.Add(hlty, hlty.handle)
+
+    End If
+
+
+    For Each cElement In cDGN
+        ' veamos si tenemos el Layer creado
+        If Not gcd.GetLayer(cElement["layer"]) Then ' lo creo al vuelo
+            lNew = New Layer
+            lNew.Name = cElement["layer"]
+            lNew.handle = gcd.NewHandle()
+
+            ' lo agregamos al dibujo
+            drw.Layers.Add(lnew, lNew.handle)
+        Endif
+
+        ' creamos la entidad
+        e = New Entity
+
+        ' veamos si reconocemos a este elemento
+        Select Case LCase(cElement["object"])
+            Case "line"
+                e = cadLine.NewEntity()
+                SetCommonStuff(cElement, e, drw)
+                e.p = New Float[]
+                e.p.Insert(Point3DtoArray2D(cElement["points"]))
+
+            Case "text"
+                e = cadText.NewEntity()
+                SetCommonStuff(cElement, e, drw)
+                e.p = New Float[]
+                e.p.Insert([cElement["points"][0], cElement["points"][1]])
+                e.sParam[cadText.sdaText] = cElement["text"]
+                e.fParam[cadText.ipaTextAngle] = cElement["rotation"]
+                e.fParam[cadText.ipaTextHeight] = cElement["height"]
+
+
+
+        End Select
+
+        ' si fue reconocida, la agregamos al dibujo
+        If e.Gender <> "" Then drw.Entities.Add(e, e.Handle)
+
+    Next
+
+
+
+
+    Return (drw.Entities.Count > 0) ' True si reconocimos alguna entidad
+
+End
+
+Public Sub SetCommonStuff(cElement As Collection, e As Entity, drw As Drawing)
+
+    ' common stuff
+    e.pLayer = gcd.GetLayer(cElement["layer"])
+    e.Colour = cElement["color"]
+    e.LineType = drw.LineTypes[drw.LineTypes.First]
+    e.LineWidth = cElement["weight"]
+    e.Handle = gcd.NewHandle()
+
+
+
+End
+
+Public Function Point3DtoArray2D(p3 As Float[][]) As Float[]
+
+    Dim fPoint3 As Float[]
+    Dim fRet As New Float[]
+
+    For Each fPoint3 In p3
+        fRet.Add(fPoint3[0])        ' X
+        fRet.Add(fPoint3[1])        ' Y
+        ' fRet.Add(fPoint3[2])      ' Z es ignorado
+    Next
+
+    Return fRet
+
+End
+
+
+Public Function Point3DtoArray3D(p3 As Float[][]) As Float[]
+
+    Dim fPoint3 As Float[]
+    Dim fRet As New Float[]
+
+    For Each fPoint3 In p3
+        fRet.Add(fPoint3[0])        ' X
+        fRet.Add(fPoint3[1])        ' Y
+        fRet.Add(fPoint3[2])        ' Z
+    Next
+
+    Return fRet
 
 End
