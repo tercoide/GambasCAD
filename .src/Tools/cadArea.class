@@ -37,6 +37,7 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
     Me.PointsTotal = 1e10
 
     DrawingAids.CmdLineHelper = ("Area") & " : " & ("mark points")
+    poli.Clear
     Poli.Add(0)
     Poli.Add(0)
 
@@ -47,13 +48,18 @@ End
 
 Public Function MouseUp()
 
-    Inc Me.PointsDone
+    If Mouse.Left Then
 
-    Poli[Poli.max - 1] = Me.SelEndXr
-    Poli[Poli.max] = Me.SelEndYr
+        Inc Me.PointsDone
 
-    Poli.Add(Me.SelEndXr)
-    Poli.Add(Me.SelEndYr)
+        Poli[Poli.max - 1] = Me.SelEndXr
+        Poli[Poli.max] = Me.SelEndYr
+
+        Poli.Add(Me.SelEndXr)
+        Poli.Add(Me.SelEndYr)
+    Else
+        Me.Finish
+    End If
 
 End
 
@@ -126,23 +132,16 @@ Public Sub Draw()               ' called by gcd.CurrDrawing.drwArea_Draw
 
 End
 
-Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD en el evento FCAD_KeyPress cuando recibe una texto + <Enter>
 
-    If EnteredText = "" Then        'enter
-
-        Me.Finish
-
-    End If
-
-    ' catch
-
-    DrawingAids.ErrorMessage = ("Bad input")
-
-End
 
 Public Sub Finish()
 
     If Me.PointsDone > 2 Then
+        
+        If poli.Count > 6 Then poli.Resize(poli.Count - 2)
+        
+        fArea = puntos.PoligonArea(poli)
+        fPerim = puntos.PoligonLength(poli, True)
 
         gcd.debugInfo(("Area") & " = " & Format(fArea, Config.FormatInquiries),, True)
         gcd.debugInfo(("Perimeter") & " = " & Format(fPerim, Config.FormatInquiries),, True)

@@ -38,6 +38,7 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
     Me.PointsTotal = 1e10
 
     DrawingAids.CmdLineHelper = "Ruler : " & ("mark points")
+    poli.Clear
     Poli.Add(0)
     Poli.Add(0)
 
@@ -50,15 +51,21 @@ Public Function MouseUp()
 
     Dim i As Integer
 
-    Inc Me.PointsDone
+    If Mouse.Left Then
 
-    Me.SelEndXr = gcd.Near(gcd.Xreal(mouse.x))
-    Me.SelEndyr = gcd.Near(gcd.Yreal(mouse.Y))
+        Inc Me.PointsDone
 
-    Poli[Poli.max - 1] = Me.SelEndXr
-    Poli[Poli.max] = Me.SelEndYr
-    Poli.Add(Me.SelEndXr)
-    Poli.Add(Me.SelEndYr)
+        Me.SelEndXr = gcd.Near(gcd.Xreal(mouse.x))
+        Me.SelEndyr = gcd.Near(gcd.Yreal(mouse.Y))
+
+        Poli[Poli.max - 1] = Me.SelEndXr
+        Poli[Poli.max] = Me.SelEndYr
+        Poli.Add(Me.SelEndXr)
+        Poli.Add(Me.SelEndYr)
+    Else
+
+        Me.Finish
+    End If
 
 End
 
@@ -90,23 +97,14 @@ Public Sub Draw()               ' called by gcd.CurrDrawing.drwArea_Draw
 
 End
 
-Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD en el evento FCAD_KeyPress cuando recibe una texto + <Enter>
 
-    If EnteredText = "" Then        'enter
-
-        Me.Finish
-
-    End If
-
-    ' catch
-
-    DrawingAids.ErrorMessage = ("Bad input")
-
-End
 
 Public Sub Finish()
 
     Dim i As Integer, ip As Integer, Prot As New Float[]
+
+    If poli.Count > 6 Then poli.Resize(poli.Count - 2)
+    fLengthTotal = puntos.PoligonLength(poli, False)
 
     gcd.debugInfo(("Last trame") & " = " & Format(fLength, Config.FormatInquiries),, True)
     gcd.debugInfo(("Total length") & " = " & Format(fLengthTotal, Config.FormatInquiries),, True)
