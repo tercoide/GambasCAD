@@ -56,11 +56,16 @@ Public PointsDone As Integer
 Public PointsTotal As Integer
 Public NextParamType As String          ' What kind of input the element expects P=point, F=float, C=color, S=string, M=mixed either Point, or Float that is taken from Max(Px-Px', Pz-Pz')
 Public NextParamDefault As Variant      ' default value
+Public NextParam As String              ' Una descripcion de lo que esperamos: _BASe point, _ADDentities, _REMove entities
+Public Prompt As String
+
 
 Public Active As Boolean = False
 Public PoiChecking As Boolean = False
 Public EntityChecking As Boolean = False
 Public Mode As Integer
+Public ActionActive As Integer
+
 
 Public MenuRightClick As String
 
@@ -95,11 +100,7 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _mode As Integer
 
 End
 
-Public Function NewParameter(vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
 
-    ' dummy
-
-End
 
 Public Sub Draw()               ' called by gcd.CurrDrawing.drwArea_Draw
 
@@ -110,7 +111,7 @@ Public Sub Draw()               ' called by gcd.CurrDrawing.drwArea_Draw
     gl.CallList(gcd.Drawing.GlListSelectedEntities)
     gl.PopMatrix
 
-    DrawingAids.DrawDxDy([Me.SelStartXr, Me.SelStartYr], [Me.SelEndXr, Me.SelEndYr])
+    'DrawingAids.DrawDxDy([Me.SelStartXr, Me.SelStartYr], [Me.SelEndXr, Me.SelEndYr])
 
 End
 
@@ -128,11 +129,25 @@ Public Function KeyText(EnteredText As String)
         Case "_CANCEL"
             Me.Cancel
             Return
-
         Case "_FINISH"
             Me.Finish
             Return
 
+            ' agregar o eliminar entidades de la seleccion
+        Case "_ADD"
+
+            gcd.clsJobPrevious = gcd.clsJob
+            gcd.clsJob = cadSelection
+            cadSelection.Mode = cadSelection.ModeAddEntities
+
+
+        Case "_REM", "_REMOVE"
+            gcd.clsJobPrevious = gcd.clsJob
+            gcd.clsJob = cadSelection
+            cadSelection.Mode = cadSelection.ModeRemoveEntities
+
+
+            ' Snap points
         Case "_MIDPOINT", "_MID"
             gcd.SnapMode = gcd.poiMidPoint
         Case "_ENDPOINT", "_END"
@@ -164,39 +179,28 @@ Public Function KeyText(EnteredText As String)
             ' U = undo, delete last segment
             ' and others
 
-            If Left(EnteredText, 1) = "C" Then          ' close the element
-                ' got othe first point and exit
-                If gcd.clsJob.NewParameter(["close"]) Then Me.Finish
+            ' an X,Y or @X,Y
 
-            Else If Left(EnteredText, 1) = "U" Then     ' undo last command and go
+            If InStr(EnteredText, "@") > 0 Then    ' may be a point
+                Relative = True
+                EnteredText = Replace(EnteredText, "@", "")
+            Endif
+            Xt = CFloat(Split(EnteredText, ",")[0])
+            yt = CFloat(Split(EnteredText, ",")[1])
 
-                If gcd.clsJob.NewParameter(["undo"]) Then Me.Finish
+            If Relative Then
+                xt += Me.LastX
+                yt += Me.LastY
 
-            Else                                        ' an X,Y or @X,Y
+            Endif
+            Me.LastX = xt
+            Me.LastY = yt
 
-                If InStr(EnteredText, "@") > 0 Then    ' may be a point
-                    Relative = True
-                    EnteredText = Replace(EnteredText, "@", "")
-                Endif
-                Xt = CFloat(Split(EnteredText, ",")[0])
-                yt = CFloat(Split(EnteredText, ",")[1])
+            ' last point
+            gcd.Drawing.LastPoint.Clear
+            gcd.Drawing.LastPoint.Insert([xt, yt])
 
-                If Relative Then
-                    xt += Me.LastX
-                    yt += Me.LastY
 
-                Endif
-                Me.LastX = xt
-                Me.LastY = yt
-
-                If gcd.clsJob.NewParameter(["point", xt, yt], True) Then
-                    ' last point
-                    gcd.Drawing.LastPoint.Clear
-                    gcd.Drawing.LastPoint.Insert([xt, yt])
-
-                End If
-
-            End If
 
             ' Case "T"
             '     errtxt = ", expected text, not a point"
