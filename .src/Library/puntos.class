@@ -31,7 +31,7 @@
 
 Create Static       ' This two preposition are the same as creating a module instead of a
 Create Private      ' class in Gambas.
-'Fast Unsafe        ' TODO: alwways set this after debugging
+Fast Unsafe        ' TODO: alwways set this after debugging
 Public HookSize As Integer = 16                       ' for use with poi
 Public NumericTolerance As Float = 1e-7
 
@@ -1251,7 +1251,7 @@ Public Function DashedLineStrip(BaseX As Float, BaseY As Float, flxStrip As Floa
 
     Dim fTrame, fOffset, fDashTotal, fDistance, DashLength, DashTrame As Float
     Dim iPatternOffset, iPatternN As Integer
-    Dim ie, i, AlPedo, Sirve, nTrames As Integer
+    Dim ie, i, AlPedo, Sirve, nTrames, iDashTrame As Integer
     Dim flxTrimmedLine, flxPatternLimits, flxContorno, flxFirstPass, flxSecondPass, flxInter As New Float[]
     Dim CosA, SinA, DashBaseX, DashBaseY, DashFinalX, DashFinalY As Float
     Dim SeedX, SeedY, SeedIndex, CosB, SinB, TanB, CosAB, SinAB, TanAB, fAngle As Float
@@ -1278,6 +1278,8 @@ Public Function DashedLineStrip(BaseX As Float, BaseY As Float, flxStrip As Floa
     fDistance = puntos.distancia(flxStrip[0], flxStrip[1], BaseX, BaseY)    ' calculo la distancia al punto base
 
     fOffset = Utils.fMod(fDistance, fDashTotal)                             ' el offset donde arranco
+
+    '
 
     For i = 0 To flxStrip.Max - 1 Step 2
 
@@ -1308,50 +1310,61 @@ Public Function DashedLineStrip(BaseX As Float, BaseY As Float, flxStrip As Floa
 
         Do                                      ' Trazo los dashed a lo largo de la linea
 
-            For Each DashTrame In flxDashes
-                If DashTrame < 0 Then bSpace = True Else bSpace = False
-
-                DashCut = Abs(DashTrame)
-
-                If fOffset > 0 Then
-                    fOffset -= Abs(DashTrame)
-                    If fOffset < 0 Then             ' con este tramo ya contemplo todo el offset
-                        DashCut = -fOffset
-                        fOffset = 0
-                    Else                        ' este dash no se traza
-                        Continue
-                    Endif
-                Endif
-
-                ' ahora verifico que no me pase de la linea
-                If DashCut > fTrame Then ' me estoy pasando
-                    fOffset = fTrame ' este offset pasa al siguiente tramo a rellenar
-                    DashCut = fTrame
-                    fTrame = 0
-                Else
-                    fTrame -= DashCut
-                End If
-
-                DashFinalX = DashBaseX + DashCut * CosB
-                DashFinalY = DashBaseY + DashCut * SinB
-
-                If Not bSpace Then
-                    flxFirstPass.insert([DashBaseX, DashBaseY, DashFinalX, DashFinalY])
-
-                    ' Else If DashCut = 0 Then
-                    '     If puntos.isInside(flxContorno, DashBaseX, DashBaseY) Then
-                    '         flxFirstPass.insert([DashBaseX, DashBaseY, DashFinalX, DashFinalY])
-                    '     Endif
-                End If
+            ' Repaso:
+            ' fOffset es lo que resto al dash para trazarlo, porque ya se trazo antes
+            '        ---------------------   Trazo
+            '         fOffset ^ DashCut
+            '        <-    DashTrame    ->
+            ' DashTrame = fOffset + DashCut
 
 
-                DashBaseX = DashFinalX
-                DashBaseY = DashFinalY
+            DashTrame = flxDashes[iDashTrame]
 
-                If fTrame = 0 Then Break
-            Next
+            ' ace veo si es trazo o es espacio
+            If DashTrame < 0 Then
+                bSpace = True
+            Else
+                bSpace = False
+            End If
 
-            If fTrame = 0 Then Break
+            DashTrame = Abs(DashTrame)
+
+            DashCut = DashTrame - fOffset
+
+            ' Esto es lo que me queda por trazar, pero puede ocurrir que el tramo donde trazarlo sea mas corto
+            ' ahora verifico que no me pase de la linea
+            If DashCut > fTrame Then            ' me estoy pasando
+                fOffset += fTrame               ' este offset pasa al siguiente tramo a rellenar
+                DashCut = fTrame                ' trazo solo lo que me queda
+                fTrame = 0
+
+            Else                                ' el trazo completo entra en lo que me queda de tramo
+                fTrame -= DashCut               ' resto el trazo al tramo
+                fOffset = 0
+            End If
+
+            DashFinalX = DashBaseX + DashCut * CosB
+            DashFinalY = DashBaseY + DashCut * SinB
+
+            If Not bSpace Then
+                flxFirstPass.insert([DashBaseX, DashBaseY, DashFinalX, DashFinalY])
+
+                ' Else If DashCut = 0 Then
+                '     If puntos.isInside(flxContorno, DashBaseX, DashBaseY) Then
+                '         flxFirstPass.insert([DashBaseX, DashBaseY, DashFinalX, DashFinalY])
+                '     Endif
+            End If
+
+
+            DashBaseX = DashFinalX
+            DashBaseY = DashFinalY
+
+
+
+            If fTrame = 0 Then Break                                ' el tramo ya se completo con los dashes
+
+            Inc iDashTrame                                          ' paso al siguiente dash
+            If iDashTrame > flxDashes.Max Then iDashTrame = 0       ' ya hice todos los dashes, pero vuelvo al inicial para completar el tramo
 
         Loop
 
