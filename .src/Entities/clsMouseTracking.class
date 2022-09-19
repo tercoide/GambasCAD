@@ -12,6 +12,11 @@
 Create Static
 Create Private
 
+
+Public LastFound As Entity              ' ultima entidad encontrada
+Public LastPointToCursorDistance As Float
+
+
 'Fast Unsafe
 
 ' poi
@@ -106,7 +111,64 @@ Public Sub ReBuildPOI()
 End
 
 '' Veo si estoy sobre una entidad y la devuelvo
-Public Function CheckAboveEntity(xr As Float, Yr As Float, Optional iTolerance As Integer = 16) As Entity
+Public Function CheckAboveEntities(xr As Float, Yr As Float, Optional iTolerance As Integer = 16) As Entity[]
+
+    Dim fEntities As New Entity[]
+    Dim e As Entity
+
+    Do
+        e = CheckAboveEntity(xr, yr,, e)
+        If e Then
+            If fEntities.Count > 0 Then
+                If e = fEntities.First Then Break
+            End If
+            fEntities.Add(e)
+        Else
+            Break
+        End If
+
+
+    Loop
+    Return fEntities
+
+End
+
+Public Function CheckBestPOI(xr As Float, Yr As Float) As Float[]
+
+    Dim CurrentPoint, BestPoint As New Float[]
+    Dim d, ShortestDistance As Float
+    Dim e As Entity
+
+    BestPoint.Add(0)
+    BestPoint.Add(0)
+    BestPoint.Add(0)
+    ShortestDistance = 1e10
+
+    For Each e In gcd.Drawing.HoveredEntities
+        CurrentPoint = CheckPOI(xr, yr, e)
+        If CurrentPoint[2] > 0 Then
+            d = puntos.distancia(xr, yr, CurrentPoint[0], CurrentPoint[1])
+
+            If d < ShortestDistance Then
+                ShortestDistance = d
+                BestPoint[0] = CurrentPoint[0]
+                BestPoint[1] = CurrentPoint[1]
+                BestPoint[2] = CurrentPoint[2]
+            Endif
+
+        Endif
+    Next
+
+    Return BestPoint
+
+End
+
+
+
+
+
+'' Veo si estoy sobre una entidad y la devuelvo
+Public Function CheckAboveEntity(xr As Float, Yr As Float, Optional iTolerance As Integer = 16, SkipEntiy As Entity) As Entity
 
     Dim iVisible As Integer
     Dim Found As Boolean = True
@@ -128,7 +190,12 @@ Public Function CheckAboveEntity(xr As Float, Yr As Float, Optional iTolerance A
 
         If Not eVisible.Trackable Then Continue
 
+        ' vemos si esta entidad no debo tenerla en cuenta
+        If eVisible = SkipEntiy Then Continue
+
         If Gcd.CCC[eVisible.gender].overme(eVisible, xr, yr, tolerance) Then
+
+
             Found = True
             If eVisible.pBlock Then
                 eInsertFound = eVisible
@@ -214,7 +281,7 @@ Public Sub CheckPOI(xr As Float, Yr As Float, Optional e As Entity) As Float[]
     ' Me.flgSearchingPOI = False
     ' Return rdata
     'Debug "total poi check time ", Timer - t, gcd.CurrDrawing.poiPoligons.Count + gcd.CurrDrawing.poiLines.Count + gcd.CurrDrawing.poiPoints.Count, " points parsed"
-    e = gcd.Drawing.HoveredEntity
+    'e = gcd.Drawing.HoveredEntity
 
     If Not e Then
         gcd.flgSearchingPOI = False
@@ -536,6 +603,7 @@ Public Sub CheckPOI(xr As Float, Yr As Float, Optional e As Entity) As Float[]
 
     ' Debug "pois checked"
     gcd.flgSearchingPOI = False
+    Me.LastPointToCursorDistance = dist
     gcd.Drawing.eLastEntity = e
     Return rData
 
