@@ -121,7 +121,7 @@ Public Sub DibujaHelper()
 
     HelperDibujo = ""
     If gcd.Orthogonal Then HelperDibujo = "F8-Ortho"
-    If fmain.GridActive Then HelperDibujo = HelperDibujo & "  F7-Grid = " & Format$(fmain.GridSpacing, "0.00 m")
+    If gcd.Drawing.GridActive Then HelperDibujo = HelperDibujo & "  F7-Grid = " & Format$(gcd.Drawing.GridMinorSpacing, "0.00 m")
     ' and so on...
 
     texting(HelperDibujo, 40, 10 - gcd.Drawing.GLAreaInUse.h / 2, config.WindowInfoColor)
@@ -278,54 +278,114 @@ Public Sub DrawEjes()
 
 End
 
-' Public Sub DrawCaudricula()
-'
-'   ' crossing lines each gridspace and darker each 10m
-'
-'   Dim i, xgg, ygg, xg, yg As Single, espaciado As Single, starting As Single
-'
-'   espaciado = fMain.pixels(puntos.GridSpacing) ' tamaño de la grid en pixeles
-'
-'   xg = gcd.xreal(0) ' Puntos reales aproximados al 0,0 de la pantalla
-'   yg = gcd.Yreal(0)
-'
-'   xg = puntos.Near(xg) ' punto en mundo real ajustado a grid
-'   yg = puntos.Near(yg)
-'
-'   xg = puntos.Xpix(xg) - espaciado * 2 ' punto inicial en la drawing area
-'   yg = puntos.Ypix(yg) - espaciado * 2
-'
-'   xgg = xg
-'   ygg = yg
-'
-'   starting = yg ' guardo el Y inicial
-'
-'   paint.brush = Paint.Color(Color.Gray)
-'   paint.LineWidth = 1
-'
-'   ' lineas finas
-'   Do ' lineas horizontales
-'     If espaciado < 5 Then Break
-'     paint.MoveTo(xg, yg)
-'     paint.RelLineTo(FCAD.drwArea.W + espaciado, 0)
-'     yg += espaciado - 0.5
-'
-'   Loop Until yg > (FCAD.drwArea.Height + espaciado * 2)
-'
-'   xg = xgg
-'   yg = ygg
-'   Do ' verticales
-'     If espaciado < 5 Then Break
-'     paint.MoveTo(xg, yg)
-'     paint.RelLineTo(0, gcd.Drawing.DdrwArea.Height + espaciado)
-'     xg += espaciado - 0.5
-'   Loop Until xg > (FCAD.drwArea.Width + espaciado * 2)
-'
-'   ' lineas gruesas
-'
-'   paint.Stroke
-'
-' End
+Public Sub RebuildGrid()
+
+
+    Dim x0, y0, x1, y1 As Float
+    Dim espaciado As Float
+    Dim x, y As Float
+
+    x0 = gcd.Near(gcd.Xreal(0))
+    Y0 = gcd.Near(gcd.Yreal(0))
+    x1 = gcd.Near(gcd.Xreal(fmain.GLArea1.W))
+    y1 = gcd.Near(gcd.Yreal(fmain.GLArea1.h))
+
+    espaciado = gcd.Drawing.GridMinorSpacing
+
+    Do
+        If gcd.Pixels(espaciado) < 5 Then espaciado *= 10
+    Loop Until gcd.Pixels(espaciado) > 5
+
+
+    If Not gl.islist(gcd.Drawing.GLListGrid) Then gcd.Drawing.GLListGrid = gl.GenLists(1)
+    gl.NewList(gcd.Drawing.GLListGrid, gl.COMPILE)
+
+    Select Case gcd.Drawing.GridStyle
+        Case 0 ' puntos
+            gl.Begin(gl.POINTS)
+            glPlus.glColorRGB(Config.WhiteAndBlack)
+            For y = y1 To y0 Step espaciado
+                For x = x0 To x1 Step espaciado
+                    gl.Vertex2f(x, y)
+                Next
+            Next
+
+
+            gl.End
+
+
+        Case 1 ' cuadricula
+
+            For y = y1 To y0 Step espaciado
+                glPlus.Lines([x0, y, x1, y], Color.Gray, 1)
+            Next
+
+            For x = x0 To x1 Step espaciado
+                glPlus.Lines([x, y0, x, y1], Color.Gray, 1)
+            Next
+
+
+
+
+    End Select
+    gl.EndList
+
+
+
+End
+
+Public Sub DrawCaudricula()
+
+    ' crossing lines each gridspace and darker each 10m
+
+    Dim i, xgg, ygg, xg, yg As Single, espaciado As Single, starting As Single
+    Dim W, H As Integer
+
+
+
+
+    xg = gcd.xreal(0) ' Puntos reales aproximados al 0,0 de la pantalla
+    yg = gcd.Yreal(0)
+
+    xg = gcd.Near(xg) ' punto en mundo real ajustado a grid
+    yg = gcd.Near(yg)
+
+    xg = gcd.Xpix(xg) - espaciado * 2 ' punto inicial en la drawing area
+    yg = gcd.Ypix(yg) - espaciado * 2
+
+    xgg = xg
+    ygg = yg
+
+    W = fmain.GLArea1.W
+    H = fmain.GLArea1.H
+
+    starting = yg ' guardo el Y inicial
+
+    If Not gl.islist(gcd.Drawing.GLListGrid) Then gcd.Drawing.GLListGrid = gl.GenLists(1)
+    gl.NewList(gcd.Drawing.GLListGrid, gl.COMPILE)
+
+
+    ' lineas finas
+    Do ' lineas horizontales
+        If espaciado < 5 Then Break
+        glPlus.Lines([xg, yg, xg + W + espaciado, yg], Color.Gray, 1)
+        yg += espaciado - 0.5
+
+    Loop Until yg > (H + espaciado * 2)
+
+    xg = xgg
+    yg = ygg
+    Do ' verticales
+        If espaciado < 5 Then Break
+        glPlus.Lines([xg, yg, xg, yg + H + espaciado], Color.Gray, 1)
+        xg += espaciado - 0.5
+    Loop Until xg > (W + espaciado * 2)
+
+    ' lineas gruesas
+
+    gl.EndList
+
+End
 
 Public Sub DrawPolygons() ' and other debugging stuff
 
