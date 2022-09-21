@@ -99,7 +99,7 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
                     cLlaveActual = cToFill["HEADER"]
                 End If
 
-                Load1HeadersDirect(drw.oHeader)
+                Load1HeadersDirect(drw.Headers)
                 gcd.debugInfo("Leidos Headers",,, True)
 
             End If
@@ -227,7 +227,7 @@ Private Sub ReadData()
 
 End
 
-Private Sub Load1HeadersDirect(oHeader As Headers)
+Private Sub Load1HeadersDirect(Headers As Headers)
 
     ' Los header se guardan asi
     '   9                     Indica que es una variable
@@ -262,7 +262,7 @@ Private Sub Load1HeadersDirect(oHeader As Headers)
                 If lpcode = "0" Or lpCode = "9" Then Break
                 cVariable.Add(lpvalue)
             Loop
-            If Not oHeader.SetValues(sVarName, cVariable) Then gcd.debugInfo("Var " & sVarName & " not found.")
+            If Not Headers.SetValues(sVarName, cVariable) Then gcd.debugInfo("Var " & sVarName & " not found.")
             Inc i
 
         Endif
@@ -283,7 +283,7 @@ Private Sub Load2Classes(drwLoading As Drawing)
         If lpValue = "ENDSEC" Then Return
 
         cClass = New CadClass
-        drwLoading.oClasses.Add(cClass)
+        drwLoading.CadClasses.Add(cClass)
 
         ReadData
 
@@ -666,7 +666,7 @@ Public Function SaveFile(sName As String, drwToSAve As Drawing, Optional LoadMin
     LastHandle = 0          ' creamos las handles desde cero
 
     If SaveHeader Then
-        If Save1HeadersAndVarsDirect(drwToSAve.oHeader) Then Goto Error1
+        If Save1HeadersAndVarsDirect(drwToSAve.Headers) Then Goto Error1
 
         If Save2Classes(drwToSAve) Then Goto Error1
     End If
@@ -694,7 +694,7 @@ Error1:
 
 End
 
-Private Function Save1HeadersAndVarsDirect(oHeader As Headers) As Integer
+Private Function Save1HeadersAndVarsDirect(Headers As Headers) As Integer
 
     Dim sValues As String
     Dim stxHeaders As String[]
@@ -706,7 +706,7 @@ Private Function Save1HeadersAndVarsDirect(oHeader As Headers) As Integer
     Print #hFIle, "2"
     Print #hFIle, "HEADER"
 
-    stxHeaders = oHeader.ExportDXF()
+    stxHeaders = Headers.ExportDXF()
 
     For Each sValues In stxHeaders
         Print #hFile, sValues
@@ -730,7 +730,7 @@ Private Function Save2Classes(drwSaving As Drawing) As Integer
     Print #hFIle, "CLASSES"
 
     ' here go all entities
-    For Each cClass In drwSaving.oClasses
+    For Each cClass In drwSaving.CadClasses
         Print #hFIle, "  0"
         Print #hFIle, "CLASS"
 
@@ -862,23 +862,23 @@ Private Function Save3TableAppID(drw As Drawing) As Integer
     Print #hFIle, "  2"
     Print #hFIle, "APPID"
     Print #hFIle, "  5"         ' handle
-    Print #hFIle, drw.oAppID["__handle__"] ' un registro especial que contiene la handle de la tabla, cargado al leer
+    Print #hFIle, drw.AppIDs["__handle__"] ' un registro especial que contiene la handle de la tabla, cargado al leer
     Print #hFIle, "  330"   ' handle al padre de esta tabla, que es 0 porque pertenece al drawing
     Print #hFIle, "0"
     Print #hFIle, "  100"
     Print #hFIle, "AcDbSymbolTable"
     Print #hFIle, "  70"
-    Print #hFIle, CStr(drw.oAppID.Count)
+    Print #hFIle, CStr(drw.AppIDs.Count)
 
     ' APPID
     Dim oneAppid As APPID
-    For Each oneAppid In drw.oAppID
+    For Each oneAppid In drw.AppIDs
         Print #hFIle, "  0"
         Print #hFIle, "APPID"
         Print #hFIle, "  5"                     ' handle propio
-        Print #hFIle, drw.oAppID.Key            ' la key es la handle
+        Print #hFIle, drw.AppIDs.Key            ' la key es la handle
         Print #hFIle, "  330"                   ' handle del padre
-        Print #hFIle, drw.oAppID["__handle__"]  ' apunta al handle de esta tabla
+        Print #hFIle, drw.AppIDs["__handle__"]  ' apunta al handle de esta tabla
         Print #hFIle, "  100"
         Print #hFIle, "AcDbSymbolTableRecord"
         Print #hFIle, "  100"
@@ -950,22 +950,22 @@ Private Function Save3TableTextStyles(drw As Drawing) As Integer
     Print #hFIle, "  2"
     Print #hFIle, "STYLE"
     Print #hFIle, "  5"         ' handle
-    Print #hFIle, drw.oTextStyles["__handle__"] ' un registro especial que contiene la handle de la tabla, cargado al leer
+    Print #hFIle, drw.TextStyles["__handle__"] ' un registro especial que contiene la handle de la tabla, cargado al leer
     Print #hFIle, "  330"   ' handle al padre de esta tabla, que es 0 porque pertenece al drawing
     Print #hFIle, "0"
     Print #hFIle, "  100"
     Print #hFIle, "AcDbSymbolTable"
     Print #hFIle, "  70"
-    Print #hFIle, CStr(drw.oTextStyles.Count)
+    Print #hFIle, CStr(drw.TextStyles.Count)
 
     Dim oneTextStyle As TextStyle
-    For Each oneTextStyle In drw.oTextStyles
+    For Each oneTextStyle In drw.TextStyles
         Print #hFIle, "  0"
         Print #hFIle, "STYLE"
         Print #hFIle, "  5"                     ' handle propio
-        Print #hFIle, drw.oTextStyles.Key            ' la key es la handle
+        Print #hFIle, drw.TextStyles.Key            ' la key es la handle
         Print #hFIle, "  330"                   ' handle del padre
-        Print #hFIle, drw.oTextStyles["__handle__"]  ' apunta al handle de esta tabla
+        Print #hFIle, drw.TextStyles["__handle__"]  ' apunta al handle de esta tabla
         Print #hFIle, "  100"
         Print #hFIle, "AcDbSymbolTableRecord"
         Print #hFIle, "  100"
@@ -1210,22 +1210,22 @@ Private Function Save3TableViews(drw As Drawing) As Integer
     Print #hFIle, "  2"
     Print #hFIle, "VIEW"
     Print #hFIle, "  5"         ' handle
-    Print #hFIle, drw.oViews["__handle__"] ' un registro especial que contiene la handle de la tabla, cargado al leer
+    Print #hFIle, drw.Views["__handle__"] ' un registro especial que contiene la handle de la tabla, cargado al leer
     Print #hFIle, "  330"   ' handle al padre de esta tabla, que es 0 porque pertenece al drawing
     Print #hFIle, "0"
     Print #hFIle, "  100"
     Print #hFIle, "AcDbSymbolTable"
     Print #hFIle, "  70"
-    Print #hFIle, CStr(drw.oViews.Count)
+    Print #hFIle, CStr(drw.Views.Count)
 
     Dim oneView As View, sData As String
-    For Each oneView In drw.oViews
+    For Each oneView In drw.Views
         Print #hFIle, "  0"
         Print #hFIle, "VIEW"
         Print #hFIle, "  5"                     ' handle propio
-        Print #hFIle, drw.oViews.Key            ' la key es la handle
+        Print #hFIle, drw.Views.Key            ' la key es la handle
         Print #hFIle, "  330"                   ' handle del padre
-        Print #hFIle, drw.oViews["__handle__"]  ' apunta al handle de esta tabla
+        Print #hFIle, drw.Views["__handle__"]  ' apunta al handle de esta tabla
         Print #hFIle, "  100"
         Print #hFIle, "AcDbSymbolTableRecord"
         Print #hFIle, "  100"
@@ -1247,22 +1247,22 @@ Private Function Save3TableViewPorts(drw As Drawing) As Integer
     Print #hFIle, "  2"
     Print #hFIle, "VPORT"
     Print #hFIle, "  5"         ' handle
-    Print #hFIle, drw.oViewports["__handle__"] ' un registro especial que contiene la handle de la tabla, cargado al leer
+    Print #hFIle, drw.Viewports["__handle__"] ' un registro especial que contiene la handle de la tabla, cargado al leer
     Print #hFIle, "  330"   ' handle al padre de esta tabla, que es 0 porque pertenece al drawing
     Print #hFIle, "0"
     Print #hFIle, "  100"
     Print #hFIle, "AcDbSymbolTable"
     Print #hFIle, "  70"
-    Print #hFIle, CStr(drw.oViewports.Count)
+    Print #hFIle, CStr(drw.Viewports.Count)
 
     Dim oneViewport As Viewport, sData As String
-    For Each oneViewport In drw.oViewports
+    For Each oneViewport In drw.Viewports
         Print #hFIle, "  0"
         Print #hFIle, "VPORT"
         Print #hFIle, "  5"                     ' handle propio
-        Print #hFIle, drw.oViewports.Key            ' la key es la handle
+        Print #hFIle, drw.Viewports.Key            ' la key es la handle
         Print #hFIle, "  330"                   ' handle del padre
-        Print #hFIle, drw.oViewports["__handle__"]  ' apunta al handle de esta tabla
+        Print #hFIle, drw.Viewports["__handle__"]  ' apunta al handle de esta tabla
         Print #hFIle, "  100"
         Print #hFIle, "AcDbSymbolTableRecord"
         Print #hFIle, "  100"
@@ -1569,7 +1569,7 @@ Public Sub ReadViewports(cVptData As Collection, drw As Drawing)
 
     ' ' primero eliminamos lo q haya
     If Not cVptData["TABLES"].Exist("VPORT") Then Return
-    Drw.oViewports.Clear
+    Drw.Viewports.Clear
     For Each cViewp As Collection In cVptData["TABLES"]["VPORT"]
         vNew = New Viewport
         ' hLay.Name = cLay[dxf.codName]
@@ -1638,7 +1638,7 @@ Public Sub ReadStyles(cData As Collection, drw As Drawing)
     Dim hdim As DimStyle
 
     ' primero eliminamos lo q haya
-    Drw.otextStyles.Clear
+    Drw.TextStyles.Clear
     ' Leo los styles de texto
     For Each c As Collection In cData["TABLES"]["STYLE"]
         hlty = New TextStyle
@@ -1654,7 +1654,7 @@ Public Sub ReadStyles(cData As Collection, drw As Drawing)
         ' If hlty.FixedH_40 = 0 Then hlty.FixedH_40 = CFloat(c["42"])
 
         If hlty.handle = "" Then sH2 = hlty.name Else sH2 = hlty.handle
-        Drw.otextStyles.Add(hlty, sh2)
+        Drw.TextStyles.Add(hlty, sh2)
 
     Next
 
