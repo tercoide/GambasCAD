@@ -73,9 +73,9 @@ Public Function BuildGeometry(E As Entity, Optional density As Float)
         ' para solidos, tengo que hacer una llamada para cada loop de borde
         ' tengo q ver cuantos puntos tiene cada loop
         ' Ojo con LibreCAD
-        'For Each oLoop In e.pBlock.oBoundaryPath
+        'For Each oLoop In hData.BoundaryPath
 
-        oLoop = e.pBlock.oBoundaryPath
+        oLoop = e.pBlock.BoundaryPath
         MakeBorder2(oloop)
         If oLoop.Polylines.Count = 0 Then Return
         oLoop.Triangles = puntos.PolygonTriangulation(oLoop.Polylines[0])
@@ -117,8 +117,8 @@ Public Sub Draw(oE As Entity)
         ' para solidos, tengo que hacer una llamada para cada loop de borde
         ' tengo q ver cuantos puntos tiene cada loop
         ' Ojo con LibreCAD
-        'For Each oLoop In oe.pBlock.oBoundaryPath
-        oLoop = oe.pBlock.oBoundaryPath
+        'For Each oLoop In ohData.BoundaryPath
+        oLoop = oe.pBlock.BoundaryPath
         ' obtengo el poligono de bordes
         ' fBorder.Clear
         ' fBorder.Insert(oLoop.e.PolyLine.Copy(iStart, oe.iParam[iLoop]))
@@ -238,22 +238,22 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     Dim EdgeType As Integer
     Dim eContour As Entity
     Dim edge As Integer
-    Dim oNewPAth As Boundary
+    Dim NewPath As Boundary
     Dim oPattern As Pattern
     ' Dim jscPath, vSeg As JSONCollection
     Dim RefObjHandle As String
     Dim DashLength, fVar As Float
-
-    'If e.Handle = "60FA9" Then Stop
+    Dim hData As Hatch
 
     ' vamos a agrupar las entidades que forman el contorno en un bloque
-    e.pBlock = New Block
-    e.pBlock.oBoundaryPath = New Boundary
-    oNewPAth = e.pBlock.oBoundaryPath
-    'e.pBlock.oBoundaryPath.Add(oNewPAth)
+    hData = New Hatch
+    e.pBlock = hData
+    hData.BoundaryPath = New Boundary
+    NewPath = hData.BoundaryPath
 
-    oNewPAth.eSegments = New Entity[]
-    oNewPAth.sHandles = New String[]
+
+    NewPath.eSegments = New Entity[]
+    NewPath.sHandles = New String[]
 
     'If e.Handle = "567A1" Then Stop
 
@@ -276,17 +276,17 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
             For iLoop = 0 To LoopToRead - 1 'descubri que un Loop puede o no ser un area a rellenar distinta, a veces un Loop es un agujero de otro Loop
 
-                ' oNewPAth = e.pBlock.oBoundaryPath
-                ' 'e.pBlock.oBoundaryPath.Add(oNewPAth)
+                ' NewPath = hData.BoundaryPath
+                ' 'hData.BoundaryPath.Add(NewPath)
                 '
-                ' oNewPAth.eSegments = New Entity[]
-                ' oNewPAth.sHandles = New String[]
+                ' NewPath.eSegments = New Entity[]
+                ' NewPath.sHandles = New String[]
                 Dec LoopToRead
                 ' estas claves definen el borde
 
                 i = dxf.ReadCode(92, sClaves, sValues, ByRef LoopType, i)
 
-                oNewPAth.Flag = LoopType
+                NewPath.Flag = LoopType
                 ' If i = True Then Stop
                 If (LoopType And 2) <> 2 Then ' otherwise is a polyline
                     Inc i
@@ -303,7 +303,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
                         eContour = New Entity
                         ' a esta entidad que es un borde le etiquetamos el loop al que pertenece
 
-                        oNewPAth.eSegments.Add(eContour, CStr(i))
+                        NewPath.eSegments.Add(eContour, CStr(i))
                         Select Case EdgeType
                             Case 0  ' invalido
 
@@ -421,7 +421,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
                             ' a esta entidad que es un borde le etiquetamos el loop al que pertenece
 
                             i = dxf.ReadCode(330, sClaves, sValues, ByRef RefObjHandle, i)
-                            oNewPAth.sHandles.Add(RefObjHandle)
+                            NewPath.sHandles.Add(RefObjHandle)
                         Next
                     End If
 
@@ -433,7 +433,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
                     ' a esta entidad que es un borde le etiquetamos el loop al que pertenece
 
                     ' Debug "PolyLine loop en un hatch"
-                    oNewPAth.eSegments.Add(eContour)
+                    NewPath.eSegments.Add(eContour)
 
                     Inc i
                     ' leo si tiene bulges
@@ -574,7 +574,7 @@ Public Function OverMe(e As Entity, Xr As Float, Yr As Float, tolerance As Float
 
     Dim oBound As Float[]
 
-    For Each oBound In e.pBlock.oBoundaryPath.Polylines
+    For Each oBound In e.pBlock.BoundaryPath.Polylines
 
         If puntos.isInside(oBound, xr, yr) Then Return True
 
@@ -778,15 +778,15 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
 
     Dim UsarNuevaFuncion As Boolean = False     ' TODO ver como hacer andar esto
 
-    If entToFill.fParam[cadHatch.ipaScale] = 0 Then
-        entToFill.fParam[cadHatch.ipaScale] = 1
+    If entToFill.fParam[Gcd.CCC["HATCH"].ipaScale] = 0 Then
+        entToFill.fParam[Gcd.CCC["HATCH"].ipaScale] = 1
     Else
-        ''entToFill.fParam[cadHatch.ipaScale] /= 12  ' TODO: verificar esta escala
+        ''entToFill.fParam[Gcd.CCC["HATCH"].ipaScale] /= 12  ' TODO: verificar esta escala
     Endif
 
-    'For Each oLoop In entToFill.pBlock.oBoundaryPath
+    'For Each oLoop In entToFill.pBlock.BoundaryPath
 
-    oloop = entToFill.pBlock.oBoundaryPath
+    oloop = entToFill.pBlock.BoundaryPath
 
 
 
