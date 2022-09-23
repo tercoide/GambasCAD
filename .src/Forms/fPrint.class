@@ -5,6 +5,8 @@ Public cPaperSizes As New Collection
 
 Public snxAreaToPrint As New Single[]
 
+Public SavingStyle As Boolean = False
+
 
 Public Sub btnCAncel_Click()
 
@@ -47,6 +49,8 @@ Public Sub Form_Open()
     Dim pstyPrintStyle As PrintStyle
 
     stxPrinters = Printer.List
+
+    LoadStyles
 
     cmbPrinter.List = stxPrinters
     cmbPrinter.Add(("Print to PDF file"), 0)
@@ -91,11 +95,9 @@ Public Sub Form_Open()
 
 End
 
-Public Sub btnPrint_Click()
+Public Sub SetStyle(ps As PrintStyle)
 
 
-    gcd.debuginfo("Printing")
-    gcd.DrawingReady = False
 
     If vlbScalePaper.Value = 0 Or vlbScaleDraw.Value = 0 Then
         Message.Error(("Wrong scale"))
@@ -111,14 +113,17 @@ Public Sub btnPrint_Click()
 
 
     ' coloco todo los parametros en el estilo de impresion en uso
-    With gcd.Drawing.CurrPrintStyle
+    With ps
         .ColorStyle = -((1 * radGray.Value) + (2 * radColor.Value))
 
         .PrintScale = vlbScalePaper.Value / vlbScaleDraw.Value  ' para aplicar la escala correcta debe setearse la impresora como "A3 sin margenes" por ej
+        .ScaleDrawingUnit = vlbScaleDraw.Value
+        .ScalePaper = vlbScalePaper.Value
 
         If radFitToPage.Value Then .PrintScale = -1
         .PaperSizeW = vlbWidth.Value
         .PaperSizeH = vlbHeight.Value
+        .PaperName = cmbPaperSize.Text
 
         ' margenes
         .PrintOffsetX = vlbLeft.Value
@@ -144,16 +149,29 @@ Public Sub btnPrint_Click()
         .PrintAreaY1 = snxAreaToPrint[3]
 
 
-        Printer1.Orientation = .PrintOrientation
-        Printer1.PaperHeight = .PaperSizeH
-        Printer1.PaperWidth = .PaperSizeW
-
-
     End With
+
+    gcd.Drawing.CurrPrintStyle = ps
+
+
+End
+
+Public Sub btnPrint_Click()
+
+
+    gcd.debuginfo("Printing")
+    gcd.DrawingReady = False
+
+    SetStyle(gcd.Drawing.CurrPrintStyle)
+
+
+
+    Printer1.Orientation = gcd.Drawing.CurrPrintStyle.PrintOrientation
+    Printer1.PaperHeight = gcd.Drawing.CurrPrintStyle.PaperSizeH
+    Printer1.PaperWidth = gcd.Drawing.CurrPrintStyle.PaperSizeW
 
 
     If cmbPrinter.Index = 0 Then
-
 
         Printer1.OutputFile = Utils.PathFromFile(gcd.Drawing.FileName) &/ Utils.FileWithoutExtension(gcd.Drawing.FileName) & ".pdf"
 
@@ -161,8 +179,6 @@ Public Sub btnPrint_Click()
         Printer1.OutputFile = ""
         Printer1.Name = cmbPrinter.Text
     End If
-
-    ' verificaciones previas a la impresion
 
 
     Printer1.Print
@@ -205,6 +221,7 @@ End
 Public Sub run()
 
     gcd.DrawingReady = False
+
     Me.Show
 
 End
@@ -351,9 +368,9 @@ Public Sub PrintModel(psy As PrintStyle)
     Else If PSY.PrintArea = 1 Then ' viewport
 
         PSY.PrintAreaX0 = gcd.Xreal(0)
-        PSY.PrintAreaY0 = gcd.Yreal(0)
+        PSY.PrintAreaY1 = gcd.Yreal(0)
         PSY.PrintAreaX1 = gcd.Xreal(fmain.GLArea1.Width)
-        PSY.PrintAreaY1 = gcd.Yreal(fmain.GLArea1.h)
+        PSY.PrintAreaY0 = gcd.Yreal(fmain.GLArea1.h)
 
     Else
 
@@ -558,3 +575,91 @@ Public Sub PrintSheet(s As Sheet)
 
 End
 
+
+Public Sub btnCreateNewPrintStyle_Click()
+
+    Dim ps As New PrintStyle
+
+    SetStyle(ps)
+
+    ps.Name = txtNewPrintStyle.Text
+
+    ' verifico que no exista
+    If gcd.PrintStyles.Exist(ps.Name) Then
+        If Message.Question(("There is a PrintStyle with that name, overwrite?"), ("Yes"), "No") = 1 Then
+            gcd.PrintStyles.Remove(ps.Name)
+            gcd.PrintStyles.Add(ps, ps.Name)
+        Else
+            Return
+        End If
+    Endif
+    gcd.PrintStyles.Add(ps, ps.Name)
+    txtNewPrintStyle.Text = ""
+    LoadStyles
+
+End
+
+Public Sub LoadStyles()
+
+    Dim ps As PrintStyle
+
+    cmbPrintStyles.Clear
+    For Each ps In gcd.PrintStyles
+        cmbPrintStyles.Add(ps.Name)
+    Next
+
+End
+
+Public Sub btnUsePrintStyle_Click()
+
+    ' la inversa q setear styles
+    Dim ps As PrintStyle
+
+    ps = gcd.PrintStyles[cmbPrintStyles.Text]
+
+    If ps.ColorStyle = 0 Then radMono.Value = True
+    If ps.ColorStyle = 1 Then radGray.Value = True
+    If ps.ColorStyle = 2 Then radColor.Value = True
+
+    vlbScalePaper.Value = ps.ScalePaper
+    vlbScaleDraw.Value = ps.ScaleDrawingUnit
+
+    If ps.PrintScale = -1 Then radFitToPage.Value = True
+
+    vlbWidth.Value = ps.PaperSizeW
+    vlbHeight.Value = ps.PaperSizeH
+    ' pongo el tamaño?
+    Try cmbPaperSize.Text = ps.PaperName
+
+
+    ' margenes
+    vlbLeft.Value = ps.PrintOffsetX
+    vlbTop.Value = ps.PrintOffsetY
+
+    If ps.CenteringStyle = 1 Then
+        radFitTopLeft.Value = True
+    Else If ps.CenteringStyle = 2 Then
+        radFitCenter.Value = True
+    Else If ps.CenteringStyle = 0 Then
+        radFitCustom.Value = True
+    End If
+
+
+    If ps.PrintOrientation = Printer.Landscape Then radLandscape.Value = True Else radPortrait.Value = True
+    If ps.PrintInvert Then chkInvert.Value = True
+
+    If ps.PrintArea = 2 Then Me.radAreaWindow.Value = True
+    If ps.PrintArea = 0 Then Me.radAreaAll.Value = True
+    If ps.PrintArea = 1 Then Me.radAreaView.Value = True
+
+    snxAreaToPrint[0] = ps.PrintAreaX0
+    snxAreaToPrint[1] = ps.PrintAreaY0
+    snxAreaToPrint[2] = ps.PrintAreaX1
+    snxAreaToPrint[3] = ps.PrintAreaY1
+
+
+    gcd.Drawing.CurrPrintStyle = ps
+
+
+
+End
