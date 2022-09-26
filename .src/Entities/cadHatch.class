@@ -62,7 +62,10 @@ Public Ymayor As Float = -1e10
 '' Builds the geometry of the entity wthout drwing it
 Public Function BuildGeometry(E As Entity, Optional density As Float)
 
-    Dim oloop As Boundary
+    Dim flxContorno As Float[]
+
+
+    MakeBorder2(e.pBlock)
 
     If LCase(e.sParam[Me.sdaPattern]) <> "solid" Then
 
@@ -73,14 +76,12 @@ Public Function BuildGeometry(E As Entity, Optional density As Float)
         ' para solidos, tengo que hacer una llamada para cada loop de borde
         ' tengo q ver cuantos puntos tiene cada loop
         ' Ojo con LibreCAD
-        'For Each oLoop In hData.BoundaryPath
+        'For Each e.pBlock In hData
 
-        oLoop = e.pBlock.BoundaryPath
-        MakeBorder2(oloop)
-        If oLoop.Polylines.Count = 0 Then Return
-        oLoop.Triangles = puntos.PolygonTriangulation(oLoop.Polylines[0])
+        For Each flxContorno In e.pBlock.PolyLines
+            e.Polygon.Insert(puntos.PolygonTriangulation(flxContorno))
+        Next
 
-        'Next
 
     End If
 
@@ -90,7 +91,7 @@ Public Sub Draw(oE As Entity)
 
     Dim i, iLoop, iStart, iColour As Integer
     Dim fBorder As New Float[]
-    Dim oLoop As Boundary
+
     Dim E2 As Entity
 
     If Not oE.Visible Then Return
@@ -117,22 +118,22 @@ Public Sub Draw(oE As Entity)
         ' para solidos, tengo que hacer una llamada para cada loop de borde
         ' tengo q ver cuantos puntos tiene cada loop
         ' Ojo con LibreCAD
-        'For Each oLoop In ohData.BoundaryPath
-        oLoop = oe.pBlock.BoundaryPath
+        'For Each oLoop In ohData
+
         ' obtengo el poligono de bordes
         ' fBorder.Clear
         ' fBorder.Insert(oLoop.e.PolyLine.Copy(iStart, oe.iParam[iLoop]))
         ' iStart += fBorder.Count
 
         'glPlus.Polygon(oLoop.Polyline, Color.Yellow, 2)
-        If oloop.Polylines.Count = 0 Then Return
+        ' If oloop.Polylines.Count = 0 Then Return
+        '
+        ' If puntos.IsPoligonSelfIntersecting(oLoop.Polylines[0]) Then
+        '
+        '     Debug "A polygon in HATCH is self intersecting"
+        ' Endif
 
-        If puntos.IsPoligonSelfIntersecting(oLoop.Polylines[0]) Then
-
-            Debug "A polygon in HATCH is self intersecting"
-        Endif
-
-        glPlus.TRIANGLES(oloop.Triangles, gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetGBColor(oE.Colour, oe.pLayer))
+        glPlus.TRIANGLES(oe.Polygon, gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetGBColor(oE.Colour, oe.pLayer))
 
         'Next
 
@@ -238,7 +239,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     Dim EdgeType As Integer
     Dim eContour As Entity
     Dim edge As Integer
-    Dim NewPath As Boundary
+    Dim NewPath As Hatch
     Dim oPattern As Pattern
     ' Dim jscPath, vSeg As JSONCollection
     Dim RefObjHandle As String
@@ -246,14 +247,12 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     Dim hData As Hatch
 
     ' vamos a agrupar las entidades que forman el contorno en un bloque
-    hData = New Hatch
-    e.pBlock = hData
-    hData.BoundaryPath = New Boundary
-    NewPath = hData.BoundaryPath
+    e.pBlock = New Hatch
+    NewPath = e.pBlock
 
 
     NewPath.eSegments = New Entity[]
-    NewPath.sHandles = New String[]
+    'NewPath.sHandles = New String[]
 
     'If e.Handle = "567A1" Then Stop
 
@@ -276,8 +275,8 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
             For iLoop = 0 To LoopToRead - 1 'descubri que un Loop puede o no ser un area a rellenar distinta, a veces un Loop es un agujero de otro Loop
 
-                ' NewPath = hData.BoundaryPath
-                ' 'hData.BoundaryPath.Add(NewPath)
+                ' NewPath = hData
+                ' 'hData.Add(NewPath)
                 '
                 ' NewPath.eSegments = New Entity[]
                 ' NewPath.sHandles = New String[]
@@ -421,7 +420,9 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
                             ' a esta entidad que es un borde le etiquetamos el loop al que pertenece
 
                             i = dxf.ReadCode(330, sClaves, sValues, ByRef RefObjHandle, i)
-                            NewPath.sHandles.Add(RefObjHandle)
+
+                            ' Podria guardar esta Handle, pero es totalmente redundante
+                            ' NewPath.sHandles.Add(RefObjHandle)
                         Next
                     End If
 
@@ -574,7 +575,7 @@ Public Function OverMe(e As Entity, Xr As Float, Yr As Float, tolerance As Float
 
     Dim oBound As Float[]
 
-    For Each oBound In e.pBlock.BoundaryPath.Polylines
+    For Each oBound In e.pBlock.Polylines
 
         If puntos.isInside(oBound, xr, yr) Then Return True
 
@@ -586,7 +587,7 @@ End
 
 '' Procesa las entidades de borde y las trnasforma en polilineas cerradas, que pueden estar una dentro de otra
 'Fast Unsafe
-Public Sub MakeBorder2(oPath As Boundary)
+Public Sub MakeBorder2(oPath As Hatch)
 
     Dim eBorder, eFind As Entity
     Dim drwPath As New Float[]
@@ -761,7 +762,6 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
     Dim enxPatternScaled As New Collection
     Dim eBorder As Entity
     Dim sPAtternFile As String
-    Dim oLoop As Boundary
     Dim oPat As Pattern
     Dim NoMoreIntersections, MeAlejo, Filled, UseAxisX As Boolean
     Dim OffsetDirection As Integer = 1
@@ -784,21 +784,16 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
         ''entToFill.fParam[Gcd.CCC["HATCH"].ipaScale] /= 12  ' TODO: verificar esta escala
     Endif
 
-    'For Each oLoop In entToFill.pBlock.BoundaryPath
-
-    oloop = entToFill.pBlock.BoundaryPath
-
-
+    'For Each oLoop In entToFill.pBlock
 
     'If entToFill.Handle = "35256" Then Stop
     'If entToFill.StringData[0] = "ANSI31" Then Stop
     'If entToFill.StringData[0] = "GRAVEL" Then entToFill.Colour = 2
 
-    MakeBorder2(oLoop)
 
-    'If ((oloop.Flag And 1) = 1) Or (oloop.Flag = 0) Then ' es external, o sea lo que esta afuera de todo
+    'If ((entToFill.Flag And 1) = 1) Or (entToFill.Flag = 0) Then ' es external, o sea lo que esta afuera de todo
 
-    If oloop.Polylines.Count = 0 Then Return
+    If entToFill.pBlock.Polylines.Count = 0 Then Return
 
     ' veo los limites del contorno exterior
     Xmenor = 1e10
@@ -808,7 +803,7 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
 
     Dim l1, l2, lmax As Float
 
-    For Each flxContorno In oloop.Polylines
+    For Each flxContorno In entToFill.pBlock.Polylines
 
         GetBoundLimits2(flxContorno)
     Next
@@ -821,8 +816,8 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
     Scale = 1
     SeedIndex = 0
     ' ya tenemos las lineas del pattern, las hacemos intersectar con el contorno
-    For Each flxContorno In oLoop.Polylines
-        If oLoop.Levels[SeedIndex] < 0 Then Continue ' es un hole
+    For Each flxContorno In entToFill.pBlock.Polylines
+        If entToFill.pBlock.Levels[SeedIndex] < 0 Then Continue ' es un hole
 
         If flxContorno.Count < 6 Then Continue          ' este borde es nulo
 
@@ -1056,13 +1051,13 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
     ' As you will learn in the next sections, these are more the recommended usage type for the flags, but the fill algorithm doesn’t care much about that, for instance an OUTERMOST path doesn’t have to be inside the EXTERNAL path.
 
     'limpio los huecos
-    'Else If (oloop.Flag And 16) = 16 Then ' es outermost
+    'Else If (entToFill.Flag And 16) = 16 Then ' es outermost
 
     SeedIndex = -1
     Filled = False
-    For Each flxContorno In oLoop.Polylines
+    For Each flxContorno In entToFill.pBlock.Polylines
         Inc SeedIndex
-        If oLoop.Levels[SeedIndex] > 0 Then Continue ' es un borde
+        If entToFill.pBlock.Levels[SeedIndex] > 0 Then Continue ' es un borde
 
         Filled = True
 

@@ -535,7 +535,7 @@ Public Sub ClonElements(Optional cEntities As Collection, GenerateGlList As Bool
     If cEntities Then cEntititesToClon = cEntities Else cEntititesToClon = gcd.Drawing.SelectedEntities
 
     For Each E In cEntititesToClon
-        eClon = Me.ClonEntity(e, True)
+        eClon = Me.ClonEntity(e, True, True)
         Gcd.CCC[eClon.gender].finish(eClon)
         If GenerateGlList Then glGenDrawList(eClon)
         cContainer.Add(eClon, eClon.Handle)
@@ -547,7 +547,61 @@ Public Sub ClonElements(Optional cEntities As Collection, GenerateGlList As Bool
 
 End
 
-Public Sub ClonEntity(e As Entity, Optional GetNewHandle As Boolean = True) As Entity
+Public Function CopyBlock(bBase As Variant, Optional NewHandle As Boolean) As Variant
+
+    Dim b As New Block
+    Dim h As Hatch
+    Dim e As Entity
+    Dim flxPoly As Float[]
+
+    If bBase.Gender = "BLOCK" Then
+        b.name = bBase.name
+        b.description = bBase.description
+        b.Explotability = bBase.Explotability
+        b.Flags = bBase.Flags
+        If NewHandle Then b.handle = gcd.NewHandle() Else b.handle = bBase.handle
+        b.HandleAsociatedLayout = bBase.HandleAsociatedLayout
+        b.HandleOwner = bBase.HandleOwner
+        b.HandleOwnerParent = bBase.HandleOwnerParent
+        b.InsertionPlace = bBase.InsertionPlace
+        b.InsertUnits = bBase.InsertUnits
+        b.layer = bBase.layer
+        b.Scalability = bBase.Scalability
+        b.x0 = bBase.x0
+        b.y0 = bBase.y0
+        b.z0 = bBase.z0
+
+        b.entities = New Collection
+
+        b.entities = bBase.entities.Copy()
+
+        Return b
+    Else If bBase.Gender = "HATCH" Then
+
+
+        h = New Hatch
+
+        h.SeedPoints.Insert(bBase.SeedPoints.copy())
+        h.Flag = bBase.Flag
+        h.eSegments.Insert(bBase.esegments.copy())
+        For Each flxPoly In bBase.Polylines
+            h.Polylines.add(flxPoly)
+        Next
+
+        Dim p As Pattern
+        For Each p In bBase.patterns
+            h.Patterns.add(p)
+        Next
+
+        Return h
+
+
+    End If
+
+End
+
+'' Crea una nueva entidad a partir de otra. Opcionalmente nueva Handle y un bloque nuevo si es que tiene.
+Public Sub ClonEntity(e As Entity, Optional GetNewHandle As Boolean = True, newBlock As Boolean = False) As Entity
     ' clona una entidad
     ' copia todos sus elementos
     ' llama a las rutinas de reconstruccion del contorno y de los POI
@@ -558,6 +612,12 @@ Public Sub ClonEntity(e As Entity, Optional GetNewHandle As Boolean = True) As E
     CopyElemData(e, o)                              ' copy all values
     Gcd.CCC[o.gender].BuildPoi(o)
     If GetNewHandle Then o.Handle = gcd.NewHandle()
+    If newBlock Then
+        If e.pBlock Then
+            o.pBlock = Me.CopyBlock(e.pBlock, GetNewHandle)
+        Endif
+
+    Endif
     Return o
 
 End
@@ -1179,15 +1239,15 @@ End
 Public Function SelPartial(eTesting As Entity, X1real As Float, Y1real As Float, X2real As Float, Y2real As Float) As Boolean
 
     Dim ii As Integer, puedo As Boolean = False
-    Dim oLoop As Boundary, flxPoly As Float[]
+    Dim oLoop As Hatch, flxPoly As Float[]
 
     Select Case eTesting.Gender
 
         Case "Hatch"
 
-            'For Each oLoop In eTesting.pBlock.BoundaryPath
+            'For Each oLoop In eTesting.pBlock
 
-            For Each flxPoly In eTesting.pBlock.BoundaryPath.Polylines
+            For Each flxPoly In eTesting.pBlock.Polylines
 
                 puedo = puntos.IsPoligonInsideRect(flxPoly, X1real, Y1real, X2real, Y2real)
                 If puedo Then Break
