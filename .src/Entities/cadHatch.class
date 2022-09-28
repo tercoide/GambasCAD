@@ -245,6 +245,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     Dim RefObjHandle As String
     Dim DashLength, fVar As Float
     Dim hData As Hatch
+    Dim Dashes As Integer
 
     ' vamos a agrupar las entidades que forman el contorno en un bloque
     e.pBlock = New Hatch
@@ -528,16 +529,14 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
                 i = dxf.ReadCode(44, sClaves, sValues, ByRef oPattern.BaseY, i)
                 i = dxf.ReadCode(45, sClaves, sValues, ByRef oPattern.OffsetX, i)
                 i = dxf.ReadCode(46, sClaves, sValues, ByRef oPattern.OffsetY, i)
-                i = dxf.ReadCode(79, sClaves, sValues, ByRef oPattern.Dashes, i)
+                i = dxf.ReadCode(79, sClaves, sValues, ByRef Dashes, i)
 
-                For iBorderObjects = 1 To oPattern.Dashes
+                For iBorderObjects = 1 To Dashes
 
                     i = dxf.ReadCode(49, sClaves, sValues, ByRef DashLength, i + 1)
                     oPattern.DashLength.Add(DashLength)
                 Next
-                For Each f As Float In oPattern.DashLength
-                    oPattern.TotalLength += Abs(f)
-                Next
+
             Next
         End If
 
@@ -770,13 +769,14 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
     Dim SeedX, SeedY, SeedIndex, CosB, SinB, TanB, CosAB, SinAB, TanAB As Float
     Dim Mucho, MuchoViejo As Float
     Dim Xcg, Ycg, DistCg, DistCgOld As Float
+    Dim ox, oy, bx, by As Float
     ' este valor intenta commpensar un problema de compatibilidad entre DWG y DXF
     ' para estar de acuerdo a LibreCAD, debe ser =1, pero algunos DWG se represetan
     ' con una densidad de relleno menor (mas disperso el relleno)
     Dim CorrectionScale As Float = 1 '0.01 ' 0.1
     Dim iHatchLinesDrawn As Integer
 
-    Dim UsarNuevaFuncion As Boolean = False     ' TODO ver como hacer andar esto
+    Dim UsarNuevaFuncion As Boolean = False    ' TODO ver como hacer andar esto
 
     If entToFill.fParam[Gcd.CCC["HATCH"].ipaScale] = 0 Then
         entToFill.fParam[Gcd.CCC["HATCH"].ipaScale] = 1
@@ -813,7 +813,7 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
     Ycg = (Ymayor + Ymenor) / 2
 
     Scale = entToFill.fParam[Me.ipaScale]
-    Scale = 1
+    Scale = 1                                   ' La escala ya esta aplicada, pero aqui podriamos corregir
     SeedIndex = 0
     ' ya tenemos las lineas del pattern, las hacemos intersectar con el contorno
     For Each flxContorno In entToFill.pBlock.Polylines
@@ -850,15 +850,29 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
             CosAB = Cos((oPat.AngleDeg + entToFill.fParam[Me.ipaRotation]) * Pi / 180)
             SinAB = Sin((oPat.AngleDeg + entToFill.fParam[Me.ipaRotation]) * Pi / 180)
 
+            ox = oPat.OffsetX * CosB - oPat.OffsetY * SinB
+            oy = oPat.OffsetX * SinB + oPat.OffsetY * CosB
+
+            bx = oPat.BaseX * CosB - oPat.BaseY * SinB
+            by = oPat.BaseX * SinB + oPat.BaseY * CosB
+
+            ox = oPat.OffsetX
+            oy = oPat.OffsetY
+
+            bx = oPat.BaseX
+            by = oPat.BaseY
+
+            Debug CosB, SinB
+
 
             DistCg = 1e100
             Do
                 Utils.DoEvents(100)
-                If iPatternOffset > 1e3 Then Break 'Stop
+                'If iPatternOffset > 1e3 Then Break 'Stop
 
                 ' el Offset entre lineas del patron ya tiene incorporado el angulo del hatch
-                BaseX = SeedX + oPat.BaseX + iPatternOffset * OffsetDirection * oPat.OffsetX
-                BaseY = SeedY + oPat.BaseY + iPatternOffset * OffsetDirection * oPat.OffsetY
+                BaseX = SeedX + bx + iPatternOffset * OffsetDirection * ox
+                BaseY = SeedY + by + iPatternOffset * OffsetDirection * oy
 
                 Mucho = 1e10
 
@@ -873,17 +887,17 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
                 FinalX = BaseX + CosB * Mucho
                 FinalY = BaseY + SinB * Mucho
 
-                ' normalizo esto
-                If CSingle(StartX) > CSingle(FinalX) Then
-                    Swap StartX, FinalX
-                    Swap StartY, FinalY
-                Else If CSingle(StartX) = CSingle(FinalX) Then
-                    If CSingle(StartY) > CSingle(FinalY) Then
-                        Swap StartX, FinalX
-                        Swap StartY, FinalY
-                    Endif
-
-                Endif
+                ' ' normalizo esto
+                ' If CSingle(StartX) > CSingle(FinalX) Then
+                '     Swap StartX, FinalX
+                '     Swap StartY, FinalY
+                ' Else If CSingle(StartX) = CSingle(FinalX) Then
+                '     If CSingle(StartY) > CSingle(FinalY) Then
+                '         Swap StartX, FinalX
+                '         Swap StartY, FinalY
+                '     Endif
+                '
+                ' Endif
 
                 '
                 ' 'If MuchoViejo = 0 Then MuchoViejo = Mucho
@@ -904,103 +918,17 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
                 flxPatternLines.Clear
                 If flxTrimmedLine.Count > 0 Then
 
-
-                    If oPat.Dashes = 0 Then ' es una linea recta
+                    'oPat.DashLength.Clear
+                    If oPat.DashLength.Count = 0 Then ' es una linea recta
                         flxFirstPass.Insert(flxTrimmedLine.Copy())
                         Inc iHatchLinesDrawn
 
                     Else ' armo los dashes y despue los recorto al contorno
 
-                        If UsarNuevaFuncion Then
 
-                            flxFirstPass = puntos.DashedLineStrip(basex, basey, flxTrimmedLine, oPat.DashLength)
-                        Else
-
-
-
-                            DashBaseX = BaseX
-                            DashBaseY = BaseY
-
-
-                            Do
-
-                                For Each DashTrame In oPat.DashLength
-
-                                    DashFinalX = DashBaseX + Abs(DashTrame) * CosB * Scale
-                                    DashFinalY = DashBaseY + Abs(DashTrame) * SinB * Scale
-
-                                    If DashTrame > 0 Then
-                                        flxInter = puntos.LinePolyIntersection([DashBaseX, DashBaseY, DashFinalX, DashFinalY], flxContorno)
-                                        If flxInter.Count > 0 Then flxFirstPass.insert(flxInter)
-
-                                    Else If DashTrame = 0 Then
-                                        If puntos.isInside(flxContorno, DashBaseX, DashBaseY) Then
-                                            flxFirstPass.insert([DashBaseX, DashBaseY, DashFinalX, DashFinalY])
-                                        Endif
-                                    End If
-
-
-                                    DashBaseX = DashFinalX
-                                    DashBaseY = DashFinalY
-                                Next
-
-                                ' veo si necesito seguir cargando la linea de puntos
-                                If cosB >= 0 Then
-                                    If (DashFinalX > Xmayor) Then Break
-                                Else
-                                    If (DashFinalX < Xmenor) Then Break
-                                Endif
-                                If SinB >= 0 Then
-                                    If (DashFinalY > Ymayor) Then Break
-                                Else
-                                    If (DashFinalY < Ymenor) Then Break
-                                Endif
-
-                            Loop
-
-
-                            ' direccion -
-                            DashBaseX = BaseX '+ iPatternN * fDashTotal  * CosB
-                            DashBaseY = BaseY '+ iPatternN * fDashTotal  * sinB
-
-                            Do
-
-                                For i = oPat.DashLength.Max To 0 Step -1
-                                    DashTrame = oPat.DashLength[i]
-                                    DashFinalX = DashBaseX - Abs(DashTrame) * CosB * Scale
-                                    DashFinalY = DashBaseY - Abs(DashTrame) * SinB * Scale
-                                    If DashTrame > 0 Then
-                                        flxInter = puntos.LinePolyIntersection([DashBaseX, DashBaseY, DashFinalX, DashFinalY], flxContorno)
-
-                                        If flxInter.Count > 0 Then flxFirstPass.insert(flxInter)
-
-
-                                    Else If DashTrame = 0 Then
-                                        If puntos.isInside(flxContorno, DashBaseX, DashBaseY) Then
-                                            flxFirstPass.insert([DashBaseX, DashBaseY, DashFinalX, DashFinalY])
-                                        Endif
-                                    End If
-
-                                    DashBaseX = DashFinalX
-                                    DashBaseY = DashFinalY
-
-                                Next
-                                ' veo si necesito seguir cargando la linea de puntos
-                                If cosB < 0 Then
-                                    If (DashFinalX > Xmayor) Then Break
-                                Else
-                                    If (DashFinalX < Xmenor) Then Break
-                                Endif
-
-                                If SinB < 0 Then
-                                    If (DashFinalY > Ymayor) Then Break
-                                Else
-                                    If (DashFinalY < Ymenor) Then Break
-                                Endif
-
-                            Loop
-
-                        Endif
+                        flxDashes = puntos.DashedLineStrip(basex, basey, flxTrimmedLine, oPat.DashLength)
+                        'Debug baseX, BaseY
+                        flxFirstPass.Insert(flxDashes)
 
 
                     End If

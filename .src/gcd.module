@@ -124,9 +124,10 @@ Public Const dimVertical As Integer = 8
 Public CommonBlocks As New Collection
 
 ' PrintStyles
-
 Public PrintStyles As New Collection
 
+' patterns
+Public HatchPatterns As New Collection
 
 ' Entity Flags
 Public Const flgDWG_Changed As Integer = 1
@@ -1053,9 +1054,73 @@ Public Sub NewDrawing(sName As String) As Drawing
 End
 
 
-Public Function ImportPAT(sFile As String) As Collection
+Public Function ImportPAT(sFile As String) As Boolean
+    ' *ACAD_ISO14W100, dashed triplicate-dotted line
+    ' 0, 0,0, 0,5, 12,-3,.5,-3,.5,-6.5
+    ' 0, 0,0, 0,5, -22,.5,-3
+    ' *ACAD_ISO15W100, double-dashed triplicate-dotted line
+    ' 0, 0,0, 0,5, 12,-3,12,-3,.5,-10
+    ' 0, 0,0, 0,5, -33.5,.5,-3,.5,-3
+    ' ;;
+    ' ;; en
+
+    Dim f As File
+    Dim s, s2 As String
+    Dim p As Pattern
+    Dim hp As HatchPattern
+    Dim sp As String[]
+    Dim i As Integer
+
+    f = Open sfile For Input
+
+    Do
+        Line Input #f, s
 
 
 
+        s = Replace(s, "\r", "")
+
+
+        s2 = Left(s, 1)
+        If s2 = ";" Then ' es un comentario, se ignora
+
+        Else If s2 = "*" Then ' es un nuevo patron
+
+
+            ' si tenia un patron anterior, lo guardo
+            If hp Then
+                gcd.HatchPatterns.Add(hp, hp.name)
+            Endif
+            s = Mid(s, 2)
+            hp = New HatchPattern
+            sp = Split(s, ",")
+            hp.name = sp[0]
+            hp.description = sp[1]
+
+        Else If s <> "" Then
+            p = New Pattern
+            s = Replace(s, " ", "")
+            sp = Split(s, ",")
+            p.AngleDeg = CFloat(sp[0])
+            p.BaseX = CFloat(sp[1])
+            p.BaseY = CFloat(sp[2])
+            p.OffsetX = CFloat(sp[3])
+            p.OffsetY = CFloat(sp[4])
+            For i = 5 To sp.Max
+                If Left(sp[i], 1) = "-" Then
+                    sp[i] = "-0" & Mid(sp[i], 2)
+                Else
+                    sp[i] = "0" & sp[i]
+                End If
+                p.DashLength.Add(CFloat(sp[i]))
+            Next
+            hp.patterns.Add(p)
+
+
+
+        Endif
+
+
+    Loop Until Eof(f)
 
 End

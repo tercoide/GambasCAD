@@ -605,6 +605,105 @@ Public Function SaveClass(obj As Object, sFile As String) As Integer
 
 End
 
+Public Function SaveClass2(obj As Object, sFile As String) As Integer
+
+    Dim jConfig As Collection
+    Dim MyClass As Class = Object.Class(obj)
+    Dim Var As String
+    Dim Valor As Variant[]
+
+    If sFile = "" Then
+        sFile = User.Home &/ "SaveClass.json"
+    Endif
+
+    jConfig = ClassToCollection2(obj)
+
+
+
+
+    If Not Exist(File.Dir(sFile)) Then
+        Shell "mkdir -p " & File.Dir(sFile) Wait
+    Endif
+    File.Save(sFile, CollectionToString(jConfig))
+
+
+
+End
+
+Public Function VariantToString(vDatas As Variant[][], Optional iTabs As Integer) As String
+
+
+    Dim s, sTab As String
+    Dim v As Variant[]
+
+    sTab = String$(iTabs, gb.Tab)
+    s = stab & "["
+    For Each v In vDatas
+        ' v es un Variant[]
+        If v.Count = 0 Then Continue  ' pero esto no deberia ocurrir
+        If TypeOf(v[1]) = 16 Then
+            If v[1] Is Array Then
+                s &= stab & v[0] & ": " & VariantToString(v[1], 1) & gb.Cr
+
+            Else
+                s &= stab & v[0] & ": " & v[1] & gb.Cr
+            End If
+
+        Endif
+    Next
+    s &= stab & "]" & gb.Cr
+    Return s
+
+End
+
+Public Function CollectionToString(cData As Collection, Optional iTabs As Integer) As String
+
+
+    Dim s, sTab As String
+    Dim v, v2 As Variant
+
+    sTab = String$(iTabs, gb.Tab)
+    s = stab & "{" & gb.Cr
+    For Each v In cData
+        ' v es un Variant[]
+        If TypeOf(v) = 16 Then
+            If v Is Collection Then
+                Inc iTabs
+                s &= stab & cData.Key & ": " & CollectionToString(v, iTabs) & "," & gb.Cr
+                Dec iTabs
+            Else If v Is Array Then     ' este array es de clases nativas (o deberia serlo)
+                s &= stab & cData.Key & ":" & "["
+
+                For Each v2 In v
+                    s &= v2 & ","
+                Next
+
+                s = Left$(s, -1)
+                s &= "]" & "," & gb.Cr
+            End If
+        Else
+            s &= stab & cData.Key & ": " & v & "," & gb.Cr
+        End If
+
+
+    Next
+    s &= stab & "}" & gb.Cr
+    Return s
+
+End
+
+Public Function StringToCollection(s As String) As Collection
+
+    Dim c1, c2, c3, c4, c5 As New Collection
+    Dim s1, s2, s3 As String
+
+    Dim sx1, sx2 As String[]
+
+
+
+
+End
+
 Public Function ClassToCollection(objClass As Object) As Collection
 
     Dim cClass As New Collection
@@ -612,54 +711,189 @@ Public Function ClassToCollection(objClass As Object) As Collection
     Dim MyClass As Class = Object.Class(objClass)
     Dim Var As String
     Dim Valor, valor2 As Variant
-    Dim sClass As Collection
-
+    Dim sClass, cNew As Collection
+    Dim sObjectType As String
+    Dim IsArray As Boolean
+    Dim objDesconocido As Variant
+    Dim i As Integer
     ' Next
+
+
     For Each Var In myClass.Symbols
         ' verificamos que sea una propiedad o variable
-        If (MyClass[var].kind = Class.Variable) Or (MyClass[var].kind = Class.Property) Then
+        If (MyClass[var].kind = Class.Variable) Then
             valor = Object.GetProperty(objClass, var)
+            If (TypeOf(valor) < 14) Then
 
-            If TypeOf(valor) = gb.Object Then  ' intento llamar recursivamente
-                If valor Is Array Then ' si es un array de clases?
-                    If valor.count > 0 Then
-                        If TypeOf(valor[0]) < 16 Then
-                            jConfig.Add(Valor, var)
-                        Else
-                            Inc DeepCounter
-                            If DeepCounter = 10 Then
-                                Dec DeepCounter
-                                Return Null
-                            End If
-                            valor2 = ClassToCollection(valor)
-                            Dec DeepCounter
-                            jConfig.Add(Valor2, var)
-                        Endif
-                    Else
-                        jConfig.Add("[]", var)
-                    End If
+                jConfig.Add(Valor, var)
+            Else
 
-                Else If IsNull(valor) Then
-                    jConfig.Add("null", var)
-                Else
-                    Inc DeepCounter
-                    If DeepCounter = 10 Then
-                        Dec DeepCounter
-                        Return Null
-                    End If
+                sObjectType = Object.Type(valor)
+
+                If Right(sObjectType, 2) = "[]" Then IsArray = True
+
+                If Not isArray Then
+
                     sClass = ClassToCollection(valor)
                     Dec DeepCounter
                     jConfig.Add(sClass, var)
+
+                Else
+                    i = 0
+                    If Valor.Count > 0 Then
+                        If TypeOf(valor[0]) < 14 Then
+                            jConfig.Add(Valor, var)
+                        Else
+                            cnew = New Collection
+
+                            For Each objDesconocido In valor
+
+                                sClass = ClassToCollection(objDesconocido)
+                                Dec DeepCounter
+                                cNew.Add(sClass, Str(i))
+                                Inc i
+                            Next
+                            jConfig.Add(cNew, var)
+
+                        End If
+                    Else
+                    Endif
                 End If
-            Else
+            End If
+
+        End If
+
+    Next
+
+    Return jConfig
+
+End
+
+Public Function ClassToCollection2(objClass As Object) As Collection
+
+    Dim cClass As New Collection
+    Dim jConfig As New Collection
+    Dim MyClass As Class = Object.Class(objClass)
+    Dim Var As String
+    Dim Valor, valor2 As Variant
+    Dim sClass, cNew As Collection
+    Dim sObjectType As String
+    Dim IsArray As Boolean
+    Dim objDesconocido As Variant
+    Dim i As Integer
+    ' Next
+
+
+    For Each Var In myClass.Symbols
+        ' verificamos que sea una propiedad o variable
+        If (MyClass[var].kind = Class.Variable) Then
+            valor = Object.GetProperty(objClass, var)
+            If (TypeOf(valor) < 14) Then
+
                 jConfig.Add(Valor, var)
+            Else
+
+                sObjectType = Object.Type(valor)
+
+                If Right(sObjectType, 2) = "[]" Then IsArray = True
+
+                If Not isArray Then
+
+                    sClass = ClassToCollection2(valor)
+                    Dec DeepCounter
+                    jConfig.Add(sClass, var)
+
+                Else
+                    i = 0
+                    If Valor.Count > 0 Then
+                        If TypeOf(valor[0]) < 14 Then
+                            jConfig.Add(Valor, var)
+                        Else
+                            cnew = New Collection
+
+                            For Each objDesconocido In valor
+
+                                sClass = ClassToCollection2(objDesconocido)
+                                Dec DeepCounter
+                                cNew.Add(sClass, Str(i))
+                                Inc i
+                            Next
+                            jConfig.Add(cNew, var)
+
+                        End If
+                    Else
+                    Endif
+                End If
+            End If
+
+        End If
+
+    Next
+
+    Return jConfig
+
+End
+
+Public Function ClassToVariant(objClass As Object) As Variant[][]
+
+    Dim cClass As New Variant[][]
+    Dim jConfig As New Variant[][]
+    Dim MyClass As Class = Object.Class(objClass)
+    Dim Var As String
+    Dim Valor, valor2 As Variant
+    Dim sClass As Variant[][]
+    Dim sObjectType As String
+    Dim IsArray As Boolean
+    Dim objDesconocido As Variant
+    Dim vArray As New Variant[]
+    ' Next
+
+
+    For Each Var In myClass.Symbols
+        ' verificamos que sea una propiedad o variable
+        If (MyClass[var].kind = Class.Variable) Then
+            valor = Object.GetProperty(objClass, var)
+            If (TypeOf(valor) < 14) Then
+
+
+                jConfig.Add([var, Valor])
+            Else
+
+                sObjectType = Object.Type(valor)
+
+                If Right(sObjectType, 2) = "[]" Then IsArray = True
+
+                If Not isArray Then
+                    sClass = ClassToVariant(valor)
+                    Dec DeepCounter
+                    jConfig.Add([var, sClass])
+                Else
+                    If valor.Count > 0 Then
+                        If TypeOf(valor[0]) < 14 Then
+                            jConfig.Add([var, valor])
+                        Else
+
+                            For Each objDesconocido In valor
+
+                                sClass = ClassToVariant(objDesconocido)
+                                vArray.Add(sClass)
+
+
+                            Next
+                            jConfig.Add([var, vArray])
+                        Endif
+                    End If
+                End If
+
             End If
         End If
 
     Next
+
     Return jConfig
 
 End
+
 
 '' Encode in JSON format in a human readable way. Based on a Laurent tool.
 '' Copyrigth M Belmonte
@@ -720,19 +954,160 @@ Public Function Encode2(vData As Variant) As String
 
 End
 
+'' Encode in JSON format in a human readable way. Based on a Laurent tool.
+'' Copyrigth M Belmonte
+'' Correction of brakets error By Tercoide 2022-05-1
+Public Function Encode3(vData As Variant) As String
+
+    Dim sInput As String
+    Dim sOutput As String
+    Dim iStream As Stream
+
+    Dim $sReadChar As String
+    Dim $iTab As Integer
+    Dim $bQuote, $bBracket As Boolean
+    Dim $BracketLevel As Integer            ' Nuevo
+
+    sInput = JSON.Encode(vData)
+
+    iStream = Open String sInput For Read
+
+    While (Not Eof(iStream))
+        $sReadChar = Read #iStream, 1
+        If ($sReadChar = "{" And Not $bQuote) Then
+            $iTab += 1
+            $sReadChar &= "\n" & Space$($iTab * 2)
+        Else If ($sReadChar = "}" And Not $bQuote) Then
+            $iTab -= 1
+            $sReadChar = "\n" & Space$($iTab * 2) & $sReadChar
+        Else If ($sReadChar = "\"") Then
+            $bQuote = Not $bQuote
+        Else If ($sReadChar = "[") Then
+
+            Inc $BracketLevel
+
+            $bBracket = True
+
+        Else If ($sReadChar = "]") Then
+            $bBracket = False
+            Dec $BracketLevel
+        Else If ($sReadChar = ":" And Not $bQuote) Then
+            $sReadChar &= " "
+        Else If ($sReadChar = "," And Not $bQuote) Then
+
+            If $BracketLevel > 1 Then             ' solo agrego un salto de linea si no hay abierto nuevos brackets
+                $sReadChar &= " "
+            Else
+                $sReadChar &= "\n" & Space$($iTab * 2)
+            End If
+
+        Endif
+        sOutput &= $sReadChar
+    Wend
+
+    Close iStream
+    ' replace null with ""
+    sOutput = Replace(sOutput, " null", " \"\"")
+
+    Return sOutput
+
+End
+
+Public Function EncodeVariant(vData As Variant[][], Optional iTabs As Integer = 0) As String
+
+    Dim s, sTab As String
+    Dim v As Variant
+    Dim v2 As Variant[]
+    Dim i, tabs As Integer
+
+    sTab = String$(iTabs, gb.Tab)
+    s = sTab & "{"
+    For Each v2 In vData
+        s &= sTab & v2[1] & " = "                ' el nombre de la variable
+        If TypeOf(v2[0]) = 16 Then
+            If Object.Type(v2[0]) = "Variant[][]" Then
+                s &= "[" & gb.Cr
+                Inc tabs
+                s &= stab & String$(tabs, gb.Tab) & EncodeVariant(v2[0], tabs)
+                Dec tabs
+                s &= "]" & gb.Cr
+            Else If Right(Object.Type(v2[0]), 2) = "[]" Then
+                s &= "[ "
+                For Each v In v2[0]
+                    s &= v & ","
+                Next
+                s = Left(s, -1)  ' saco la ultima coma
+                s &= "] " & gb.Cr
+            Endif
+        Else
+            s &= v2[0] & gb.Cr
+        Endif
+    Next
+    s &= sTab & "}"
+    Return s
+
+End
+
 Public Sub LoadClass(obj As Object, sFile As String)
 
-    Dim jConfig As Collection
+    Dim jConfig, j2 As Collection
     Dim sSymbol As String
     Dim MyClass As Class = Object.Class(obj)
 
     If Exist(sFile) Then
         jConfig = JSON.FromString(File.Load(sFile))
-        For Each sSymbol In myClass.Symbols
-            If jConfig.Exist(sSymbol) Then
-                Object.SetProperty(obj, sSymbol, jConfig[sSymbol])
-            Endif
-        Next
+        CollectionToClass(jConfig, obj)
     Endif
+
+End
+
+Public Sub LoadClass2(obj As Object, sFile As String)
+
+    Dim jConfig, j2 As Collection
+    Dim sSymbol, s As String
+    Dim MyClass As Class = Object.Class(obj)
+
+
+    If Exist(sFile) Then
+        s = File.Load(sFile)
+        jConfig = JSON.FromString(s)
+        CollectionToClass(jConfig, obj)
+    Endif
+
+End
+
+Public Sub CollectionToClass(cInput As Collection, obj As Object)
+
+    Dim jConfig, j2 As Collection
+    Dim sSymbol, sClassName As String
+    Dim MyClass As Class = Object.Class(obj)
+    Dim objNew As Object
+    Dim vData As New Variant[]
+
+
+    For Each sSymbol In myClass.Symbols
+        If cInput.Exist(sSymbol) Then
+            If TypeOf(cInput[sSymbol]) = 16 Then
+                ' If cInput[sSymbol] Is Collection Then   ' es una coleccion de cierta Class
+                '     sClassName = object.type(object.getproperty(obj, sSymbol))
+                '     If Right(sClassName, 2) = "[]" Then                                 ' es Array
+                '
+                '         For Each j2 In cInput[sSymbol]
+                '             ' determino el tipo de clase
+                '             objNew = Object.New(Left(sClassName, -2))
+                '             CollectionToClass(j2, objNew)
+                '             Object.SetProperty(obj, sSymbol, objNew)
+                '         Next
+                '         'Else
+                '
+                '     End If
+                ' End If
+            Else
+                Object.SetProperty(obj, sSymbol, cInput[sSymbol])
+            Endif
+
+        Endif
+    Next
+
 
 End
