@@ -64,7 +64,6 @@ Public Function BuildGeometry(E As Entity, Optional density As Float)
 
     Dim flxContorno As Float[]
 
-
     MakeBorder2(e.pBlock)
 
     If LCase(e.sParam[Me.sdaPattern]) <> "solid" Then
@@ -81,7 +80,6 @@ Public Function BuildGeometry(E As Entity, Optional density As Float)
         For Each flxContorno In e.pBlock.PolyLines
             e.Polygon.Insert(puntos.PolygonTriangulation(flxContorno))
         Next
-
 
     End If
 
@@ -250,7 +248,6 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     ' vamos a agrupar las entidades que forman el contorno en un bloque
     e.pBlock = New Hatch
     NewPath = e.pBlock
-
 
     NewPath.eSegments = New Entity[]
     'NewPath.sHandles = New String[]
@@ -734,7 +731,6 @@ End
 
 'Fast Unsafe
 
-
 Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
 
     ' reeleno usando un pattern manual
@@ -762,21 +758,21 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
     Dim eBorder As Entity
     Dim sPAtternFile As String
     Dim oPat As Pattern
-    Dim NoMoreIntersections, MeAlejo, Filled, UseAxisX As Boolean
+    Dim EsUtil, NoMoreIntersections, MeAlejo, Filled, UseAxisX As Boolean
     Dim OffsetDirection As Integer = 1
     Dim mX, mY, dX, dY, BaseX, BaseY, Check, StartX, StartY, FinalX, FinalY, TanA, DashLength, DashTrame As Float
     Dim Scale, CosA, SinA, DashBaseX, DashBaseY, DashFinalX, DashFinalY As Float
-    Dim SeedX, SeedY, SeedIndex, CosB, SinB, TanB, CosAB, SinAB, TanAB As Float
+    Dim A1, A2, SeedX, SeedY, SeedIndex, CosB, SinB, TanB, CosAB, SinAB, TanAB As Float
     Dim Mucho, MuchoViejo As Float
     Dim Xcg, Ycg, DistCg, DistCgOld As Float
-    Dim ox, oy, bx, by As Float
+    Dim d1, d2, ox, oy, bx, by, fOffset As Float
     ' este valor intenta commpensar un problema de compatibilidad entre DWG y DXF
     ' para estar de acuerdo a LibreCAD, debe ser =1, pero algunos DWG se represetan
     ' con una densidad de relleno menor (mas disperso el relleno)
     Dim CorrectionScale As Float = 1 '0.01 ' 0.1
     Dim iHatchLinesDrawn As Integer
 
-    Dim UsarNuevaFuncion As Boolean = False    ' TODO ver como hacer andar esto
+    Dim bInvert As Boolean = False    ' TODO ver como hacer andar esto
 
     If entToFill.fParam[Gcd.CCC["HATCH"].ipaScale] = 0 Then
         entToFill.fParam[Gcd.CCC["HATCH"].ipaScale] = 1
@@ -789,7 +785,6 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
     'If entToFill.Handle = "35256" Then Stop
     'If entToFill.StringData[0] = "ANSI31" Then Stop
     'If entToFill.StringData[0] = "GRAVEL" Then entToFill.Colour = 2
-
 
     'If ((entToFill.Flag And 1) = 1) Or (entToFill.Flag = 0) Then ' es external, o sea lo que esta afuera de todo
 
@@ -824,10 +819,10 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
         Try SeedX = entToFill.pBlock.SeedPoints[SeedIndex * 2]
         Try SeedY = entToFill.pBlock.SeedPoints[SeedIndex * 2 + 1]
 
-        TanA = Tan(entToFill.fParam[Me.ipaRotation] * Pi / 180)
+        ' TanA = Tan(entToFill.fParam[Me.ipaRotation] * Pi / 180)
         CosA = Cos(entToFill.fParam[Me.ipaRotation] * Pi / 180)
         SinA = Sin(entToFill.fParam[Me.ipaRotation] * Pi / 180)
-
+        'Debug entToFill.fParam[Me.ipaRotation]
         For Each oPat In entToFill.pBlock.Patterns
             fDashTotal = 0
             For Each DashTrame In oPat.DashLength
@@ -839,34 +834,35 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
             NoMoreIntersections = False
             OffsetDirection = 1
             iPatternOffset = 0
-            If Abs(oPat.OffsetX) >= Abs(oPat.OffsetY) Then UseAxisX = True Else UseAxisX = False
+
+            ' Debug oPat.AngleDeg
 
             ' el angulo de la linea del patron ya tiene incorporado el angulo general del hatch
             TanB = Tan(oPat.AngleDeg * Pi / 180)
             CosB = Cos(oPat.AngleDeg * Pi / 180)
             SinB = Sin(oPat.AngleDeg * Pi / 180)
 
-            TanAB = Tan((oPat.AngleDeg + entToFill.fParam[Me.ipaRotation]) * Pi / 180)
+            ' TanAB = Tan((oPat.AngleDeg + entToFill.fParam[Me.ipaRotation]) * Pi / 180)
             CosAB = Cos((oPat.AngleDeg + entToFill.fParam[Me.ipaRotation]) * Pi / 180)
             SinAB = Sin((oPat.AngleDeg + entToFill.fParam[Me.ipaRotation]) * Pi / 180)
 
-            ox = oPat.OffsetX * CosB - oPat.OffsetY * SinB
-            oy = oPat.OffsetX * SinB + oPat.OffsetY * CosB
+            bx = oPat.BaseX * CosA - oPat.BaseY * SinA
+            by = oPat.BaseX * SinA + oPat.BaseY * CosA
 
-            bx = oPat.BaseX * CosB - oPat.BaseY * SinB
-            by = oPat.BaseX * SinB + oPat.BaseY * CosB
+            ox = (oPat.OffsetX - oPat.BaseX) * CosA - (oPat.OffsetY - oPat.BaseY) * SinA + oPat.BaseX
+            oy = (oPat.OffsetX - oPat.BaseX) * SinA + (oPat.OffsetY - oPat.BaseY) * CosA + oPat.BaseY
 
-            ox = oPat.OffsetX
-            oy = oPat.OffsetY
+            ' ox = oPat.OffsetX
+            ' oy = oPat.OffsetY
+            '
+            ' bx = oPat.BaseX
+            ' by = oPat.BaseY
 
-            bx = oPat.BaseX
-            by = oPat.BaseY
-
-            Debug CosB, SinB
-
+            'Debug bx, by, ox, oy
 
             DistCg = 1e100
             Do
+                EsUtil = False
                 Utils.DoEvents(100)
                 'If iPatternOffset > 1e3 Then Break 'Stop
 
@@ -874,18 +870,14 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
                 BaseX = SeedX + bx + iPatternOffset * OffsetDirection * ox
                 BaseY = SeedY + by + iPatternOffset * OffsetDirection * oy
 
+                'Debug baseX, BaseY
                 Mucho = 1e10
 
-                ' If Abs(Xmayor - BaseX) * CosB > mucho Then mucho = Abs(Xmayor - BaseX)
-                ' If Abs(Ymayor - BaseY) * SinB > mucho Then mucho = Abs(Ymayor - BaseY)
-                ' If Abs(Xmenor - BaseX) * CosB > mucho Then mucho = Abs(Xmenor - BaseX)
-                ' If Abs(Ymenor - BaseY) * sinB > mucho Then mucho = Abs(Ymenor - BaseY)
+                StartX = BaseX - cosAB * mucho
+                StartY = BaseY - SinAB * Mucho
 
-                StartX = BaseX - cosB * mucho
-                StartY = BaseY - SinB * Mucho
-
-                FinalX = BaseX + CosB * Mucho
-                FinalY = BaseY + SinB * Mucho
+                FinalX = BaseX + CosAB * Mucho
+                FinalY = BaseY + SinAB * Mucho
 
                 ' ' normalizo esto
                 ' If CSingle(StartX) > CSingle(FinalX) Then
@@ -900,42 +892,85 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
                 ' Endif
 
                 '
-                ' 'If MuchoViejo = 0 Then MuchoViejo = Mucho
-                '
-                ' ' trazamos las lines que forman el hatch y verificamos intersacciones
-
-                'basandonos en el punto base, vemos cuanto de largo deben ser
-                dX = Xmenor - BaseX
-                dY = Ymenor - BaseY
 
                 Inc iPatternOffset
 
+                ' TEST: para ver si los dashed son el problema, descomentar la siguiente linea
+                'oPat.DashLength.Clear
+
+                ' PARTE 1
+
                 ' La linea recortada al contorno es (OJO, esto puede ser un conjunto de lineas):
-                flxTrimmedLine = puntos.LinePolyIntersection([StartX, StartY, FinalX, FinalY], flxContorno)
+                flxTrimmedLine = puntos.LinePolyIntersection([baseX, BaseY, StartX, StartY], flxContorno)
 
-                ' ahora aplico los dashes
-
-                flxPatternLines.Clear
                 If flxTrimmedLine.Count > 0 Then
+                    If flxTrimmedLine.Count > 4 Then Stop
+                    EsUtil = True
 
-                    'oPat.DashLength.Clear
+                    Inc iHatchLinesDrawn
                     If oPat.DashLength.Count = 0 Then ' es una linea recta
                         flxFirstPass.Insert(flxTrimmedLine.Copy())
-                        Inc iHatchLinesDrawn
 
                     Else ' armo los dashes y despue los recorto al contorno
+                        d1 = puntos.distancia(baseX, basey, flxTrimmedLine[0], flxTrimmedLine[1])
+                        d2 = puntos.distancia(baseX, basey, flxTrimmedLine[flxTrimmedLine.Max - 1], flxTrimmedLine[flxTrimmedLine.Max])
+                        If d1 <= d2 Then
 
-
-                        flxDashes = puntos.DashedLineStrip(basex, basey, flxTrimmedLine, oPat.DashLength)
-                        'Debug baseX, BaseY
+                            bInvert = True
+                            fOffset = d1
+                            'Debug "Normal"
+                        Else
+                            bInvert = False
+                            fOffset = d2
+                            'Debug "Invert"
+                        End If
+                        flxDashes = puntos.DashedLineStrip(flxTrimmedLine, oPat.DashLength,, fOffset, bInvert, True)
+                        Debug fOffset 'baseX, BaseY
                         flxFirstPass.Insert(flxDashes)
-
 
                     End If
 
+                End If
 
+                ' PARTE2
+                flxTrimmedLine = puntos.LinePolyIntersection([baseX, BaseY, FinalX, finalY], flxContorno)
 
-                Else    'RUTINA DE VERIFICACION PARA VER SI SIGO TRAZANDO EN ESTA DIRECCION
+                If flxTrimmedLine.Count > 0 Then
+
+                    'If bInvert Then Debug "Si" Else Debug "No"
+
+                    Inc iHatchLinesDrawn
+                    If flxTrimmedLine.Count > 4 Then Stop
+                    EsUtil = True
+
+                    If oPat.DashLength.Count = 0 Then ' es una linea recta
+                        flxFirstPass.Insert(flxTrimmedLine.Copy())
+
+                    Else ' armo los dashes y despue los recorto al contorno
+
+                        d1 = puntos.distancia(baseX, basey, flxTrimmedLine[0], flxTrimmedLine[1])
+                        d2 = puntos.distancia(baseX, basey, flxTrimmedLine[flxTrimmedLine.Max - 1], flxTrimmedLine[flxTrimmedLine.Max])
+                        If d1 <= d2 Then
+
+                            bInvert = False
+                            fOffset = d1
+                            'Debug "Normal"
+                        Else
+                            bInvert = True
+                            fOffset = d2
+                            'debug "Invert"
+                        End If
+                        'fOffset = d1
+                        flxDashes = puntos.DashedLineStrip(flxTrimmedLine, oPat.DashLength,, fOffset, bInvert, True)
+                        'Debug baseX, BaseY
+                        'flxFirstPass.Insert(flxDashes)
+
+                    End If
+
+                End If
+
+                If Not EsUtil Then
+                    'RUTINA DE VERIFICACION PARA VER SI SIGO TRAZANDO EN ESTA DIRECCION
 
                     DistCgOld = DistCg
                     DistCg = Abs(puntos.PointToLineDistance([Xcg, Ycg], [StartX, StartY, FinalX, FinalY]))
@@ -997,7 +1032,5 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
     Next
 
     If Not Filled Then entToFill.PolyLine.Insert(flxFirstPass.Copy())
-
-
 
 End

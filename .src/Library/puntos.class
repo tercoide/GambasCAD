@@ -814,9 +814,8 @@ Public Function LinePolyIntersection(flxLine As Float[], flxPoly As Float[]) As 
     ' la polylinea se considera cerrada y de mas de 3 puntos, caso contrario se devuelve la linea sin cambios
     ' la linea es de dos puntos , si esta afuera de la polilinea, se devuelve un array vacio
     ' Chequeos previos:
-    Dim FirstInside As Boolean
-    Dim LastInside As Boolean
-    Dim i As Integer
+    Dim UsarUltimoPunto, FirstInside, LastInside As Boolean
+    Dim i, UltimoPunto As Integer
     Dim flxRta As New Float[]
 
     If flxLine.Count <> 4 Then Return []
@@ -843,10 +842,10 @@ Public Function LinePolyIntersection(flxLine As Float[], flxPoly As Float[]) As 
     Next
 
     SortLineSegments(flxIntersections)
-    ' y el cierre de la poly
-    If puntos.doIntersect(flxLine[0], flxLine[1], flxLine[2], flxLine[3], flxPoly[flxPoly.Max - 1], flxPoly[flxPoly.Max], flxPoly[0], flxPoly[1]) Then
-        flxIntersections.Insert(puntos.lineLineIntersection2(flxLine[0], flxLine[1], flxLine[2], flxLine[3], flxPoly[flxPoly.Max - 1], flxPoly[flxPoly.Max], flxPoly[0], flxPoly[1]))
-    Endif
+    ' ' y el cierre de la poly
+    ' If puntos.doIntersect(flxLine[0], flxLine[1], flxLine[2], flxLine[3], flxPoly[flxPoly.Max - 1], flxPoly[flxPoly.Max], flxPoly[0], flxPoly[1]) Then
+    '     flxIntersections.Insert(puntos.lineLineIntersection2(flxLine[0], flxLine[1], flxLine[2], flxLine[3], flxPoly[flxPoly.Max - 1], flxPoly[flxPoly.Max], flxPoly[0], flxPoly[1]))
+    ' Endif
 
     ' si el primer punto esta adentro, pero no se da el caso particular que coincide con parte de la polilinea, lo agrego
 
@@ -1246,26 +1245,30 @@ Public Function Limits(Points As Float[]) As Float[]
 End
 
 '' Devuelve una linea de puntos confinada en los segmentos flxStrip, segun el patron estilo CAD flxDashes, usando el punto base.
-Public Function DashedLineStrip(BaseX As Float, BaseY As Float, flxStrip As Float[], flxDashes As Float[], Optional fScale As Float = 1) As Float[]
+Public Function DashedLineStrip(flxStrip As Float[], flxDash As Float[], Optional fScale As Float = 1, fOffset As Float = 0, bInvertDashes As Boolean = False, bIntercalateLines As Boolean = False, fWidth As Float = 1) As Float[]
 
-    Dim fTrame, fOffset, fDashTotal, fDistance, DashLength, DashTrame As Float
+    Dim fTrame, fDashTotal, fDistance, DashLength, DashTrame As Float
     Dim iPatternOffset, iPatternN As Integer
     Dim ie, i, AlPedo, Sirve, nTrames, iDashTrame As Integer
-    Dim flxTrimmedLine, flxPatternLimits, flxContorno, flxFirstPass, flxSecondPass, flxInter As New Float[]
+    Dim flxDashes, flxTrimmedLine, flxPatternLimits, flxContorno, flxFirstPass, flxSecondPass, flxInter As New Float[]
     Dim CosA, SinA, DashBaseX, DashBaseY, DashFinalX, DashFinalY As Float
     Dim SeedX, SeedY, SeedIndex, CosB, SinB, TanB, CosAB, SinAB, TanAB, fAngle As Float
     Dim X0, X1, Y0, Y1 As Float
     Dim DashCut As Float
-    Dim bSpace As Boolean
+    Dim bSpace, bSkip As Boolean
 
     ' DEBUG FIXME: fix this
 
     'Return flxStrip
 
+    ' Veo si tengo q invertir lo dashes
+    If bInvertDashes Then
+        flxDashes.Insert(flxDash.Reverse())
+    Else
+        flxDashes = flxDash
+    Endif
 
     ' calculamos el largo total de los dashes
-
-    fDashTotal = 0
     For Each DashTrame In flxDashes
         DashTrame *= fScale                  ' aplico la escala aqui mismo
         fDashTotal += Abs(DashTrame)
@@ -1274,9 +1277,7 @@ Public Function DashedLineStrip(BaseX As Float, BaseY As Float, flxStrip As Floa
     If fDashTotal = 0 Then Return flxStrip
     If flxStrip.Count < 4 Then Return flxStrip
 
-    fDistance = puntos.distancia(flxStrip[0], flxStrip[1], BaseX, BaseY)    ' calculo la distancia al punto base
-
-    fOffset = Utils.fMod(fDistance, fDashTotal)                             ' el offset donde arranco
+    fOffset = Utils.fMod(fOffset, fDashTotal)                             ' el offset donde arranco
 
     '
 
@@ -1292,7 +1293,20 @@ Public Function DashedLineStrip(BaseX As Float, BaseY As Float, flxStrip As Floa
             X1 = flxStrip[i + 2]
             Y1 = flxStrip[i + 3]
         End If
+
         fTrame = distancia(x0, y0, x1, y1)      ' largo del tramo a rellenar
+
+        ' veo si tengo que descartar este tramo
+        If bIntercalateLines Then
+            If bSkip Then
+                bSkip = False
+                fOffset += fTrame
+                fOffset = Utils.fMod(fOffset, fDashTotal)
+                Continue
+            Else
+                bSkip = True
+            Endif
+        End If
 
         fAngle = Ang(X1 - X0, Y1 - Y0)
         'Debug "FAngle", fangle, cosB, sinB
@@ -1300,10 +1314,8 @@ Public Function DashedLineStrip(BaseX As Float, BaseY As Float, flxStrip As Floa
         CosB = Cos(fAngle)
         SinB = Sin(fAngle)
 
-
         DashBaseX = X0
         DashBaseY = Y0
-
 
         Do                                      ' Trazo los dashed a lo largo de la linea
 
@@ -1313,7 +1325,6 @@ Public Function DashedLineStrip(BaseX As Float, BaseY As Float, flxStrip As Floa
             '         fOffset ^ DashCut
             '        <-    DashTrame    ->
             ' DashTrame = fOffset + DashCut
-
 
             DashTrame = flxDashes[iDashTrame]
 
@@ -1330,7 +1341,7 @@ Public Function DashedLineStrip(BaseX As Float, BaseY As Float, flxStrip As Floa
 
             ' Esto es lo que me queda por trazar, pero puede ocurrir que el tramo donde trazarlo sea mas corto
             ' ahora verifico que no me pase de la linea
-            If DashCut > fTrame Then            ' me estoy pasando
+            If DashCut >= fTrame Then            ' me estoy pasando
                 fOffset += fTrame               ' este offset pasa al siguiente tramo a rellenar
                 DashCut = fTrame                ' trazo solo lo que me queda
                 fTrame = 0
@@ -1352,11 +1363,8 @@ Public Function DashedLineStrip(BaseX As Float, BaseY As Float, flxStrip As Floa
                 '     Endif
             End If
 
-
             DashBaseX = DashFinalX
             DashBaseY = DashFinalY
-
-
 
             If fTrame = 0 Then Break                                ' el tramo ya se completo con los dashes
 
@@ -1364,8 +1372,6 @@ Public Function DashedLineStrip(BaseX As Float, BaseY As Float, flxStrip As Floa
             If iDashTrame > flxDashes.Max Then iDashTrame = 0       ' ya hice todos los dashes, pero vuelvo al inicial para completar el tramo
 
         Loop
-
-
 
     Next
 
