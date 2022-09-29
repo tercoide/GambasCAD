@@ -1345,32 +1345,39 @@ Public Function DashedLineStrip(flxStrip As Float[], flxDash As Float[], Optiona
 
             DashCut = DashTrame - fOffset
 
-            ' Esto es lo que me queda por trazar, pero puede ocurrir que el tramo donde trazarlo sea mas corto
-            ' ahora verifico que no me pase de la linea
-            If DashCut >= fTrame Then            ' me estoy pasando
-                fOffset += fTrame               ' este offset pasa al siguiente tramo a rellenar
-                DashCut = fTrame                ' trazo solo lo que me queda
-                fTrame = 0
+            ' aqui puede ocurrir que el offset sea mayor que el tramito
+            If DashCut < 0 Then
 
-            Else                                ' el trazo completo entra en lo que me queda de tramo
-                fTrame -= DashCut               ' resto el trazo al tramo
-                fOffset = 0
+                fOffset = -DashCut
+            Else
+
+                ' Esto es lo que me queda por trazar, pero puede ocurrir que el tramo donde trazarlo sea mas corto
+                ' ahora verifico que no me pase de la linea
+                If DashCut >= fTrame Then            ' me estoy pasando
+                    fOffset += fTrame               ' este offset pasa al siguiente tramo a rellenar
+                    DashCut = fTrame                ' trazo solo lo que me queda
+                    fTrame = 0
+
+                Else                                ' el trazo completo entra en lo que me queda de tramo
+                    fTrame -= DashCut               ' resto el trazo al tramo
+                    fOffset = 0
+                End If
+
+                DashFinalX = DashBaseX + DashCut * CosB
+                DashFinalY = DashBaseY + DashCut * SinB
+
+                If Not bSpace Then
+                    flxFirstPass.insert([DashBaseX, DashBaseY, DashFinalX, DashFinalY])
+
+                    ' Else If DashCut = 0 Then
+                    '     If puntos.isInside(flxContorno, DashBaseX, DashBaseY) Then
+                    '         flxFirstPass.insert([DashBaseX, DashBaseY, DashFinalX, DashFinalY])
+                    '     Endif
+                End If
+
+                DashBaseX = DashFinalX
+                DashBaseY = DashFinalY
             End If
-
-            DashFinalX = DashBaseX + DashCut * CosB
-            DashFinalY = DashBaseY + DashCut * SinB
-
-            If Not bSpace Then
-                flxFirstPass.insert([DashBaseX, DashBaseY, DashFinalX, DashFinalY])
-
-                ' Else If DashCut = 0 Then
-                '     If puntos.isInside(flxContorno, DashBaseX, DashBaseY) Then
-                '         flxFirstPass.insert([DashBaseX, DashBaseY, DashFinalX, DashFinalY])
-                '     Endif
-            End If
-
-            DashBaseX = DashFinalX
-            DashBaseY = DashFinalY
 
             If fTrame = 0 Then Break                                ' el tramo ya se completo con los dashes
 

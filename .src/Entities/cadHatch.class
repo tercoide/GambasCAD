@@ -729,9 +729,7 @@ Public Sub GetBoundLimits2(fxlPoints As Float[])
 
 End
 
-'Fast Unsafe
-
-Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
+Fast Unsafe Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
 
     ' reeleno usando un pattern manual
     ' https://knowledge.autodesk.com/support/autocad-lt/learn-explore/caas/CloudHelp/cloudhelp/2018/ENU/AutoCAD-LT/files/GUID-79B99823-7600-4CAB-BD12-04D5103D90CB-htm.html
@@ -902,12 +900,12 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
                 Inc iPatternOffset
 
                 ' TEST: para ver si los dashed son el problema, descomentar la siguiente linea
-                oPat.DashLength.Clear
+                'oPat.DashLength.Clear
 
                 ' PARTE 1
 
                 ' La linea recortada al contorno es (OJO, esto puede ser un conjunto de lineas):
-                flxTrimmedLine = puntos.LinePolyIntersection([StartX, StartY, FinalX, FinalY], flxContorno)
+                flxTrimmedLine = puntos.LinePolyIntersection([BaseX, baseY, FinalX, FinalY], flxContorno)
 
                 If flxTrimmedLine.Count > 0 Then
                     'If flxTrimmedLine.Count > 4 Then Stop
@@ -918,23 +916,56 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
                         flxFirstPass.Insert(flxTrimmedLine.Copy())
 
                     Else ' armo los dashes y despue los recorto al contorno
-                        fOffset = puntos.distancia(startX, starty, basex, basey)
-                        d1 = fOffset + puntos.distancia(startX, starty, flxTrimmedLine[0], flxTrimmedLine[1])
-                        d2 = fOffset + puntos.distancia(startX, starty, flxTrimmedLine[flxTrimmedLine.Max - 1], flxTrimmedLine[flxTrimmedLine.Max])
+                        'fOffset = puntos.distancia(startX, starty, basex, basey)
+                        d1 = puntos.distancia(baseX, basey, flxTrimmedLine[0], flxTrimmedLine[1])
+                        'd2 = fOffset + puntos.distancia(startX, starty, flxTrimmedLine[flxTrimmedLine.Max - 1], flxTrimmedLine[flxTrimmedLine.Max])
                         If d1 <= d2 Then
 
-                            bInvert = False
-                            fOffset = d1
+                            'bInvert = False
+                            fOffset = 0'd1
                             'Debug "Normal"
                         Else
-                            bInvert = True
-                            fOffset = d2
+                            'bInvert = True
+                            fOffset = 0'd2
                             'Debug "Invert"
                         End If
+                        fOffset = d1
                         flxDashes = puntos.DashedLineStrip(flxTrimmedLine, oPat.DashLength,, fOffset, bInvert, True)
                         'Debug fOffset 'baseX, BaseY
                         flxFirstPass.Insert(flxDashes)
+                    End If
+                End If
+                ' PARTE 2
 
+                ' La linea recortada al contorno es (OJO, esto puede ser un conjunto de lineas):
+                flxTrimmedLine = puntos.LinePolyIntersection([BaseX, baseY, startX, startY], flxContorno)
+
+                If flxTrimmedLine.Count > 0 Then
+                    'If flxTrimmedLine.Count > 4 Then Stop
+                    EsUtil = True
+
+                    Inc iHatchLinesDrawn
+                    If oPat.DashLength.Count = 0 Then ' es una linea recta
+                        flxFirstPass.Insert(flxTrimmedLine.Copy())
+
+                    Else ' armo los dashes y despue los recorto al contorno
+                        'fOffset = puntos.distancia(startX, starty, basex, basey)
+                        d1 = puntos.distancia(baseX, basey, flxTrimmedLine[0], flxTrimmedLine[1])
+                        'd2 = fOffset + puntos.distancia(startX, starty, flxTrimmedLine[flxTrimmedLine.Max - 1], flxTrimmedLine[flxTrimmedLine.Max])
+                        If d1 <= d2 Then
+
+                            'bInvert = False
+                            fOffset = 0'd1
+                            'Debug "Normal"
+                        Else
+                            'bInvert = True
+                            fOffset = 0'd2
+                            'Debug "Invert"
+                        End If
+                        fOffset = d1
+                        flxDashes = puntos.DashedLineStrip(flxTrimmedLine, oPat.DashLength,, fOffset, True, True)
+                        'Debug fOffset 'baseX, BaseY
+                        flxFirstPass.Insert(flxDashes)
                     End If
 
                 End If
