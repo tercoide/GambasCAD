@@ -148,7 +148,6 @@ Public Sub DrawSelected(oE As Entity)
 
     For Each oBound In oe.pBlock.Polylines
 
-        GLplus.Lines(oBound, config.WindowBackColor, oE.LineWidth, gcd.stiDashed)
         GLplus.Lines(obound, config.ColorForSelected, oE.LineWidth, oE.LineType.TrameLength)
     Next
 
@@ -165,8 +164,7 @@ Public Sub DrawRemark(oE As Entity)
 
     For Each oBound In oe.pBlock.Polylines
 
-        GLplus.Lines(oBound, config.WindowBackColor, oE.LineWidth, gcd.stiDashed)
-        GLplus.Lines(obound, config.ColorForSelected, oE.LineWidth, oE.LineType.TrameLength)
+        GLplus.PolyLines(obound, config.ColorForSelected, oE.LineWidth + 1, oE.LineType.TrameLength)
     Next
 
 
@@ -362,14 +360,14 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
                                 Inc i
                                 If sClaves[i] = "40" Then eContour.fParam.Add(CFloat(sValues[i]))
                                 Inc i
-                                If sClaves[i] = "50" Then eContour.fParam.Add(CFloat(sValues[i]) * 180 / Pi)
+                                If sClaves[i] = "50" Then eContour.fParam.Add(Deg(CFloat(sValues[i])))
 
                                 ' esto soluciona un proble de unidades de LibreCAD
                                 If eContour.fParam[eContour.fParam.Max] > 2 * Pi Then
                                     eContour.fParam[eContour.fParam.Max] /= (360 / 2 / Pi)
                                 Endif
                                 Inc i
-                                If sClaves[i] = "51" Then eContour.fParam.Add(CFloat(sValues[i]) * 180 / Pi)
+                                If sClaves[i] = "51" Then eContour.fParam.Add(Deg(CFloat(sValues[i])))
 
                                 ' esto soluciona un proble de unidades de LibreCAD
                                 If eContour.fParam[eContour.fParam.Max] > 2 * Pi Then
@@ -743,7 +741,8 @@ Public Sub GetBoundLimits2(fxlPoints As Float[])
 
 End
 
-Fast Unsafe Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
+'Fast Unsafe
+Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
 
     ' reeleno usando un pattern manual
     ' https://knowledge.autodesk.com/support/autocad-lt/learn-explore/caas/CloudHelp/cloudhelp/2018/ENU/AutoCAD-LT/files/GUID-79B99823-7600-4CAB-BD12-04D5103D90CB-htm.html
@@ -795,9 +794,9 @@ Fast Unsafe Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para 
 
     'For Each oLoop In entToFill.pBlock
 
-    'If entToFill.Handle = "35256" Then Stop
+    'If entToFill.Handle = "146BD5" Then Stop
     'If entToFill.StringData[0] = "ANSI31" Then Stop
-    'If entToFill.StringData[0] = "GRAVEL" Then entToFill.Colour = 2
+    If entToFill.sParam[0] = "GRAVEL" Then Return 'entToFill.Colour = 2
 
     'If ((entToFill.Flag And 1) = 1) Or (entToFill.Flag = 0) Then ' es external, o sea lo que esta afuera de todo
 
@@ -845,8 +844,8 @@ Fast Unsafe Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para 
         If OyMax <> 0 Then SeedY = SeedY + Int((Ycg - SeedY) / OyMax) * OyMax Else SeedY = Ycg
 
 
-        CosA = Cos(entToFill.fParam[Me.ipaRotation] * Pi / 180)
-        SinA = Sin(entToFill.fParam[Me.ipaRotation] * Pi / 180)
+        CosA = Cos(Rad(entToFill.fParam[Me.ipaRotation]))
+        SinA = Sin(Rad(entToFill.fParam[Me.ipaRotation]))
         'Debug entToFill.fParam[Me.ipaRotation]
         For Each oPat In entToFill.pBlock.Patterns
 
@@ -859,22 +858,22 @@ Fast Unsafe Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para 
 
             ' el angulo de la linea del patron ya tiene incorporado el angulo general del hatch
 
-            CosB = Cos(oPat.AngleDeg * Pi / 180)
-            SinB = Sin(oPat.AngleDeg * Pi / 180)
+            CosB = Cos(Rad(oPat.AngleDeg))
+            SinB = Sin(Rad(oPat.AngleDeg))
 
-            ' TanAB = Tan((oPat.AngleDeg + entToFill.fParam[Me.ipaRotation]) * Pi / 180)
-            CosAB = Cos((oPat.AngleDeg + entToFill.fParam[Me.ipaRotation]) * Pi / 180)
-            SinAB = Sin((oPat.AngleDeg + entToFill.fParam[Me.ipaRotation]) * Pi / 180)
+
+            CosAB = Cos(Rad(oPat.AngleDeg + entToFill.fParam[Me.ipaRotation]))
+            SinAB = Sin(Rad(oPat.AngleDeg + entToFill.fParam[Me.ipaRotation]))
 
             flxBase.Clear
             flxBase.Insert([oPat.BaseX, oPat.BaseY])
 
-            puntos.Rotate(flxBase, entToFill.fParam[Me.ipaRotation] * Pi / 180)
+            puntos.Rotate(flxBase, Rad(entToFill.fParam[Me.ipaRotation]))
 
             flxOffset.Clear
             flxOffset.Insert([oPat.OffsetX, oPat.OffsetY])
 
-            puntos.Rotate(flxOffset, entToFill.fParam[Me.ipaRotation] * Pi / 180)
+            puntos.Rotate(flxOffset, Rad(entToFill.fParam[Me.ipaRotation]))
 
             bx = flxBase[0]
             by = flxBase[1]

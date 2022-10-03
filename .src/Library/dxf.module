@@ -16,6 +16,7 @@ Private lpValue As String
 Private eExports As Boolean
 
 Private ReadTimes As New Collection
+Private ReadEntities As New Collection
 Public cEntitiesUnread As Collection
 Public nEntitiesUnread As Integer
 Public nEntitiesRead As Integer
@@ -183,8 +184,9 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
 
     If UpdateGraphics Then UpdateGraphicsFromDXF(cToFill, drw)
     For Each ft As Float In ReadTimes
-        gcd.debugInfo(ReadTimes.Key & gb.Tab & gb.Tab & gb.tab & gb.Tab & gb.Tab & gb.tab & Format(fT, "0.0000"))
+        gcd.debugInfo(ReadEntities[ReadTimes.Key] & " " & gb.Tab & ReadTimes.Key & gb.Tab & gb.Tab & gb.Tab & " total time: " & Format(fT, "0.0000"))
     Next
+
     If VerboseLevel > 1 Then
         If VerboseLevel > 2 Then
             gcd.debuginfo("DXF: Leidas " & nEntitiesread & " entidades")
@@ -198,6 +200,7 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
         End If
         gcd.debuginfo("DXF: fin lectura en " & Str(Timer - t))
     End If
+    gcd.debuginfo("DXF: fin lectura en " & Str(Timer - t))
     Return False
 
 End
@@ -1888,10 +1891,11 @@ Public Sub DXFtoEntity(cEny As Collection, obx As Collection, drw As Drawing, Op
                 t = Timer
 
                 entNueva = clsEntities.DXFImportToEntity(e, IsDummy)
-                If Not ReadTimes.Exist(entNueva.Gender) Then
 
-                    ReadTimes.Add(fTime, entNueva.Gender)
-                Endif
+                'stats
+                If Not ReadTimes.Exist(entNueva.Gender) Then ReadTimes.Add(fTime, entNueva.Gender)
+                If Not ReadEntities.Exist(entNueva.Gender) Then ReadEntities.Add(1, entNueva.Gender)
+
                 If Not IsNull(entNueva) Then         ' si esta implementada, llenamos los datos
                     If NewHandles Or (entNueva.Handle = "") Then
                         sHandle = gcd.NewHandle()
@@ -1932,6 +1936,10 @@ Public Sub DXFtoEntity(cEny As Collection, obx As Collection, drw As Drawing, Op
                     End If
                     fTime = (Timer - t)
                     ReadTimes[entNueva.Gender] += fTime
+                    ReadEntities[entNueva.Gender] += 1
+                    ' If entNueva.Gender = "HATCH" Then
+                    '     ReadTimes.Add(fTime, entNueva.Handle)
+                    ' Endif
                     If entNueva.HandleOwner = "640" Then Debug "640", entNueva.Gender
 
                     entNueva = Null                                           ' limpiamos
