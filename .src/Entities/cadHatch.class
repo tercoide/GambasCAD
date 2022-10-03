@@ -773,7 +773,7 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
     Dim OffsetDirection As Integer = 1
     Dim mX, mY, dX, dY, BaseX, BaseY, Check, StartX, StartY, FinalX, FinalY, TanA, DashLength, DashTrame As Float
     Dim Scale, CosA, SinA, DashBaseX, DashBaseY, DashFinalX, DashFinalY As Float
-    Dim A1, A2, SeedX, SeedY, SeedIndex, CosB, SinB, CosAB, SinAB As Float
+    Dim A1, A2, DeltaX, DeltaY, SeedX, SeedY, SeedIndex, CosB, SinB, CosAB, SinAB As Float
     Dim Mucho, MuchoViejo As Float
     Dim Xcg, Ycg, DistCg, DistCgOld As Float
     Dim d1, d2, ox, oy, bx, by, fOffset As Float
@@ -796,7 +796,9 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
 
     'If entToFill.Handle = "146BD5" Then Stop
     'If entToFill.StringData[0] = "ANSI31" Then Stop
-    If entToFill.sParam[0] = "GRAVEL" Then Return 'entToFill.Colour = 2
+    'If entToFill.sParam[0] = "GRAVEL" Then Return 'entToFill.Colour = 2
+
+    'If entToFill.sParam[0] = "STARS" Then Stop 'entToFill.Colour = 2
 
     'If ((entToFill.Flag And 1) = 1) Or (entToFill.Flag = 0) Then ' es external, o sea lo que esta afuera de todo
 
@@ -808,12 +810,26 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
     Xmayor = -1e10
     Ymayor = -1e10
 
+    ' obtengo los limites
+    For Each flxContorno In entToFill.pBlock.Polylines
+        GetBoundLimits2(flxContorno)
+    Next
+
+
+    ' Calculo el CG
+    Xcg = (Xmayor + Xmenor) / 2
+    Ycg = (Ymayor + Ymenor) / 2
+
+
     Dim l1, l2, lmax As Float
 
 
 
     Try SeedX = entToFill.pBlock.SeedPoints[SeedIndex * 2]
     Try SeedY = entToFill.pBlock.SeedPoints[SeedIndex * 2 + 1]
+
+    DeltaX = Xcg - entToFill.pBlock.Patterns[0].BaseX
+    DeltaY = ycg - entToFill.pBlock.Patterns[0].BaseY
 
     Scale = entToFill.fParam[Me.ipaScale]
     Scale = 1                                   ' La escala ya esta aplicada, pero aqui podriamos corregir
@@ -832,16 +848,6 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
 
         If flxContorno.Count < 6 Then Continue          ' este borde es nulo
 
-        ' obtengo los limites
-        GetBoundLimits2(flxContorno)
-
-        ' Calculo el CG
-        Xcg = (Xmayor + Xmenor) / 2
-        Ycg = (Ymayor + Ymenor) / 2
-
-        ' muevo el seed al CG proporcionalemnte al offset del patron
-        If OxMax <> 0 Then SeedX = SeedX + Int((Xcg - SeedX) / OxMax) * OxMax Else SeedX = Xcg
-        If OyMax <> 0 Then SeedY = SeedY + Int((Ycg - SeedY) / OyMax) * OyMax Else SeedY = Ycg
 
 
         CosA = Cos(Rad(entToFill.fParam[Me.ipaRotation]))
@@ -868,45 +874,55 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
             flxBase.Clear
             flxBase.Insert([oPat.BaseX, oPat.BaseY])
 
-            puntos.Rotate(flxBase, Rad(entToFill.fParam[Me.ipaRotation]))
+            '            puntos.Rotate(flxBase, Rad(entToFill.fParam[Me.ipaRotation]))
 
             flxOffset.Clear
             flxOffset.Insert([oPat.OffsetX, oPat.OffsetY])
+            '            puntos.Rotate(flxOffset, Rad(entToFill.fParam[Me.ipaRotation]))
 
-            puntos.Rotate(flxOffset, Rad(entToFill.fParam[Me.ipaRotation]))
-
-            bx = flxBase[0]
-            by = flxBase[1]
+            ' bx = flxBase[0]
+            ' by = flxBase[1]
+            '
+            bx = DeltaX + oPat.BaseX
+            by = DeltaY + oPat.BaseY
 
             ox = flxOffset[0]
             oy = flxOffset[1]
 
-            ' ox = oPat.OffsetX
-            ' oy = oPat.OffsetY
+            ' muevo el seed al CG proporcionalemnte al offset del patron
+            ' If ox <> 0 Then
+            '     bx = bx + Int((Xcg - bx) / ox) * Ox
+            ' Else
+            '     bx = bx + Int((Xcg - bx) / oy) * Oy
+            '     'bX = Xcg
+            ' End If
             '
-            ' bx = oPat.BaseX
-            ' by = oPat.BaseY
-
-            'Debug bx, by, ox, oy
+            ' If oy <> 0 Then
+            '     by = by + Int((Ycg - by) / oy) * Oy
+            ' Else
+            '     'bY = Ycg
+            '     by = by + Int((Ycg - by) / ox) * Ox
+            ' End If
 
             DistCg = 1e100
+
             Do
                 EsUtil = False
 
                 'If iPatternOffset > 1e3 Then Break 'Stop
 
                 ' el Offset entre lineas del patron ya tiene incorporado el angulo del hatch
-                BaseX = SeedX + bx + iPatternOffset * OffsetDirection * ox
-                BaseY = SeedY + by + iPatternOffset * OffsetDirection * oy
+                BaseX = bx + iPatternOffset * OffsetDirection * ox
+                BaseY = by + iPatternOffset * OffsetDirection * oy
 
                 'Debug baseX, BaseY
                 Mucho = 1e5
 
-                StartX = BaseX - cosAB * mucho
-                StartY = BaseY - SinAB * Mucho
+                StartX = BaseX - cosB * mucho
+                StartY = BaseY - SinB * Mucho
 
-                FinalX = BaseX + CosAB * Mucho
-                FinalY = BaseY + SinAB * Mucho
+                FinalX = BaseX + CosB * Mucho
+                FinalY = BaseY + SinB * Mucho
 
                 ' ' normalizo esto
                 ' If CSingle(StartX) > CSingle(FinalX) Then
