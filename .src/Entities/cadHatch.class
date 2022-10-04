@@ -46,7 +46,7 @@ Public Const ipaBoundaryType As Integer = 7 ' 0=lwpolyine, 1=lines, 2=circular a
 ' stringdata helpers
 Public Const sdaTotalParams As Integer = 2
 Public Const sdaPattern As Integer = 0
-Public Const sdaPaternFile As Integer = 1
+Public Const sdaPaternFile As Integer = 1           ' depre
 
 Public Xmenor As Float = 1e10
 Public Ymenor As Float = 1e10
@@ -563,11 +563,6 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
         End If
     Loop
 
-    If e.fParam[Me.ipaSolid] Then
-        e.sParam[Me.sdaPaternFile] = "Solid"
-    Else
-        e.sParam[Me.sdaPaternFile] = gcd.dirResources &/ "patterns" &/ LCase(e.sParam[Me.sdaPattern]) & ".dxf"
-    End If
 
     Return True
 
@@ -772,8 +767,8 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
     Dim EsUtil, NoMoreIntersections, MeAlejo, Filled, UseAxisX As Boolean
     Dim OffsetDirection As Integer = 1
     Dim mX, mY, dX, dY, BaseX, BaseY, Check, StartX, StartY, FinalX, FinalY, TanA, DashLength, DashTrame As Float
-    Dim Scale, CosA, SinA, DashBaseX, DashBaseY, DashFinalX, DashFinalY As Float
-    Dim A1, A2, DeltaX, DeltaY, SeedX, SeedY, SeedIndex, CosB, SinB, CosAB, SinAB As Float
+    Dim Scale, DashBaseX, DashBaseY, DashFinalX, DashFinalY As Float
+    Dim A1, A2, DeltaX, DeltaY, SeedX, SeedY, SeedIndex, CosB, SinB As Float
     Dim Mucho, MuchoViejo As Float
     Dim Xcg, Ycg, DistCg, DistCgOld As Float
     Dim d1, d2, ox, oy, bx, by, fOffset As Float
@@ -794,7 +789,7 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
 
     'For Each oLoop In entToFill.pBlock
 
-    'If entToFill.Handle = "146BD5" Then Stop
+    'If entToFill.Handle = "2BC" Then Stop
     'If entToFill.StringData[0] = "ANSI31" Then Stop
     'If entToFill.sParam[0] = "GRAVEL" Then Return 'entToFill.Colour = 2
 
@@ -820,26 +815,11 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
     Xcg = (Xmayor + Xmenor) / 2
     Ycg = (Ymayor + Ymenor) / 2
 
-
-    Dim l1, l2, lmax As Float
-
-
-
-    Try SeedX = entToFill.pBlock.SeedPoints[SeedIndex * 2]
-    Try SeedY = entToFill.pBlock.SeedPoints[SeedIndex * 2 + 1]
-
     DeltaX = Xcg - entToFill.pBlock.Patterns[0].BaseX
     DeltaY = ycg - entToFill.pBlock.Patterns[0].BaseY
 
     Scale = entToFill.fParam[Me.ipaScale]
     Scale = 1                                   ' La escala ya esta aplicada, pero aqui podriamos corregir
-    SeedIndex = 0
-
-    ' determino offsets maximos
-    For Each oPat In entToFill.pBlock.Patterns
-        If Abs(oPat.OffsetX) > OxMax Then OxMax = Abs(oPat.OffsetX)
-        If Abs(oPat.OffsetY) > OyMax Then OyMax = Abs(oPat.OffsetY)
-    Next
 
     ' ya tenemos las lineas del pattern, las hacemos intersectar con el contorno
     For Each flxContorno In entToFill.pBlock.Polylines
@@ -849,10 +829,6 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
         If flxContorno.Count < 6 Then Continue          ' este borde es nulo
 
 
-
-        CosA = Cos(Rad(entToFill.fParam[Me.ipaRotation]))
-        SinA = Sin(Rad(entToFill.fParam[Me.ipaRotation]))
-        'Debug entToFill.fParam[Me.ipaRotation]
         For Each oPat In entToFill.pBlock.Patterns
 
             iHatchLinesDrawn = 0
@@ -860,49 +836,10 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
             OffsetDirection = 1
             iPatternOffset = 0
 
-            ' Debug oPat.AngleDeg
-
             ' el angulo de la linea del patron ya tiene incorporado el angulo general del hatch
 
             CosB = Cos(Rad(oPat.AngleDeg))
             SinB = Sin(Rad(oPat.AngleDeg))
-
-
-            CosAB = Cos(Rad(oPat.AngleDeg + entToFill.fParam[Me.ipaRotation]))
-            SinAB = Sin(Rad(oPat.AngleDeg + entToFill.fParam[Me.ipaRotation]))
-
-            flxBase.Clear
-            flxBase.Insert([oPat.BaseX, oPat.BaseY])
-
-            '            puntos.Rotate(flxBase, Rad(entToFill.fParam[Me.ipaRotation]))
-
-            flxOffset.Clear
-            flxOffset.Insert([oPat.OffsetX, oPat.OffsetY])
-            '            puntos.Rotate(flxOffset, Rad(entToFill.fParam[Me.ipaRotation]))
-
-            ' bx = flxBase[0]
-            ' by = flxBase[1]
-            '
-            bx = DeltaX + oPat.BaseX
-            by = DeltaY + oPat.BaseY
-
-            ox = flxOffset[0]
-            oy = flxOffset[1]
-
-            ' muevo el seed al CG proporcionalemnte al offset del patron
-            ' If ox <> 0 Then
-            '     bx = bx + Int((Xcg - bx) / ox) * Ox
-            ' Else
-            '     bx = bx + Int((Xcg - bx) / oy) * Oy
-            '     'bX = Xcg
-            ' End If
-            '
-            ' If oy <> 0 Then
-            '     by = by + Int((Ycg - by) / oy) * Oy
-            ' Else
-            '     'bY = Ycg
-            '     by = by + Int((Ycg - by) / ox) * Ox
-            ' End If
 
             DistCg = 1e100
 
@@ -912,8 +849,8 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
                 'If iPatternOffset > 1e3 Then Break 'Stop
 
                 ' el Offset entre lineas del patron ya tiene incorporado el angulo del hatch
-                BaseX = bx + iPatternOffset * OffsetDirection * ox
-                BaseY = by + iPatternOffset * OffsetDirection * oy
+                BaseX = DeltaX + oPat.BaseX + iPatternOffset * OffsetDirection * oPat.OffsetX
+                BaseY = DeltaY + oPat.BaseY + iPatternOffset * OffsetDirection * oPat.OffsetY
 
                 'Debug baseX, BaseY
                 Mucho = 1e5
@@ -924,19 +861,6 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
                 FinalX = BaseX + CosB * Mucho
                 FinalY = BaseY + SinB * Mucho
 
-                ' ' normalizo esto
-                ' If CSingle(StartX) > CSingle(FinalX) Then
-                '     Swap StartX, FinalX
-                '     Swap StartY, FinalY
-                ' Else If CSingle(StartX) = CSingle(FinalX) Then
-                '     If CSingle(StartY) > CSingle(FinalY) Then
-                '         Swap StartX, FinalX
-                '         Swap StartY, FinalY
-                '     Endif
-                '
-                ' Endif
-
-                '
 
                 Inc iPatternOffset
 
