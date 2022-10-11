@@ -27,7 +27,7 @@ Public inxBuffersID As New Integer[]
 
 
 '' Changes the properties of the seleccted entities with given values
-Public Function EditEntities(sProperty As String, vValue As Variant, Optional DoRegen As Boolean = True, cEntities As Collection = gcd.Drawing.SelectedEntities) As Boolean
+Public Function EditEntities(sProperty As String, vValue As Variant, Optional DoRegen As Boolean = True, cEntities As Collection = gcd.Drawing.EntitiesSelected) As Boolean
 
     Dim e As Entity
 
@@ -346,11 +346,11 @@ Public Sub glGenDrawListSel(Optional mode As Integer = 0)
     Dim idDrawing As Integer ' la instancia de dibujo en la que estamos
     Dim i As Integer, e As Entity
 
-    If Not gl.islist(gcd.Drawing.GlListSelectedEntities) Then gcd.Drawing.GlListSelectedEntities = gl.GenLists(1)
+    If Not gl.islist(gcd.Drawing.GlListEntitiesSelected) Then gcd.Drawing.GlListEntitiesSelected = gl.GenLists(1)
 
-    gl.NewList(gcd.Drawing.GlListSelectedEntities, gl.COMPILE)
+    gl.NewList(gcd.Drawing.GlListEntitiesSelected, gl.COMPILE)
 
-    For Each e In gcd.Drawing.SelectedEntities
+    For Each e In gcd.Drawing.EntitiesSelected
 
         If mode = 0 Then gl.CallList(e.glDrwListSel)
         If mode = 1 Then gl.CallList(e.glDrwList)
@@ -467,7 +467,7 @@ Public Sub DrawPoiSymbolsAll()
 
     Dim i, total As Integer
 
-    For Each e As Entity In gcd.Drawing.SelectedEntities
+    For Each e As Entity In gcd.Drawing.EntitiesSelected
 
         ' If (e.Gender = "INSERT") Then
         DrawPoiSymbols(e)
@@ -532,7 +532,7 @@ Public Sub ClonElements(Optional cEntities As Collection, GenerateGlList As Bool
     Dim cContainer As New Collection
 
 
-    If cEntities Then cEntititesToClon = cEntities Else cEntititesToClon = gcd.Drawing.SelectedEntities
+    If cEntities Then cEntititesToClon = cEntities Else cEntititesToClon = gcd.Drawing.EntitiesSelected
 
     For Each E In cEntititesToClon
         eClon = Me.ClonEntity(e, True, True)
@@ -560,9 +560,9 @@ Public Function CopyBlock(bBase As Variant, Optional NewHandle As Boolean) As Va
         b.Explotability = bBase.Explotability
         b.Flags = bBase.Flags
         If NewHandle Then b.handle = gcd.NewHandle() Else b.handle = bBase.handle
-        b.HandleAsociatedLayout = bBase.HandleAsociatedLayout
-        b.HandleOwner = bBase.HandleOwner
-        b.HandleOwnerParent = bBase.HandleOwnerParent
+        ' b.HandleAsociatedLayout = bBase.HandleAsociatedLayout
+        ' b.HandleOwner = bBase.HandleOwner
+        ' b.HandleOwnerParent = bBase.HandleOwnerParent
         b.InsertionPlace = bBase.InsertionPlace
         b.InsertUnits = bBase.InsertUnits
         b.layer = bBase.layer
@@ -637,7 +637,7 @@ Public Function DeSelection(Optional elementos As String = "todo", Accion As Str
     elementos = LCase(elementos)
 
     '   primero vacio la seleccion anterior
-    gcd.Drawing.SelectedEntities.Clear
+    gcd.Drawing.EntitiesSelected.Clear
 
     For Each eTesting As Entity In gcd.Drawing.Entities
 
@@ -649,7 +649,7 @@ Public Function DeSelection(Optional elementos As String = "todo", Accion As Str
 
                 If SelFull() And (elementos = "todo" Or elementos = clase) Then
 
-                    gcd.Drawing.SelectedEntities.Add(eTesting, eTesting.handle)
+                    gcd.Drawing.EntitiesSelected.Add(eTesting, eTesting.handle)
                     SelectElem(eTesting)
                     Inc i
 
@@ -662,7 +662,7 @@ Public Function DeSelection(Optional elementos As String = "todo", Accion As Str
             Case "estirar" ' necesito que dos puntos contiguos esten seleccionados
 
                 If SelPArtial() And (elementos = "todo" Or elementos = clase) Then
-                    gcd.Drawing.SelectedEntities.Add(eTesting, eTesting.handle)
+                    gcd.Drawing.EntitiesSelected.Add(eTesting, eTesting.handle)
                     SelectElem(eTesting, False) ' dont touch the points
                     Inc i
 
@@ -783,7 +783,7 @@ Public Sub SelectElem(eEntity As Entity, Optional AndItsPoints As Boolean = True
         Next
 
     End If
-    gcd.Drawing.SelectedEntities.Add(eEntity, eEntity.Handle)
+    gcd.Drawing.EntitiesSelected.Add(eEntity, eEntity.Handle)
 
 End
 
@@ -800,7 +800,7 @@ Public Sub DeSelectElem(eEntity As Entity, Optional AndItsPoints As Boolean = Tr
         Next
 
     End If
-    gcd.Drawing.SelectedEntities.Remove(eEntity.Handle)
+    gcd.Drawing.EntitiesSelected.Remove(eEntity.Handle)
 
 End
 
@@ -845,7 +845,7 @@ Public Sub Move(dX As Float, dY As Float, Optional cEntitiesToMove As Collection
     ' crea un backup de todos los puntos
     Dim e As Entity, i As Integer
 
-    If Not cEntitiesToMove Then cEntitiesToMove = gcd.Drawing.SelectedEntities
+    If Not cEntitiesToMove Then cEntitiesToMove = gcd.Drawing.EntitiesSelected
 
     For Each e In cEntitiesToMove
 
@@ -906,7 +906,7 @@ Public Function SelectionSquare(X1real As Float, Y1real As Float, X2real As Floa
                 e.Psel[i2] = False
             Next
         Next
-        gcd.Drawing.SelectedEntities.Clear
+        gcd.Drawing.EntitiesSelected.Clear
         TotalSeleccionados = 0
     End If
 
@@ -969,21 +969,21 @@ Public Function CollectVisibleEntities(Optional sSheet As Sheet)
     x1 = gcd.Xreal(gcd.ScreenWidth())
     y0 = gcd.Yreal(gcd.ScreenHeight())
 
-    If sSheet Then ho = sSheet.Handle Else ho = gcd.Drawing.Sheet.Handle
+    If Not sSheet Then sSheet = gcd.Drawing.Sheet
 
     'If gcd.Drawing.oEntities > gcd.Drawing.arrVisibleEntities.Max Then gcd.Drawing.arrVisibleEntities.Resize(gcd.Drawing.oEntities.Count)
     gcd.Drawing.EntitiesVisibles.Clear
-    For Each e In gcd.Drawing.Entities
+    For Each e In sSheet.Entities 'gcd.Drawing.Entities
         If e.pLayer.Visible Then
 
-            If e.HandleOwner = ho Then
+            'If e.HandleOwner = ho Then
 
-                If SelPArtial(e, x0, y0, x1, y1) Then
+            If SelPArtial(e, x0, y0, x1, y1) Then
 
-                    gcd.Drawing.EntitiesVisibles.Add(e, e.Handle)
+                gcd.Drawing.EntitiesVisibles.Add(e, e.Handle)
 
-                End If
             End If
+            'End If
         End If
     Next
 
@@ -1352,7 +1352,7 @@ Public Function DXFImportToEntity(c As Collection, Optional IsDummy As Boolean =
     ' for testing FIXME: ojo con esto!!!
     ' If e.handle <> "804AC" Then Return Null
 
-    e.HandleOwner = c[dxf.codHandleOwner]
+    'depre e.HandleOwner = c[dxf.codHandleOwner]
     Try e.colour = c[dxf.codColor]            ' no es obligatorio
     Try e.LineWidth = c[dxf.codLWht] / 100    ' por eso el try
     ' 67 Absent or zero indicates entity is in model space. 1 indicates entity is in paper space (optional).
@@ -1411,7 +1411,7 @@ Public Sub DXFExportCommonCol(e As Entity, ByRef cExported As String[])
     cExported.Add(dxf.codEntity)
     cExported.add(e.Handle)
     cExported.Add(dxf.codHandle)
-    cExported.add(e.HandleOwner)
+    cExported.add("")   ' se agrega despues
     cExported.Add(dxf.codHandleOwner)
     cExported.Add("AcDbEntity")
     cExported.Add("100")
