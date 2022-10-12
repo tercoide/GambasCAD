@@ -84,7 +84,12 @@ Public Function MouseUp()
         eInsert.fParam[cadInsert.ipaRotacion] = FBlockdegRotation
         Gcd.CCC[eInsert.gender].Finish(eInsert)
 
+        cadInsert.InsertParts(eInsert, gcd.Drawing.Entities)
+
         gcd.Drawing.Entities.Add(eInsert, eInsert.Handle)
+
+        ' ahora agrego las entidades del Inserto
+
 
         gcd.CCC["ENTITYBUILDER"].LastEntity = eInsert     ' save it to repeat on rigth click
 
@@ -93,7 +98,7 @@ Public Function MouseUp()
         gcd.clsJob.start()
         DrawingAids.CleanTexts
 
-        gcd.regen
+        gcd.regen()
     End If
 
 End
@@ -102,11 +107,24 @@ Public Sub SetInsert(sBlockName As String, ScaleXYZ As Float, Rotation As Float,
 
     'Debug "Create", iStage
     ' Armo una entidad Insert y la meto en oSelected para que sea dibujada
+    Dim tmpBlock As Block
+    Dim e, e2 As Entity
 
     eInsert = New Entity
     eInsert = cadInsert.NewEntity()'New Entity
     eInsert.Gender = cadInsert.Gender
-    eInsert.pBlock = clsEntities.FIndBlock(sBlockName, gcd.Drawing.Blocks)' gcd.Drawing.oBlocks[icvBlocksInUse.Item.Key]
+    eInsert.pBlock = New Block
+    eInsert.sParam[cadInsert.sdaBlockName] = sBlockName
+
+    tmpBlock = clsEntities.FIndBlock(sBlockName, gcd.Drawing.Blocks)' gcd.Drawing.oBlocks[icvBlocksInUse.Item.Key]
+
+
+    For Each e In tmpBlock.entities
+        If e.Gender = cadEndBlk.Gender Then Continue
+        e2 = clsEntities.ClonEntity(e)
+        eInsert.pBlock.entities.Add(e, e.handle)
+    Next
+
     eInsert.fParam[cadInsert.ipaEscX] = 1' ScaleXYZ
     eInsert.fParam[cadInsert.ipaEscY] = 1' ScaleXYZ
     eInsert.fParam[cadInsert.ipaEscZ] = 1' ScaleXYZ
@@ -120,7 +138,7 @@ Public Sub SetInsert(sBlockName As String, ScaleXYZ As Float, Rotation As Float,
     fBlockScaleY = ScaleXYZ
 
     If bInvert Then fBlockInvert = -1 Else fBlockInvert = 1
-    Dim e As Entity
+
     Dim c As New Collection, sDetails As String[]
     ' buen momento para ver si tiene ATTDEF
     gcd.cATTDEF = New Collection

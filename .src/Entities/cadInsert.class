@@ -35,6 +35,8 @@ Public Const ipaEscZ As Integer = 2
 Public Const ipaRotacion As Integer = 3
 'Public Const ipaInsertion As Integer = 3
 
+Public Const sdaTotalParams As Integer = 1
+Public Const sdaBlockName As Integer = 0
 ' special vars
 
 Public CurrLType As Integer
@@ -91,8 +93,18 @@ Public Sub Draw(oE As Entity)
 
 End
 
+
+Public Sub DrawParts(oE As Entity)
+
+
+
+    If oe.pBlock Then Draw_List(oe.pBlock.entities, oe, oe.pBlock.InsertionPlace)
+
+End
+
+'' DrawMode: 0 Normal ; 1 Selected ; 2 Remark ; 3 Paint
 Public Sub Draw_List(eList As Collection, eParent As Entity, Optional InsertionPlace As Integer = 0, DrawMode As Integer = 0)
-    ' DrawMode: 0 Normal ; 1 Selected ; 2 Remark ; 3 Paint
+
 
     'insertion place:
     ' 0 = entity.P[0],[1]
@@ -216,6 +228,8 @@ Public Function BuildPOI(oE As Entity) As Integer
 
     ' si este valor no es provisto , estos POI son de la ultima entidad
 
+    Return
+
     Dim a As Integer
 
     oe.PoiPoints.Clear
@@ -302,5 +316,34 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     '' catch
 
     Return False
+
+End
+
+
+
+'' Inserta las partes de un Insert en la coleccion de entidades
+Public Function InsertParts(eInsert As Entity, cEntities As Collection)
+
+
+    ' la geometria de un inserto implica
+    Dim e, e2 As Entity
+
+    'eInsert.pBlock.entities.Clear
+    For Each e In eInsert.pBlock.entities
+        e2 = clsEntities.ClonEntity(e)
+        e2.HandleOwner = eInsert.Handle
+        e2.Visible = False
+        gcd.CCC[e2.gender].translate(e2, eInsert.p[0], eInsert.p[1])
+        gcd.CCC[e2.gender].rotate(e2, eInsert.fParam[cadInsert.ipaRotacion])
+        gcd.CCC[e2.gender].scale(e2, eInsert.fParam[cadInsert.ipaEscX], eInsert.fParam[cadInsert.ipaEscY])
+
+        gcd.Drawing.Entities.Add(e2, e2.Handle)
+        'eInsert.pBlock.entities.Add(e2, e2.Handle)  ' tambien guardo una referencia aqui
+        ' llamo recursivamente en caso que sea inserto
+        If e2.Gender = cadInsert.Gender Then InsertParts(e2, cEntities)
+
+
+    Next
+
 
 End
