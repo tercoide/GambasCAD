@@ -1820,6 +1820,7 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
     Dim cEnty As Variant[]
     Dim i As Integer
     Dim S As New Sheet
+    Dim newBlock As Block
 
     If Not colData.Exist("BLOCKS") Then Return
     ' For Each colBlk In colData["TABLES"]["BLOCK_RECORD"]
@@ -1838,12 +1839,12 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
     ' hay DXF sin TAbles
     If colData.Exist("TABLES") Then
         For Each colBlk In colData["BLOCKS"]
-            Dim newBlock As New Block
+            newBlock = New Block
             newBlock.entities = New Collection
             newBlock.name = colBlk[dxf.codName]
 
             ' en ciertos DXF no hay la tabla BLOCK_RECORD
-            If colData["TABLES"].Exist("BLOCK_RECORD") Then cParent = colData["TABLES"]["BLOCK_RECORD"][newBlock.name]
+            ' depre If colData["TABLES"].Exist("BLOCK_RECORD") Then cParent = colData["TABLES"]["BLOCK_RECORD"][newBlock.name]
             'depre  newBlock.handle = colBlk[dxf.codHandle]
             ' If cParent Then
             '     newBlock.HandleOwner = cParent[dxf.codHandle]
@@ -1858,7 +1859,7 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
             Try newBlock.y0 = colBlk[dxf.codY0]
             If colBlk.Exist(dxf.codZ0) Then newBlock.z0 = colBlk[dxf.codZ0]
             newBlock.flags = colBlk["70"]
-
+            Drw.Blocks.Add(newBlock, newBlock.name)
             If Left(newBlock.name, 1) = "*" Then
                 If newBlock.name = "*Model_Space" Then
                     ' creo la Sheet
@@ -1878,26 +1879,54 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
                     'depre s.Handle = colBlk[dxf.codHandle]
                     Drw.Sheets.Add(s, s.Name)
 
-                Else
-                    drw.Inserts.Add(newBlock, newBlock.name)
+                    ' Else
+                    '     drw.Blocks.Add(newBlock, newBlock.name)
                 End If
-            Else
-                Drw.Blocks.Add(newBlock, newBlock.name)
+                'Else
+
             End If
 
         Next
-        Block_Record = New Collection
+    End If
 
+    ' voy a hacer un chequeo final, porque algunos DXF vienen sin el bloque Model
+    If Drw.Sheets.Count = 0 Then
+        ' creo la Sheet
+        S = New Sheet
+        s.Name = "Model"
+        s.IsModel = True
+        s.Entities = drw.Entities
+        'depre  s.Handle = "2"
+        Drw.Sheets.Add(s, s.Name)
+        drw.Sheet = s
+        drw.Model = s
+
+        ' creo ql bloque
+
+        newBlock = New Block
+        newBlock.entities = New Collection
+        newBlock.name = "*Model_Space"
+        Drw.Blocks.Add(newBlock, newBlock.name)
+
+    End If
+
+    drw.Model.Entities = drw.Blocks["*Model_Space"].entities
+    drw.Entities = drw.Model.Entities
+
+    Block_Record = New Collection
+
+    If colData.Exist("BLOCKS") Then
         For Each colBlk In colData["BLOCKS"]
-            Block_Record.Add(colBlk["2"], colBlk["5"])
+            Block_Record.Add(colBlk["2"], colBlk["330"])
 
             If colBlk.Exist("entities") And Drw.Blocks.Exist(colBlk[dxf.codName]) Then
 
-                DXFtoEntity(colBlk["entities"], Drw.Blocks[colBlk[dxf.codName]].entities, drw)
+                'DXFtoEntity(colBlk["entities"], Drw.Blocks[colBlk[dxf.codName]])
+                DXFtoEntity(colBlk["entities"], Drw)
 
-            Else If colBlk.Exist("entities") And Drw.Inserts.Exist(colBlk[dxf.codName]) Then
-
-                DXFtoEntity(colBlk["entities"], Drw.inserts[colBlk[dxf.codName]].entities, drw)
+                ' Else If colBlk.Exist("entities") And Drw.Inserts.Exist(colBlk[dxf.codName]) Then
+                '
+                '     DXFtoEntity(colBlk["entities"], Drw.Inserts[colBlk[dxf.codName]])
 
             Else
 
@@ -1907,21 +1936,10 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
             Inc i
 
         Next
-
-        ' voy a hacer un chequeo final, porque algunos DXF vienen sin el bloque Model
-        If Drw.Sheets.Count = 0 Then
-            ' creo la Sheet
-            S = New Sheet
-            s.Name = "Model"
-            s.IsModel = True
-            s.Entities = drw.Entities
-            'depre  s.Handle = "2"
-            Drw.Sheets.Add(s, s.Name)
-            drw.Sheet = s
-            drw.Model = s
-        End If
-
     End If
+
+
+
 
 End
 
@@ -1968,21 +1986,36 @@ Public Sub DXFtoEntity(cEny As Collection, drw As Drawing, Optional NewHandles A
                     If flgIsPolyline Then
                         pBlockPolyline.entities.Add(entNueva, sHandle)
                     Else
-
                         If entNueva.Gender = "INSERT" Then
                             b = New Block
                             b.entities = New Collection
                             drw.Inserts.Add(b, entNueva.Handle)
                         Endif
+                        ' tengo que buscar el bloque que contiene a esta entidad
+                        ' Puede ser:
+                        '   -Model
+                        '   -Paper
+                        '   -Dim
+                        '   -Insert
+                        If drw.Blocks.Exist(Block_Record[e[codHandleOwner]]) Then
+                            obx = drw.Blocks[Block_Record[e[codHandleOwner]]].entities
+                        Else If drw.Inserts.Exist(Block_Record[e[codHandleOwner]]) Then
+
+                            'obx = drw.Inserts[Block_Record[e[codHandleOwner]]].entities
+                            obx = drw.Model.Entities
+                        Else
+                            obx = drw.Model.Entities
+                        End If
+
                         If entNueva.PaperSpace Then
-                            If drw.Sheets.Exist(entNueva.HandleOwner) Then
-                                drw.Sheets[entNueva.HandleOwner].Entities.Add(entNueva, sHandle)
-                            Else
-                                Debug "No existe el contenedor", entNueva.HandleOwner
-                            End If
+                            'If drw.Sheets.Exist(entNueva.HandleOwner) Then
+                            'drw.Sheets[entNueva.HandleOwner].Entities.Add(entNueva, sHandle)
+                            obx.Add(entNueva, sHandle)
+                            'Else
+                            '    Debug "No existe el contenedor", entNueva.HandleOwner
+                            'End If
                         Else
                             ' busco el contenedor
-                            Stop
                             obx.Add(entNueva, sHandle)
                         End If
                     End If
