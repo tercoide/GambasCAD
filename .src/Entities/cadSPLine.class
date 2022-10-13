@@ -48,6 +48,19 @@ Public LOD As Integer = 100
 
 Public g_points As New Float[]
 Public Knots As New Float[]
+Public sp As SPline
+
+Public Function NewEntity(Optional fPoints As Float[], bNewHandle As Boolean = False) As Entity
+
+    Dim e As Entity
+
+    e = Super.NewEntity(fPoints, bNewHandle)
+
+    e.pBlock = New SPline
+    Return e
+
+
+End
 
 Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
 
@@ -240,69 +253,54 @@ End
 Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
 
     Dim i As Integer
+
     Dim Pbase, PFit As New Float[]
     Dim Ptang1 As New Float[]
     Dim Ptang2 As New Float[]
 
+    sp = e.pBlock
+
     e.P.Clear
     For i = 0 To sClaves.Max
 
-        If sClaves[i] = "70" Then e.fParam[Me.ipaFlag] = CInt(sValues[i])
-        If sClaves[i] = "71" Then e.fParam[Me.ipaDegree] = CInt(sValues[i])
-        If sClaves[i] = "72" Then e.fParam[Me.ipaTotalKnots] = CInt(sValues[i])
-        If sClaves[i] = "73" Then e.fParam[Me.ipaTotalControlPoints] = CInt(sValues[i])
-        If sClaves[i] = "74" Then e.fParam[Me.ipaTotalFitPoints] = CInt(sValues[i])
-        If sClaves[i] = "42" Then e.fParam[Me.ipaKnotTolerance] = CFloat(sValues[i])
-        If sClaves[i] = "43" Then e.fParam[Me.ipaControlTolerance] = CFloat(sValues[i])
-        If sClaves[i] = "44" Then e.fParam[Me.ipaFitTolerance] = CFloat(sValues[i])
+        If sClaves[i] = "70" Then sp.Periodic = (CInt(sValues[i]) <> 0)
+        If sClaves[i] = "71" Then sp.Degree = CInt(sValues[i])
+        'If sClaves[i] = "72" Then e.fParam[Me.ipaTotalKnots] = CInt(sValues[i])
+        'If sClaves[i] = "73" Then e.fParam[Me.ipaTotalControlPoints] = CInt(sValues[i])
+        'If sClaves[i] = "74" Then e.fParam[Me.ipaTotalFitPoints] = CInt(sValues[i])
+        If sClaves[i] = "42" Then sp.KnotTolerance = CFloat(sValues[i])
+        If sClaves[i] = "43" Then sp.Controltolerance = CFloat(sValues[i])
+        If sClaves[i] = "44" Then sp.FitTolerance = CFloat(sValues[i])
 
         ' Los Knots estan en el indice me.TotalParams en adelante
-        If sClaves[i] = "40" Then e.fParam.Add(CFloat(sValues[i]))
+        If sClaves[i] = "40" Then sp.KnotValues.Add(CFloat(sValues[i]))
+
+        If sClaves[i] = "41" Then sp.Weigths.Add(CFloat(sValues[i]))
 
         ' por lo general hay fit points o controls points, pero no ambos, cargo lo que sea en P
         ' Control points
-        If sClaves[i] = "10" Then Pbase.Add(CFloat(sValues[i]))
-        If sClaves[i] = "20" Then Pbase.Add(CFloat(sValues[i]))
+        If sClaves[i] = "10" Then SP.ControlPoints.Add(CFloat(sValues[i]))
+        If sClaves[i] = "20" Then SP.ControlPoints.Add(CFloat(sValues[i]))
 
         ' Estos Fitting points no se usan en la construccion, tengo que verificar si los necesitan otros programas para guardarlos y reescribirlos
-        If sClaves[i] = "11" Then PFit.Add(CFloat(sValues[i]))
-        If sClaves[i] = "21" Then PFit.Add(CFloat(sValues[i]))
+        If sClaves[i] = "11" Then sp.FitPoints.Add(CFloat(sValues[i]))
+        If sClaves[i] = "21" Then sp.FitPoints.Add(CFloat(sValues[i]))
 
         ' tangentes, no se usan DXF
-        If sClaves[i] = "12" Then Ptang1.Add(CFloat(sValues[i]))
-        If sClaves[i] = "22" Then Ptang1.Add(CFloat(sValues[i]))
+        If sClaves[i] = "12" Then sp.TangentInitial.Add(CFloat(sValues[i]))
+        If sClaves[i] = "22" Then sp.TangentInitial.Add(CFloat(sValues[i]))
 
-        If sClaves[i] = "13" Then Ptang2.Add(CFloat(sValues[i]))
-        If sClaves[i] = "23" Then Ptang2.Add(CFloat(sValues[i]))
+        If sClaves[i] = "13" Then sp.TangentFinal.Add(CFloat(sValues[i]))
+        If sClaves[i] = "23" Then sp.TangentFinal.Add(CFloat(sValues[i]))
 
     Next
 
-    ' con todos los datos recabados, armo el array
-    If Pbase.Count > 0 Then
-        e.P.Insert(Pbase.Copy(), e.P.Max)
-    Else
+    e.P.Clear
+    e.P.Add(sp.ControlPoints[0])
+    e.P.Add(sp.ControlPoints[1])
+    e.P.Add(sp.ControlPoints[sp.ControlPoints.Max - 1])
+    e.P.Add(sp.ControlPoints[sp.ControlPoints.Max])
 
-        ' If Ptang1.Count > 0 Then
-        '     e.fParam[Me.ipaTang1] = 1
-        '     e.P.Add(Ptang1[0])
-        '     e.P.Add(Ptang1[1])
-        ' End If
-        Dim d As Float
-        d = puntos.distancia(PFit[0], PFit[1], PFit[2], PFit[3])
-
-        e.P.Insert(Pfit.Copy(0, 2))
-
-        e.P.Add(PFit[0] + Ptang1[0] * d)
-        e.P.Add(PFit[0] + Ptang1[1] * d)
-        e.P.Insert(Pfit.Copy(2, PFit.Count - 4))
-
-        d = puntos.distancia(PFit[PFit.Max - 3], PFit[PFit.Max - 2], PFit[PFit.Max - 1], PFit[PFit.Max])
-        e.P.Add(PFit[PFit.Max - 1] + Ptang2[0] * d)
-        e.P.Add(PFit[PFit.Max] + Ptang2[1] * d)
-
-        e.P.Add(PFit[PFit.Max - 1])
-        e.P.Add(PFit[PFit.Max])
-    End If
     '
     Return True
 
@@ -364,15 +362,18 @@ Public Sub GetOutpoint(t As Float, OutPoint As Float[])
 
 End
 
-Fast Public Sub DrawTest(oE As Entity)
+'Fast
+Public Sub DrawTest(oE As Entity)
 
     Dim OutPoint As New Float[]
     Dim i As Integer
     Dim t As Float
 
-    If oe.P.Count = 2 Then Return
+    sp = oe.pBlock
 
-    If oe.P.Count = 4 Then
+    If sp.ControlPoints.Count = 2 Then Return
+
+    If sp.ControlPoints.Count = 4 Then
         cadLine.Draw(oe)
         Return
     End If
@@ -384,9 +385,7 @@ Fast Public Sub DrawTest(oE As Entity)
         t = i / (LOD - 1)
         'If (i = LOD - 1) Then t -= 0.001
 
-        OutPoint = interpolate2(t, oe.fParam[Me.ipaDegree], oe.p, oe.fParam.Copy(10, oe.fParam.Count - 10))
-
-        'gl.Vertex3f(Outpoint[0], Outpoint[1], Outpoint[2])
+        OutPoint = interpolate2(t, sp.Degree, sp.ControlPoints, sp.KnotValues)
 
         oe.PolyLine.Add(Outpoint[0])
         oe.PolyLine.Add(Outpoint[1])
@@ -410,6 +409,8 @@ Public Sub Draw(oE As Entity)
     Dim i As Integer
     Dim t As Float
 
+    sp = oe.pBlock
+
     DrawTest(oe)
     Return
     If oe.P.Count = 2 Then Return
@@ -419,17 +420,17 @@ Public Sub Draw(oE As Entity)
         Return
     End If
     oe.PolyLine.Clear
-    g_degree = oe.fParam[Me.ipaDegree] ' 2 o 3
+    g_degree = sp.Degree 'oe.fParam[Me.ipaDegree] ' 2 o 3
     g_order = g_degree + 1
 
     OutPoint.Insert([0.0, 0.0, 0.0])
     ' rearmo los pesos de los nudos
     Knots.Clear
-    Knots.Insert(oe.fParam.Copy(Me.TotalParams, oe.fParam.Count - Me.TotalParams))
+    Knots.Insert(sp.KnotValues.Copy())
 
     ' rearmo los control points
     g_points.Clear
-    g_points.Insert(oe.p.Copy())
+    g_points.Insert(sp.ControlPoints.Copy())
 
     g_num_cvs = g_points.Count / 2
 
@@ -453,6 +454,13 @@ Public Sub Draw(oE As Entity)
     'gl.End()
 
     glPlus.PolyLines(oe.PolyLine, gcd.GetGBColor(oE.Colour, oe.pLayer), oE.LineWidth, oE.LineType.TrameLength)
+
+    ' agrego puntos inicial y final para usarlos en Snap
+    oe.P.Clear
+    oe.P.Add(oe.PolyLine[0])
+    oe.P.Add(oe.PolyLine[1])
+    oe.P.Add(oe.PolyLine[oe.PolyLine.Max - 1])
+    oe.P.Add(oe.PolyLine[oe.PolyLine.Max])
 
     ' This is to draw the Control Points
 
@@ -551,7 +559,8 @@ Public Function interpolate(t As Float, degree As Integer, points As Float[], Op
 
 End
 
-Fast Public Function interpolate2(t As Float, degree As Integer, points As Float[], Optional knots As Float[], weights As Float[]) As Float[]
+'Fast
+Public Function interpolate2(t As Float, degree As Integer, points As Float[], Optional knots As Float[], weights As Float[]) As Float[]
 
     Dim i, j, s, l As Integer ' function - scoped iteration variables
     Dim d As Integer = 2 ' 2d o 3d o mas dimensiones
