@@ -1596,6 +1596,72 @@ Public Function ReadCode(iCode As Integer, stxClaves As String[], stxValues As S
 
 End
 
+'   Helper para leer DXF: retorna la posicion en la que encontro la clave, -posicion si encotro el escape o 0 si no la encontro
+'   iCode = el codigo DXF
+'   stxClaves = array de claves DXF
+'   stxValues = array de valores DXF
+'   RetValue = el valor a retornar, pasado por referencia
+'   iStartPos = la posicion inicial en los array para la busqueda (def = 0)
+'   iEscapeCode = si encuentra este codigo, sale
+Public Function ReadCodePlus(iExpectedCode As Integer, stxClaves As String[], stxValues As String[], ByRef RetValue As Variant, Optional iStartPos As Integer = 0, iEscapeCode As Integer = -1) As Integer
+
+    Dim i, iMax As Integer
+
+    If stxClaves.max <> stxValues.max Then
+        Debug "ReadCode: error, bad lists"
+        Return -1
+    Endif
+    'If ExactPos Then iMax = iStartPos Else imax = stxClaves.Max
+    For i = iStartPos To stxClaves.max
+        If CInt(stxClaves[i]) = iExpectedCode Then
+            Select Case TypeOf(RetValue)
+                Case gb.Integer
+                    RetValue = CInt(stxValues[i])
+
+                Case gb.Float
+                    RetValue = CFloat(stxValues[i])
+
+                Case gb.String
+                    RetValue = stxValues[i]
+
+            End Select
+
+            Return i + 1
+        Else If CInt(stxClaves[i]) = iEscapeCode Then
+            Select Case TypeOf(RetValue)
+                Case gb.Integer
+                    RetValue = 0
+
+                Case gb.Float
+                    RetValue = 0
+
+                Case gb.String
+                    RetValue = ""
+
+            End Select
+
+            Return -i
+        Else If iEscapeCode = -1 Then
+            Select Case TypeOf(RetValue)
+                Case gb.Integer
+                    RetValue = 0
+
+                Case gb.Float
+                    RetValue = 0
+
+                Case gb.String
+                    RetValue = ""
+
+            End Select
+
+            Return -i
+
+        Endif
+    Next
+    Return 0
+
+End
+
 Private Sub SaveCode(sCode As Variant, sValue As Variant)
 
     Dim sToPrint As String
