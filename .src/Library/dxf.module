@@ -66,7 +66,7 @@ End
 
 '' Carga el DXF y lo mete en cModel del dibujo actual
 ' Verbose=0 nada, 1=minimo, 2=grupos, 3=todo
-Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables As Boolean = False, IgnoreBlocks As Boolean = False, IgnoreHeader As Boolean = False, VerboseLevel As Integer = 0, UpdateGraphics As Boolean = True) As Boolean
+Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables As Boolean = False, IgnoreBlocks As Boolean = False, IgnoreHeader As Boolean = False, VerboseLevel As Integer = 0, UpdateGraphics As Boolean = True, ReadObjects As Boolean = True) As Boolean
 
     Dim t As Float = Timer
     Dim cLlaveActual, cSectionActual, cTable As Collection
@@ -183,7 +183,10 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
     Wend
     gcd.debugInfo("Leidos el DXF",,, True)
 
+    If ReadObjects Then ReadObjectsFromDXF(cToFill, drw)
     If UpdateGraphics Then UpdateGraphicsFromDXF(cToFill, drw)
+
+
     For Each ft As Float In ReadTimes
         gcd.debugInfo(ReadEntities[ReadTimes.Key] & " " & gb.Tab & ReadTimes.Key & gb.Tab & gb.Tab & gb.Tab & " total time: " & Format(fT, "0.0000"))
     Next
@@ -579,7 +582,7 @@ Private Sub Load6Objects(cObjects As Collection)
 
     Dim sClave As String[]
     Dim sValue As String[]
-    Dim sEntidad As String
+    Dim sEntidad, h As String
     Dim clsHandler As Object
     Dim eNueva As Entity
     Dim Reads As Boolean
@@ -601,7 +604,7 @@ Private Sub Load6Objects(cObjects As Collection)
         sEntidad = lpValue
         Inc iObject
         cObject = New Collection
-        cObjects.Add(cObject, CStr(iObject))
+
         cObject.Add(sEntidad, "0")
         iCode = 0
 
@@ -625,6 +628,12 @@ Private Sub Load6Objects(cObjects As Collection)
 
         Wend
         'NewObject(cObject, cObject["5"])
+        If cObject.Exist("5") Then
+            h = cObject["5"]
+        Else
+            h = CStr(iObject)
+        Endif
+        cObjects.Add(cObject, h)
 
         If sEntidad = "ENDBLK" Or sEntidad = "" Then Return
 
@@ -1595,7 +1604,6 @@ Public Function ReadCode(iCode As Integer, stxClaves As String[], stxValues As S
     Return -1
 
 End
-
 '   Helper para leer DXF: retorna la posicion en la que encontro la clave, -posicion si encotro el escape o 0 si no la encontro
 '   iCode = el codigo DXF
 '   stxClaves = array de claves DXF
@@ -1603,6 +1611,7 @@ End
 '   RetValue = el valor a retornar, pasado por referencia
 '   iStartPos = la posicion inicial en los array para la busqueda (def = 0)
 '   iEscapeCode = si encuentra este codigo, sale
+
 Public Function ReadCodePlus(iExpectedCode As Integer, stxClaves As String[], stxValues As String[], ByRef RetValue As Variant, Optional iStartPos As Integer = 0, iEscapeCode As Integer = -1) As Integer
 
     Dim i, iMax As Integer
@@ -1661,6 +1670,9 @@ Public Function ReadCodePlus(iExpectedCode As Integer, stxClaves As String[], st
     Return 0
 
 End
+
+
+
 
 Private Sub SaveCode(sCode As Variant, sValue As Variant)
 
@@ -1764,6 +1776,7 @@ Public Sub ReadStyles(cData As Collection, drw As Drawing)
     Dim sH2, sNextKey As String
     Dim RefStyle As TextStyle
     Dim hdim As DimStyle
+    Dim n As String
 
     ' primero eliminamos lo q haya
     Drw.TextStyles.Clear
@@ -1781,8 +1794,15 @@ Public Sub ReadStyles(cData As Collection, drw As Drawing)
         ' Esto no puede usarse asi, LastHeightUsed_2 es solo un dato de historial
         ' If hlty.FixedH_40 = 0 Then hlty.FixedH_40 = CFloat(c["42"])
 
-        ' If hlty.handle = "" Then sH2 = hlty.name Else sH2 = hlty.handle
-        Drw.TextStyles.Add(hlty, hlty.name)
+        If hlty.name <> "" Then
+            n = hlty.name
+        Else If hlty.sFont_3 <> "" Then
+            n = hlty.sFont_3
+        Else
+            Continue
+        End If
+
+        Drw.TextStyles.Add(hlty, n)
 
     Next
 
@@ -1910,7 +1930,12 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
             newBlock.name = colBlk[dxf.codName]
 
             ' en ciertos DXF no hay la tabla BLOCK_RECORD
-            ' depre If colData["TABLES"].Exist("BLOCK_RECORD") Then cParent = colData["TABLES"]["BLOCK_RECORD"][newBlock.name]
+            If colData["TABLES"].Exist("BLOCK_RECORD") Then
+                If colData["TABLES"]["BLOCK_RECORD"].Exist(newBlock.name) Then
+                    newBlock.HandleAsociatedLayout = colData["TABLES"]["BLOCK_RECORD"][newBlock.name]["340"]
+                Endif
+            End If
+            'cParent = colData["TABLES"]["BLOCK_RECORD"][newBlock.name]
             'depre  newBlock.handle = colBlk[dxf.codHandle]
             ' If cParent Then
             '     newBlock.HandleOwner = cParent[dxf.codHandle]
@@ -1920,35 +1945,37 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
             '     newBlock.HandleOwnerParent = 0
             ' End If
 
+
             newBlock.layer = colBlk[dxf.codLayer]
             Try newBlock.x0 = colBlk[dxf.codX0]
             Try newBlock.y0 = colBlk[dxf.codY0]
             If colBlk.Exist(dxf.codZ0) Then newBlock.z0 = colBlk[dxf.codZ0]
             newBlock.flags = colBlk["70"]
+
             Drw.Blocks.Add(newBlock, newBlock.name)
             If Left(newBlock.name, 1) = "*" Then
-                If newBlock.name = "*Model_Space" Then
-                    ' creo la Sheet
-                    S = New Sheet
-                    s.Name = "Model"
-                    s.Entities = drw.Entities
-                    s.IsModel = True
-                    'depre s.Handle = colBlk[dxf.codHandle]
-                    Drw.Sheets.Add(s, s.Name)
-                    drw.Sheet = s
-                    drw.Model = s
-                Else If newBlock.name = "*Paper_Space" Then
-                    ' creo la Sheet
-                    S = New Sheet
-                    s.Name = "Sheet1"
-                    s.IsModel = False
-                    'depre s.Handle = colBlk[dxf.codHandle]
-                    Drw.Sheets.Add(s, s.Name)
-
-                    ' Else
-                    '     drw.Blocks.Add(newBlock, newBlock.name)
-                End If
-                'Else
+                ' If newBlock.name = "*Model_Space" Then
+                '     ' creo la Sheet
+                '     S = New Sheet
+                '     s.Name = "Model"
+                '     s.Entities = drw.Entities
+                '     s.IsModel = True
+                '     'depre s.Handle = colBlk[dxf.codHandle]
+                '     Drw.Sheets.Add(s, s.Name)
+                '     drw.Sheet = s
+                '     drw.Model = s
+                ' Else If newBlock.name = "*Paper_Space" Then
+                '     ' creo la Sheet
+                '     S = New Sheet
+                '     s.Name = "Sheet1"
+                '     s.IsModel = False
+                '     'depre s.Handle = colBlk[dxf.codHandle]
+                '     Drw.Sheets.Add(s, s.Name)
+                '
+                '     ' Else
+                '     '     drw.Blocks.Add(newBlock, newBlock.name)
+                ' End If
+                ' 'Else
 
             End If
 
@@ -2115,6 +2142,28 @@ Public Sub DXFtoEntity(cEny As Collection, drw As Drawing, Optional NewHandles A
 
 End
 
+'' Transforma una coleccion en dos array de strings
+Public Sub DigestColeccion(c As Collection, ByRef sClaves As String[], ByRef sValues As String[])
+
+
+    Dim lpValue, lpclave As String
+    Dim i As Integer
+
+    sClaves.Clear
+    sValues.Clear
+
+    For Each lpValue In c
+        lpclave = c.Key
+        I = InStr(lpclave, "_")
+        If i > 0 Then lpclave = Left(lpclave, i - 1)
+        sClaves.Add(lpclave)           ' el codigo es el tipo de variable
+        sValues.Add(lpValue)
+
+    Next
+
+
+End
+
 Public Function UpdateGraphicsFromDXF(cData As Collection, drw As Drawing, Optional handles As String[] = [])
 
     Dim cEntity As Collection, entNueva As Entity
@@ -2152,5 +2201,35 @@ Public Function UpdateGraphicsFromDXF(cData As Collection, drw As Drawing, Optio
     'gcd.FillSheets(drw)
     'depretest gcd.FillInserts(drw)
     clsEntities.BuildPoi()
+
+End
+
+
+Public Function ReadObjectsFromDXF(cData As Collection, drw As Drawing)
+
+    Dim cObject As Collection, entNueva As Entity
+    Dim sClaves, sValues As New String[]
+    Dim s As Sheet
+
+    gcd.debugInfo("Importing DXF object data",,, True)
+
+    If Not cData.Exist("OBJECTS") Then Return
+    For Each cObject In cData["OBJECTS"]
+
+        If cObject["0"] = "LAYOUT" Then
+
+            Me.DigestColeccion(cObject, ByRef sClaves, ByRef sValues)
+            s = New Sheet
+            objLayout.importDXF(s, sClaves, sValues)
+            drw.Sheets.Add(s, s.Handle)
+            If LCase(s.Name) = "model" Then
+                s.IsModel = True
+                drw.Sheet = s
+                drw.Model = s
+            End If
+
+        Endif
+
+    Next
 
 End

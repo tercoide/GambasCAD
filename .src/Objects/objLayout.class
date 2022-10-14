@@ -1,0 +1,131 @@
+' Gambas class file
+
+' 0 (LAYOUT)
+'
+' 5 Handle
+'
+' 102 Start of persistent reactors group; always “{ACAD_REACTORS”
+'
+' 330 Soft-pointer ID/handle to owner dictionary
+'
+' 102 End of persistent reactors group, always “}”
+'
+' 330 Soft-pointer ID/handle to owner object
+'
+' 100 Subclass marker (AcDbPlotSettings)
+'
+' plotsettings object group codes
+'
+' For group codes and descriptions following the AcDbPlotSettings marker, see PLOTSETTINGS
+'
+' 100 Subclass marker (AcDbLayout)
+'
+' 1 Layout name
+'
+' 70 Flag (bit-coded) to control the following: 1 = Indicates the PSLTSCALE value for this layout when this layout is current 2 = Indicates the LIMCHECK value for this layout when this layout is current
+'
+' 71 Tab order. This number is an ordinal indicating this layout's ordering in the tab control that is attached to the AutoCAD drawing frame window. Note that the “Model” tab always appears as the first tab regardless of its tab order
+'
+' 10/20 Minimum limits for this layout (defined by LIMMIN while this layout is current)
+'
+' 11/21 Maximum limits for this layout (defined by LIMMAX while this layout is current):
+'
+' 12/22/32 Insertion base point for this layout (defined by INSBASE while this layout is current):
+'
+' 14/24/34 Minimum extents for this layout (defined by EXTMIN while this layout is current):
+'
+' 15/25/35 Maximum extents for this layout (defined by EXTMAX while this layout is current):
+'
+' 146 Elevation
+'
+' 13/23/33 UCS origin
+'
+' 16/26/36 UCS X-axis
+'
+' 17/27/37 UCS Y axis
+'
+' 76 Orthographic type of UCS 0 = UCS is not orthographic 1 = Top; 2 = Bottom  3 = Front; 4 = Back 5 = Left; 6 = Right
+'
+' 330 ID/handle to this layout's associated paper space block table record
+'
+' 331 ID/handle to the viewport that was last active in this layout when the layout was current
+'
+' 345 ID/handle of AcDbUCSTableRecord if UCS is a named UCS. If not present, then UCS is unnamed
+'
+' 346 ID/handle of AcDbUCSTableRecord of base UCS if UCS is orthographic (76 code is non-zero). If not present and 76 code is non-zero, then base UCS is taken to be WORLD
+'
+' 333 Shade plot ID
+
+Create Static
+
+Public Function ImportDXF(s As Sheet, sClaves As String[], sValues As String[]) As Boolean
+
+    Dim i As Integer, p As PrintStyle, r As String
+
+    p = s.pPrintStyle
+
+    i = dxf.ReadCodePlus(5, sClaves, sValues, ByRef s.Handle, 0, 100)                ' handle
+
+    i = dxf.ReadCodePlus(100, sClaves, sValues, ByRef r, i, 100)                     ' Inicio de PlotSettings
+    If r <> "AcDbPlotSettings" Then
+        gcd.debugInfo("Bad LAYOUT data",,, True)
+        Return Null
+    End If
+
+    i = dxf.ReadCodePlus(1, sClaves, sValues, ByRef p.Name, i)                             ' name
+    i = dxf.ReadCodePlus(2, sClaves, sValues, ByRef p.PrinterName, i)                      ' Printer name
+    i = dxf.ReadCodePlus(4, sClaves, sValues, ByRef p.PaperName, i)                        ' hoja
+
+    i = dxf.ReadCodePlus(40, sClaves, sValues, ByRef p.MarginLeft, i, 41)                   ' margenes
+    i = dxf.ReadCodePlus(41, sClaves, sValues, ByRef p.MarginBottom, i, 42)
+    i = dxf.ReadCodePlus(42, sClaves, sValues, ByRef p.MarginRigth, i, 43)
+    i = dxf.ReadCodePlus(43, sClaves, sValues, ByRef p.MarginTop, i, 43)
+
+    i = dxf.ReadCodePlus(44, sClaves, sValues, ByRef p.PaperSizeW, i)                       ' tamaño del papel
+    i = dxf.ReadCodePlus(45, sClaves, sValues, ByRef p.PaperSizeH, i)
+
+    i = dxf.ReadCodePlus(46, sClaves, sValues, ByRef p.PrintOffsetX, i)                     ' offset
+    i = dxf.ReadCodePlus(47, sClaves, sValues, ByRef p.PrintOffsetY, i)
+
+    i = dxf.ReadCodePlus(48, sClaves, sValues, ByRef p.PrintAreaX0, i)
+    i = dxf.ReadCodePlus(49, sClaves, sValues, ByRef p.PrintAreaY0, i)
+    i = dxf.ReadCodePlus(140, sClaves, sValues, ByRef p.PrintAreaX1, i)
+    i = dxf.ReadCodePlus(141, sClaves, sValues, ByRef p.PrintAreaY1, i)
+
+    i = dxf.ReadCodePlus(142, sClaves, sValues, ByRef p.ScaleDrawingUnit, i)                ' escala
+    i = dxf.ReadCodePlus(143, sClaves, sValues, ByRef p.ScalePaper, i)
+
+    i = dxf.ReadCodePlus(70, sClaves, sValues, ByRef r, i)                                 ' flags
+    i = dxf.ReadCodePlus(72, sClaves, sValues, ByRef r, i)                                 ' unidad, que ignoro porque uso mm
+    i = dxf.ReadCodePlus(73, sClaves, sValues, ByRef r, i)                                 ' rotacion
+    i = dxf.ReadCodePlus(74, sClaves, sValues, ByRef p.PrintArea, i)                       ' area de impresion
+    i = dxf.ReadCodePlus(7, sClaves, sValues, ByRef r, i)                                  ' Style Sheet
+    i = dxf.ReadCodePlus(75, sClaves, sValues, ByRef r, i)                                 ' scale type , es la escala en texto
+    i = dxf.ReadCodePlus(76, sClaves, sValues, ByRef r, i)                                 ' shade plot mode
+    i = dxf.ReadCodePlus(77, sClaves, sValues, ByRef r, i)                                 ' shade plot resolution
+    i = dxf.ReadCodePlus(78, sClaves, sValues, ByRef r, i)                                 ' dpi
+    i = dxf.ReadCodePlus(147, sClaves, sValues, ByRef r, i)                                ' realunits/paper, es la escala en un float
+    i = dxf.ReadCodePlus(148, sClaves, sValues, ByRef r, i)                                ' paper image x
+    i = dxf.ReadCodePlus(149, sClaves, sValues, ByRef r, i)                                ' paper image x
+
+    i = dxf.ReadCodePlus(100, sClaves, sValues, ByRef r, i, 100)                            ' Inicio de PlotSettings
+    If r <> "AcDbLayout" Then
+        gcd.debugInfo("Bad LAYOUT data",,, True)
+        Return Null
+    End If
+    i = dxf.ReadCodePlus(1, sClaves, sValues, ByRef s.Name, i)                             ' name
+
+
+
+    i = dxf.ReadCodePlus(70, sClaves, sValues, ByRef r, i)                                 ' flags
+    i = dxf.ReadCodePlus(71, sClaves, sValues, ByRef s.TabOrder, i)                        ' orden de la tabulacion
+
+
+
+    Return True
+
+    ' catch
+
+    Return False
+
+End
