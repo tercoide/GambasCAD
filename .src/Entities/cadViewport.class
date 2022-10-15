@@ -29,10 +29,7 @@ Public Sub Draw(oE As Entity)
     flxPoly.Add(oE.p[0])
     flxPoly.Add(oE.p[1])
 
-
     GLplus.PolyLines(flxPoly, Color.Blue, oe.LineWidth, oe.LineType.TrameLength)
-
-
 
     ' test
 
@@ -94,15 +91,11 @@ Public Function Draw2(oE As Entity)
     'Paint.ClipRect = r
     'Paint.Clip()
 
-
     Paint.translate(v.X0, v.Y0)                 ' trasladamos al viewport
 
     Paint.Translate(v.PanX, v.PanY)             ' trasladamos el paneo que se hizo dentro del Viewport
 
     Paint.Scale(v.ScaleZoom)
-
-
-
 
     ' tengo que invertir el sentido de giro porque en fPrint tengo EscY invertida
     '
@@ -229,8 +222,6 @@ Public Sub Finish(oE As Entity) As Boolean
     oe.sParam.Clear
     oe.sParam.Add(v.Handle)
 
-
-
 End
 
 '' Return if that position is over the entity within the tolerance
@@ -250,22 +241,25 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     Dim V As New Viewport
     Dim r As String
     Dim l As Layer
+    Dim fVal, CenterX, CenterY As Float
 
     e.pBlock = v
+    Do
+        i = dxf.ReadCodePlus(100, sClaves, sValues, ByRef r, i, 10)
+        i = Abs(i)
+    Loop Until r = "AcDbViewport"
 
-    ' 100 Subclass marker (AcDbViewport)
-    i = dxf.ReadCodePlus(100, sClaves, sValues, ByRef r, 0, 100)
-    If r <> "AcDbViewport" Then
-        gcd.debugInfo("Bad Viewport data",,, True)
-        Return False
-    End If
-
-    i = dxf.ReadCodePlus(10, sClaves, sValues, ByRef v.PanX, i)                  ' 10,20, 30 center point (in WCS)
-    i = dxf.ReadCodePlus(20, sClaves, sValues, ByRef v.PanY, i)
+    i = dxf.ReadCodePlus(10, sClaves, sValues, ByRef CenterX, i)                  ' 10,20, 30 center point (in WCS)
+    i = dxf.ReadCodePlus(20, sClaves, sValues, ByRef CenterY, i)
     i = dxf.ReadCodePlus(30, sClaves, sValues, ByRef r, i)                       ' ignoro
 
-    i = dxf.ReadCodePlus(40, sClaves, sValues, ByRef r, i)                       ' 40 Width in paper space units
-    i = dxf.ReadCodePlus(41, sClaves, sValues, ByRef r, i)                       ' 41 Height in paper space units
+    i = dxf.ReadCodePlus(40, sClaves, sValues, ByRef fVal, i)                       ' 40 Width in paper space units
+    v.X0 = CenterX - fVal / 2
+    v.X1 = CenterX + fVal / 2
+
+    i = dxf.ReadCodePlus(41, sClaves, sValues, ByRef fVal, i)                       ' 41 Height in paper space units
+    v.Y0 = CenterY - fVal / 2
+    v.Y1 = CenterY + fVal / 2
 
     i = dxf.ReadCodePlus(68, sClaves, sValues, ByRef r, i)                       ' Viewport status field
     i = dxf.ReadCodePlus(69, sClaves, sValues, ByRef r, i)                       ' Id
@@ -281,7 +275,6 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
     i = dxf.ReadCodePlus(15, sClaves, sValues, ByRef r, i)                       ' grid spacing
     i = dxf.ReadCodePlus(25, sClaves, sValues, ByRef r, i)                       '
-
 
     i = dxf.ReadCodePlus(16, sClaves, sValues, ByRef r, i)                       ' 16/26/36 View direction vector (in WCS)
     i = dxf.ReadCodePlus(26, sClaves, sValues, ByRef r, i)
@@ -397,7 +390,6 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     ' 344 Soft pointer reference to viewport object (for layer VP property override)
     ' 91 Soft pointer reference to viewport object (for layer VP property override)
 
-
     Return True
 
     '' catch
@@ -405,5 +397,3 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     Return False
 
 End
-
-
