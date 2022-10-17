@@ -99,6 +99,13 @@ Public Sub Draw(oE As Entity)
         iColour = gcd.GetGBColor(oE.Colour, oe.pLayer)
         GLplus.Lines(oE.PolyLine, iColour, oE.LineWidth, oE.LineType.TrameLength)
 
+        Dim oBound As Float[]
+
+        For Each oBound In oe.pBlock.Polylines
+
+            GLplus.PolyLines(obound, iColour, oE.LineWidth, oE.LineType.TrameLength)
+        Next
+
         gl.Begin(gl.POINTS)
 
         For i = 0 To oE.PolyLine.Max - 3 Step 4
@@ -260,12 +267,13 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     Dim sp As SPline
     Dim r As String
     Dim nPattern As Integer
+    Dim mySegments As Entity[]
 
     ' vamos a agrupar las entidades que forman el contorno en un bloque
     e.pBlock = New Hatch
     NewPath = e.pBlock
 
-    NewPath.eSegments = New Entity[]
+
 
     'If e.Handle = "567A1" Then Stop
     i = dxf.ReadCodePlus(2, sClaves, sValues, ByRef e.sParam[Me.sdaPattern], 0, 70)
@@ -276,8 +284,8 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     i = dxf.ReadCodePlus(91, sClaves, sValues, ByRef LoopToRead, i)
 
     For iLoop = 0 To LoopToRead - 1 'descubri que un Loop puede o no ser un area a rellenar distinta, a veces un Loop es un agujero de otro Loop
-
-
+        mySegments = New Entity[]
+        NewPath.eSegments.Add(mySegments)
         i = dxf.ReadCodePlus(92, sClaves, sValues, ByRef LoopType, i, 93)
 
         NewPath.Flag = LoopType
@@ -320,6 +328,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
                         eContour = cadArc.NewEntity()
                         eContour.P.Clear
                         eContour.fParam.Clear
+                        eContour.iParam.Clear
                         i = dxf.ReadCode(10, sClaves, sValues, ByRef r, i)
                         eContour.P.Add(CFloat(r))
                         i = dxf.ReadCode(20, sClaves, sValues, ByRef r, i)
@@ -329,8 +338,11 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
                         i = dxf.ReadCode(50, sClaves, sValues, ByRef r, i)
                         eContour.fParam.Add(CFloat(r))
                         i = dxf.ReadCode(51, sClaves, sValues, ByRef r, i)
-                        i = dxf.ReadCode(73, sClaves, sValues, ByRef r, i)
                         eContour.fParam.Add(CFloat(r))
+                        i = dxf.ReadCode(73, sClaves, sValues, ByRef r, i)
+                        If CInt(r) = 0 Then eContour.iParam.Add(1) Else eContour.iParam.Add(0)
+
+
 
                     Case 3 ' ellipse
 
@@ -465,7 +477,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
                 End Select
 
-                NewPath.eSegments.Add(eContour, CStr(i))
+                mySegments.Add(eContour, CStr(i))
             Next
 
         Else 'poly
@@ -477,7 +489,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
             ' a esta entidad que es un borde le etiquetamos el loop al que pertenece
 
             ' Debug "PolyLine loop en un hatch"
-            NewPath.eSegments.Add(eContour)
+            mySegments.Add(eContour)
 
             ' leo si tiene bulges
             i = dxf.ReadCodePlus(72, sClaves, sValues, ByRef r, i)
@@ -1114,6 +1126,7 @@ End
 Public Sub MakeBorder2(oPath As Hatch)
 
     Dim eBorder, eFind As Entity
+    Dim borders As Entity[]
     Dim drwPath As New Float[]
     Dim i As Integer
     Dim FirstX, FirstY As Single
@@ -1121,92 +1134,79 @@ Public Sub MakeBorder2(oPath As Hatch)
     Dim BoundaryGotClosed As Boolean = False
 
     ' armo ese contorno
+    For Each borders In oPath.eSegments
 
-    For Each eBorder In oPath.eSegments
+        ' todas estas entidades forman parte del mismo contorno
+        For Each eBorder In borders
 
-        If Not eBorder Then Continue 'por si es Null
+            If Not eBorder Then Continue 'por si es Null
 
-        If eBorder.Gender = "" Then
-            ' eFind = gcd.FindEntity(eborder.Handle, True)
-            ' If IsNull(eFind) Then
-            '
-            Debug "Borde de hatch no encntrado", eborder.Handle
-            Continue
-            Stop
-            '
-            ' Else
-            '   eborder = eFind
-            ' End If
-        End If
-        Select Case eBorder.gender
+            If eBorder.Gender = "" Then
+                ' eFind = gcd.FindEntity(eborder.Handle, True)
+                ' If IsNull(eFind) Then
+                '
+                Debug "Borde de hatch no encntrado", eborder.Handle
+                Continue
+                Stop
+                '
+                ' Else
+                '   eborder = eFind
+                ' End If
+            End If
+            Select Case eBorder.gender
 
-            Case cadLWPolyline.Gender
-                drwPath.Insert(eborder.P.Copy())
-                BoundaryGotClosed = True
-                FirstX = drwPath[0]
-                FirstY = drwPath[1]
-
-            Case "ARC", "CIRCLE", "ELLIPSE", "SPLINE"
-
-                Gcd.CCC[eBorder.gender].MakePolyline(eborder)
-                drwPath.Insert(eborder.PolyLine.Copy())
-                BoundaryGotClosed = True
-                FirstX = drwPath[0]
-                FirstY = drwPath[1]
-
-            Case "TEXT", "MTEXT"
-
-                drwPath.Insert(eborder.Polygon.Copy())
-                BoundaryGotClosed = True
-                FirstX = drwPath[0]
-                FirstY = drwPath[1]
-
-            Case "LINE"
-
-                If Not FirstPointSet Then
+                Case cadLWPolyline.Gender
                     drwPath.Insert(eborder.P.Copy())
 
-                    FirstX = eborder.P[0]
-                    FirstY = eborder.P[1]
-                    FirstPointSet = True
-                Else
-                    drwPath.Insert([eborder.P[2], eborder.P[3]])
+                    FirstX = drwPath[0]
+                    FirstY = drwPath[1]
 
-                    If puntos.Equal(FirstX, eborder.P[2]) Then
-                        If puntos.Equal(FirstY, eborder.P[3]) Then ' se cerro el contorno
-                            BoundaryGotClosed = True
+                Case "ARC", "CIRCLE", "ELLIPSE", "SPLINE" 'TODO: separar esto
+                    ' If eborder.iParam[0] = 0 Then ' el arco es contrareloj, pero asi armo la poly asi que no hago nada
+                    '     Swap eborder.fParam[1], eborder.fParam[2]
+                    ' End If
+                    Gcd.CCC[eBorder.gender].MakePolyline(eborder)
 
-                        End If
+                    drwPath.Insert(eborder.PolyLine.Copy())
+
+                    FirstX = drwPath[0]
+                    FirstY = drwPath[1]
+
+                Case "TEXT", "MTEXT"
+
+                    drwPath.Insert(eborder.Polygon.Copy())
+
+                    FirstX = drwPath[0]
+                    FirstY = drwPath[1]
+
+                Case "LINE"
+
+                    If Not FirstPointSet Then
+                        drwPath.Insert(eborder.P.Copy())
+
+                        FirstX = eborder.P[0]
+                        FirstY = eborder.P[1]
+                        FirstPointSet = True
+
+                    Else
+                        drwPath.Insert(eborder.P.Copy(2, 2))
                     End If
-                End If
-        End Select
-        If BoundaryGotClosed Then
 
-            ' verifico que este cerrado
-            If (drwPath[0] <> drwPath[drwPath.Max - 1]) Or (drwPath[1] <> drwPath[drwPath.Max]) Then ' le agrego
 
-                drwPath.Add(drwPath[0])
-                drwPath.Add(drwPath[1])
-            End If
-            ' ' ahora veo si tengo un a poly anterior
-            ' If oPath.Polylines.Count = 0 Then
-            '     oPath.Polylines.add(drwPath)
-            ' Else ' verifico que no sea un hueco
-            '     If puntos.isInside(oPath.Polylines[0], FirstX, FirstY) Then ' es un hueco
-            '         oPath.Holes.Add(drwPath)
-            '     Else
-            '         oPath.Polylines.add(drwPath)
-            '     Endif
-            '
-            ' Endif
+            End Select
 
-            '==============NEW=======================
-            oPath.Polylines.add(drwPath)
+        Next
+        ' verifico que este cerrado
+        If (drwPath[0] <> drwPath[drwPath.Max - 1]) Or (drwPath[1] <> drwPath[drwPath.Max]) Then ' le agrego
 
-            drwPath = New Float[]
-            FirstPointSet = False
-            BoundaryGotClosed = False
-        Endif
+            drwPath.Add(drwPath[0])
+            drwPath.Add(drwPath[1])
+        End If
+
+        oPath.Polylines.add(drwPath)
+
+        drwPath = New Float[]
+        FirstPointSet = False
 
     Next
 
