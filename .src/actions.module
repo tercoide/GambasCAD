@@ -23,10 +23,15 @@ Public Sub FileNew()
 
     ' Vamos a tratar de armar todo para que se pueda dibujar, sin necesidad de cargar un DXF base.
 
-    NewDrawing = gcd.NewDrawing("< new >")            'Creo una nueva petaña, que me devuelve un Drawing con una Sheet
+    NewDrawing = gcd.NewDrawing("<new>")                    'Creo una nueva petaña, que me devuelve un Drawing con una Sheet
     gcd.Drawing = NewDrawing                                'Apunto Gcd.Drawing a este nuevo Drawing
-    gcd.Drawings.Add(NewDrawing)                            'Lo agrego al listado de dibujos abiertos
+    gcd.Drawing.Headers.FINGERPRINTGUID = gcd.UniqueId()
+    gcd.Drawings.Add(NewDrawing, gcd.Drawing.Headers.FINGERPRINTGUID)                            'Lo agrego al listado de dibujos abiertos
     fmain.NewTabForDrawing(NewDrawing)
+    fmain.GLArea1 = gcd.Drawing.Model.GLSheet
+    DrawingAids.RebuildGrid
+    gcd.setdashes
+    fmain.GLArea1_resize()
 
     gcd.Regen()
 
@@ -90,7 +95,8 @@ Public Sub FileOpen(Optional sFile As String = "")
         f = sfile ' "/home/martin/GAUCHO-TESTING-V2000-online converter.dxf"
     End If
 
-    Try fmain.GLArea1.Enabled = False
+    gcd.DrawingReady = False
+
     gcd.debugInfo("Opening " & f,,, True)
     gcd.DrawingReady = False
     If Exist(f) Then
@@ -180,7 +186,7 @@ Public Sub FileOpen(Optional sFile As String = "")
     Endif
 
     Config.FilesLastPath = Utils.PathFromFile(f)
-    Try fmain.GLArea1.Enabled = True
+
     Dec Application.Busy
     Return
 
@@ -201,8 +207,10 @@ LoadDXF:
         Return
     Endif
 
-
-    gcd.Drawings.Add(NewDrawing)
+    If NewDrawing.Headers.FINGERPRINTGUID = "" Then
+        NewDrawing.Headers.FINGERPRINTGUID = gcd.UniqueId()
+    Endif
+    gcd.Drawings.Add(NewDrawing, gcd.Drawing.Headers.FINGERPRINTGUID)
 
     gcd.Drawing.FileName = f
     gcd.Drawing.RequiresFileRename = False
@@ -213,7 +221,18 @@ LoadDXF:
     fmain.UpdateLineWtCombo
     fmain.UpdateLineTypeCombo
     fmain.UpdatDimTypeTypeCombo
+
+    ' veo si tengo que cerrar la pestaña de nuevo
+    Dim dTest As Drawing
+    dTest = fmain.tabDrawings[fmain.tabDrawings.Index].Tag
+    If dTest.RequiresFileRename And Not dTest.RequiresSaving Then 'estoy sobre una pestaña <new> donde no hice nada, la cierro
+        gcd.Drawings.Remove(dTest.Headers.FINGERPRINTGUID)
+        Wait 0.1
+        fmain.tabDrawings_Close(fmain.tabDrawings.Index)
+
+    End If
     fmain.NewTabForDrawing(NewDrawing)
+    gcd.DrawingReady = True
     gcd.Regen()
     cadZoomE.Start()                                ' por ahora mostramos el dibujo centrado, hasta q leamos el estado anterior
 

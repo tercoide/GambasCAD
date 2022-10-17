@@ -34,8 +34,8 @@ Public MyPrinter As Printer
 
 Public ftring As New Float[]
 Public ftring2 As New Float[]
-Public GLArea1 As GLArea
-'Public GLPaper As GLArea
+Public GLArea1 As GLArea' = gcd.Drawing.Sheet.GlSheet
+
 
 Public tabViews As TabPanel
 
@@ -43,8 +43,8 @@ Public tabViews As TabPanel
 
 Public Sub DrawTimer_Timer()
 
-    gcd.Drawing.GLAreaInUse.Refresh
-    'glarea1.Refresh
+    'gcd.Drawing.GLAreaInUse.Refresh
+    glarea1.Refresh
 
 End Sub
 
@@ -269,20 +269,17 @@ Public Function Action_Activate(sAction As String) As Boolean
             '     gcd.Drawing.uUndo.DoRedo()
             '     gcd.Regen
         Case "window_close"
-            For i = 0 To gcd.Drawings.Count
-                If gcd.Drawings[i] = gcd.Drawing Then
-                    gcd.Drawings.Remove(i)
-                    If gcd.Drawings.Count > 0 Then
-                        gcd.Drawing = gcd.Drawings[0]
-                        Redraw
-                    Else
 
-                        Action_Activate("file_new")
-                    Endif
-                    Break
-                End If
 
-            Next
+            gcd.Drawings.Remove(gcd.Drawing.Headers.FINGERPRINTGUID)
+            If gcd.Drawings.Count > 0 Then
+                gcd.Drawing = gcd.Drawings[gcd.Drawings.First]
+                Redraw
+            Else
+
+                Action_Activate("file_new")
+            Endif
+
 
         Case "window_closeall"
             gcd.Drawings.Clear
@@ -601,17 +598,19 @@ Public Sub Form_Activate()
 
 End
 
-Public Sub glarea1_Resize()
+Public Sub glarea1_resize()
+
 
     GLplus.Resize(glarea1)
 
 End
 
-' Public Sub GLPaper_resize()
-'
-'     GLplus.Resize(GLPaper)
-'
-' End
+Public Sub form_Arrange()
+
+
+
+End
+
 
 Public Sub GLArea1_draw()
 
@@ -1063,6 +1062,7 @@ Public Sub Form_Keyrelease()
             KeysAccumulator = ""
 
         Case Key.f2
+            glarea1_resize()
             ' t = Timer
             ' Dim NE As New Entity
             ' Debug "Creando 500.000 lineas"
@@ -1645,9 +1645,14 @@ End
 
 Public Sub tabDrawings_Click()
 
+    If InUse Then Return
+
     gcd.Drawing = tabDrawings[tabDrawings.Index].Tag
     If gcd.Drawing Then FillBlocks
-    Try Me.GLArea1 = gcd.Drawing.GLAreaInUse
+    If Not gcd.Drawing.Sheet.GLSheet Then Stop
+
+    Me.GLArea1 = gcd.Drawing.Sheet.GLSheet
+    Me.GLArea1.Refresh
 
 End
 
@@ -1656,20 +1661,18 @@ Public Sub tabViews_Click()
     If InUse Then Return
 
     If Last.current.tag Then
+
+
         gcd.Drawing.LastLayer = gcd.Drawing.CurrLayer
         gcd.Drawing.Sheet = gcd.Drawing.Sheets[Last.current.tag]
-        gcd.Drawing.GLAreaInUse = gcd.Drawing.Sheet.GLSheet
+        Me.GLArea1 = gcd.Drawing.Sheet.GLSheet
+        Me.GLArea1.Refresh
 
-        ' si es una Sheet, no hay layers, sino una unica capa donde se enserta todo
-        '     'Try Me.GLArea1 = gcd.Drawing.GLAreaInUse
-        ' Else
-        '     gcd.Drawing.CurrSheet = Null
-        '     gcd.Drawing.CurrLayer = gcd.Drawing.LastLayer
-        '     gcd.Drawing.CurrViewport = gcd.Drawing.ModelViewport
+        If gcd.Drawing.Sheet.GlSheet Then clsEntities.CollectVisibleEntities
+
+
+
     End If
-    'End If
-    'gcd.Drawing.GLAreaInUSe.Resize(gcd.Drawing.CurrSheet.GLSheet.W, gcd.Drawing.CurrSheet.GLSheet.h)
-    If gcd.Drawing.GLAreaInUSe Then clsEntities.CollectVisibleEntities
 
 End
 
@@ -1678,6 +1681,8 @@ Public Function NewTabForDrawing(nDrawing As Drawing)
 
     Dim i As Integer
     Dim s As Sheet
+
+    InUse = True
 
     NDrawing.iEntity.Insert([0, 0, 0, 0])
     NDrawing.Sheet.ScaleZoom = gcd.ScreenDensity / 10
@@ -1707,12 +1712,14 @@ Public Function NewTabForDrawing(nDrawing As Drawing)
         Next
     Loop Until i = nDrawing.Sheets.Count
 
-    gcd.Drawing.GLAreaInUse = nDrawing.Model.GLSheet
-    fmain.GLArea1 = gcd.Drawing.GLAreaInUse
-    GLplus.Resize(glarea1)
+    'gcd.Drawing.Sheet.GlSheet = nDrawing.Model.GLSheet
+    GLArea1 = gcd.Drawing.Sheet.GlSheet
+    'GLplus.Resize(glarea1)
 
-    gcd.setdashes
-    DrawingAids.RebuildGrid
+
+
+
+    InUse = False
 
     Me.Refresh
 
@@ -1736,9 +1743,10 @@ Public Function NewSheet(tabSheets As TabPanel, s As Sheet)
     glaFile2.Expand = True
     glaFile2.Tracking = True
     Object.Attach(glaFile2, Me, "GLArea1")
+
     s.GLSheet = glaFile2
     tabSheets[tabSheets.Count - 1].Tag = s.Handle
-    gcd.Drawing.GLAreaInUse = glaFile2
+
 
     InUse = False
 
@@ -1748,6 +1756,8 @@ Public Sub tabDrawings_Close(Index As Integer)
 
     Dim c, c2 As Control
     Dim childs As Integer
+
+    InUse = True
     ' tengo q elminar todos los controles que tiene adentro antes de eliminar el tab
     For Each c In tabDrawings[tabDrawings.Index].Children
         childs = 0
@@ -1766,7 +1776,8 @@ Public Sub tabDrawings_Close(Index As Integer)
     Next
 
     tabDrawings.Index = tabDrawings.Count - 1
-    tabDrawings_Click
+    InUse = False
+    'tabDrawings_Click
 
 End
 
