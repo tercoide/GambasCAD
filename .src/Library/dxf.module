@@ -1906,60 +1906,25 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
     ' Next
     ' hay DXF sin TAbles
     If colData.Exist("TABLES") Then
+
         For Each colBlk In colData["BLOCKS"]
             newBlock = New Block
             newBlock.entities = New Collection
             newBlock.name = colBlk[dxf.codName]
+            newBlock.layer = colBlk[dxf.codLayer]
+            Try newBlock.x0 = colBlk[dxf.codX0]
+            Try newBlock.y0 = colBlk[dxf.codY0]
+            Try newBlock.z0 = colBlk[dxf.codZ0]
+            Try newBlock.flags = colBlk["70"]
 
-            ' en ciertos DXF no hay la tabla BLOCK_RECORD
             If colData["TABLES"].Exist("BLOCK_RECORD") Then
+
                 If colData["TABLES"]["BLOCK_RECORD"].Exist(newBlock.name) Then
                     newBlock.HandleAsociatedLayout = colData["TABLES"]["BLOCK_RECORD"][newBlock.name]["340"]
                 Endif
             End If
-            'cParent = colData["TABLES"]["BLOCK_RECORD"][newBlock.name]
-            'depre  newBlock.handle = colBlk[dxf.codHandle]
-            ' If cParent Then
-            '     newBlock.HandleOwner = cParent[dxf.codHandle]
-            '     newBlock.HandleOwnerParent = cParent[dxf.codHandleOwner]
-            ' Else
-            '     newBlock.HandleOwner = 0
-            '     newBlock.HandleOwnerParent = 0
-            ' End If
-
-            newBlock.layer = colBlk[dxf.codLayer]
-            Try newBlock.x0 = colBlk[dxf.codX0]
-            Try newBlock.y0 = colBlk[dxf.codY0]
-            If colBlk.Exist(dxf.codZ0) Then newBlock.z0 = colBlk[dxf.codZ0]
-            newBlock.flags = colBlk["70"]
 
             Drw.Blocks.Add(newBlock, newBlock.name)
-            If Left(newBlock.name, 1) = "*" Then
-                ' If newBlock.name = "*Model_Space" Then
-                '     ' creo la Sheet
-                '     S = New Sheet
-                '     s.Name = "Model"
-                '     s.Entities = drw.Entities
-                '     s.IsModel = True
-                '     'depre s.Handle = colBlk[dxf.codHandle]
-                '     Drw.Sheets.Add(s, s.Name)
-                '     drw.Sheet = s
-                '     drw.Model = s
-                ' Else If newBlock.name = "*Paper_Space" Then
-                '     ' creo la Sheet
-                '     S = New Sheet
-                '     s.Name = "Sheet1"
-                '     s.IsModel = False
-                '     'depre s.Handle = colBlk[dxf.codHandle]
-                '     Drw.Sheets.Add(s, s.Name)
-                '
-                '     ' Else
-                '     '     drw.Blocks.Add(newBlock, newBlock.name)
-                ' End If
-                ' 'Else
-
-            End If
-
         Next
     End If
 
@@ -1973,7 +1938,7 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
         'depre  s.Handle = "2"
         Drw.Sheets.Add(s, s.Name)
         drw.Sheet = s
-        drw.Model = s
+
 
         ' creo ql bloque
 
@@ -1984,24 +1949,17 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
 
     End If
 
-    drw.Model.Entities = drw.Blocks["*Model_Space"].entities
-    drw.Entities = drw.Model.Entities
+    drw.Entities = drw.Blocks["*Model_Space"].entities
 
     Block_Record = New Collection
 
     If colData.Exist("BLOCKS") Then
         For Each colBlk In colData["BLOCKS"]
-            Block_Record.Add(colBlk["2"], colBlk["330"])
 
             If colBlk.Exist("entities") And Drw.Blocks.Exist(colBlk[dxf.codName]) Then
 
-                'DXFtoEntity(colBlk["entities"], Drw.Blocks[colBlk[dxf.codName]])
-                DXFtoEntity(colBlk["entities"], Drw)
-                drw.Block_Record.Add(drw.Blocks[colBlk[dxf.codName]], colBlk["330"])
 
-                ' Else If colBlk.Exist("entities") And Drw.Inserts.Exist(colBlk[dxf.codName]) Then
-                '
-                '     DXFtoEntity(colBlk["entities"], Drw.Inserts[colBlk[dxf.codName]])
+                DXFtoEntity(colBlk["entities"], Drw)
 
             Else
 
@@ -2074,10 +2032,11 @@ Public Sub DXFtoEntity(cEny As Collection, drw As Drawing, Optional NewHandles A
                             obx = drw.Blocks[Block_Record[e[codHandleOwner]]].entities
                         Else If drw.Inserts.Exist(Block_Record[e[codHandleOwner]]) Then
 
-                            'obx = drw.Inserts[Block_Record[e[codHandleOwner]]].entities
-                            obx = drw.Model.Entities
+                            obx = drw.Inserts[Block_Record[e[codHandleOwner]]].entities
+                            'obx = drw.Model.Entities
                         Else
-                            obx = Null
+                            obx = drw.Blocks["*Model_Space"].entities
+                            'obx = Null
                         End If
                         If obx Then
                             If entNueva.PaperSpace Then
@@ -2203,7 +2162,7 @@ Public Function ReadObjectsFromDXF(cData As Collection, drw As Drawing)
             If LCase(s.Name) = "model" Then
                 s.IsModel = True
                 drw.Sheet = s
-                drw.Model = s
+
             End If
 
         Endif

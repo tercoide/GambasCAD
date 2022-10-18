@@ -40,14 +40,11 @@ Public Const ipaFlag As Integer = 7
 Public Const ipaTang1 As Integer = 8
 Public Const ipaTang2 As Integer = 9
 
-' nuevas mar/21
-Public g_num_cvs As Integer
-Public g_degree As Integer
-Public g_order As Integer
+
 Public LOD As Integer = 100
 
 Public g_points As New Float[]
-Public Knots As New Float[]
+Public Knots As Float[]
 Public sp As SPline
 
 Public Function NewEntity(Optional fPoints As Float[], bNewHandle As Boolean = False) As Entity
@@ -57,6 +54,9 @@ Public Function NewEntity(Optional fPoints As Float[], bNewHandle As Boolean = F
     e = Super.NewEntity(fPoints, bNewHandle)
 
     e.pBlock = New SPline
+
+    e.pBlock.ControlPoints.Add(0)
+    e.pBlock.ControlPoints.Add(0)
     Return e
 
 
@@ -64,53 +64,41 @@ End
 
 Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
 
-    Dim fKnots As New Float[]
 
     Dim i As Integer
+    Dim sp As SPline
 
-    If eBuild.fParam.Count = 0 Then
+    sp = ebuild.pBlock
 
-    Endif
-    eBuild.fParam[Me.ipaFlag] = 8
-    ' 70' SPLINE flag(bit coded):
-    ' 1 = Closed spline
-    ' 2 = Periodic spline
-    ' 4 = Rational spline
-    ' 8 = Planar
-    ' 16 = Linear(planar bit Is Also set)
-    eBuild.fParam[Me.ipaDegree] = 2 'quadrtic 3 = cubic
-    eBuild.fParam[Me.ipaKnotTolerance] = 0.0000001
-    eBuild.fParam[Me.ipaControlTolerance] = 0.0000001
-    eBuild.fParam[Me.ipaFitTolerance] = 0.0000000001
 
     If vParam[0] = "point" Then
 
-        eBuild.P[eBuild.P.Max - 1] = vParam[1]
-        eBuild.P[eBuild.P.Max] = vParam[2]
+        sp.ControlPoints[sp.ControlPoints.Max - 1] = vParam[1]
+        sp.ControlPoints[sp.ControlPoints.Max] = vParam[2]
         GoSub DoKnots
         If definitive Then
 
-            eBuild.P.Insert(eBuild.P.Copy(eBuild.P.Max - 1, 2))
+            sp.ControlPoints.Insert(sp.ControlPoints.Copy(sp.ControlPoints.Max - 1, 2))
             GoSub DoKnots
             Return True
         End If
     Else If vParam[1] = "CLOSE" Then
-        If eBuild.P.Count > 4 Then eBuild.P.Remove(eBuild.P.Max - 1, 2)
-        eBuild.P[eBuild.P.Max - 1] = eBuild.P[0]
-        eBuild.P[eBuild.P.Max] = eBuild.P[1]
+        If sp.ControlPoints.Count > 4 Then sp.ControlPoints.Remove(sp.ControlPoints.Max - 1, 2)
+        sp.ControlPoints[sp.ControlPoints.Max - 1] = sp.ControlPoints[0]
+        sp.ControlPoints[sp.ControlPoints.Max] = sp.ControlPoints[1]
         GoSub DoKnots
         Inc gcd.StepsDone
         Return True
 
     Else If vParam[1] = "UNDO" Then
-        If eBuild.P.Count > 4 Then
-            eBuild.P.Remove(eBuild.P.Max - 1, 2)
+        If sp.ControlPoints.Count > 4 Then
+            sp.ControlPoints.Remove(sp.ControlPoints.Max - 1, 2)
             GoSub DoKnots
         End If
 
         Return True
     Else If vParam[1] = "END" Then
-        If eBuild.P.Count > 4 Then eBuild.P.Remove(eBuild.P.Max - 1, 2)
+        If sp.ControlPoints.Count > 4 Then sp.ControlPoints.Remove(sp.ControlPoints.Max - 1, 2)
         GoSub DoKnots
         Inc gcd.StepsDone
 
@@ -120,25 +108,20 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
 
 DoKnots:
 
-    fKnots.Clear
+    sp.kNotValues.Clear
 
-    fKnots.Add(0)
-    fKnots.Add(0)
-    fKnots.Add(0)
+    sp.kNotValues.Add(0)
+    sp.kNotValues.Add(0)
+    sp.kNotValues.Add(0)
 
-    If eBuild.P.Count / 2 > 3 Then
-        For i = 1 To eBuild.P.count / 2 - 3
-            fKnots.Add(i / ((eBuild.P.count / 2 - 2)))
+    If sp.ControlPoints.Count / 2 > 3 Then
+        For i = 1 To sp.ControlPoints.count / 2 - 3
+            sp.kNotValues.Add(i / ((sp.ControlPoints.count / 2 - 2)))
         Next
     End If
-    fKnots.Add(1)
-    fKnots.Add(1)
-    fKnots.Add(1)
-
-    eBuild.fParam.Remove(Me.TotalParams, eBuild.fParam.Count - Me.TotalParams)
-    eBuild.fParam.Insert(fKnots.Copy(), Me.TotalParams)
-
-    eBuild.fParam[Me.ipaTotalKnots] = fKnots.Count
+    sp.kNotValues.Add(1)
+    sp.kNotValues.Add(1)
+    sp.kNotValues.Add(1)
 
     Return
 
@@ -260,14 +243,14 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
     sp = e.pBlock
 
-    e.P.Clear
     For i = 0 To sClaves.Max
 
         If sClaves[i] = "70" Then sp.Periodic = (CInt(sValues[i]) <> 0)
-        If sClaves[i] = "71" Then sp.Degree = CInt(sValues[i])
-        'If sClaves[i] = "72" Then e.fParam[Me.ipaTotalKnots] = CInt(sValues[i])
-        'If sClaves[i] = "73" Then e.fParam[Me.ipaTotalControlPoints] = CInt(sValues[i])
-        'If sClaves[i] = "74" Then e.fParam[Me.ipaTotalFitPoints] = CInt(sValues[i])
+        'If sClaves[i] = "71" Then sp.Degree = CInt(sValues[i]) ' siempre es 2 para mi
+
+        'If sClaves[i] = "72" Then e.fParam[Me.ipaTotalKnots] = CInt(sValues[i])            'innecesario
+        'If sClaves[i] = "73" Then e.fParam[Me.ipaTotalControlPoints] = CInt(sValues[i])            'innecesario
+        'If sClaves[i] = "74" Then e.fParam[Me.ipaTotalFitPoints] = CInt(sValues[i])            'innecesario
         If sClaves[i] = "42" Then sp.KnotTolerance = CFloat(sValues[i])
         If sClaves[i] = "43" Then sp.Controltolerance = CFloat(sValues[i])
         If sClaves[i] = "44" Then sp.FitTolerance = CFloat(sValues[i])
@@ -277,7 +260,6 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
         If sClaves[i] = "41" Then sp.Weigths.Add(CFloat(sValues[i]))
 
-        ' por lo general hay fit points o controls points, pero no ambos, cargo lo que sea en P
         ' Control points
         If sClaves[i] = "10" Then SP.ControlPoints.Add(CFloat(sValues[i]))
         If sClaves[i] = "20" Then SP.ControlPoints.Add(CFloat(sValues[i]))
@@ -338,29 +320,29 @@ End
 
 ' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -GetOutpoint()
 '
-Public Sub GetOutpoint(t As Float, OutPoint As Float[])
-
-    ' sum the effect Of all CV 's on the curve at this point to
-    ' get the evaluated curve point
-    Dim i As Integer
-    Dim fVal As Float
-
-    For i = 0 To g_num_cvs - 1
-
-        ' calculate the effect Of this point On the curve
-
-        fVal = CoxDeBoor(t, i, g_order)
-
-        If (fVal > 0.001) Then
-
-            ' sum effect Of CV On this part Of the curve
-            OutPoint[0] += fVal * g_Points[i * 2 + 0]
-            OutPoint[1] += fVal * g_Points[i * 2 + 1]
-            OutPoint[2] += 0 'fVal * g_Points[i * 3 + 2] ' Para 3D el array g_points deberia ser 3D
-        End If
-    Next
-
-End
+' Public Sub GetOutpoint(t As Float, OutPoint As Float[])
+'
+'     ' sum the effect Of all CV 's on the curve at this point to
+'     ' get the evaluated curve point
+'     Dim i As Integer
+'     Dim fVal As Float
+'
+'     For i = 0 To g_num_cvs - 1
+'
+'         ' calculate the effect Of this point On the curve
+'
+'         fVal = CoxDeBoor(t, i, g_order)
+'
+'         If (fVal > 0.001) Then
+'
+'             ' sum effect Of CV On this part Of the curve
+'             OutPoint[0] += fVal * g_Points[i * 2 + 0]
+'             OutPoint[1] += fVal * g_Points[i * 2 + 1]
+'             OutPoint[2] += 0 'fVal * g_Points[i * 3 + 2] ' Para 3D el array g_points deberia ser 3D
+'         End If
+'     Next
+'
+' End
 
 Public Sub makepolyline(oe As Entity, Optional density As Integer = 36)
 
@@ -393,13 +375,7 @@ Public Sub makepolyline(oe As Entity, Optional density As Integer = 36)
 
 End
 
-'Fast
-Public Sub DrawTest(oE As Entity)
 
-
-    glPlus.PolyLines(oe.PolyLine, gcd.GetGBColor(oE.Colour, oe.pLayer), oE.LineWidth, oE.LineType.TrameLength)
-
-End
 
 Public Sub Draw(oE As Entity)
 
@@ -415,155 +391,16 @@ Public Sub Draw(oE As Entity)
 
     sp = oe.pBlock
 
+
+
     Me.makepolyline(oe)
-
-    DrawTest(oe)
-    Return
-    If oe.P.Count = 2 Then Return
-
-    If oe.P.Count = 4 Then
-        cadLine.Draw(oe)
-        Return
-    End If
-    oe.PolyLine.Clear
-    g_degree = sp.Degree 'oe.fParam[Me.ipaDegree] ' 2 o 3
-    g_order = g_degree + 1
-
-    OutPoint.Insert([0.0, 0.0, 0.0])
-    ' rearmo los pesos de los nudos
-    Knots.Clear
-    Knots.Insert(sp.KnotValues.Copy())
-
-    ' rearmo los control points
-    g_points.Clear
-    g_points.Insert(sp.ControlPoints.Copy())
-
-    g_num_cvs = g_points.Count / 2
-
-    'gl.Begin(GL.LINE_STRIP)
-    For i = 0 To LOD - 1    ' LOD es el nummero de tramos
-
-        t = Knots[Knots.Max] * i / (LOD - 1)
-
-        If (i = LOD - 1) Then t -= 0.001
-
-        GetOutpoint(t, Outpoint)
-
-        'gl.Vertex3f(Outpoint[0], Outpoint[1], Outpoint[2])
-
-        oe.PolyLine.Add(Outpoint[0])
-        oe.PolyLine.Add(Outpoint[1])
-
-        OutPoint[0] = 0
-        OutPoint[1] = 0
-    Next
-    'gl.End()
 
     glPlus.PolyLines(oe.PolyLine, gcd.GetGBColor(oE.Colour, oe.pLayer), oE.LineWidth, oE.LineType.TrameLength)
 
-    ' agrego puntos inicial y final para usarlos en Snap
-    oe.P.Clear
-    oe.P.Add(oe.PolyLine[0])
-    oe.P.Add(oe.PolyLine[1])
-    oe.P.Add(oe.PolyLine[oe.PolyLine.Max - 1])
-    oe.P.Add(oe.PolyLine[oe.PolyLine.Max])
 
-    ' This is to draw the Control Points
-
-    ' gl.Color3f(1, 0, 0)
-    ' gl.PointSize(3)
-    ' gl.Begin(GL.POINTS)
-    ' For i = 0 To g_num_cvs - 1
-    '     gl.Vertex3f(g_Points[i], g_Points[i + 1], 0)
-    ' Next
-    ' gl.End()
 
 End
 
-Public Function interpolate(t As Float, degree As Integer, points As Float[], Optional knots As Float[], weights As Float[]) As Float[]
-
-    Dim i, j, s, l As Integer ' function - scoped iteration variables
-    Dim d As Integer = 2 ' 2d o 3d o mas dimensiones
-    Dim Resultado As New Float[]
-    Dim n As Integer = points.Count / d ' numero de puntos
-
-    If (degree < 1) Then Stop ' Error( 'degree must be at least 1 (linear)')
-    If (degree > (n - 1)) Then Stop ' Error( 'degree must be less than or equal to point count - 1')
-
-    ' Genero los pesos de cada punto para el caso que no sean provistos
-    If Not weights Then
-        ' build weight vector Of length[n]
-        weights = New Float[]
-        weights.Add(1)
-        weights.Add(1)
-        For i = 1 To n - 3
-            weights.Add(1)
-        Next
-        weights.Add(1)
-        weights.Add(1)
-    Endif
-
-    ' genero los nudos
-    If Not knots Then
-        ' build knot vector Of length[n + degree + 1]
-        knots = New Float[]
-        For i = 0 To n + degree
-            knots.Add(i)
-        Next
-    Else ' lo verifico
-        If (knots.Count <> n + degree + 1) Then Stop  'Error( 'bad knot vector length')
-    Endif
-
-    Dim domain As New Float[]
-    domain.Insert([degree, knots.count - 1 - degree])
-
-    ' remap t To the domain where the spline Is Defined
-    Dim low As Float = knots[domain[0]]
-    Dim high As Float = knots[domain[1]]
-    t = t * (high - low) + low
-
-    If (t < low) Or (t > high) Then Stop ' Error( 'out of bounds')
-
-    ' find s(the spline segment) For the[t]value provided
-    For s = domain[0] To domain[1] - 1
-        If (t >= knots[s]) And (t <= knots[s + 1]) Then
-            Break
-        Endif
-    Next
-
-    Debug "S=", s
-
-    ' convert points To homogeneous coordinates (gana una dimension mas)
-    Dim v As New Float[]   ' v=[x1,y1,w1,x2,y2,w2.....] w=weigth
-    For i = 0 To n - 1
-        For j = 0 To d - 1
-            v.Add(points[i * d + j] * weights[i])
-        Next
-        ' esto no se
-        v.Add(weights[i])
-    Next
-
-    ' l(level)goes From 1 To the curve degree + 1
-    Dim alpha As Float
-    For l = 1 To degree + 1
-        ' build level l Of the pyramid
-        For i = s To s - degree + l Step -1
-            alpha = (t - knots[i]) / (knots[i + degree + 1 - l] - knots[i])
-            ' interpolo cada dimension
-            For j = 0 To d
-                v[i * (d + 1) + j] = (1 - alpha) * v[(i - 1) * (d + 1) + j] + alpha * v[i * (d + 1) + j]
-            Next
-        Next
-    Next
-
-    ' convert back To cartesian And Return
-    For i = 0 To d - 1
-        Resultado.Add(v[s * (d + 1) + i] / v[s * (d + 1) + d])
-    Next
-
-    Return Resultado
-
-End
 
 'Fast
 Public Function interpolate2(t As Float, degree As Integer, points As Float[], Optional knots As Float[], weights As Float[]) As Float[]

@@ -239,7 +239,7 @@ Public Sub CheckPOI(xr As Float, Yr As Float, Optional e As Entity) As Float[]
     Dim indexEntity, i, i2, iPoligon, iLine, iPoint As Integer
     Dim pend1, base1, pend2, base2 As Float ' vars para las ecuacionesde las rectas
     Dim puntoB, puntoA, pInter As New Float[]
-
+    Dim end1X, end1Y, end2X, end2Y As Float
     ' distancias  los enganches, para determinar cual es el mas cercano al puntero
     Dim DistPer As Float = 1e6
     Dim DistEnd1 As Float = 1e6
@@ -461,19 +461,37 @@ Public Sub CheckPOI(xr As Float, Yr As Float, Optional e As Entity) As Float[]
         Case "LINE"
 
             DistEnd1 = puntos.distancia(e.P[0], e.P[1], xr, yr)
+            end1X = e.P[0]
+            end1Y = e.P[1]
 
+            end2X = e.P[2]
+            end2Y = e.P[3]
             DistEnd2 = puntos.distancia(e.P[2], e.P[3], xr, yr)
 
             DistMid = puntos.distancia((e.P[2] + e.P[0]) / 2, (e.P[3] + e.P[1]) / 2, xr, yr)
             i = 0
 
+
         Case "Text", "MText"
 
             DistBase = puntos.distancia(e.P[0], e.P[1], xr, yr)
 
-        Case "CIRCLE", "ELLIPSE", "ARC"
+        Case "CIRCLE"
+            DistCenter = puntos.distancia(e.P[0], e.P[1], xr, yr)
+
+        Case "ELLIPSE", "ARC", "SPLINE"
 
             DistCenter = puntos.distancia(e.P[0], e.P[1], xr, yr)
+
+            DistEnd1 = puntos.distancia(e.PolyLine[0], e.PolyLine[1], xr, yr)
+            end1X = e.PolyLine[0]
+            end1Y = e.PolyLine[1]
+            DistEnd2 = puntos.distancia(e.PolyLine[e.PolyLine.Max - 1], e.PolyLine[e.PolyLine.max], xr, yr)
+            end2X = e.PolyLine[e.PolyLine.Max - 1]
+            end2Y = e.PolyLine[e.PolyLine.Max]
+
+
+
 
         Case "LWPOLYLINE"
             ' tengo que ver cual es el mas cercano
@@ -485,12 +503,18 @@ Public Sub CheckPOI(xr As Float, Yr As Float, Optional e As Entity) As Float[]
 
                     DistEnd1 = puntos.distancia(e.P[i + 0], e.P[i + 1], xr, yr)
                     'If DistEnd1 > DistEnd1B Then DistEnd1 = DistEnd1B
+                    end1X = e.P[i]
+                    end1Y = e.P[i + 1]
 
                     DistEnd2 = puntos.distancia(e.P[i + 2], e.P[i + 3], xr, yr)
                     'If DistEnd2 > DistEnd2B Then DistEnd2 = DistEnd2B
+                    end2X = e.P[i + 2]
+                    end2Y = e.P[i + 3]
 
                     DistMid = puntos.distancia((e.P[i + 2] + e.P[i + 0]) / 2, (e.P[i + 3] + e.P[i + 1]) / 2, xr, yr)
                     'If DistMid > DistMidB Then DistMid = DistMidB
+
+
                     Break
                 End If
             Next
@@ -530,8 +554,8 @@ Public Sub CheckPOI(xr As Float, Yr As Float, Optional e As Entity) As Float[]
 
     ' ofrezco ese punto
     If dist = DistEnd1 Then
-        rData[0] = e.P[i + 0]
-        rData[1] = e.P[i + 1]
+        rData[0] = end1X
+        rData[1] = end1Y
         rData[2] = gcd.poiEndPoint
         DrawingAids.Helper.texto = "EndPoint"
     End If
@@ -539,8 +563,8 @@ Public Sub CheckPOI(xr As Float, Yr As Float, Optional e As Entity) As Float[]
 
     ' ofrezco ese punto
     If dist = DistEnd2 Then
-        rData[0] = e.P[i + 2]
-        rData[1] = e.P[i + 3]
+        rData[0] = end2X
+        rData[1] = end2Y
         rData[2] = gcd.poiEndPoint
         DrawingAids.Helper.texto = "EndPoint"
     End If
