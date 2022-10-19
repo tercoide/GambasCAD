@@ -647,10 +647,11 @@ Public Sub GLArea1_draw()
             gl.LoadIdentity
 
             ' el scissor no se ve afectado por las trnasformaciones!!!!!!!!
+            ' se aplica al Viewport XLow,Ylow,Width,Heigth
 
             'glPlus.Rectangle2D(-GLArea1.W / 2 + gcd.XPix(vpt.X0), GLArea1.h / 2 - gcd.YPix(vpt.Y0), gcd.Pixels(vpt.X1 - vpt.x0), gcd.Pixels(vpt.Y1 - vpt.y0))
 
-            'gl.Scissor(-GLArea1.W / 2 + gcd.XPix(vpt.X0), GLArea1.h / 2 - gcd.YPix(vpt.Y0), gcd.Pixels(vpt.X1 - vpt.x0), gcd.Pixels(vpt.Y1 - vpt.y0))
+            gl.Scissor(gcd.XPix(vpt.X0), GLArea1.h - gcd.YPix(vpt.Y0), gcd.Pixels(Abs(vpt.X1 - vpt.x0)), gcd.Pixels(Abs(vpt.Y1 - vpt.y0)))
 
             gl.Translatef(gcd.Drawing.Sheet.PanX, gcd.Drawing.Sheet.PanY, 0)
 
@@ -659,7 +660,7 @@ Public Sub GLArea1_draw()
             gl.Translatef(vpt.PanX, vpt.PanY, 0)
             gl.Scalef(vpt.ScaleZoom, vpt.ScaleZoom, 1)
 
-            'gl.Enable(GL.sCISSOR_TEST)
+            gl.Enable(GL.sCISSOR_TEST)
 
             For Each L In vpt.Layers
                 If L.Visible Then gl.CallList(L.glList)
@@ -737,16 +738,23 @@ Public Sub GLArea1_draw()
 
     Endif
 
+    If gcd.Drawing.GridActive Then gl.CallList(gcd.Drawing.GLListGrid)
+    If gcd.flgNewPosition Then
+        clsEntities.CollectVisibleEntities
+        gcd.flgNewPosition = False
+    End If
+
     ' test area
+    gl.LoadIdentity
 
     Dim flx, flx2 As New Float[]
-    ' flx = puntos.DashedLineStrip([0, 0, 100, 0, 200, 200, 300, 200], [5, -2.5], 1, 0)
-    '
-    ' glPlus.Lines(flx, color.blue)
-    ' glPlus.Lines([0, 20, 0, -20], color.blue)
-    ' glPlus.Lines([100, 20, 100, -20], color.blue)
-    ' flx = puntos.DashedLineStrip([0, 0, -100, 0], [5, -2.5], 1, 0, True)
-    ' glPlus.Lines(flx, color.blue)
+    flx = puntos.DashedLineStrip([0, 0, 100, 0, 200, 200, 300, 200], [5, -2.5], 1, 0)
+
+    glPlus.Lines(flx, color.blue)
+    glPlus.Lines([0, 20, 0, -20], color.blue)
+    glPlus.Lines([100, 20, 100, -20], color.blue)
+    flx = puntos.DashedLineStrip([0, 0, -100, 0], [5, -2.5], 1, 0, True)
+    glPlus.Lines(flx, color.blue)
     '
     ' Dim fi As Float
     ' For fi = 0 To 2 * Pi Step Pi / 32
@@ -769,12 +777,8 @@ Public Sub GLArea1_draw()
     ' flx = puntos.DashedLineStrip(flx2, [5, -2.5], 1, 3, True)
     ' glPlus.Lines(flx, Color.Yellow)
 
-    If gcd.Drawing.GridActive Then gl.CallList(gcd.Drawing.GLListGrid)
 
-    If gcd.flgNewPosition Then
-        clsEntities.CollectVisibleEntities
-        gcd.flgNewPosition = False
-    End If
+
 
 End
 
@@ -1063,6 +1067,7 @@ Public Sub Form_Keyrelease()
 
         Case Key.f2
             glarea1_resize()
+            GLArea1.Refresh
             ' t = Timer
             ' Dim NE As New Entity
             ' Debug "Creando 500.000 lineas"
@@ -1656,23 +1661,31 @@ Public Sub tabDrawings_Click()
 
 End
 
-Public Sub tabViews_Click()
+Public Sub tabSheets_Click()
+
+    Dim s As Sheet
 
     If InUse Then Return
 
-    If Last.current.tag Then
+
+    'If Last.current.tag Then
+
+    For Each s In gcd.Drawing.Sheets
+        Object.Detach(s.GLSheet)
+    Next
+
+    gcd.Drawing.Sheet = Last.current.tag
+    gcd.Drawing.LastLayer = gcd.Drawing.CurrLayer
+    Object.Attach(gcd.Drawing.Sheet.GLSheet, Me, "GLArea1")
+    Me.GLArea1 = gcd.Drawing.Sheet.GLSheet
+
+    Me.GLArea1.Refresh
+
+    If gcd.Drawing.Sheet.GlSheet Then clsEntities.CollectVisibleEntities
 
 
-        gcd.Drawing.LastLayer = gcd.Drawing.CurrLayer
-        gcd.Drawing.Sheet = gcd.Drawing.Sheets[Last.current.tag]
-        Me.GLArea1 = gcd.Drawing.Sheet.GLSheet
-        Me.GLArea1.Refresh
 
-        If gcd.Drawing.Sheet.GlSheet Then clsEntities.CollectVisibleEntities
-
-
-
-    End If
+    'End If
 
 End
 
@@ -1694,11 +1707,16 @@ Public Function NewTabForDrawing(nDrawing As Drawing)
     Me.tabDrawings[i].Expand = True
     Me.tabDrawings[i].tag = nDrawing
     Me.tabDrawings.Index = i
-    Dim tabFileNew As New TabPanel(Me.tabDrawings[i]) As "tabViews"
+    Me.tabDrawings.Refresh
+    Dim tabFileNew As New TabPanel(Me.tabDrawings[i]) As "tabSheets"
     tabFileNew.Expand = True
     tabFileNew.Arrangement = Arrange.Fill
     tabFileNew.Orientation = Align.Bottom
-    Object.Attach(tabFileNew, Me, "tabViews")
+    'Object.Attach(tabFileNew, Me, "tabViews")
+    Me.tabDrawings.Refresh
+
+    tabFileNew.Refresh
+
 
     i = 0
     Do
@@ -1712,12 +1730,8 @@ Public Function NewTabForDrawing(nDrawing As Drawing)
         Next
     Loop Until i = nDrawing.Sheets.Count
 
-    'gcd.Drawing.Sheet.GlSheet = nDrawing.Model.GLSheet
+
     GLArea1 = gcd.Drawing.Sheet.GlSheet
-    'GLplus.Resize(glarea1)
-
-
-
 
     InUse = False
 
@@ -1736,16 +1750,21 @@ Public Function NewSheet(tabSheets As TabPanel, s As Sheet)
 
     If Not s.IsModel Then tabSheets.Count += 1
 
-    tabSheets[tabSheets.Count - 1].Text = s.Name
+    tabSheets.Index = tabSheets.Count - 1
 
-    Dim glaFile2 As New GLArea(tabSheets[tabSheets.Count - 1])
+    tabSheets.Text = s.Name
+
+    Dim glaFile2 As New GLArea(tabSheets.Current) As "GLArea1"
     glaFile2.Background = Config.BackgroundColor
     glaFile2.Expand = True
     glaFile2.Tracking = True
-    Object.Attach(glaFile2, Me, "GLArea1")
-
     s.GLSheet = glaFile2
-    tabSheets[tabSheets.Count - 1].Tag = s.Handle
+    s.GLSheet.Refresh
+    tabSheets.Tag = s
+    tabSheets.Refresh
+    Me.GLArea1 = glaFile2
+    glPlus.Init(glaFile2)
+    Debug "New tab", tabSheets.w, tabSheets.h, glaFile2.w, glaFile2.H
 
 
     InUse = False
