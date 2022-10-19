@@ -398,6 +398,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
                         Inc i
                         i = dxf.ReadCodePlus(94, sClaves, sValues, ByRef sp.Degree, i)
 
+
                         i = dxf.ReadCodePlus(73, sClaves, sValues, ByRef sp.Periodic, i)
                         i = dxf.ReadCodePlus(74, sClaves, sValues, ByRef r, i)
                         If i > 0 Then sp.Periodic += CInt(r)
@@ -624,398 +625,398 @@ LoopImport:
 
 End
 
-Public Function ImportDXF2(e As Entity, sClaves As String[], sValues As String[]) As Boolean
-
-    Dim i, iPattern, iLoop, iPoints, iBorderObjects, iBoundaryObject As Integer
-    Dim LoopToRead As Integer
-    Dim LoopType As Integer
-    Dim EdgesToRead As Integer
-    Dim EdgeType As Integer
-    Dim eContour As Entity
-    Dim edge As Integer
-    Dim NewPath As Hatch
-    Dim oPattern As Pattern
-    ' Dim jscPath, vSeg As JSONCollection
-    Dim RefObjHandle As String
-    Dim DashLength, fVar As Float
-    Dim hData As Hatch
-    Dim Dashes As Integer
-    Dim sp As SPline
-    Dim r As String
-
-    ' vamos a agrupar las entidades que forman el contorno en un bloque
-    e.pBlock = New Hatch
-    NewPath = e.pBlock
-
-    NewPath.eSegments = New Entity[]
-    'NewPath.sHandles = New String[]
-
-    'If e.Handle = "567A1" Then Stop
-
-    'For i = 0 To sClaves.Max
-    i = -1
-    Do While i < sClaves.max    ' en este importador usare un do-loop en vez de un for-next por la complejidad del hatch
-        Inc i
-
-        If sClaves[i] = "91" Then
-            e.fParam[Me.ipaTotalLoops] = CFloat(sValues[i])
-            LoopToRead = e.fParam[Me.ipaTotalLoops]
-        End If
-
-        If LoopToRead > 0 Then
-
-            Inc i
-
-            ' para Debug
-            ' If LoopToRead = 21 Then Stop
-
-            For iLoop = 0 To LoopToRead - 1 'descubri que un Loop puede o no ser un area a rellenar distinta, a veces un Loop es un agujero de otro Loop
-
-                ' NewPath = hData
-                ' 'hData.Add(NewPath)
-                '
-                ' NewPath.eSegments = New Entity[]
-                ' NewPath.sHandles = New String[]
-                Dec LoopToRead
-                ' estas claves definen el borde
-
-                i = dxf.ReadCode(92, sClaves, sValues, ByRef LoopType, i)
-
-                NewPath.Flag = LoopType
-                ' If i = True Then Stop
-                If (LoopType And 2) <> 2 Then ' otherwise is a polyline
-                    Inc i
-
-                    i = dxf.ReadCode(93, sClaves, sValues, ByRef EdgesToRead, i)
-                    If i = True Then Stop
-                    For edge = 0 To EdgesToRead - 1
-
-                        i = dxf.ReadCode(72, sClaves, sValues, ByRef EdgeType, i)
-                        If i = True Then Stop
-
-                        ' segun el tipo de edge, agrego una entidad al bloque que
-                        ' forma el contorno
-                        eContour = New Entity
-                        ' a esta entidad que es un borde le etiquetamos el loop al que pertenece
-
-                        NewPath.eSegments.Add(eContour, CStr(i))
-                        Select Case EdgeType
-                            Case 0  ' invalido
-
-                                Stop
-
-                            Case 1 ' lines
-
-                                eContour.Gender = cadLine.Gender
-                                ' leo los dos puntos
-                                Inc i
-                                If sClaves[i] = "10" Then eContour.P.Add(CFloat(sValues[i]))
-                                Inc i
-                                If sClaves[i] = "20" Then eContour.P.Add(CFloat(sValues[i]))
-                                Inc i
-                                If sClaves[i] = "11" Then eContour.P.Add(CFloat(sValues[i]))
-                                Inc i
-                                If sClaves[i] = "21" Then eContour.P.Add(CFloat(sValues[i]))
-                            Case 2 ' arc o circle
-
-                                eContour.Gender = cadArc.Gender
-                                Inc i
-                                If sClaves[i] = "10" Then eContour.P.Add(CFloat(sValues[i]))
-                                Inc i
-                                If sClaves[i] = "20" Then eContour.P.Add(CFloat(sValues[i]))
-                                Inc i
-                                If sClaves[i] = "40" Then eContour.fParam.Add(CFloat(sValues[i]))
-                                Inc i
-                                If sClaves[i] = "50" Then eContour.fParam.Add(CFloat(sValues[i]))
-                                Inc i
-                                If sClaves[i] = "51" Then eContour.fParam.Add(CFloat(sValues[i]))
-                                Inc i
-                                If sClaves[i] = "73" Then eContour.fParam.Add(CFloat(sValues[i]))
-                            Case 3 ' ellipse
-
-                                eContour.Gender = cadEllipse.Gender
-                                Inc i
-                                If sClaves[i] = "10" Then eContour.P.Add(CFloat(sValues[i]))     ' centro
-                                Inc i
-                                If sClaves[i] = "20" Then eContour.P.Add(CFloat(sValues[i]))
-                                Inc i
-                                If sClaves[i] = "11" Then eContour.P.Add(CFloat(sValues[i]) + eContour.P[0])     ' eje mayor, relativo al centro
-                                Inc i
-                                If sClaves[i] = "21" Then eContour.P.Add(CFloat(sValues[i]) + eContour.P[1])
-                                Inc i
-                                If sClaves[i] = "40" Then eContour.fParam.Add(CFloat(sValues[i]))
-                                Inc i
-                                If sClaves[i] = "50" Then eContour.fParam.Add(Deg(CFloat(sValues[i])))
-
-                                ' esto soluciona un proble de unidades de LibreCAD
-                                If eContour.fParam[eContour.fParam.Max] > 2 * Pi Then
-                                    eContour.fParam[eContour.fParam.Max] /= (360 / 2 / Pi)
-                                Endif
-                                Inc i
-                                If sClaves[i] = "51" Then eContour.fParam.Add(Deg(CFloat(sValues[i])))
-
-                                ' esto soluciona un proble de unidades de LibreCAD
-                                If eContour.fParam[eContour.fParam.Max] > 2 * Pi Then
-                                    eContour.fParam[eContour.fParam.Max] /= (360 / 2 / Pi)
-                                Endif
-                            Case 4 ' spline
-                                ' 94 Degree
-                                ' 73 Rational
-                                ' 74 Periodic
-                                ' 95 Number of knots
-                                ' 96 Number of control points
-                                ' 40 Knot values (multiple entries)
-                                ' 10 Control point (in OCS) 20 Y value of control point (in OCS)
-                                ' 42 Weights (optional, default = 1)
-                                ' 97 Number of fit data
-                                ' 11 Fit datum (in OCS) 21
-                                ' 12 Start tangent 22
-                                ' 13 End tangent 23
-                                eContour = cadSPLine.NewEntity()
-                                sp = eContour.pBlock
-
-                                '                             ' COPIO Y PEGO DE CADSPLINE, CAMBIANDO LAS CLAVES
-                                '
-                                Inc i
-                                i = dxf.ReadCodePlus(94, sClaves, sValues, ByRef r, i)
-                                If i > 0 Then sp.Degree = CInt(r)
-
-                                i = dxf.ReadCodePlus(73, sClaves, sValues, ByRef r, i)
-                                If i > 0 Then sp.Periodic = CInt(r)
-
-                                i = dxf.ReadCodePlus(74, sClaves, sValues, ByRef r, i)
-                                If i > 0 Then sp.Periodic += CInt(r)
-
-                                ' ignoro estos dos
-                                i = dxf.ReadCodePlus(95, sClaves, sValues, ByRef r, i)
-                                i = dxf.ReadCodePlus(96, sClaves, sValues, ByRef r, i)
-
-                                Do
-                                    i = dxf.ReadCodePlus(40, sClaves, sValues, ByRef r, i)
-                                    If i > 0 Then sp.KnotValues.Add(CFloat(r))
-                                Loop Until i < 0
-                                i = Abs(i)
-
-
-                                ' por lo general hay fit points o controls points, pero no ambos, cargo lo que sea en P
-                                ' Control points
-                                Do
-                                    i = dxf.ReadCodePlus(10, sClaves, sValues, ByRef r, i)
-                                    If i > 0 Then
-                                        sp.ControlPoints.Add(CFloat(r))
-                                    Else
-                                        i = Abs(i)
-                                        Break
-                                    End If
-
-                                    i = dxf.ReadCodePlus(20, sClaves, sValues, ByRef r, i)
-                                    sp.ControlPoints.Add(CFloat(r))
-
-                                Loop
-
-                                Do
-                                    i = dxf.ReadCodePlus(42, sClaves, sValues, ByRef r, i)
-                                    If i > 0 Then sp.Weigths.Add(CFloat(r))
-                                Loop Until i < 0
-                                i = Abs(i)
-
-                                ' numero de Fit Points
-                                i = dxf.ReadCodePlus(97, sClaves, sValues, ByRef r, i)
-
-                                If CInt(r) > 0 Then
-                                    Do
-                                        i = dxf.ReadCodePlus(11, sClaves, sValues, ByRef r, i)
-                                        If i > 0 Then sp.FitPoints.Add(CFloat(r))
-
-                                        i = dxf.ReadCodePlus(21, sClaves, sValues, ByRef r, i)
-                                        If i > 0 Then
-                                            sp.FitPoints.Add(CFloat(r))
-                                        Else
-                                            i = Abs(i)
-                                            Break
-                                        End If
-                                    Loop
-                                End If
-
-
-                                ' tangentes, no se usan DXF
-                                i = dxf.ReadCodePlus(12, sClaves, sValues, ByRef r, i)
-                                If i > 0 Then
-                                    sp.TangentInitial.Add(CFloat(r))
-                                    i = dxf.ReadCodePlus(12, sClaves, sValues, ByRef r, i)
-                                    sp.TangentInitial.Add(CFloat(r))
-                                Else
-                                    i = Abs(i)
-                                End If
-
-                                i = dxf.ReadCodePlus(13, sClaves, sValues, ByRef r, i)
-                                If i > 0 Then
-                                    sp.TangentFinal.Add(CFloat(r))
-                                    i = dxf.ReadCodePlus(13, sClaves, sValues, ByRef r, i)
-                                    sp.TangentFinal.Add(CFloat(r))
-                                Else
-                                    i = Abs(i)
-
-                                End If
-
-
-
-                        End Select
-                    Next
-
-                    ' cuando termino de leer los datos del Edge, puede venir REference Boundary Object
-                    ' estas son las entidades de donde se obtuvo el contorno, puede ignrarse
-                    Inc i
-                    If sClaves[i] = "97" Then
-                        For iBoundaryObject = 1 To CInt(sValues[i])
-                            Inc i
-
-                            ' a esta entidad que es un borde le etiquetamos el loop al que pertenece
-
-                            i = dxf.ReadCode(330, sClaves, sValues, ByRef RefObjHandle, i)
-
-                            ' Podria guardar esta Handle, pero es totalmente redundante
-                            ' NewPath.sHandles.Add(RefObjHandle)
-                        Next
-                    End If
-
-                    Continue
-
-                Else ' read the polyline loop
-                    ' forma el contorno
-                    eContour = cadLWPolyline.NewEntity()
-                    ' a esta entidad que es un borde le etiquetamos el loop al que pertenece
-
-                    ' Debug "PolyLine loop en un hatch"
-                    NewPath.eSegments.Add(eContour)
-
-                    Inc i
-                    ' leo si tiene bulges
-                    If sClaves[i] = "72" Then
-                        If sValues[i] = "1" Then ' tiene bulges
-                            eContour.iParam[cadLWPolyline.iiiBulged] = 1
-                        End If
-                    Else
-                        'error de DXF
-                        Stop
-                    Endif
-
-                    Inc i
-                    ' leo si es abierta o cerrada
-                    If sClaves[i] = "73" Then
-                        If sValues[i] = "1" Then ' cerrada
-                            eContour.iParam[cadLWPolyline.iiiPolylineClosed] = 1
-                        End If
-                    Else
-                        'error de DXF
-                        Stop
-                    Endif
-
-                    Inc i
-                    ' numero de vertice
-                    If sClaves[i] = "93" Then
-                        eContour.P.Resize(CInt(sValues[i] * 2))
-                    Else
-                        'error de DXF
-
-                    Endif
-
-                    For iPoints = 0 To eContour.P.Count / 2 - 1
-                        Inc i
-                        eContour.P[iPoints * 2] = CFloat(sValues[i])
-                        Inc i
-                        eContour.P[iPoints * 2 + 1] = CFloat(sValues[i])
-                        If eContour.iParam[cadLWPolyline.iiiBulged] Then
-                            Inc i ' ignoro el bulge
-                        Endif
-                    Next
-
-                    ' If eContour.iParam[cadLWPolyline.iiiPolylineClosed] = 1 Then
-                    '   eContour.P.Add(eContour.P[0])
-                    '   eContour.P.Add(eContour.P[1])
-                    '
-                    ' Endif
-
-                Endif
-                ' despues del loop hay un 97
-                Inc i
-                ' Objetos ecternos de borde
-                If sClaves[i] = "97" Then
-                    For iBorderObjects = 0 To CInt(sValues[i]) - 1 ' los leo
-                        ' aca viene un Handle a un objeto que tambien es contorno pero no esta definido directamette en la entidad Hatch
-                        ' pero puede ocurrir que este objeto no este cargado aun en ningun lado porque su lectura no ocurrio
-                        ' TODO: verificar esto
-
-                        Inc i
-                    Next
-                Else
-                    'error de DXF
-
-                Endif
-                'Inc i
-
-            Next
-
-        End If
-        If sClaves[i] = "2" Then e.sParam[Me.sdaPattern] = sValues[i] ' hach file
-
-        If sClaves[i] = "70" Then e.fParam[Me.ipaSolid] = CFloat(sValues[i])
-        If sClaves[i] = "71" Then e.fParam[Me.ipaAsociativity] = CFloat(sValues[i])
-        If sClaves[i] = "72" Then e.fParam[Me.ipaBoundaryType] = CFloat(sValues[i])
-
-        If sClaves[i] = "52" Then e.fParam[Me.ipaRotation] = CFloat(sValues[i])
-        If sClaves[i] = "41" Then
-            e.fParam[Me.ipaScale] = CFloat(sValues[i])
-
-        End If
-        If sClaves[i] = "75" Then e.fParam[Me.ipaParity] = CFloat(sValues[i])
-        If sClaves[i] = "76" Then e.fParam[Me.ipaPatternType] = CFloat(sValues[i])
-
-        ' ahora viene el pattern data
-        If sClaves[i] = "78" Then
-            For iPattern = 1 To sValues[i]
-                oPattern = New Pattern
-                e.pBlock.Patterns.Add(oPattern)
-                i = dxf.ReadCode(53, sClaves, sValues, ByRef oPattern.AngleDeg, i)
-                i = dxf.ReadCode(43, sClaves, sValues, ByRef oPattern.BaseX, i)
-                i = dxf.ReadCode(44, sClaves, sValues, ByRef oPattern.BaseY, i)
-                i = dxf.ReadCode(45, sClaves, sValues, ByRef oPattern.OffsetX, i)
-                i = dxf.ReadCode(46, sClaves, sValues, ByRef oPattern.OffsetY, i)
-                i = dxf.ReadCode(79, sClaves, sValues, ByRef Dashes, i)
-
-                For iBorderObjects = 1 To Dashes
-
-                    i = dxf.ReadCode(49, sClaves, sValues, ByRef DashLength, i + 1)
-                    oPattern.DashLength.Add(DashLength)
-                Next
-
-            Next
-        End If
-
-        ' ahora viene el seed points
-        If sClaves[i] = "98" Then
-            For iPattern = 1 To sValues[i]
-
-                i = dxf.ReadCode(10, sClaves, sValues, ByRef fVar, i)
-                e.pBlock.SeedPoints.Add(fVar)
-                i = dxf.ReadCode(20, sClaves, sValues, ByRef fVar, i)
-                e.pBlock.SeedPoints.Add(fVar)
-            Next
-
-        End If
-    Loop
-
-
-    Return True
-
-    ' catch
-
-    Return False
-
-LoopImport:
-
-End
-
+' Public Function ImportDXF2(e As Entity, sClaves As String[], sValues As String[]) As Boolean
+'
+'     Dim i, iPattern, iLoop, iPoints, iBorderObjects, iBoundaryObject As Integer
+'     Dim LoopToRead As Integer
+'     Dim LoopType As Integer
+'     Dim EdgesToRead As Integer
+'     Dim EdgeType As Integer
+'     Dim eContour As Entity
+'     Dim edge As Integer
+'     Dim NewPath As Hatch
+'     Dim oPattern As Pattern
+'     ' Dim jscPath, vSeg As JSONCollection
+'     Dim RefObjHandle As String
+'     Dim DashLength, fVar As Float
+'     Dim hData As Hatch
+'     Dim Dashes As Integer
+'     Dim sp As SPline
+'     Dim r As String
+'
+'     ' vamos a agrupar las entidades que forman el contorno en un bloque
+'     e.pBlock = New Hatch
+'     NewPath = e.pBlock
+'
+'     NewPath.eSegments = New Entity[]
+'     'NewPath.sHandles = New String[]
+'
+'     'If e.Handle = "567A1" Then Stop
+'
+'     'For i = 0 To sClaves.Max
+'     i = -1
+'     Do While i < sClaves.max    ' en este importador usare un do-loop en vez de un for-next por la complejidad del hatch
+'         Inc i
+'
+'         If sClaves[i] = "91" Then
+'             e.fParam[Me.ipaTotalLoops] = CFloat(sValues[i])
+'             LoopToRead = e.fParam[Me.ipaTotalLoops]
+'         End If
+'
+'         If LoopToRead > 0 Then
+'
+'             Inc i
+'
+'             ' para Debug
+'             ' If LoopToRead = 21 Then Stop
+'
+'             For iLoop = 0 To LoopToRead - 1 'descubri que un Loop puede o no ser un area a rellenar distinta, a veces un Loop es un agujero de otro Loop
+'
+'                 ' NewPath = hData
+'                 ' 'hData.Add(NewPath)
+'                 '
+'                 ' NewPath.eSegments = New Entity[]
+'                 ' NewPath.sHandles = New String[]
+'                 Dec LoopToRead
+'                 ' estas claves definen el borde
+'
+'                 i = dxf.ReadCode(92, sClaves, sValues, ByRef LoopType, i)
+'
+'                 NewPath.Flag = LoopType
+'                 ' If i = True Then Stop
+'                 If (LoopType And 2) <> 2 Then ' otherwise is a polyline
+'                     Inc i
+'
+'                     i = dxf.ReadCode(93, sClaves, sValues, ByRef EdgesToRead, i)
+'                     If i = True Then Stop
+'                     For edge = 0 To EdgesToRead - 1
+'
+'                         i = dxf.ReadCode(72, sClaves, sValues, ByRef EdgeType, i)
+'                         If i = True Then Stop
+'
+'                         ' segun el tipo de edge, agrego una entidad al bloque que
+'                         ' forma el contorno
+'                         eContour = New Entity
+'                         ' a esta entidad que es un borde le etiquetamos el loop al que pertenece
+'
+'                         NewPath.eSegments.Add(eContour, CStr(i))
+'                         Select Case EdgeType
+'                             Case 0  ' invalido
+'
+'                                 Stop
+'
+'                             Case 1 ' lines
+'
+'                                 eContour.Gender = cadLine.Gender
+'                                 ' leo los dos puntos
+'                                 Inc i
+'                                 If sClaves[i] = "10" Then eContour.P.Add(CFloat(sValues[i]))
+'                                 Inc i
+'                                 If sClaves[i] = "20" Then eContour.P.Add(CFloat(sValues[i]))
+'                                 Inc i
+'                                 If sClaves[i] = "11" Then eContour.P.Add(CFloat(sValues[i]))
+'                                 Inc i
+'                                 If sClaves[i] = "21" Then eContour.P.Add(CFloat(sValues[i]))
+'                             Case 2 ' arc o circle
+'
+'                                 eContour.Gender = cadArc.Gender
+'                                 Inc i
+'                                 If sClaves[i] = "10" Then eContour.P.Add(CFloat(sValues[i]))
+'                                 Inc i
+'                                 If sClaves[i] = "20" Then eContour.P.Add(CFloat(sValues[i]))
+'                                 Inc i
+'                                 If sClaves[i] = "40" Then eContour.fParam.Add(CFloat(sValues[i]))
+'                                 Inc i
+'                                 If sClaves[i] = "50" Then eContour.fParam.Add(CFloat(sValues[i]))
+'                                 Inc i
+'                                 If sClaves[i] = "51" Then eContour.fParam.Add(CFloat(sValues[i]))
+'                                 Inc i
+'                                 If sClaves[i] = "73" Then eContour.fParam.Add(CFloat(sValues[i]))
+'                             Case 3 ' ellipse
+'
+'                                 eContour.Gender = cadEllipse.Gender
+'                                 Inc i
+'                                 If sClaves[i] = "10" Then eContour.P.Add(CFloat(sValues[i]))     ' centro
+'                                 Inc i
+'                                 If sClaves[i] = "20" Then eContour.P.Add(CFloat(sValues[i]))
+'                                 Inc i
+'                                 If sClaves[i] = "11" Then eContour.P.Add(CFloat(sValues[i]) + eContour.P[0])     ' eje mayor, relativo al centro
+'                                 Inc i
+'                                 If sClaves[i] = "21" Then eContour.P.Add(CFloat(sValues[i]) + eContour.P[1])
+'                                 Inc i
+'                                 If sClaves[i] = "40" Then eContour.fParam.Add(CFloat(sValues[i]))
+'                                 Inc i
+'                                 If sClaves[i] = "50" Then eContour.fParam.Add(Deg(CFloat(sValues[i])))
+'
+'                                 ' esto soluciona un proble de unidades de LibreCAD
+'                                 If eContour.fParam[eContour.fParam.Max] > 2 * Pi Then
+'                                     eContour.fParam[eContour.fParam.Max] /= (360 / 2 / Pi)
+'                                 Endif
+'                                 Inc i
+'                                 If sClaves[i] = "51" Then eContour.fParam.Add(Deg(CFloat(sValues[i])))
+'
+'                                 ' esto soluciona un proble de unidades de LibreCAD
+'                                 If eContour.fParam[eContour.fParam.Max] > 2 * Pi Then
+'                                     eContour.fParam[eContour.fParam.Max] /= (360 / 2 / Pi)
+'                                 Endif
+'                             Case 4 ' spline
+'                                 ' 94 Degree
+'                                 ' 73 Rational
+'                                 ' 74 Periodic
+'                                 ' 95 Number of knots
+'                                 ' 96 Number of control points
+'                                 ' 40 Knot values (multiple entries)
+'                                 ' 10 Control point (in OCS) 20 Y value of control point (in OCS)
+'                                 ' 42 Weights (optional, default = 1)
+'                                 ' 97 Number of fit data
+'                                 ' 11 Fit datum (in OCS) 21
+'                                 ' 12 Start tangent 22
+'                                 ' 13 End tangent 23
+'                                 eContour = cadSPLine.NewEntity()
+'                                 sp = eContour.pBlock
+'
+'                                 '                             ' COPIO Y PEGO DE CADSPLINE, CAMBIANDO LAS CLAVES
+'                                 '
+'                                 Inc i
+'                                 i = dxf.ReadCodePlus(94, sClaves, sValues, ByRef r, i)
+'                                 If i > 0 Then sp.Degree = CInt(r)
+'
+'                                 i = dxf.ReadCodePlus(73, sClaves, sValues, ByRef r, i)
+'                                 If i > 0 Then sp.Periodic = CInt(r)
+'
+'                                 i = dxf.ReadCodePlus(74, sClaves, sValues, ByRef r, i)
+'                                 If i > 0 Then sp.Periodic += CInt(r)
+'
+'                                 ' ignoro estos dos
+'                                 i = dxf.ReadCodePlus(95, sClaves, sValues, ByRef r, i)
+'                                 i = dxf.ReadCodePlus(96, sClaves, sValues, ByRef r, i)
+'
+'                                 Do
+'                                     i = dxf.ReadCodePlus(40, sClaves, sValues, ByRef r, i)
+'                                     If i > 0 Then sp.KnotValues.Add(CFloat(r))
+'                                 Loop Until i < 0
+'                                 i = Abs(i)
+'
+'
+'                                 ' por lo general hay fit points o controls points, pero no ambos, cargo lo que sea en P
+'                                 ' Control points
+'                                 Do
+'                                     i = dxf.ReadCodePlus(10, sClaves, sValues, ByRef r, i)
+'                                     If i > 0 Then
+'                                         sp.ControlPoints.Add(CFloat(r))
+'                                     Else
+'                                         i = Abs(i)
+'                                         Break
+'                                     End If
+'
+'                                     i = dxf.ReadCodePlus(20, sClaves, sValues, ByRef r, i)
+'                                     sp.ControlPoints.Add(CFloat(r))
+'
+'                                 Loop
+'
+'                                 Do
+'                                     i = dxf.ReadCodePlus(42, sClaves, sValues, ByRef r, i)
+'                                     If i > 0 Then sp.Weigths.Add(CFloat(r))
+'                                 Loop Until i < 0
+'                                 i = Abs(i)
+'
+'                                 ' numero de Fit Points
+'                                 i = dxf.ReadCodePlus(97, sClaves, sValues, ByRef r, i)
+'
+'                                 If CInt(r) > 0 Then
+'                                     Do
+'                                         i = dxf.ReadCodePlus(11, sClaves, sValues, ByRef r, i)
+'                                         If i > 0 Then sp.FitPoints.Add(CFloat(r))
+'
+'                                         i = dxf.ReadCodePlus(21, sClaves, sValues, ByRef r, i)
+'                                         If i > 0 Then
+'                                             sp.FitPoints.Add(CFloat(r))
+'                                         Else
+'                                             i = Abs(i)
+'                                             Break
+'                                         End If
+'                                     Loop
+'                                 End If
+'
+'
+'                                 ' tangentes, no se usan DXF
+'                                 i = dxf.ReadCodePlus(12, sClaves, sValues, ByRef r, i)
+'                                 If i > 0 Then
+'                                     sp.TangentInitial.Add(CFloat(r))
+'                                     i = dxf.ReadCodePlus(12, sClaves, sValues, ByRef r, i)
+'                                     sp.TangentInitial.Add(CFloat(r))
+'                                 Else
+'                                     i = Abs(i)
+'                                 End If
+'
+'                                 i = dxf.ReadCodePlus(13, sClaves, sValues, ByRef r, i)
+'                                 If i > 0 Then
+'                                     sp.TangentFinal.Add(CFloat(r))
+'                                     i = dxf.ReadCodePlus(13, sClaves, sValues, ByRef r, i)
+'                                     sp.TangentFinal.Add(CFloat(r))
+'                                 Else
+'                                     i = Abs(i)
+'
+'                                 End If
+'
+'
+'
+'                         End Select
+'                     Next
+'
+'                     ' cuando termino de leer los datos del Edge, puede venir REference Boundary Object
+'                     ' estas son las entidades de donde se obtuvo el contorno, puede ignrarse
+'                     Inc i
+'                     If sClaves[i] = "97" Then
+'                         For iBoundaryObject = 1 To CInt(sValues[i])
+'                             Inc i
+'
+'                             ' a esta entidad que es un borde le etiquetamos el loop al que pertenece
+'
+'                             i = dxf.ReadCode(330, sClaves, sValues, ByRef RefObjHandle, i)
+'
+'                             ' Podria guardar esta Handle, pero es totalmente redundante
+'                             ' NewPath.sHandles.Add(RefObjHandle)
+'                         Next
+'                     End If
+'
+'                     Continue
+'
+'                 Else ' read the polyline loop
+'                     ' forma el contorno
+'                     eContour = cadLWPolyline.NewEntity()
+'                     ' a esta entidad que es un borde le etiquetamos el loop al que pertenece
+'
+'                     ' Debug "PolyLine loop en un hatch"
+'                     NewPath.eSegments.Add(eContour)
+'
+'                     Inc i
+'                     ' leo si tiene bulges
+'                     If sClaves[i] = "72" Then
+'                         If sValues[i] = "1" Then ' tiene bulges
+'                             eContour.iParam[cadLWPolyline.iiiBulged] = 1
+'                         End If
+'                     Else
+'                         'error de DXF
+'                         Stop
+'                     Endif
+'
+'                     Inc i
+'                     ' leo si es abierta o cerrada
+'                     If sClaves[i] = "73" Then
+'                         If sValues[i] = "1" Then ' cerrada
+'                             eContour.iParam[cadLWPolyline.iiiPolylineClosed] = 1
+'                         End If
+'                     Else
+'                         'error de DXF
+'                         Stop
+'                     Endif
+'
+'                     Inc i
+'                     ' numero de vertice
+'                     If sClaves[i] = "93" Then
+'                         eContour.P.Resize(CInt(sValues[i] * 2))
+'                     Else
+'                         'error de DXF
+'
+'                     Endif
+'
+'                     For iPoints = 0 To eContour.P.Count / 2 - 1
+'                         Inc i
+'                         eContour.P[iPoints * 2] = CFloat(sValues[i])
+'                         Inc i
+'                         eContour.P[iPoints * 2 + 1] = CFloat(sValues[i])
+'                         If eContour.iParam[cadLWPolyline.iiiBulged] Then
+'                             Inc i ' ignoro el bulge
+'                         Endif
+'                     Next
+'
+'                     ' If eContour.iParam[cadLWPolyline.iiiPolylineClosed] = 1 Then
+'                     '   eContour.P.Add(eContour.P[0])
+'                     '   eContour.P.Add(eContour.P[1])
+'                     '
+'                     ' Endif
+'
+'                 Endif
+'                 ' despues del loop hay un 97
+'                 Inc i
+'                 ' Objetos ecternos de borde
+'                 If sClaves[i] = "97" Then
+'                     For iBorderObjects = 0 To CInt(sValues[i]) - 1 ' los leo
+'                         ' aca viene un Handle a un objeto que tambien es contorno pero no esta definido directamette en la entidad Hatch
+'                         ' pero puede ocurrir que este objeto no este cargado aun en ningun lado porque su lectura no ocurrio
+'                         ' TODO: verificar esto
+'
+'                         Inc i
+'                     Next
+'                 Else
+'                     'error de DXF
+'
+'                 Endif
+'                 'Inc i
+'
+'             Next
+'
+'         End If
+'         If sClaves[i] = "2" Then e.sParam[Me.sdaPattern] = sValues[i] ' hach file
+'
+'         If sClaves[i] = "70" Then e.fParam[Me.ipaSolid] = CFloat(sValues[i])
+'         If sClaves[i] = "71" Then e.fParam[Me.ipaAsociativity] = CFloat(sValues[i])
+'         If sClaves[i] = "72" Then e.fParam[Me.ipaBoundaryType] = CFloat(sValues[i])
+'
+'         If sClaves[i] = "52" Then e.fParam[Me.ipaRotation] = CFloat(sValues[i])
+'         If sClaves[i] = "41" Then
+'             e.fParam[Me.ipaScale] = CFloat(sValues[i])
+'
+'         End If
+'         If sClaves[i] = "75" Then e.fParam[Me.ipaParity] = CFloat(sValues[i])
+'         If sClaves[i] = "76" Then e.fParam[Me.ipaPatternType] = CFloat(sValues[i])
+'
+'         ' ahora viene el pattern data
+'         If sClaves[i] = "78" Then
+'             For iPattern = 1 To sValues[i]
+'                 oPattern = New Pattern
+'                 e.pBlock.Patterns.Add(oPattern)
+'                 i = dxf.ReadCode(53, sClaves, sValues, ByRef oPattern.AngleDeg, i)
+'                 i = dxf.ReadCode(43, sClaves, sValues, ByRef oPattern.BaseX, i)
+'                 i = dxf.ReadCode(44, sClaves, sValues, ByRef oPattern.BaseY, i)
+'                 i = dxf.ReadCode(45, sClaves, sValues, ByRef oPattern.OffsetX, i)
+'                 i = dxf.ReadCode(46, sClaves, sValues, ByRef oPattern.OffsetY, i)
+'                 i = dxf.ReadCode(79, sClaves, sValues, ByRef Dashes, i)
+'
+'                 For iBorderObjects = 1 To Dashes
+'
+'                     i = dxf.ReadCode(49, sClaves, sValues, ByRef DashLength, i + 1)
+'                     oPattern.DashLength.Add(DashLength)
+'                 Next
+'
+'             Next
+'         End If
+'
+'         ' ahora viene el seed points
+'         If sClaves[i] = "98" Then
+'             For iPattern = 1 To sValues[i]
+'
+'                 i = dxf.ReadCode(10, sClaves, sValues, ByRef fVar, i)
+'                 e.pBlock.SeedPoints.Add(fVar)
+'                 i = dxf.ReadCode(20, sClaves, sValues, ByRef fVar, i)
+'                 e.pBlock.SeedPoints.Add(fVar)
+'             Next
+'
+'         End If
+'     Loop
+'
+'
+'     Return True
+'
+'     ' catch
+'
+'     Return False
+'
+' LoopImport:
+'
+' End
+'
 
 Public Sub ExportDXFCol(e As Entity, ByRef stxExport As String[]) As Boolean
 
