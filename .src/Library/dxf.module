@@ -8,13 +8,11 @@ Private LoadedBytes As Integer
 Private fp As File
 Private hFile As File
 
-Private Block_Record As New Collection      ' coleccion temporal
-
 Private lpCode As String
 Private lpValue As String
 
 Private eExports As Boolean
-
+Private Block_REcord As New Collection
 Private ReadTimes As New Collection
 Private ReadEntities As New Collection
 Public cEntitiesUnread As Collection
@@ -184,7 +182,12 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
     gcd.debugInfo("Leidos el DXF",,, True)
 
     If ReadObjects Then ReadObjectsFromDXF(cToFill, drw)
-    If UpdateGraphics Then UpdateGraphicsFromDXF(cToFill, drw)
+    If UpdateGraphics Then
+        ImportBlocksFromDXF(cToFill, drw)
+        clsEntities.BuildPoi()
+        DXFtoEntity(cToFill["ENTITIES"], drw.Entities, False)
+        SetViewports(cToFill, drw)
+    End If
 
     For Each ft As Float In ReadTimes
         gcd.debugInfo(ReadEntities[ReadTimes.Key] & " " & gb.Tab & ReadTimes.Key & gb.Tab & gb.Tab & gb.Tab & " total time: " & Format(fT, "0.0000"))
@@ -483,7 +486,7 @@ Private Sub Load4Blocks(cBlocks As Collection)
                     Loop
                 Endif
 
-                If lpcode = Me.codName Then sTableName = lpvalue
+                If lpcode = Me.codHandleOwner Then sTableName = lpvalue
                 cTable.Add(lpvalue, NewKey)
                 ReadData
 
@@ -1716,6 +1719,7 @@ Public Sub ReadViewports(cVptData As Collection, drw As Drawing)
 
 End
 
+
 '' Reads layers collection and puts data in oLayers
 Public Sub ReadLayers(cLaydata As Collection, drw As Drawing)
 
@@ -1909,6 +1913,7 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
 
         For Each colBlk In colData["BLOCKS"]
             newBlock = New Block
+            newBlock.handle = colBlk[dxf.codHandle]
             newBlock.entities = New Collection
             newBlock.name = colBlk[dxf.codName]
             newBlock.layer = colBlk[dxf.codLayer]
@@ -1918,8 +1923,8 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
             Try newBlock.flags = colBlk["70"]
 
             If colData["TABLES"].Exist("BLOCK_RECORD") Then
-
                 If colData["TABLES"]["BLOCK_RECORD"].Exist(newBlock.name) Then
+                    newBlock.HandleOwner = colData["TABLES"]["BLOCK_RECORD"][newBlock.name]["5"]
                     newBlock.HandleAsociatedLayout = colData["TABLES"]["BLOCK_RECORD"][newBlock.name]["340"]
                 Endif
             End If
@@ -1951,7 +1956,7 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
 
     drw.Entities = drw.Blocks["*Model_Space"].entities
 
-    Block_Record = New Collection
+    'Block_Record = New Collection
 
     If colData.Exist("BLOCKS") Then
         For Each colBlk In colData["BLOCKS"]
@@ -1959,7 +1964,7 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
             If colBlk.Exist("entities") And Drw.Blocks.Exist(colBlk[dxf.codName]) Then
 
 
-                DXFtoEntity(colBlk["entities"], Drw)
+                DXFtoEntity(colBlk["entities"], Drw.Blocks[colBlk[dxf.codName]].entities)
 
             Else
 
@@ -1973,8 +1978,24 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
 
 End
 
+Public Sub SetViewports(cDxfData As Collection, drw As Drawing)
+
+    Dim e As Entity, v As Viewport, b As String
+
+    For Each e In drw.Entities
+        If e.Gender = cadViewport.Gender Then
+            v = e.pBlock
+            b = drw.Sheets[cDxfData["BLOCK_RECORD"][cDxfData["BLOCKS"][e.HandleOwner]]["2"]].Viewports.Add(v, v.handle)
+
+
+
+        Endif
+    Next
+
+End
+
 '' Importa las cosas de manera descentralizada
-Public Sub DXFtoEntity(cEny As Collection, drw As Drawing, Optional NewHandles As Boolean = False)
+Public Sub DXFtoEntity(cDxfEntities As Collection, cEntity As Collection, Optional NewHandles As Boolean = False)
 
     Dim e, obx As Collection               ' current Entity
     Dim entNueva As Entity
@@ -1985,7 +2006,7 @@ Public Sub DXFtoEntity(cEny As Collection, drw As Drawing, Optional NewHandles A
     Dim fTime As Float
     Dim t As Date
 
-    For Each e In cEny                                              ' Para cada Coleccion de datos de vrx
+    For Each e In cDxfEntities                                              ' Para cada Coleccion de datos de vrx
         If e.Exist(dxf.codEntity) Then                                     ' es una entidad?
             ' entonces, creamos una nueva
             ' poner en minuscula para anular la entidad
@@ -2016,41 +2037,41 @@ Public Sub DXFtoEntity(cEny As Collection, drw As Drawing, Optional NewHandles A
                     If flgIsPolyline Then
                         pBlockPolyline.entities.Add(entNueva, sHandle)
                     Else
-                        If entNueva.Gender = "INSERT" Then
-                            b = New Block
-                            b.entities = New Collection
-                            drw.Inserts.Add(b, entNueva.Handle)
-                        Endif
-                        ' tengo que buscar el bloque que contiene a esta entidad
-                        ' Puede ser:
-                        '   -Model
-                        '   -Paper
-                        '   -Dim
-                        '   -Insert
-                        '   - otros, como un Hatch, es ese caso no se muestra
-                        If drw.Blocks.Exist(Block_Record[e[codHandleOwner]]) Then
-                            obx = drw.Blocks[Block_Record[e[codHandleOwner]]].entities
-                        Else If drw.Inserts.Exist(Block_Record[e[codHandleOwner]]) Then
-
-                            obx = drw.Inserts[Block_Record[e[codHandleOwner]]].entities
-                            'obx = drw.Model.Entities
-                        Else
-                            obx = drw.Blocks["*Model_Space"].entities
-                            'obx = Null
-                        End If
-                        If obx Then
-                            If entNueva.PaperSpace Then
-                                'If drw.Sheets.Exist(entNueva.HandleOwner) Then
-                                'drw.Sheets[entNueva.HandleOwner].Entities.Add(entNueva, sHandle)
-                                obx.Add(entNueva, sHandle)
-                                'Else
-                                '    Debug "No existe el contenedor", entNueva.HandleOwner
-                                'End If
-                            Else
-                                ' busco el contenedor
-                                obx.Add(entNueva, sHandle)
-                            End If
-                        End If
+                        ' If entNueva.Gender = "INSERT" Then
+                        '     b = New Block
+                        '     b.entities = New Collection
+                        '     drw.Inserts.Add(b, entNueva.Handle)
+                        ' Endif
+                        ' ' tengo que buscar el bloque que contiene a esta entidad
+                        ' ' Puede ser:
+                        ' '   -Model
+                        ' '   -Paper
+                        ' '   -Dim
+                        ' '   -Insert
+                        ' '   - otros, como un Hatch, es ese caso no se muestra
+                        ' If drw.Blocks.Exist(Block_Record[e[codHandleOwner]]) Then
+                        '     obx = drw.Blocks[Block_Record[e[codHandleOwner]]].entities
+                        ' Else If drw.Inserts.Exist(Block_Record[e[codHandleOwner]]) Then
+                        '
+                        '     obx = drw.Inserts[Block_Record[e[codHandleOwner]]].entities
+                        '     'obx = drw.Model.Entities
+                        ' Else
+                        '     obx = drw.Blocks["*Model_Space"].entities
+                        '     'obx = Null
+                        ' End If
+                        ' If obx Then
+                        '     If entNueva.PaperSpace Then
+                        '         'If drw.Sheets.Exist(entNueva.HandleOwner) Then
+                        '         'drw.Sheets[entNueva.HandleOwner].Entities.Add(entNueva, sHandle)
+                        '         obx.Add(entNueva, sHandle)
+                        '         'Else
+                        '         '    Debug "No existe el contenedor", entNueva.HandleOwner
+                        '         'End If
+                        '     Else
+                        ' busco el contenedor
+                        cEntity.Add(entNueva, sHandle)
+                        '     End If
+                        ' End If
                     End If
 
                     If e[dxf.codEntity] = "POLYLINE" Then
@@ -2102,45 +2123,45 @@ Public Sub DigestColeccion(c As Collection, ByRef sClaves As String[], ByRef sVa
 
 End
 
-Public Function UpdateGraphicsFromDXF(cData As Collection, drw As Drawing, Optional handles As String[] = [])
-
-    Dim cEntity As Collection, entNueva As Entity
-
-    gcd.debugInfo("Importing DXF data",,, True)
-
-    ImportBlocksFromDXF(cData, drw)
-    gcd.debugInfo("Importados los Blocks",,, True)
-
-    If handles.Count = 0 Then                   ' Update all entities
-
-        DXFtoEntity(cData["ENTITIES"], drw, False)
-
-    Else                                        ' Update only entities with handles provided
-
-        For Each sHandle As String In handles
-
-            If cData["ENTITIES"].Exist(sHandle) Then  ' la actualizo
-
-                entNueva = New Entity                                       ' entonces, creamos una nueva
-                If clsEntities.ImportJsonToEntity(cData["ENTITIES"][sHandle], entNueva) Then         ' si esta implementada, llenamos los datos
-
-                    drw.Entities.Add(entNueva)
-                    entNueva = Null                                           ' limpiamos
-
-                Endif
-            Endif
-
-        Next
-        gcd.debugInfo("Importadas las Entidades",,, True)
-
-    End If
-
-    'gcd.FillLayers(drw)         ' esto necesita que arrLayers y arrEntities esten cargados
-    'gcd.FillSheets(drw)
-    'depretest gcd.FillInserts(drw)
-    clsEntities.BuildPoi()
-
-End
+' Public Function UpdateGraphicsFromDXF(cData As Collection, drw As Drawing, Optional handles As String[] = [])
+'
+'     Dim cEntity As Collection, entNueva As Entity
+'
+'     gcd.debugInfo("Importing DXF data",,, True)
+'
+'
+'     gcd.debugInfo("Importados los Blocks",,, True)
+'
+'     If handles.Count = 0 Then                   ' Update all entities
+'
+'
+'
+'     Else                                        ' Update only entities with handles provided
+'
+'         For Each sHandle As String In handles
+'
+'             If cData["ENTITIES"].Exist(sHandle) Then  ' la actualizo
+'
+'                 entNueva = New Entity                                       ' entonces, creamos una nueva
+'                 If clsEntities.ImportJsonToEntity(cData["ENTITIES"][sHandle], entNueva) Then         ' si esta implementada, llenamos los datos
+'
+'                     drw.Entities.Add(entNueva)
+'                     entNueva = Null                                           ' limpiamos
+'
+'                 Endif
+'             Endif
+'
+'         Next
+'         gcd.debugInfo("Importadas las Entidades",,, True)
+'
+'     End If
+'
+'     'gcd.FillLayers(drw)         ' esto necesita que arrLayers y arrEntities esten cargados
+'     'gcd.FillSheets(drw)
+'     'depretest gcd.FillInserts(drw)
+'
+'
+' End
 
 Public Function ReadObjectsFromDXF(cData As Collection, drw As Drawing)
 
@@ -2170,3 +2191,18 @@ Public Function ReadObjectsFromDXF(cData As Collection, drw As Drawing)
     Next
 
 End
+
+'' busca un bloque con ese block record
+Private Function GetBlock(cBlocks As Collection, hBlockRecord As String) As Block
+
+    Dim b As Block
+
+    For Each b In cBlocks
+        If b.HandleOwner = hBlockRecord Then Return b
+
+    Next
+
+    Return Null
+
+End
+
