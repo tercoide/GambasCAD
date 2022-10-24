@@ -11,8 +11,10 @@ Private hFile As File
 Private lpCode As String
 Private lpValue As String
 
+Private LastCodeReadIndex As Integer = 0
 Private eExports As Boolean
 Private Block_REcord As New Collection
+Private hContainers As New Collection
 Private ReadTimes As New Collection
 Private ReadEntities As New Collection
 Public cEntitiesUnread As Collection
@@ -82,6 +84,7 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
     cEntitiesUnread = New Collection
     nEntitiesUnread = 0
     nEntitiesRead = 0
+    hContainers = New Collection
 
     While Not Eof(fp)
         'Wait 0.0001
@@ -185,7 +188,7 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
     If UpdateGraphics Then
         ImportBlocksFromDXF(cToFill, drw)
         clsEntities.BuildPoi()
-        DXFtoEntity(cToFill["ENTITIES"], drw)
+        DXFtoEntity(cToFill["ENTITIES"], cToFill, drw)
         SetViewports(cToFill, drw)
     End If
 
@@ -1658,6 +1661,52 @@ Public Function ReadCodePlus(iExpectedCode As Integer, stxClaves As String[], st
 
 End
 
+'' Lee el codigo de la coleccion que se importa del DXF, puede ignorar lo que esta entre llaves {} que es info de ACAD privativa y puede empezar desde el ultimo leido antes
+Public Function ReadCodeFromCol(cDxfEntityData As Collection, iCode As Integer, Optional ReadNext As Boolean = False, IgnoreAcadData As Boolean = True) As String
+
+    Dim s, sKey As String, i, p As Integer, valid, OpenedSection As Boolean
+
+    For Each s In cDxfEntityData
+        Inc i
+
+        If ReadNext Then
+            If i < LastCodeReadIndex Then
+                valid = False
+            Else
+                valid = True
+            Endif
+        Else
+            valid = True
+
+        End If
+
+        If Left(s, 1) = "{" Then
+            OpenedSection = True
+
+        End If
+
+        If Left(s, 1) = "}" And OpenedSection Then
+            OpenedSection = False
+
+        End If
+
+        If valid And Not OpenedSection Then
+            sKey = cDxfEntityData.Key
+            ' elimino el posible _
+            p = InStr(sKey, "_")
+            If p > 0 Then
+                sKey = Left(sKey, p - 1)
+            Endif
+            If CInt(skey) = iCode Then
+                LastCodeReadIndex = i
+                Return s
+            End If
+        End If
+
+    Next
+
+End
+
 Private Sub SaveCode(sCode As Variant, sValue As Variant)
 
     Dim sToPrint As String
@@ -1923,10 +1972,10 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
             Try newBlock.flags = colBlk["70"]
 
             If colData["TABLES"].Exist("BLOCK_RECORD") Then
-                If colData["TABLES"]["BLOCK_RECORD"].Exist(newBlock.name) Then
-                    newBlock.HandleOwner = colData["TABLES"]["BLOCK_RECORD"][newBlock.name]["5"]
-                    newBlock.HandleAsociatedLayout = colData["TABLES"]["BLOCK_RECORD"][newBlock.name]["340"]
-                Endif
+
+                newBlock.HandleOwner = colData["TABLES"]["BLOCK_RECORD"][colBlk["330"]]["5"]
+                newBlock.HandleAsociatedLayout = colData["TABLES"]["BLOCK_RECORD"][colBlk["330"]]["340"]
+
             End If
 
             Drw.Blocks.Add(newBlock, newBlock.name)
@@ -1964,7 +2013,7 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
             If colBlk.Exist("entities") And Drw.Blocks.Exist(colBlk[dxf.codName]) Then
 
 
-                DXFtoEntity(colBlk["entities"], drw, Drw.Blocks[colBlk[dxf.codName]].entities)
+                DXFtoEntity(colBlk["entities"], colData, drw, Drw.Blocks[colBlk[dxf.codName]].entities)
 
             Else
 
@@ -2044,79 +2093,63 @@ Public Sub DXFtoEntity(cDxfEntities As Collection, cDxfData As Collection, drw A
                         If cEntity Then                                         ' el contenedor fue provisto
                             obx = cEntity
                         Else                                                    ' busco el contenedor de esta entidad
-                            hContainer = e[dxf.codHandleOwner]                  ' esto puede ser un:
+                            hContainer = ReadCodeFromCol(e, 330)                 ' esto puede ser un:
                             ' -hBlock-Record
                             ' -hInsert
                             ' -hHatch               OTRA ENTIDAD que tenga .pBlock.enities as Collection
                             ' -Polyline
 
-                            If cDxfData["BLOCK_RECORD"].Exist(hContainer) Then      ' busco en los bloques
-                                sName = cDxfData["BLOCK_RECORD"][hContainer]["2"]
-                                obx = drw.Blocks[sName]
+                            If cDxfData["TABLES"]["BLOCK_RECORD"].Exist(hContainer) Then      ' busco en los bloques
+                                sName = cDxfData["TABLES"]["BLOCK_RECORD"][hContainer]["2"]
+                                obx = drw.Blocks[sName].entities
                             Else If drw.Sheets.Exist(hContainer) Then               ' busco en las Sheets
-                                obx = drw.Sheets[hContainer]
+                                obx = drw.Sheets[hContainer].entities
                                 cLastParent = obx
                             Else If drw.Blocks.Exist(hContainer) Then
-                                obx = drw.Blocks[hContainer]
+                                obx = drw.Blocks[hContainer].entities
                                 cLastParent = obx
-                            Else If cLastParent Then                            ' busco en otro lado
-                                obx = cLastParent[hContainer]
-                            Else
-
-                            Endif
-                            If drw.Blocks
-                                ' If entNueva.Gender = "INSERT" Then
-                                '     b = New Block
-                                '     b.entities = New Collection
-                                '     drw.Inserts.Add(b, entNueva.Handle)
-                                ' Endif
-                                ' ' tengo que buscar el bloque que contiene a esta entidad
-                                ' ' Puede ser:
-                                ' '   -Model
-                                ' '   -Paper
-                                ' '   -Dim
-                                ' '   -Insert
-                                ' '   - otros, como un Hatch, es ese caso no se muestra
-                                ' If drw.Blocks.Exist(Block_Record[e[codHandleOwner]]) Then
-                                '     obx = drw.Blocks[Block_Record[e[codHandleOwner]]].entities
-                                ' Else If drw.Inserts.Exist(Block_Record[e[codHandleOwner]]) Then
-                                '
-                                '     obx = drw.Inserts[Block_Record[e[codHandleOwner]]].entities
-                                '     'obx = drw.Model.Entities
-                                ' Else
-                                '     obx = drw.Blocks["*Model_Space"].entities
-                                '     'obx = Null
-                                ' End If
-                                If obx Then
-
-                                    obx.Add(entNueva, sHandle)
-                                Else
-                                    Debug "Contenedor no encontrado", hContainer
-                                End If
+                            Else                                                               ' busco en otro lado
+                                obx = hContainers[hContainer]
                             End If
 
-                            If e[dxf.codEntity] = "POLYLINE" Then
-                                flgIsPolyline = True
-                                pBlockPolyline = New Block
-                                pBlockPolyline.entities = New Collection
 
-                                entNueva.pBlock = pBlockPolyline
-                            End If
-                            If e[dxf.codEntity] = "SEQEND" And flgIsPolyline = True Then
-                                flgIsPolyline = False
-                                pBlockPolyline = Null
-                            End If
-                            fTime = (Timer - t)
-                            ReadTimes[entNueva.Gender] += fTime
-                            ReadEntities[entNueva.Gender] += 1
-                            ' If entNueva.Gender = "HATCH" Then
-                            '     ReadTimes.Add(fTime, entNueva.Handle)
-                            ' Endif
-                            ' If entNueva.HandleOwner = "640" Then Debug "640", entNueva.Gender
+                        End If
 
-                            entNueva = Null                                           ' limpiamos
+                        Select Case entNueva.Gender
+                            Case "HATCH", "INSERT", "POLYLINE"
+                                hContainers.Add(entNueva.pBlock.entities, entNueva.Handle)
+                        End Select
 
-                        Endif
+                        If obx Then
+
+                            obx.Add(entNueva, sHandle)
+                        Else
+                            Debug "Contenedor no encontrado", hContainer
+                        End If
+
+
+                        ' If e[dxf.codEntity] = "POLYLINE" Then
+                        '     flgIsPolyline = True
+                        '     pBlockPolyline = New Block
+                        '     pBlockPolyline.entities = New Collection
+                        '
+                        '     entNueva.pBlock = pBlockPolyline
+                        ' End If
+                        ' If e[dxf.codEntity] = "SEQEND" And flgIsPolyline = True Then
+                        '     flgIsPolyline = False
+                        '     pBlockPolyline = Null
+                        ' End If
+                        fTime = (Timer - t)
+                        ReadTimes[entNueva.Gender] += fTime
+                        ReadEntities[entNueva.Gender] += 1
+                        ' If entNueva.Gender = "HATCH" Then
+                        '     ReadTimes.Add(fTime, entNueva.Handle)
+                        ' Endif
+                        ' If entNueva.HandleOwner = "640" Then Debug "640", entNueva.Gender
+
+                        entNueva = Null                                           ' limpiamos
+
+
 
                     End If
                 End If
