@@ -28,12 +28,12 @@ Public Const ParamHelper As String = "BlockName; Position ; X scale ; Y scale ; 
 Public Const ParamDefault As String = "<no name>; 0,0 ; 1 ;1 ; 0"
 
 ' fParam helpers
-Public Const TotalParams As Integer = 4
+Public Const TotalParams As Integer = 5
 Public Const ipaEscX As Integer = 0
 Public Const ipaEscY As Integer = 1
 Public Const ipaEscZ As Integer = 2
 Public Const ipaRotacion As Integer = 3
-'Public Const ipaInsertion As Integer = 3
+Public Const ipaAttribs As Integer = 4
 
 Public Const sdaTotalParams As Integer = 1
 Public Const sdaBlockName As Integer = 0
@@ -89,6 +89,7 @@ End
 
 Public Sub Draw(oE As Entity)
 
+    'If LEFT(oe.pBlock.name, 1) <> "*" Then InsertParts(oe, oe.pBlock.entities)
     If oe.pBlock Then Draw_List(oe.pBlock.entities, oe, oe.pBlock.InsertionPlace)
 
 End
@@ -128,13 +129,13 @@ Public Sub Draw_List(eList As Collection, eParent As Entity, Optional InsertionP
     ' gl.Rotatef(eParent.fParam[Me.ipaRotacion], 0, 0, 1)
     '
     ' gl.Scalef(eParent.fParam[Me.ipaEscX], eParent.fParam[Me.ipaEscY], eParent.fParam[Me.ipaEscZ])
-    If Not eList Then Return
+    ' If Not eList Then Return
 
     For Each ET In eList
-        et.visible = True
-        et.LineType = eParent.LineType
-        et.colour = eParent.colour
-        et.LineWidth = eParent.LineWidth
+        ' et.visible = True
+        ' et.LineType = eParent.LineType
+        ' et.colour = eParent.colour
+        ' et.LineWidth = eParent.LineWidth
 
         If et.Gender = "INSERT" Then
 
@@ -310,6 +311,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
         If sClaves[i] = "42" Then e.fParam[Me.ipaEscY] = CFloat(sValues[i])         ' esc Y
         If sClaves[i] = "43" Then e.fParam[Me.ipaEscZ] = CFloat(sValues[i])         ' esc Z
         If sClaves[i] = "50" Then e.fParam[Me.ipaRotacion] = CFloat(sValues[i])      ' rotacion
+        If sClaves[i] = "66" Then e.fParam[Me.ipaAttribs] = CFloat(sValues[i])      ' hay ATTRIB data perteneciente a este Insert, terminado en un SEQEND
     Next
 
     If e.fParam[Me.ipaEscZ] = 0 Then e.fParam[Me.ipaEscZ] = 1    ' esc Z
@@ -332,22 +334,30 @@ Public Function InsertParts(eInsert As Entity, cEntities As Collection)
     ' la geometria de un inserto implica
     Dim e, e2 As Entity
 
-    'eInsert.pBlock.entities.Clear
-    For Each e In eInsert.pBlock.entities
-        e2 = clsEntities.ClonEntity(e)
-        e2.HandleOwner = eInsert.Handle
-        e2.Visible = False
-        gcd.CCC[e2.gender].translate(e2, eInsert.p[0], eInsert.p[1])
-        gcd.CCC[e2.gender].rotate(e2, eInsert.fParam[cadInsert.ipaRotacion])
-        gcd.CCC[e2.gender].scale(e2, eInsert.fParam[cadInsert.ipaEscX], eInsert.fParam[cadInsert.ipaEscY])
 
-        gcd.Drawing.Entities.Add(e2, e2.Handle)
-        'eInsert.pBlock.entities.Add(e2, e2.Handle)  ' tambien guardo una referencia aqui
-        ' llamo recursivamente en caso que sea inserto
-        If e2.Gender = cadInsert.Gender Then InsertParts(e2, cEntities)
+    ' eInsert.pBlock.entities.Clear
+    For Each e In gcd.Drawing.Blocks[eInsert.pBlock.name].entities
+        If e.Gender = "ATTDEF" Then Continue                    ' esta entidad ya viene digerida en el DXF
+        If e.Gender = cadInsert.Gender Then
+            insertParts(e, cEntities)
+        Else
+
+            e2 = clsEntities.ClonEntity(e)
+            e2.HandleOwner = eInsert.Handle
+            'e2.Visible = False
+            gcd.CCC[e2.gender].translate(e2, eInsert.p[0], eInsert.p[1])
+            gcd.CCC[e2.gender].rotate(e2, eInsert.fParam[cadInsert.ipaRotacion])
+            gcd.CCC[e2.gender].scale(e2, eInsert.fParam[cadInsert.ipaEscX], eInsert.fParam[cadInsert.ipaEscY])
+
+            'eInsert.pBlock.Entities.Add(e2, e2.Handle)
+
+            ' llamo recursivamente en caso que sea inserto
+            cEntities.Add(e2, e2.Handle)  ' tambien guardo una referencia aqui
+        End If
 
 
     Next
 
 
 End
+

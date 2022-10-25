@@ -189,6 +189,7 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
         ImportBlocksFromDXF(cToFill, drw)
         clsEntities.BuildPoi()
         DXFtoEntity(cToFill["ENTITIES"], cToFill, drw)
+        gcd.DigestInserts()
         SetViewports(cToFill, drw)
     End If
 
@@ -1972,10 +1973,10 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
             Try newBlock.flags = colBlk["70"]
 
             If colData["TABLES"].Exist("BLOCK_RECORD") Then
-
-                newBlock.HandleOwner = colData["TABLES"]["BLOCK_RECORD"][colBlk["330"]]["5"]
-                newBlock.HandleAsociatedLayout = colData["TABLES"]["BLOCK_RECORD"][colBlk["330"]]["340"]
-
+                If colData["TABLES"]["BLOCK_RECORD"].Exist(colBlk["330"]) Then
+                    newBlock.HandleOwner = colData["TABLES"]["BLOCK_RECORD"][colBlk["330"]]["5"]
+                    newBlock.HandleAsociatedLayout = colData["TABLES"]["BLOCK_RECORD"][colBlk["330"]]["340"]
+                End If
             End If
 
             Drw.Blocks.Add(newBlock, newBlock.name)
@@ -1988,7 +1989,6 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
         S = New Sheet
         s.Name = "Model"
         s.IsModel = True
-        s.Entities = drw.Entities
         'depre  s.Handle = "2"
         Drw.Sheets.Add(s, s.Name)
         drw.Sheet = s
@@ -2001,9 +2001,11 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
         newBlock.name = "*Model_Space"
         Drw.Blocks.Add(newBlock, newBlock.name)
 
+
     End If
 
-    drw.Entities = drw.Blocks["*Model_Space"].entities
+
+
 
     'Block_Record = New Collection
 
@@ -2031,6 +2033,7 @@ Public Sub SetViewports(cDxfData As Collection, drw As Drawing)
 
     Dim e As Entity, v As Viewport, b, n, hLayout As String
 
+    DRW.Entities = DRW.Sheet.Entities
     For Each e In drw.Entities
         If e.Gender = cadViewport.Gender Then
             v = e.pBlock
@@ -2099,24 +2102,29 @@ Public Sub DXFtoEntity(cDxfEntities As Collection, cDxfData As Collection, drw A
                             ' -hHatch               OTRA ENTIDAD que tenga .pBlock.enities as Collection
                             ' -Polyline
 
-                            If cDxfData["TABLES"]["BLOCK_RECORD"].Exist(hContainer) Then      ' busco en los bloques
-                                sName = cDxfData["TABLES"]["BLOCK_RECORD"][hContainer]["2"]
-                                obx = drw.Blocks[sName].entities
-                            Else If drw.Sheets.Exist(hContainer) Then               ' busco en las Sheets
-                                obx = drw.Sheets[hContainer].entities
-                                cLastParent = obx
-                            Else If drw.Blocks.Exist(hContainer) Then
-                                obx = drw.Blocks[hContainer].entities
-                                cLastParent = obx
-                            Else                                                               ' busco en otro lado
-                                obx = hContainers[hContainer]
+                            If hContainer <> "" Then ' busco la hoja donde dibujar esta entidad
+
+                                If cDxfData["TABLES"]["BLOCK_RECORD"].Exist(hContainer) Then      ' busco en los bloques
+                                    sName = cDxfData["TABLES"]["BLOCK_RECORD"][hContainer]["340"]
+
+                                    If drw.Sheets.Exist(sName) Then               ' busco en las Sheets
+                                        obx = drw.Sheets[sName].entities
+
+                                    Else                                                               ' busco en otro lado
+                                        obx = hContainers[hContainer]
+                                    End If
+
+                                End If
+                            Else    ' los DXF viejos no tienen contenedores,   ni paperspace, probabñlemente
+
+                                obx = drw.Sheet.entities
                             End If
 
 
                         End If
 
                         Select Case entNueva.Gender
-                            Case "HATCH", "INSERT", "POLYLINE"
+                            Case "HATCH", "INSERT", "POLYLINE", "POLYLINE_2D"
                                 hContainers.Add(entNueva.pBlock.entities, entNueva.Handle)
                         End Select
 
@@ -2124,7 +2132,8 @@ Public Sub DXFtoEntity(cDxfEntities As Collection, cDxfData As Collection, drw A
 
                             obx.Add(entNueva, sHandle)
                         Else
-                            Debug "Contenedor no encontrado", hContainer
+                            Debug "Contenedor no encontrado, van al Model", hContainer
+                            drw.Sheet.entities.Add(entNueva, sHandle)
                         End If
 
 
