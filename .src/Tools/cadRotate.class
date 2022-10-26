@@ -54,7 +54,9 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
         DrawingAids.Helper.texto = ("ROTATE") & ":" & ("mark Base point")
         'DrawingAids.CmdLineHelper = DrawingAids.CmdLineHelper & Str(gcd.Drawing.SelectedEntities.count) & " " & ("elements")
 
-        clsEntities.GLGenDrawListAll(True)
+        'gl.PushMatrix()
+
+        'clsEntities.GLGenDrawListAll(True)
         gcd.Redraw
 
     Endif
@@ -63,19 +65,6 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
 
 End
 
-' Public Function NewParameter(vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
-'
-'     If Me.PointsDone = 0 Then
-'         If vParam[0] = "point" Then
-'
-'             ' enganio al evento mouse
-'             MouseMove(gcd.Xpix(vParam[1]), gcd.Ypix(vParam[2]))
-'             MouseUp(gcd.Xpix(vParam[1]), gcd.Ypix(vParam[2]))
-'
-'         Endif
-'     End If
-'
-' End
 
 Public Function MouseUp()
 
@@ -89,8 +78,8 @@ Public Function MouseUp()
         DrawingAids.Helper.texto = DrawingAids.CmdLineHelper & ": " & ("Angle") & " [90]"
 
         ' punto real base
-        Me.SelStartXr = gcd.Near(gcd.Xreal(mouse.x))
-        Me.SelStartYr = gcd.Near(gcd.Yreal(mouse.y))
+        Me.SelStartXr = Me.LastX
+        Me.SelStartYr = Me.LastY
 
         Me.glTranslate[0] = Me.SelStartXr
         Me.glTranslate[1] = Me.SelStartYr
@@ -104,6 +93,8 @@ Public Function MouseUp()
         Next
         gl.EndList
         gl.PopMatrix
+
+
 
         ' prevenir acciones tontas como hacer click en otro elemento antes de terminar con el actual
         ' TODO: reparar -> gcd.CurrDrawing.DesHabilitarBotones
@@ -121,21 +112,12 @@ Public Function MouseUp()
 
 End
 
-' Public Sub Draw()               ' called by gcd.CurrDrawing.drwArea_Draw
-'
-'     gl.PushMatrix
-'
-'     gl.Translatef(-Me.glTranslate[0], -Me.glTranslate[1], -Me.glTranslate[2])
-'     gl.Rotatef(Me.glAngle, Me.glRotate[0], Me.glRotate[1], Me.glRotate[2])
-'     gl.Translatef(Me.glTranslate[0], Me.glTranslate[1], Me.glTranslate[2])
-'     gl.Scalef(Me.glScale[0], Me.glScale[1], Me.glScale[2])
-'     gl.CallList(gcd.CurrDrawing.GlListSelectedEntities)                      ' si GL no tiene contexto, la lista no se genera. Es necesario que la instancia de FCAD este cargada.
-'
-'     gl.PopMatrix
-'
-' End
+
 
 Public Function MouseMove() ' called by FCAD-> DrawingArea_MouseMove
+
+    Super.MouseMove()
+
 
     If Me.PointsDone = 1 Then
         '     ' we compare Real values from the starting point to the location
@@ -143,8 +125,8 @@ Public Function MouseMove() ' called by FCAD-> DrawingArea_MouseMove
         '     ' could have being moved by the mouse wheel
         '
         '     ' new Real position is
-        Me.SelEndXr = gcd.Near(gcd.Xreal(mouse.x))
-        Me.SelEndyr = gcd.Near(gcd.Yreal(mouse.y))
+        Me.SelEndXr = Me.LastX
+        Me.SelEndyr = Me.LastY
 
         Radianes = Ang(Me.SelEndXr - Me.SelStartXr, Me.SelEndYr - Me.SelStartYr)
 
@@ -154,7 +136,24 @@ Public Function MouseMove() ' called by FCAD-> DrawingArea_MouseMove
 
     End If
 
+
     gcd.Redraw
+
+End
+
+Public Sub Draw()
+
+    gl.PushMatrix
+    'gl.Translatef(-Me.glTranslate[0], -Me.glTranslate[1], -Me.glTranslate[2])
+    gl.Translatef(Me.glTranslate[0], Me.glTranslate[1], Me.glTranslate[2])
+    gl.Rotatef(Me.glAngle, Me.glRotate[0], Me.glRotate[1], Me.glRotate[2])
+
+    gl.CallList(gcd.Drawing.GlListEntitiesSelected)
+    gl.PopMatrix
+
+
+
+
 
 End
 
@@ -189,7 +188,10 @@ Public Sub Finish()
 
         For Each E In gcd.Drawing.EntitiesSelected
 
+            gcd.CCC[e.gender].Translate(E, -Me.glTranslate[0], -Me.glTranslate[1])
+
             gcd.CCC[e.gender].Rotate(E, radianes)
+            gcd.CCC[e.gender].Translate(E, Me.glTranslate[0], Me.glTranslate[1])
 
         Next
 
