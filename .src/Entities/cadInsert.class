@@ -94,14 +94,14 @@ Public Sub Draw(oE As Entity)
 
 End
 
-
-Public Sub DrawParts(oE As Entity)
-
-
-
-    If oe.pBlock Then Draw_List(oe.pBlock.entities, oe, oe.pBlock.InsertionPlace)
-
-End
+'
+' Public Sub DrawParts(oE As Entity)
+'
+'
+'
+'     If oe.pBlock Then Draw_List(oe.pBlock.entities, oe, oe.pBlock.InsertionPlace)
+'
+' End
 
 '' DrawMode: 0 Normal ; 1 Selected ; 2 Remark ; 3 Paint
 Public Sub Draw_List(eList As Collection, eParent As Entity, Optional InsertionPlace As Integer = 0, DrawMode As Integer = 0)
@@ -116,20 +116,20 @@ Public Sub Draw_List(eList As Collection, eParent As Entity, Optional InsertionP
 
     gl.PushMatrix
 
-    ' If InsertionPlace = 0 Then
-    '     gl.Translatef(gcd.Pixels(eParent.p[0]) / gcd.Drawing.Sheet.ScaleZoom, gcd.Pixels(eParent.p[1]) / gcd.Drawing.Sheet.ScaleZoom, 0)
-    ' Else If InsertionPlace = 1 Then
-    '     ' absolute coordinate, so each entity has its own position
-    '     ' nothing to translate
-    ' Else If InsertionPlace = 2 Then
-    '     gl.Translatef(gcd.Pixels(eParent.pBlock.x0) / gcd.Drawing.Sheet.ScaleZoom, gcd.Pixels(eParent.pBlock.y0) / gcd.Drawing.Sheet.ScaleZoom, 0)
-    '
-    ' End If
-    '
-    ' gl.Rotatef(eParent.fParam[Me.ipaRotacion], 0, 0, 1)
-    '
-    ' gl.Scalef(eParent.fParam[Me.ipaEscX], eParent.fParam[Me.ipaEscY], eParent.fParam[Me.ipaEscZ])
-    ' If Not eList Then Return
+    If InsertionPlace = 0 Then
+        gl.Translatef(gcd.Pixels(eParent.p[0]) / gcd.Drawing.Sheet.ScaleZoom, gcd.Pixels(eParent.p[1]) / gcd.Drawing.Sheet.ScaleZoom, 0)
+    Else If InsertionPlace = 1 Then
+        ' absolute coordinate, so each entity has its own position
+        ' nothing to translate
+    Else If InsertionPlace = 2 Then
+        gl.Translatef(gcd.Pixels(eParent.pBlock.x0) / gcd.Drawing.Sheet.ScaleZoom, gcd.Pixels(eParent.pBlock.y0) / gcd.Drawing.Sheet.ScaleZoom, 0)
+
+    End If
+
+    gl.Rotatef(eParent.fParam[Me.ipaRotacion], 0, 0, 1)
+
+    gl.Scalef(eParent.fParam[Me.ipaEscX], eParent.fParam[Me.ipaEscY], eParent.fParam[Me.ipaEscZ])
+    If Not eList Then Return
 
     For Each ET In eList
         ' et.visible = True
@@ -139,7 +139,7 @@ Public Sub Draw_List(eList As Collection, eParent As Entity, Optional InsertionP
 
         If et.Gender = "INSERT" Then
 
-            If et.pBlock Then Draw_List(et.pBlock.entities, et, DrawMode)
+            If et.pBlock Then Draw_List(et.pBlock.entities, et, 0, DrawMode)
         Else
             Select Case DrawMode
                 Case 0 ' normal
@@ -303,7 +303,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
         If sClaves[i] = "2" Then
             b = New Block
             b.name = sValues[i]
-            e.pBlock = b 'clsEntities.FIndBlock(sValues[i], gcd.Drawing.Blocks)
+            e.pBlock = gcd.Drawing.Blocks[sValues[i]] 'clsEntities.FIndBlock(sValues[i], gcd.Drawing.Blocks)
         Endif
         If sClaves[i] = "10" Then e.P[0] = (CFloat(sValues[i]))         ' X
         If sClaves[i] = "20" Then e.P[1] = (CFloat(sValues[i]))         ' Y
@@ -328,35 +328,46 @@ End
 
 
 '' Inserta las partes de un Insert en la coleccion de entidades
-Public Function InsertParts(eInsert As Entity, cEntities As Collection)
+Public Function InsertParts(eInsert As Entity, bDontMoveThem As Boolean) As Collection
 
 
     ' la geometria de un inserto implica
     Dim e, e2 As Entity
-
+    Dim cParts As New Collection
 
     ' eInsert.pBlock.entities.Clear
     For Each e In gcd.Drawing.Blocks[eInsert.pBlock.name].entities
         If e.Gender = "ATTDEF" Then Continue                    ' esta entidad ya viene digerida en el DXF
         If e.Gender = cadInsert.Gender Then
-            insertParts(e, cEntities)
+            For Each e2 In insertParts(e, bDontMoveThem)
+                If Not bdontmovethem Then
+                    gcd.CCC[e2.gender].translate(e2, eInsert.p[0], eInsert.p[1])
+                    gcd.CCC[e2.gender].rotate(e2, eInsert.fParam[cadInsert.ipaRotacion])
+                    gcd.CCC[e2.gender].scale(e2, eInsert.fParam[cadInsert.ipaEscX], eInsert.fParam[cadInsert.ipaEscY])
+                End If
+
+                cParts.Add(e2, e2.Handle)
+            Next
         Else
 
             e2 = clsEntities.ClonEntity(e)
             e2.HandleOwner = eInsert.Handle
             'e2.Visible = False
-            gcd.CCC[e2.gender].translate(e2, eInsert.p[0], eInsert.p[1])
-            gcd.CCC[e2.gender].rotate(e2, eInsert.fParam[cadInsert.ipaRotacion])
-            gcd.CCC[e2.gender].scale(e2, eInsert.fParam[cadInsert.ipaEscX], eInsert.fParam[cadInsert.ipaEscY])
-
+            If Not bDontMoveThem Then
+                gcd.CCC[e2.gender].translate(e2, eInsert.p[0], eInsert.p[1])
+                gcd.CCC[e2.gender].rotate(e2, eInsert.fParam[cadInsert.ipaRotacion])
+                gcd.CCC[e2.gender].scale(e2, eInsert.fParam[cadInsert.ipaEscX], eInsert.fParam[cadInsert.ipaEscY])
+            End If
             'eInsert.pBlock.Entities.Add(e2, e2.Handle)
 
             ' llamo recursivamente en caso que sea inserto
-            cEntities.Add(e2, e2.Handle)  ' tambien guardo una referencia aqui
+            cParts.Add(e2, e2.Handle)  ' tambien guardo una referencia aqui
         End If
 
 
     Next
+
+    Return cParts
 
 
 End
