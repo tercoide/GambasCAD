@@ -58,10 +58,10 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
         clsEntities.GLGenDrawListSel(0)                     ' genero drawing lists
         clsEntities.GLGenDrawListAll(True)
 
-        gcd.Drawing.uUndo.OpenUndoStage("Move entities", Undo.TypeModify)
-        For Each E In gcd.Drawing.EntitiesSelected
-            gcd.Drawing.uUndo.AddUndoItem(clsEntities.ClonEntity(E, False))
-        Next
+        ' gcd.Drawing.uUndo.OpenUndoStage("Move entities", Undo.TypeModify)
+        ' For Each E In gcd.Drawing.EntitiesSelected
+        '     gcd.Drawing.uUndo.AddUndoItem(clsEntities.ClonEntity(E, False))
+        ' Next
         gcd.Redraw
 
     Endif
@@ -91,16 +91,19 @@ Public Function MouseUp()
         Inc Me.PointsDone
 
         If Me.PointsDone = 1 Then ' acabo de marcar el punto base
+
+            ' ya tengo cosas seleccionadas
+
+            ' punto real base
+            Me.SelStartXr = Me.LastX
+            Me.SelStartYr = Me.LastY
+
             ' volvemos el Snap al original
             gcd.SnapMode = Config.SnapModeSaved
 
             ' ya tengo cosas seleccionadas
             DrawingAids.Helper.texto = ("Final point")
             DrawingAids.CmdLineHelper = ("Move") & " " & Str(gcd.Drawing.EntitiesSelected.Count) & " " & ("elements") & ": " & ("Final point")
-
-            ' ' punto real base
-            ' Me.SelStartXr = gcd.Near(gcd.Xreal(mouse.x))
-            ' Me.SelStartYr = gcd.Near(gcd.Yreal(mouse.y))
 
             ' prevenir acciones tontas como hacer click en otro elemento antes de terminar con el actual
             ' TODO: reparar -> gcd.CurrDrawing.DesHabilitarBotones
@@ -126,50 +129,15 @@ End
 Public Function MouseMove()
 
 
-    Dim X, Y As Float
-    ' we are waiting for a point
-
-    X = gcd.Near(gcd.Xreal(mouse.x))
-    Y = gcd.Near(gcd.Yreal(mouse.y))
-
-    ' yo soy el responsable de chequear POI
-    If Not gcd.flgSearchingPOI Then
-        gcd.Drawing.iEntity = clsMouseTracking.CheckBestPOI(X, Y)
+    Super.MouseMove()
 
 
-        If (gcd.Drawing.iEntity[2] > 0) Then
-
-            ' esto re enganchado
-
-            X = gcd.Drawing.iEntity[0]
-            Y = gcd.Drawing.iEntity[1]
-        End If
-    End If
-
-
-    If Me.PointsDone = 0 Then
-        Me.SelStartXr = X
-        Me.SelStartYr = Y
-
-    Else If Me.PointsDone = 1 Then
+    If Me.PointsDone = 1 Then
         ' we compare Real values from the starting point to the location
         ' represente by the mouse now, taking account that the drawing
         ' could have being moved by the mouse wheel
-        Me.SelEndXr = X
-        Me.SelEndYr = Y
-
-
-
-        If gcd.Orthogonal Then          ' hablame de operadores logicos
-
-            If Abs(Me.SelEndXr - Me.SelStartXr) > Abs(Me.SelEndyr - Me.SelStartYr) Then ' prevalece X
-                Me.SelEndyr = Me.SelStartYr
-            Else
-                Me.SelEndXr = Me.SelStartXr
-            Endif
-
-        End If
-
+        Me.SelEndXr = Me.LastX
+        Me.SelEndYr = Me.LastY
 
 
         Me.glTranslate[0] = Me.SelEndXr - Me.SelStartXr

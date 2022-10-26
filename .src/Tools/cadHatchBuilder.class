@@ -78,7 +78,7 @@ Public Function Start(Optional filename As Variant, Optional _mode As Integer = 
                 StepsDone = 2
                 iRet = FHatch.Showmodal()
 
-                Debug gcd.Drawing.LastHatchFile
+                'Debug gcd.Drawing.LastHatchFile
 
                 Select Case iRet
                     Case 2 ' nueva busqueda de contorno
@@ -137,5 +137,67 @@ Public Function Start(Optional filename As Variant, Optional _mode As Integer = 
             Endif
 
     End Select
+
+End
+
+
+Public Function MakePattern(eHatch As Entity, sPattern As String, fAngleDeg As Float, fScale As Float) As Boolean
+
+    Dim h As Hatch
+    Dim hp As HatchPattern
+    Dim i As Integer
+    Dim fAng, c, s, x, y As Float
+    Dim flxOffset, flxBase As New Float[]
+    Dim p, p2 As Pattern
+
+    h = eHatch.pBlock
+
+    h.Patterns.Clear
+
+    hp = gcd.HatchPatterns[sPattern]
+
+    If Not hp Then Return False
+
+    eHatch.fParam[cadHatch.ipaScale] = fScale
+    eHatch.fParam[cadHatch.ipaRotation] = fAngleDeg
+    eHatch.sParam[cadHatch.sdaPattern] = sPattern
+
+    For Each p In hp.patterns
+        p2 = New Pattern
+        h.Patterns.Add(p2)
+        p2.AngleDeg = p.AngleDeg + fAngleDeg
+        p2.BaseX = p.BaseX * fScale
+        p2.BaseY = p.BaseY * fScale
+        p2.OffsetX = p.OffsetX * fScale
+        p2.OffsetY = p.OffsetY * fScale
+
+        fAng = Rad(fAngleDeg + p2.AngleDeg)
+        fAng = Rad(p2.AngleDeg)
+
+        flxBase.Clear
+        flxBase.Insert([p2.BaseX, p2.BaseY])
+        puntos.Rotate(flxBase, Rad(fAngleDeg))
+        p2.Basex = flxBase[0]
+        p2.Basey = flxBase[1]
+
+        flxOffset.Clear
+        flxOffset.Insert([p2.OffsetX, p2.OffsetY])
+        puntos.Rotate(flxOffset, Rad(p2.AngleDeg))
+
+        p2.Offsetx = flxOffset[0]
+        p2.Offsety = flxOffset[1]
+
+
+        For i = 0 To p.DashLength.max
+            p2.DashLength.Add(p.DashLength[i] * fScale)
+        Next
+
+    Next
+
+    ' cadHatch.Finish(eHatch)
+
+    Return True
+
+
 
 End
