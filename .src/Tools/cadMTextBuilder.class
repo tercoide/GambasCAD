@@ -24,6 +24,7 @@ Inherits ToolsBase
 Public Const Gender As String = "MTEXTS"
 
 Public StepsDone As Integer
+Public RectSelected As Boolean
 
 Public UserResponse As Integer  ' 1 = Cancel ; 2 =
 Public sText As String
@@ -43,6 +44,11 @@ Public Function Start(Optional filename As Variant, _mode As Integer = 0) As Boo
     ' desde el grafico entramos siempre a esta parte de la clase
     ' yo tengo q saber el estado de la comunicacion con el user
     ' entonces verifico
+
+    Me.sText = ""
+    Me.Active = False
+    Me.RectSelected = False
+
 
     Select Case StepsDone
         Case 0
@@ -140,7 +146,7 @@ End
 
 Public Sub MouseUp()
 
-    Dim X, Y, f As Float
+
 
     If Mouse.Right Then
         gcd.clsJob.KeyText("U")
@@ -148,40 +154,22 @@ Public Sub MouseUp()
     End If
 
 
-    ' we are waiting for a point
-
-    X = gcd.Near(gcd.Xreal(mouse.x))
-    Y = gcd.Near(gcd.Yreal(mouse.y))
-
-    ' y si tengo enganche?
-
-    If (gcd.Drawing.iEntity[2] > 0) Then
-
-        ' esto re enganchado
-
-        X = gcd.Drawing.iEntity[0]
-        Y = gcd.Drawing.iEntity[1]
 
 
-    End If
 
     If Me.Active Then ' ya tengo un punto
-        Me.SelEndX = mouse.X
-        Me.SelEndy = mouse.Y
-        Me.SelEndXr = gcd.Xreal(Me.SelEndX)
-        Me.SelEndyr = gcd.Yreal(Me.SelEndy)
+
         Me.Active = False
+        Me.RectSelected = True
     Else
         Me.Active = True
-        Me.SelStartX = mouse.X
-        Me.SelStartY = mouse.Y
-        Me.SelStartXr = gcd.Xreal(Me.SelStartX)
-        Me.SelStartYr = gcd.Yreal(Me.SelStartY)
+        Me.RectSelected = False
+        Me.SelStartXr = Me.LastX
+        Me.SelStartYr = Me.LastY
 
-        Me.SelEndX = mouse.X
-        Me.SelEndy = mouse.Y
-        Me.SelEndXr = gcd.Xreal(Me.SelEndX)
-        Me.SelEndyr = gcd.Yreal(Me.SelEndy)
+        Me.SelEndXr = Me.SelStartXr
+        Me.SelEndyr = Me.SelStartYr
+
     End If
 
 
@@ -189,12 +177,16 @@ End
 
 Public Sub MouseMove()
 
+    Super.MouseMove()
+
+
     If Me.Active Then
 
-        Me.SelEndX = mouse.X
-        Me.SelEndy = mouse.Y
-        Me.SelEndXr = gcd.Xreal(Me.SelEndX)
-        Me.SelEndyr = gcd.Yreal(Me.SelEndy)
+        Me.SelEndXr = Me.LastX
+        Me.SelEndyr = Me.LastY
+
+
+
     End If
 
 
@@ -204,79 +196,72 @@ Public Sub KeyPress(iCode As Integer, sKey As String)
 
     If skey <> "" Then
         sText &= sKey
-        Return
-    Endif
 
-    Select Case iCode
-        Case Key.Backspace
-            If Len(sText) > 0 Then sText = Left(sText, -1)
+    Else
 
-    End Select
+        Select Case iCode
+            Case Key.Backspace
+                If Len(sText) > 0 Then sText = Left(sText, -1)
 
+        End Select
+
+    End If
+
+
+    MakeMtext
+    gcd.redraw
 
 
 End
 
 
-' Public Function KeyText(EnteredText As String)
-'
-'     ' in this case, we try to run the command wich is a class
-'     Dim o As Object, RunWith As String, c As Class
-'
-'     EnteredText = UCase(Trim(EnteredText))
-'     If EnteredText = "" Then Return                                ' no BS here
-'
-'     Select Case EnteredText
-'         Case "REGEN"
-'             gcd.regen
-'         Case "REDRAW"
-'             gcd.Redraw
-'
-'         Case Else
-'             'o = cadDimension ' a test
-'             gcd.clsJobPrevious = gcd.clsJob
-'
-'             If gcd.CCC.Exist(EnteredText) Then
-'                 o = gcd.CCC[EnteredText]
-'             Else
-'
-'                 DrawingAids.ErrorMessage = "Command not recognized"
-'                 Return
-'             Endif
-'
-'             ' check if the class needs to be run trough other
-'             If o.usewith = "" Then                        ' its a tool
-'                 gcd.clsJob = o
-'                 gcd.clsJob.start
-'
-'             Else                                                    ' its propably an eentity
-'
-'                 gcd.clsJob = gcd.CCC[o.usewith]
-'                 gcd.clsJob.start(o)
-'
-'             End If
-'
-'     End Select
-'
-'     Return
-'
-'     ' TODO: dejar comentado mientras hagamos debug
-'     '' catch
-'
-'     DrawingAids.ErrorMessage = "Command not recognized"
-'     '
-'     '
-'
-' End
 
 Public Sub Draw() ' esta rutina es llamada por FCAD en el evento DrawingArea_Draw
     ' por ultimo, y para que se vea arriba, la seleccion
 
-    'If Me.ActionActive = Me.ActionRectActive Then
 
-    GLplus.Rectangle2D(Me.SelStartXr, Me.SelStartYr, Me.SelEndXr - Me.SelStartXr, Me.SelEndyr - Me.SelStartYr, Color.Blue,,,, Color.DarkBlue, 1,, 1)
+    If Me.Active Then
 
-    'End If
+        GLplus.Rectangle2D(Me.SelStartXr, Me.SelStartYr, Me.SelEndXr - Me.SelStartXr, Me.SelEndyr - Me.SelStartYr, Color.Cyan,,,, Color.DarkBlue, 1,, 1)
+
+    Else If Me.RectSelected Then
+        GLplus.Rectangle2D(Me.SelStartXr, Me.SelStartYr, Me.SelEndXr - Me.SelStartXr, Me.SelEndyr - Me.SelStartYr, Color.Blue,,,, Color.DarkBlue, 1,, 2)
+        cadMText.Draw(eMtext)
+    End If
+
+
+End
+
+
+Public Sub MakeMtext()
+
+    eMtext.fParam[cadMText.ipaTextAngle] = Rad(Val(fMText.txtRot.Text))
+
+    eMtext.p[0] = Me.SelStartXr
+
+    eMtext.p[1] = Me.SelStartYr
+
+    eMtext.fParam[cadMText.ipaTextHeight] = Val(fMText.txtHeight.Text)
+
+    eMtext.fParam[cadMText.ipaRectangleWidth] = Me.SelEndXr - Me.SelStartXr
+
+    eMtext.fParam[cadMText.ipaAttchmPoint] = fMText.cmbAlignment.Index + 1
+
+    eMtext.sParam[cadMText.sdaText] = "\\f" & fMText.cmbFont.Text & "|b0|i0|c128|p34;" & sText
+
+
+    ' CurrentTextAngle = Deg(eMtext.fParam[Me.ipaTextAngle])
+    '
+    ' CurrentTextColor = gcd.GetGBColor(eMtext.Colour, eMtext.pLayer)
+    ' TrimText = True
+    ' TxtStyle = gcd.Drawing.CurrTextStyle
+    ' If Not TxtStyle Then TxtStyle = New TextStyle
+    ' TxtStyles.Add(TxtStyle)
+    ' ProcessText3(eMtext.sParam[Me.sdaText])
+    '
+    ' CreatePolygon(oe)
+
+
 
 
 End
