@@ -141,7 +141,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
         If sClaves[i] = "2" Then
             If BlockSet = False Then                                ' this prevents duplicated "2" codes
-                e.pBlock = clsEntities.FIndBlock(sValues[i], gcd.Drawing.Blocks)   ' this could be null
+                e.pBlock = gcd.Drawing.Blocks[sValues[i]] 'clsEntities.FIndBlock(sValues[i], gcd.Drawing.Blocks)   ' this could be null
                 BlockSet = True
 
             End If
@@ -279,5 +279,113 @@ Public Sub ExportDXFCol(e As Entity, ByRef stxExport As String[]) As Boolean
     stxExport.insert([CStr(e.fParam[Me.ipaRealMeasure]), "42"]) ' real measure
 
     stxExport.insert([e.pDimStyle.name, "3"])                   ' dimstyle
+
+End
+
+
+Public Sub Translate(e As Entity, dX As Float, dY As Float, Optional OnlySelected As Boolean = False)
+
+    Dim eBlock As Entity
+    ' los insertos se mueven de acuerdo al punto de insercion
+    puntos.Translate(e.p, dx, dy)
+    For Each eBlock In e.pBlock.entities
+        gcd.CCC[eBlock.gender].translate(eBlock, dx, dy)
+    Next
+
+
+
+
+End
+
+
+Public Sub Rotate(e As Entity, radians As Float)
+
+    puntos.Rotate(e.P, radians)
+
+    Dim eBlock As Entity
+
+    For Each eBlock In e.pBlock.entities
+        gcd.CCC[eBlock.gender].rotate(eBlock, radians)
+    Next
+
+
+
+End
+
+Public Sub Scale(e As Entity, sX As Float, sY As Float)
+
+    Dim i As Integer
+
+    E.fParam[Me.ipaEscX] *= sX
+    E.fParam[Me.ipaEscY] *= sY
+    For i = 0 To e.p.max Step 2
+
+        e.P[i] = e.P[i] * sX
+        e.P[i + 1] = e.P[i + 1] * sY
+
+    Next
+
+    Dim eBlock As Entity
+
+    For Each eBlock In e.pBlock.entities
+        gcd.CCC[eBlock.gender].scale(eBlock, sx, sy)
+    Next
+
+
+End
+
+Public Sub Draw(oE As Entity)
+
+
+    If oe.pBlock Then Draw_List(oe.pBlock.entities, oe, 0)
+
+End
+
+'' A selected version of the entity
+Public Sub DrawSelected(oE As Entity)
+
+    If oe.pBlock Then Draw_List(oe.pBlock.entities, oe, 1)
+
+End
+
+'' A fat version of the entity
+Public Sub DrawRemark(oE As Entity)
+
+    If oe.pBlock Then Draw_List(oe.pBlock.entities, oe, 2)
+
+End
+
+'' DrawMode: 0 Normal ; 1 Selected ; 2 Remark ; 3 Paint
+Public Sub Draw_List(eList As Collection, eParent As Entity, DrawMode As Integer)
+
+
+
+    Dim et As Entity
+
+
+    If Not eList Then Return
+
+    For Each ET In eList
+
+        If et.Gender = "INSERT" Then
+
+            If et.pBlock Then cadInsert.Draw_List(et.pBlock.entities, eParent, DrawMode)
+        Else
+            Select Case DrawMode
+                Case 0 ' normal
+                    GCD.CCC[et.gender].Draw(et)
+                Case 1 ' Selected
+                    GCD.CCC[et.gender].DrawSelected(et)
+                Case 2 ' Remark
+                    GCD.CCC[et.gender].DrawRemark(et)
+                Case 3 ' Paint
+                    GCD.CCC[et.gender].Draw2(et)
+
+            End Select
+
+        End If
+
+    Next
+
 
 End
