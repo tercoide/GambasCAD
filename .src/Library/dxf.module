@@ -1769,7 +1769,6 @@ Public Sub ReadViewports(cVptData As Collection, drw As Drawing)
 
 End
 
-
 '' Reads layers collection and puts data in oLayers
 Public Sub ReadLayers(cLaydata As Collection, drw As Drawing)
 
@@ -1881,9 +1880,10 @@ End
 Public Sub ReadLTypes(cData As Collection, drw As Drawing)
 
     Dim hlty As LineType
-    Dim t, i As Integer
+    Dim t, i, ri As Integer
     Dim fTrameLength As Float
-    Dim sNextKey As String
+    Dim sNextKey, r As String
+    Dim AbsoluteRotation, IsText, IsShape As Boolean
 
     ' primero eliminamos lo q haya
     Drw.LineTypes.Clear
@@ -1894,25 +1894,30 @@ Public Sub ReadLTypes(cData As Collection, drw As Drawing)
         ' hlty.handle = c[dxf.codHandle] ' depre
         ' If hLty.handle = "" Then hLty.handle = gcd.NewHandle()
         Try hlty.nTrames = CInt(c["73"])
-        If hlty.nTrames > 0 Then hlty.Length = c["40"]
+        If hlty.nTrames > 0 Then hlty.Length = CFloat(dxf.ReadCodeFromCol(c, 40))
         i = 0
         For t = 1 To hlty.nTrames
-            Do
-                If t > 1 Then
-                    sNextKey = "49_" & CStr(i)
-                Else
-                    sNextKey = "49"
-                Endif
-                If c.Exist(sNextKey) Then
-                    Inc i
-                    hlty.TrameLength.Add(CFloat(c[sNextKey]) * 2.5) ' TODO: verificar este valor arbitrario
-                    If hlty.TrameLength.Last = 0 Then hlty.TrameLength.Last = 1
 
-                    Break
-                Endif
-                Inc i
-                If i = 1000 Then Return
-            Loop
+            r = dxf.ReadCodeFromCol(c, 49, True)
+            hlty.TrameLength.Add(CFloat(r))
+            ri = CInt(dxf.ReadCodeFromCol(c, 74, True))
+            hlty.TrameType.Add(ri)
+            Select Case ri
+                Case 0
+                    ' nada
+                Case Else
+                    If (ri And 1) = 1 Then AbsoluteRotation = True Else absoluterotation = False
+                    If (ri And 2) = 2 Then IsText = True Else IsText = False
+                    If (ri And 4) = 4 Then IsShape = True Else IsShape = False
+                    hlty.TrameData.Add(dxf.ReadCodeFromCol(c, 75, True))
+                    hlty.TrameStyle.Add(dxf.ReadCodeFromCol(c, 340, True))
+                    hlty.TrameScale.Add(dxf.ReadCodeFromCol(c, 46, True))
+                    hlty.TrameRotation.Add(dxf.ReadCodeFromCol(c, 50, True))
+                    hlty.TrameOffX.Add(dxf.ReadCodeFromCol(c, 44, True))
+                    hlty.TrameStyle.Add(dxf.ReadCodeFromCol(c, 45, True))
+                    hlty.TrameData.Add(dxf.ReadCodeFromCol(c, 9, True))
+
+            End Select
 
         Next
 
@@ -1993,7 +1998,6 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
         Drw.Sheets.Add(s, s.Name)
         drw.Sheet = s
 
-
         ' creo ql bloque
 
         newBlock = New Block
@@ -2001,11 +2005,7 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
         newBlock.name = "*Model_Space"
         Drw.Blocks.Add(newBlock, newBlock.name)
 
-
     End If
-
-
-
 
     'Block_Record = New Collection
 
@@ -2013,7 +2013,6 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
         For Each colBlk In colData["BLOCKS"]
 
             If colBlk.Exist("entities") And Drw.Blocks.Exist(colBlk[dxf.codName]) Then
-
 
                 DXFtoEntity(colBlk["entities"], colData, drw, Drw.Blocks[colBlk[dxf.codName]].entities)
 
@@ -2041,8 +2040,6 @@ Public Sub SetViewports(cDxfData As Collection, drw As Drawing)
             n = cDxfData["BLOCKS"][e.HandleOwner]["2"]                      ' nombre del bloque
             hLayout = cDxfData["TABLES"]["BLOCK_RECORD"][n]["340"]          ' h del Layout asocicado
             drw.Sheets[hLayout].Viewports.Add(v, v.handle)                  ' agrego el viewport
-
-
 
         Endif
     Next
@@ -2122,7 +2119,6 @@ Public Sub DXFtoEntity(cDxfEntities As Collection, cDxfData As Collection, drw A
                                 obx = drw.Sheet.entities
                             End If
 
-
                         End If
 
                         Select Case entNueva.Gender
@@ -2137,7 +2133,6 @@ Public Sub DXFtoEntity(cDxfEntities As Collection, cDxfData As Collection, drw A
                             Debug "Contenedor no encontrado, van al Model", hContainer
                             drw.Sheet.entities.Add(entNueva, sHandle)
                         End If
-
 
                         ' If e[dxf.codEntity] = "POLYLINE" Then
                         '     flgIsPolyline = True
@@ -2159,8 +2154,6 @@ Public Sub DXFtoEntity(cDxfEntities As Collection, cDxfData As Collection, drw A
                         ' If entNueva.HandleOwner = "640" Then Debug "640", entNueva.Gender
 
                         entNueva = Null                                           ' limpiamos
-
-
 
                     End If
                 End If
@@ -2272,4 +2265,3 @@ Private Function GetBlock(cBlocks As Collection, hBlockRecord As String) As Bloc
     Return Null
 
 End
-
