@@ -43,8 +43,8 @@ Public ToolActive As Boolean
 Public HookSize As Integer = 16                       '' for use with poi
 Public Orthogonal As Boolean = False              '' idem Ortho F8 del CAD
 Public SnapMode As Integer
-Public GridMode As Integer
-Public GridModePrev As Integer
+Public GrIdMode As Integer
+Public GrIdModePrev As Integer
 Public MultiDraw As Boolean                     '' dibuja repetidamente la misma entidad
 
 Public CCC As New Collection                            '' CAD Classes Collection
@@ -78,7 +78,7 @@ Public picPrintOff As New Picture
 '---------------------------------------------------------------
 ' Point of Interest
 Public Const poiEndPoint As Integer = 1
-Public Const poiMidPoint As Integer = 2
+Public Const poiMIdPoint As Integer = 2
 Public Const poiQuadrant As Integer = 4
 Public Const poiTangent As Integer = 8
 Public Const poiCenter As Integer = 16
@@ -197,13 +197,13 @@ Public Function FindStyle(sName As String) As TextStyle
 
 End
 
-Public Function FindStyleByHandle(sHandle As String) As TextStyle
+Public Function FindStyleById(sId As String) As TextStyle
 
     Dim st As TextStyle
 
     For Each st In gcd.Drawing.TextStyles
 
-        If st.handle = sHandle Then Return st
+        If st.Id = sId Then Return st
 
     Next
 
@@ -211,15 +211,15 @@ Public Function FindStyleByHandle(sHandle As String) As TextStyle
 
 End
 
-Public Function FindEntity(sHandle As String, Optional SearchInBlocks As Boolean = False) As Entity
+Public Function FindEntity(sId As String, Optional SearchInBlocks As Boolean = False) As Entity
 
     Dim oBlock As Block
 
-    If gcd.Drawing.Entities.Exist(sHandle) Then Return gcd.Drawing.Entities[sHandle]
+    If gcd.Drawing.Entities.Exist(sId) Then Return gcd.Drawing.Entities[sId]
 
     If SearchInBlocks Then
         For Each oBlock In gcd.Drawing.Blocks
-            If oBlock.entities.Exist(sHandle) Then Return gcd.Drawing.Entities[sHandle]
+            If oBlock.entities.Exist(sId) Then Return gcd.Drawing.Entities[sId]
 
         Next
     Endif
@@ -256,13 +256,13 @@ Public Function FindLtIndex(sName As String) As Integer
 
 End
 
-Public Function GetLayerByHandle(handle As String) As Layer
+Public Function GetLayerById(Id As String) As Layer
 
     Dim l As Layer
 
     For Each l In drawing.Layers
 
-        If l.handle = handle Then Return l
+        If l.Id = Id Then Return l
 
     Next
 
@@ -425,8 +425,8 @@ Public Sub FillInserts(drw As Drawing)
 
     If drw.Entities Then
         For Each e In drw.Entities
-            If drw.Inserts.Exist(e.HandleOwner) Then
-                drw.Inserts[e.HandleOwner].Entities.Add(e, e.Handle)
+            If drw.Inserts.Exist(e.IdContainer) Then
+                drw.Inserts[e.IdContainer].Entities.Add(e, e.Id)
             Endif
         Next
     End If
@@ -598,7 +598,7 @@ Public Function UniqueId() As String
 
     Dim s As String
 
-    Shell "uuidgen" To s
+    Shell "uuIdgen" To s
 
     s = "{" & Trim(s) & "}"
 
@@ -628,7 +628,7 @@ End
 ' End
 
 '' Returns the next available handle
-Public Function NewHandle(Optional d As Drawing) As String
+Public Function NewId(Optional d As Drawing) As String
 
     Dim hHex As String
 
@@ -769,11 +769,11 @@ End
 ''  Lee entidades e intenta dibujarlas centrado en el contenedor: DrawingArea, Picture, Image
 ''  iColor: CAD color o -1 para usar como vienen en el DXF
 ''  fLineWidth: -1=como vienen, 0=automatico, >0 = fijo en ese valor
-Public Function FitEntitiesToImage(cEntities As Collection, imgPreview As Object, Optional iColor As Integer = 0, fLineWidth As Float = 1) As Boolean
+Public Function FitEntitiesToImage(cEntities As Collection, imgPreview As Object, Optional iColor As Integer = 0, fLineWIdth As Float = 1) As Boolean
 
     Dim scaleX, scale, scaleY As Float
 
-    Dim entidad As Entity
+    Dim entIdad As Entity
 
     Dim flxLimits As New Float[]
 
@@ -795,20 +795,20 @@ Public Function FitEntitiesToImage(cEntities As Collection, imgPreview As Object
         ' centro el dibujo
         Paint.Translate(-(flxLimits[2] + flxLimits[0]) / 2, -(flxLimits[3] + flxLimits[1]) / 2)
 
-        For Each entidad In cEntities
-            If entidad.pLayer = Null Then entidad.pLayer = gcd.Drawing.CurrLayer
+        For Each entIdad In cEntities
+            If entIdad.pLayer = Null Then entIdad.pLayer = gcd.Drawing.CurrLayer
             If iColor < 0 Then
-                Paint.Brush = Paint.Color(gcd.gColor[entidad.colour])
+                Paint.Brush = Paint.Color(gcd.gColor[entIdad.colour])
             Else
                 Paint.Brush = Paint.Color(iColor)
             Endif
-            If fLineWidth = 0 Then
-                If entidad.LineWidth = 0 Then entidad.LineWidth = 1
+            If fLineWIdth = 0 Then
+                If entIdad.LineWIdth = 0 Then entIdad.LineWIdth = 1
 
-                Paint.LineWidth = entidad.LineWidth / scale
+                Paint.LineWIdth = entIdad.LineWIdth / scale
             End If
 
-            gcd.CCC[entidad.gender].draw2(entidad)
+            gcd.CCC[entIdad.gender].draw2(entIdad)
         Next
         Paint.End
 
@@ -819,7 +819,7 @@ End
 '' Carga un DXF e intenta dibujarlo centrado en el contenedor: DrawingArea, Picture, Image
 '' iColor: CAD color o -1 para usar como vienen en el DXF
 '' fLineWidth: -1=como vienen, 0=automatico, >0 = fijo en ese valor
-Public Function FitDxfToImage(sDXFfile As String, imgPreview As Object, Optional iColor As Integer = 0, fLineWidth As Float = 1) As Boolean
+Public Function FitDxfToImage(sDXFfile As String, imgPreview As Object, Optional iColor As Integer = 0, fLineWIdth As Float = 1) As Boolean
 
     Dim drwTemp As New Drawing
 
@@ -827,7 +827,7 @@ Public Function FitDxfToImage(sDXFfile As String, imgPreview As Object, Optional
 
     Dxf.LoadFile(sDxfFile, drwTemp, True, False, True)
 
-    FitEntitiesToImage(drwTemp.Entities, imgPreview, iColor, fLineWidth)
+    FitEntitiesToImage(drwTemp.Entities, imgPreview, iColor, fLineWIdth)
 
 End
 
@@ -871,19 +871,19 @@ Fast Unsafe Public Function Near(xyzReal As Float) As Float
 
     Dim n As Integer, r As Float
 
-    If Not gcd.Drawing.GridActive Then Return xyzReal
+    If Not gcd.Drawing.GrIdActive Then Return xyzReal
 
-    r = xyzReal / gcd.Drawing.GridMinorSpacing
+    r = xyzReal / gcd.Drawing.GrIdMinorSpacing
     n = Int(r)
     r = r - Int(r)
 
     If r > 0.5 Then n += 1
 
-    Return n * gcd.Drawing.GridMinorSpacing
+    Return n * gcd.Drawing.GrIdMinorSpacing
 
 End
 
-Public Function ScreenWidth() As Integer
+Public Function ScreenWIdth() As Integer
 
     Return gcd.Drawing.Sheet.GlSheet.W
 
@@ -1142,13 +1142,13 @@ Public Sub DigestInserts()
                 'Debug e.Gender
                 For Each e2 In cadInsert.InsertParts(e, InStr(e.Gender, "DIMENSION") > 0)
 
-                    cParts.Add(e2, e2.Handle)
+                    cParts.Add(e2, e2.Id)
                 Next
             Endif
         Next
         For Each e2 In cParts
 
-            s.Entities.Add(e2, e2.Handle)
+            s.Entities.Add(e2, e2.Id)
         Next
         cParts.Clear
     Next

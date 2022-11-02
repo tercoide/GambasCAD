@@ -75,7 +75,7 @@ Public Function Draw2(oE As Entity)
     Dim v As Viewport
 
     ' obtengo el viewport
-    v = gcd.Drawing.Sheets[oe.HandleOwner].Viewports[oe.sParam[0]]
+    v = gcd.Drawing.Sheets[oe.idContainer].Viewports[oe.sParam[0]]
 
     If Not v Then Return
     '
@@ -111,7 +111,7 @@ Public Function Draw2(oE As Entity)
 
     Dim L As Layer, E, E2 As Entity
     For Each E In gcd.Drawing.Entities
-        If v.Layers.Exist(e.pLayer.handle) Then
+        If v.Layers.Exist(e.pLayer.id) Then
 
             If e.LineWidth = 0 Then e.LineWidth = 1
 
@@ -163,10 +163,25 @@ Public Sub Finish(oE As Entity) As Boolean
 
     oE.Selected = False
 
+    gcd.Drawing.Sheet.Viewports.Add(oe.pBlock, oe.pBlock.id)
+
+
+
+
+End
+
+Public Sub SetViewport(oe As Entity)
+
+    Dim l As Layer
+    Dim c As Collection
+
+
+    Me.BuildGeometry(oe)
+    Dim w, h As Float
 
     Dim v As New Viewport
     oe.pBlock = v
-    v.Handle = gcd.NewHandle()
+    v.id = gcd.Newid()
     v.X0 = oe.P[0]
     v.Y0 = oe.P[1]
     v.X1 = oe.P[2]
@@ -179,9 +194,9 @@ Public Sub Finish(oE As Entity) As Boolean
     v.PanY = (v.y1 + v.y0) / 2
 
 
-    gcd.Drawing.Sheet.Viewports.Add(v, v.Handle)
+    gcd.Drawing.Sheet.Viewports.Add(v, v.id)
     For Each l In gcd.Drawing.Layers
-        If l.Visible Then v.Layers.add(l, l.handle)
+        If l.Visible Then v.Layers.add(l, l.id)
     Next
 
     ' pero tengo que hacer algo mas aca, centrar el grafico en el viewport
@@ -232,7 +247,7 @@ Public Sub Finish(oE As Entity) As Boolean
 
     ' agrego el Handle del viewport a la entidad
     oe.sParam.Clear
-    oe.sParam.Add(v.Handle)
+    oe.sParam.Add(v.id)
 
 End
 
@@ -256,6 +271,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     Dim fVal, CenterX, CenterY As Float
 
     e.pBlock = v
+    v.id = gcd.Newid()
     Do
         i = dxf.ReadCodePlus(100, sClaves, sValues, ByRef r, i, 10)
         i = Abs(i)
@@ -305,9 +321,9 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     i = dxf.ReadCodePlus(72, sClaves, sValues, ByRef r, i)' 72 Circle zoom percent
     Do
         i = dxf.ReadCodePlus(331, sClaves, sValues, ByRef r, i, 90)' 331 Frozen layer object ID/handle (multiple entries may exist) (optional)
-        l = gcd.GetLayerByHandle(r)
+        l = gcd.GetLayerByid(r)
         If l Then
-            If l.Visible Then v.Layers.add(l, l.handle)
+            If l.Visible Then v.Layers.add(l, l.id)
         End If
     Loop Until i < 0
     i = Abs(i)
@@ -401,6 +417,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     ' 343 Soft pointer reference to viewport object (for layer VP property override)
     ' 344 Soft pointer reference to viewport object (for layer VP property override)
     ' 91 Soft pointer reference to viewport object (for layer VP property override)
+
 
     Return True
 

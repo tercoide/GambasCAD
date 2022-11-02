@@ -20,13 +20,13 @@ Private ReadEntities As New Collection
 Public cEntitiesUnread As Collection
 Public nEntitiesUnread As Integer
 Public nEntitiesRead As Integer
-Private iLastHandle As Integer = 0
-Private iTableHandle As Integer = 0
+Private iLastid As Integer = 0
+Private iTableid As Integer = 0
 
 ' Codigos del DXF
 Public Const codEntity As String = "0"
-Public Const codHandle As String = "5"
-Public Const codHandleOwner As String = "330"
+Public Const codid As String = "5"
+Public Const codidContainer As String = "330"
 Public Const codColor As String = "62"
 Public Const codLType As String = "6"
 Public Const codLayer As String = "8"
@@ -72,7 +72,7 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
     Dim cLlaveActual, cSectionActual, cTable As Collection
     Dim cToFill As New Collection
 
-    iLastHandle = 0
+    iLastid = 0
 
     fp = Open sFile For Read
 
@@ -321,8 +321,8 @@ End
 Private Sub Load3Tables(cTables As Collection)
 
     Dim sTableName As String
-    Dim sTableHandle As String  ' in hex
-    Dim sTableOwner As String   ' in hex , 0 = nobody
+    Dim sTableid As String  ' in hex
+    Dim sTableContainer As String   ' in hex , 0 = nobody
     Dim iTableEntries As Integer
     Dim cTable As Collection
 
@@ -349,10 +349,10 @@ Private Sub Load3Tables(cTables As Collection)
             ReadData
             While lpcode <> "0"
 
-                If lpcode = "5" Then sTableHandle = lpvalue
+                If lpcode = "5" Then sTableid = lpvalue
 
                 If lpcode = "2" Then sTableName = lpvalue
-                If lpcode = "330" Then sTableOwner = lpvalue
+                If lpcode = "330" Then sTableContainer = lpvalue
 
                 'If sTableName = "VIEW" Then Stop
 
@@ -365,7 +365,7 @@ Private Sub Load3Tables(cTables As Collection)
             Wend
 
             ' agrego datos a la tabla auxiliar del dibujo
-            cTables["__AuxData__"].Add(sTableHandle, sTableName)
+            cTables["__AuxData__"].Add(sTableid, sTableName)
 
             cTable = New Collection
 
@@ -387,7 +387,7 @@ Private Sub Load31Table(cVars As Collection, iEntries As Integer)
 
     ' Yo usare dos colecciones
 
-    Dim sTableName, sHandle As String
+    Dim sTableName, sid As String
     Dim cTable As Collection
     Dim i As Integer
 
@@ -419,7 +419,7 @@ Private Sub Load31Table(cVars As Collection, iEntries As Integer)
             Endif
             cTable.Add(lpvalue, NewKey)
 
-            If lpcode = Me.codHandle Then sTableName = lpvalue
+            If lpcode = Me.codid Then sTableName = lpvalue
             ReadData
 
         Wend
@@ -435,13 +435,13 @@ Private Sub Load31Table(cVars As Collection, iEntries As Integer)
     Loop
 
     If cTable.Exist("5") Then
-        sHandle = cTable["5"]
+        sid = cTable["5"]
     Else If cTable.Exist("105") Then
-        sHandle = cTable["105"]
+        sid = cTable["105"]
     Else If cTable.Exist("2") Then
-        sHandle = cTable["2"]
+        sid = cTable["2"]
     Else
-        sHandle = gcd.NewHandle()
+        sid = gcd.Newid()
 
     Endif
     'NewObject(cTable, sHandle)
@@ -490,7 +490,7 @@ Private Sub Load4Blocks(cBlocks As Collection)
                     Loop
                 Endif
 
-                If lpcode = Me.codHandle Then sTableName = lpvalue
+                If lpcode = Me.codid Then sTableName = lpvalue
                 cTable.Add(lpvalue, NewKey)
                 ReadData
 
@@ -518,7 +518,7 @@ Private Sub Load5Entities(cEntities As Collection)
     Dim sClave As String[]
     Dim sValue As String[]
     Dim sEntidad, sKey As String
-    Dim clsHandler As Object
+    Dim clsidr As Object
     Dim eNueva As Entity
     Dim Reads As Boolean
 
@@ -566,13 +566,13 @@ Private Sub Load5Entities(cEntities As Collection)
 
         'NewObject(cEntity, cEntity[dxf.codHandle])
 
-        If cEntity.Exist(dxf.codHandle) Then
-            sKey = cEntity[dxf.codHandle]
+        If cEntity.Exist(dxf.codid) Then
+            sKey = cEntity[dxf.codid]
         End If
         If sKey = "" Then
 
-            sKey = CStr(iLastHandle)
-            Inc iLastHandle
+            sKey = CStr(iLastid)
+            Inc iLastid
 
         End If
 
@@ -589,7 +589,7 @@ Private Sub Load6Objects(cObjects As Collection)
     Dim sClave As String[]
     Dim sValue As String[]
     Dim sEntidad, h As String
-    Dim clsHandler As Object
+    Dim clsidr As Object
     Dim eNueva As Entity
     Dim Reads As Boolean
 
@@ -682,7 +682,7 @@ Public Function SaveFile(sName As String, drwToSAve As Drawing, Optional LoadMin
 
     hFile = Open sName For Write Create
 
-    iLastHandle = 0          ' creamos las handles desde cero
+    iLastid = 0          ' creamos las handles desde cero
 
     ' Las HANDLES
     ' 0 -> Es el Drawing
@@ -860,7 +860,7 @@ Private Function Save3TablesDirect(drw As Drawing) As Integer
 
     Dim cTable, cTableEntry, cVar, cVars As Collection
     Dim sValues, lpclave As String
-    Dim sTableHandle As String
+    Dim sTableid As String
     Dim i As Integer
     ' Empiezo la seccion tables
     Print #hFIle, "  0"
@@ -885,15 +885,15 @@ End
 
 Private Function Save3TableAppID(drw As Drawing) As Integer
 
-    Inc iLastHandle
-    iTableHandle = iLastHandle
+    Inc iLastid
+    iTableid = iLastid
 
     Print #hFIle, "  0"
     Print #hFIle, "TABLE"
     Print #hFIle, "  2"
     Print #hFIle, "APPID"
     Print #hFIle, "  5"         ' handle
-    Print #hFIle, iLastHandle
+    Print #hFIle, iLastid
     Print #hFIle, "  330"   ' handle al padre de esta tabla, que es 0 porque pertenece al drawing
     Print #hFIle, "0"
     Print #hFIle, "  100"
@@ -904,13 +904,13 @@ Private Function Save3TableAppID(drw As Drawing) As Integer
     ' APPID
     Dim oneAppid As APPID
     For Each oneAppid In drw.AppIDs
-        Inc iLastHandle
+        Inc iLastid
         Print #hFIle, "  0"
         Print #hFIle, "APPID"
         Print #hFIle, "  5"                     ' handle propio
-        Print #hFIle, iLastHandle
+        Print #hFIle, iLastid
         Print #hFIle, "  330"                   ' handle del padre
-        Print #hFIle, iTableHandle
+        Print #hFIle, iTableid
         Print #hFIle, "  100"
         Print #hFIle, "AcDbSymbolTableRecord"
         Print #hFIle, "  100"
@@ -927,15 +927,15 @@ End
 
 Private Function Save3TableLayers(drw As Drawing) As Integer
 
-    Inc iLastHandle
-    iTableHandle = iLastHandle
+    Inc iLastid
+    iTableid = iLastid
 
     Print #hFIle, "  0"
     Print #hFIle, "TABLE"
     Print #hFIle, "  2"
     Print #hFIle, "LAYER"
     Print #hFIle, "  5"         ' handle
-    Print #hFIle, iLastHandle
+    Print #hFIle, iLastid
     Print #hFIle, "  330"   ' handle al padre de esta tabla, que es 0 porque pertenece al drawing
     Print #hFIle, "0"
     Print #hFIle, "  100"
@@ -945,13 +945,13 @@ Private Function Save3TableLayers(drw As Drawing) As Integer
 
     Dim oneLayer As Layer
     For Each oneLayer In drw.Layers
-        Inc iLastHandle
+        Inc iLastid
         Print #hFIle, "  0"
         Print #hFIle, "LAYER"
         Print #hFIle, "  5"                     ' handle propio
-        Print #hFIle, iLastHandle
+        Print #hFIle, iLastid
         Print #hFIle, "  330"                   ' handle del padre
-        Print #hFIle, iTableHandle
+        Print #hFIle, iTableid
         Print #hFIle, "  100"
         Print #hFIle, "AcDbSymbolTableRecord"
         Print #hFIle, "  100"
@@ -981,15 +981,15 @@ End
 
 Private Function Save3TableTextStyles(drw As Drawing) As Integer
 
-    Inc iLastHandle
-    iTableHandle = iLastHandle
+    Inc iLastid
+    iTableid = iLastid
 
     Print #hFIle, "  0"
     Print #hFIle, "TABLE"
     Print #hFIle, "  2"
     Print #hFIle, "STYLE"
     Print #hFIle, "  5"         ' handle
-    Print #hFIle, iLastHandle
+    Print #hFIle, iLastid
     Print #hFIle, "  330"   ' handle al padre de esta tabla, que es 0 porque pertenece al drawing
     Print #hFIle, "0"
     Print #hFIle, "  100"
@@ -999,13 +999,13 @@ Private Function Save3TableTextStyles(drw As Drawing) As Integer
 
     Dim oneTextStyle As TextStyle
     For Each oneTextStyle In drw.TextStyles
-        Inc iLastHandle
+        Inc iLastid
         Print #hFIle, "  0"
         Print #hFIle, "STYLE"
         Print #hFIle, "  5"                     ' handle propio
-        Print #hFIle, iLastHandle
+        Print #hFIle, iLastid
         Print #hFIle, "  330"                   ' handle del padre
-        Print #hFIle, iTableHandle
+        Print #hFIle, iTableid
         Print #hFIle, "  100"
         Print #hFIle, "AcDbSymbolTableRecord"
         Print #hFIle, "  100"
@@ -1037,15 +1037,15 @@ End
 
 Private Function Save3TableDimStyles(drw As Drawing) As Integer
 
-    Inc iLastHandle
-    iTableHandle = iLastHandle
+    Inc iLastid
+    iTableid = iLastid
 
     Print #hFIle, "  0"
     Print #hFIle, "TABLE"
     Print #hFIle, "  2"
     Print #hFIle, "DIMSTYLE"
     Print #hFIle, "  5"         ' handle
-    Print #hFIle, iLastHandle
+    Print #hFIle, iLastid
     Print #hFIle, "  330"   ' handle al padre de esta tabla, que es 0 porque pertenece al drawing
     Print #hFIle, "0"
     Print #hFIle, "  100"
@@ -1055,13 +1055,13 @@ Private Function Save3TableDimStyles(drw As Drawing) As Integer
 
     Dim oneDimtStyle As DimStyle
     For Each oneDimtStyle In drw.DimStyles
-        Inc iLastHandle
+        Inc iLastid
         Print #hFIle, "  0"
         Print #hFIle, "DIMSTYLE"
         Print #hFIle, " 105"                     ' handle propio
-        Print #hFIle, iLastHandle
+        Print #hFIle, iLastid
         Print #hFIle, " 330"                   ' handle del padre
-        Print #hFIle, iTableHandle
+        Print #hFIle, iTableid
         Print #hFIle, " 100"
         Print #hFIle, "AcDbSymbolTableRecord"
         Print #hFIle, " 100"
@@ -1148,15 +1148,15 @@ End
 
 Private Function Save3TableLineTypes(drw As Drawing) As Integer
 
-    Inc iLastHandle
-    iTableHandle = iLastHandle
+    Inc iLastid
+    iTableid = iLastid
 
     Print #hFIle, "  0"
     Print #hFIle, "TABLE"
     Print #hFIle, "  2"
     Print #hFIle, "LTYPE"
     Print #hFIle, "  5"         ' handle
-    Print #hFIle, iLastHandle
+    Print #hFIle, iLastid
     Print #hFIle, "  330"   ' handle al padre de esta tabla, que es 0 porque pertenece al drawing
     Print #hFIle, "0"
     Print #hFIle, "  100"
@@ -1166,13 +1166,13 @@ Private Function Save3TableLineTypes(drw As Drawing) As Integer
 
     Dim oneLtype As LineType
     For Each oneLtype In drw.LineTypes
-        Inc iLastHandle
+        Inc iLastid
         Print #hFIle, "  0"
         Print #hFIle, "LTYPE"
         Print #hFIle, "  5"                     ' handle propio
-        Print #hFIle, iLastHandle
+        Print #hFIle, iLastid
         Print #hFIle, "  330"                   ' handle del padre
-        Print #hFIle, iTableHandle
+        Print #hFIle, iTableid
         Print #hFIle, "  100"
         Print #hFIle, "AcDbSymbolTableRecord"
         Print #hFIle, "  100"
@@ -1197,15 +1197,15 @@ End
 
 Private Function Save3TableUCSs(drw As Drawing) As Integer
 
-    Inc iLastHandle
-    iTableHandle = iLastHandle
+    Inc iLastid
+    iTableid = iLastid
 
     Print #hFIle, "  0"
     Print #hFIle, "TABLE"
     Print #hFIle, "  2"
     Print #hFIle, "UCS"
     Print #hFIle, "  5"         ' handle
-    Print #hFIle, iLastHandle
+    Print #hFIle, iLastid
     Print #hFIle, "  330"   ' handle al padre de esta tabla, que es 0 porque pertenece al drawing
     Print #hFIle, "0"
     Print #hFIle, "  100"
@@ -1215,13 +1215,13 @@ Private Function Save3TableUCSs(drw As Drawing) As Integer
 
     Dim oneUCS As UCS
     For Each oneUCS In drw.UCSs
-        Inc iLastHandle
+        Inc iLastid
         Print #hFIle, "  0"
         Print #hFIle, "UCS"
         Print #hFIle, "  5"                     ' handle propio
-        Print #hFIle, iLastHandle
+        Print #hFIle, iLastid
         Print #hFIle, "  330"                   ' handle del padre
-        Print #hFIle, iTableHandle
+        Print #hFIle, iTableid
         Print #hFIle, "  100"
         Print #hFIle, "AcDbSymbolTableRecord"
         Print #hFIle, "  100"
@@ -1257,15 +1257,15 @@ End
 
 Private Function Save3TableViews(drw As Drawing) As Integer
 
-    Inc iLastHandle
-    iTableHandle = iLastHandle
+    Inc iLastid
+    iTableid = iLastid
 
     Print #hFIle, "  0"
     Print #hFIle, "TABLE"
     Print #hFIle, "  2"
     Print #hFIle, "VIEW"
     Print #hFIle, "  5"         ' handle
-    Print #hFIle, iLastHandle
+    Print #hFIle, iLastid
     Print #hFIle, "  330"   ' handle al padre de esta tabla, que es 0 porque pertenece al drawing
     Print #hFIle, "0"
     Print #hFIle, "  100"
@@ -1275,13 +1275,13 @@ Private Function Save3TableViews(drw As Drawing) As Integer
 
     Dim oneView As View, sData As String
     For Each oneView In drw.Views
-        Inc iLastHandle
+        Inc iLastid
         Print #hFIle, "  0"
         Print #hFIle, "VIEW"
         Print #hFIle, "  5"                     ' handle propio
-        Print #hFIle, iLastHandle
+        Print #hFIle, iLastid
         Print #hFIle, "  330"                   ' handle del padre
-        Print #hFIle, iTableHandle
+        Print #hFIle, iTableid
         Print #hFIle, "  100"
         Print #hFIle, "AcDbSymbolTableRecord"
         Print #hFIle, "  100"
@@ -1298,15 +1298,15 @@ End
 
 Private Function Save3TableViewPorts(drw As Drawing) As Integer
 
-    Inc iLastHandle
-    iTableHandle = iLastHandle
+    Inc iLastid
+    iTableid = iLastid
 
     Print #hFIle, "  0"
     Print #hFIle, "TABLE"
     Print #hFIle, "  2"
     Print #hFIle, "VPORT"
     Print #hFIle, "  5"         ' handle
-    Print #hFIle, iLastHandle
+    Print #hFIle, iLastid
     Print #hFIle, "  330"   ' handle al padre de esta tabla, que es 0 porque pertenece al drawing
     Print #hFIle, "0"
     Print #hFIle, "  100"
@@ -1316,13 +1316,13 @@ Private Function Save3TableViewPorts(drw As Drawing) As Integer
 
     Dim oneViewport As Viewport, sData As String
     For Each oneViewport In drw.Viewports
-        Inc iLastHandle
+        Inc iLastid
         Print #hFIle, "  0"
         Print #hFIle, "VPORT"
         Print #hFIle, "  5"                     ' handle propio
-        Print #hFIle, iLastHandle
+        Print #hFIle, iLastid
         Print #hFIle, "  330"                   ' handle del padre
-        Print #hFIle, iTableHandle
+        Print #hFIle, iTableid
         Print #hFIle, "  100"
         Print #hFIle, "AcDbSymbolTableRecord"
         Print #hFIle, "  100"
@@ -1341,8 +1341,8 @@ Private Function save31BlockRecord(drw As Drawing) As Integer
 
     Dim eBlock As Block
 
-    Inc iLastHandle ' deberia ser = 1 aqui
-    iTableHandle = iLastHandle
+    Inc iLastid ' deberia ser = 1 aqui
+    iTableid = iLastid
 
     Block_Record = New Collection
 
@@ -1351,7 +1351,7 @@ Private Function save31BlockRecord(drw As Drawing) As Integer
     Print #hFIle, "  2"
     Print #hFIle, "BLOCK_RECORD"
     Print #hFIle, "  5"         ' handle
-    Print #hFIle, iLastHandle
+    Print #hFIle, iLastid
     Print #hFIle, "  330"   ' handle al padre de esta tabla, que es 0 porque pertenece al drawing
     Print #hFIle, "0"
     Print #hFIle, "  100"
@@ -1360,14 +1360,14 @@ Private Function save31BlockRecord(drw As Drawing) As Integer
     Print #hFIle, CStr(drw.Blocks.Count)
 
     For Each eBlock In drw.Blocks
-        Inc iLastHandle
-        Block_Record.Add(iLastHandle, eBlock.name)
+        Inc iLastid
+        Block_Record.Add(iLastid, eBlock.name)
         Print #hFIle, "  0"
         Print #hFIle, "BLOCK_RECORD"
         Print #hFIle, "  5"         ' handle
-        Print #hFIle, iLastHandle
+        Print #hFIle, iLastid
         Print #hFIle, " 330"
-        Print #hFIle, iTableHandle
+        Print #hFIle, iTableid
         Print #hFIle, " 100"
         Print #hFIle, "AcDbSymbolTableRecord"
         Print #hFIle, " 100"
@@ -1401,11 +1401,11 @@ Private Function Save4BlocksDirect(eBlocks As Collection) As Integer
     Print #hFIle, "2"
     Print #hFIle, "BLOCKS"
     For Each eBlock In eBlocks
-        Inc iLastHandle
+        Inc iLastid
         Print #hFIle, "  0"
         Print #hFIle, "BLOCK"
         Print #hFIle, "  5"         ' handle
-        Print #hFIle, iLastHandle 'eBlock.handle          ' valor de la handle
+        Print #hFIle, iLastid 'eBlock.handle          ' valor de la handle
         Print #hFIle, "  330"
         Print #hFIle, Block_Record[eBlock.name]
         Print #hFIle, "  100"
@@ -1443,7 +1443,7 @@ Private Function Save4BlocksDirect(eBlocks As Collection) As Integer
                 For i = 0 To stxEnty.max Step 2
                     lpclave = stxEnty[i + 1]
                     sValues = stxEnty[i]
-                    If lpclave = "330" Then lpvalue = iLastHandle
+                    If lpclave = "330" Then lpvalue = iLastid
                     Print #hFile, lpclave
                     Print #hFIle, sValues
                 Next
@@ -1500,7 +1500,7 @@ Private Function Save5EntitiesDirect(eEntys As Collection) As Integer
 
 End
 
-Public Function CheckRepeatedHandles()
+Public Function CheckRepeatedids()
 
 End
 
@@ -1779,7 +1779,7 @@ Public Sub ReadLayers(cLaydata As Collection, drw As Drawing)
     For Each cLay As Collection In cLayData["TABLES"]["LAYER"]
         hLay = New Layer
         hLay.Name = cLay[dxf.codName]
-        hLay.Handle = cLay[dxf.codHandle]
+        hLay.id = cLay[dxf.codid]
         hLay.Visible = CInt(cLay[dxf.codColor]) >= 0
         hLay.Colour = Abs(CInt(cLay[dxf.codColor]))
         'depre hLay.handle = cLay[dxf.codHandle]
@@ -1862,7 +1862,7 @@ Public Sub ReadStyles(cData As Collection, drw As Drawing)
             Try hdim.DIMTXSTY = c["340"]
 
             If hdim.DIMTXSTY <> "" Then
-                RefStyle = gcd.FindStyleByHandle(hdim.DIMTXSTY)
+                RefStyle = gcd.FindStyleByid(hdim.DIMTXSTY)
                 If Not IsNull(RefStyle) Then
                     If RefStyle.FixedH_40 > 0 Then hdim.DIMTXT = RefStyle.FixedH_40
                     hdim.DIMTXSTY = RefStyle.sFont_3
@@ -1968,7 +1968,7 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
 
         For Each colBlk In colData["BLOCKS"]
             newBlock = New Block
-            newBlock.handle = colBlk[dxf.codHandle]
+            newBlock.id = colBlk[dxf.codid]
             newBlock.entities = New Collection
             newBlock.name = colBlk[dxf.codName]
             newBlock.layer = colBlk[dxf.codLayer]
@@ -1979,8 +1979,8 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
 
             If colData["TABLES"].Exist("BLOCK_RECORD") Then
                 If colData["TABLES"]["BLOCK_RECORD"].Exist(colBlk["330"]) Then
-                    newBlock.HandleOwner = colData["TABLES"]["BLOCK_RECORD"][colBlk["330"]]["5"]
-                    newBlock.HandleAsociatedLayout = colData["TABLES"]["BLOCK_RECORD"][colBlk["330"]]["340"]
+                    newBlock.idContainer = colData["TABLES"]["BLOCK_RECORD"][colBlk["330"]]["5"]
+                    newBlock.idAsociatedLayout = colData["TABLES"]["BLOCK_RECORD"][colBlk["330"]]["340"]
                 End If
             End If
 
@@ -2030,30 +2030,37 @@ End
 
 Public Sub SetViewports(cDxfData As Collection, drw As Drawing)
 
-    Dim e As Entity, v As Viewport, b, n, hLayout As String
+    Dim e As Entity, v As Viewport, n, hLayout As String, s As Sheet, b As Block
 
-    DRW.Entities = DRW.Sheet.Entities
-    For Each e In drw.Entities
-        If e.Gender = cadViewport.Gender Then
-            v = e.pBlock
-            ' Busco el Layout
-            n = cDxfData["BLOCKS"][e.HandleOwner]["2"]                      ' nombre del bloque
-            hLayout = cDxfData["TABLES"]["BLOCK_RECORD"][n]["340"]          ' h del Layout asocicado
-            drw.Sheets[hLayout].Viewports.Add(v, v.handle)                  ' agrego el viewport
-
-        Endif
-    Next
+    '
+    ' For Each b In drw.Blocks
+    '     If Left(b.name, 1) = "*" Then
+    '
+    '
+    '
+    '     For Each e In s.Entities
+    '         If e.Gender = cadViewport.Gender Then
+    '             v = e.pBlock
+    '             ' Busco el Layout
+    '             n = cDxfData["BLOCKS"][e.HandleOwner]["2"]                      ' nombre del bloque
+    '             hLayout = cDxfData["TABLES"]["BLOCK_RECORD"][n]["340"]          ' h del Layout asocicado
+    '             drw.Sheets[hLayout].Viewports.Add(v, v.handle)                  ' agrego el viewport
+    '
+    '         Endif
+    '     Next
+    '     Endif
+    ' Next
 
 End
 
 '' Importa las cosas de manera descentralizada
-Public Sub DXFtoEntity(cDxfEntities As Collection, cDxfData As Collection, drw As Drawing, Optional cEntity As Collection, NewHandles As Boolean = False)
+Public Sub DXFtoEntity(cDxfEntities As Collection, cDxfData As Collection, drw As Drawing, Optional cEntity As Collection, Newids As Boolean = False)
 
     Dim e, obx, cLastParent As Collection
     Dim entNueva As Entity
     Dim flgIsPolyline, IsDummy As Boolean
     Dim pBlockPolyline, b As Block
-    Dim sHandle, sName As String
+    Dim sid, sName As String
 
     Dim fTime As Float
     Dim t As Date
@@ -2068,7 +2075,7 @@ Public Sub DXFtoEntity(cDxfEntities As Collection, cDxfData As Collection, drw A
 
             If IsDummy Then
                 ' no esta implementada
-                gcd.debuginfo("Entidad no implementada o con errores: " & e[dxf.codHandle] & "," & e[dxf.codEntity])
+                gcd.debuginfo("Entidad no implementada o con errores: " & e[dxf.codId] & "," & e[dxf.codEntity])
 
             Else
 
@@ -2081,14 +2088,14 @@ Public Sub DXFtoEntity(cDxfEntities As Collection, cDxfData As Collection, drw A
                     If Not ReadTimes.Exist(entNueva.Gender) Then ReadTimes.Add(fTime, entNueva.Gender)
                     If Not ReadEntities.Exist(entNueva.Gender) Then ReadEntities.Add(1, entNueva.Gender)
 
-                    If NewHandles Or (entNueva.Handle = "") Then
-                        sHandle = gcd.NewHandle()
-                        entNueva.Handle = sHandle
+                    If NewIds Or (entNueva.Id = "") Then
+                        sId = gcd.NewId()
+                        entNueva.Id = sId
                     Else
-                        sHandle = entNueva.Handle
+                        sId = entNueva.Id
                     End If
                     If flgIsPolyline Then
-                        pBlockPolyline.entities.Add(entNueva, sHandle)
+                        pBlockPolyline.entities.Add(entNueva, sId)
                     Else
                         If cEntity Then                                         ' el contenedor fue provisto
                             obx = cEntity
@@ -2123,15 +2130,18 @@ Public Sub DXFtoEntity(cDxfEntities As Collection, cDxfData As Collection, drw A
 
                         Select Case entNueva.Gender
                             Case "HATCH", "INSERT", "POLYLINE", "POLYLINE_2D"
-                                hContainers.Add(entNueva.pBlock.entities, entNueva.Handle)
+                                hContainers.Add(entNueva.pBlock.entities, entNueva.Id)
                         End Select
 
                         If obx Then
 
-                            obx.Add(entNueva, sHandle)
+                            obx.Add(entNueva, sId)
+                            ' pero , ademas
+
+                            drw.Entities.Add(entNueva, sId)
                         Else
                             Debug "Contenedor no encontrado, van al Model", hContainer
-                            drw.Sheet.entities.Add(entNueva, sHandle)
+                            drw.Sheet.entities.Add(entNueva, sId)
                         End If
 
                         ' If e[dxf.codEntity] = "POLYLINE" Then
@@ -2239,7 +2249,7 @@ Public Function ReadObjectsFromDXF(cData As Collection, drw As Drawing)
             Me.DigestColeccion(cObject, ByRef sClaves, ByRef sValues)
             s = New Sheet
             objLayout.importDXF(s, sClaves, sValues)
-            drw.Sheets.Add(s, s.Handle)
+            drw.Sheets.Add(s, s.Id)
             If LCase(s.Name) = "model" Then
                 s.IsModel = True
                 drw.Sheet = s
@@ -2258,7 +2268,7 @@ Private Function GetBlock(cBlocks As Collection, hBlockRecord As String) As Bloc
     Dim b As Block
 
     For Each b In cBlocks
-        If b.HandleOwner = hBlockRecord Then Return b
+        If b.IdContainer = hBlockRecord Then Return b
 
     Next
 

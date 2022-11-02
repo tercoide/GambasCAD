@@ -49,14 +49,14 @@ Public Const DXF_Export As Boolean = True
 Public Const JSON_Export As Boolean = True
 
 '' Creates a new LWpolyline entity and prepares arrays
-Public Function NewEntity(Optional fPoints As Float[], bNewHandle As Boolean = False) As Entity
+Public Function NewEntity(Optional fPoints As Float[], bNewid As Boolean = False) As Entity
 
     Dim e As New Entity
 
     e.Gender = Me.Gender
-    If bNewHandle Then
-        e.Handle = gcd.NewHandle()
-        e.HandleOwner = gcd.Drawing.Sheet.Handle
+    If bNewid Then
+        e.id = gcd.Newid()
+        e.idContainer = gcd.Drawing.Sheet.id
     End If
     e.iParam.Resize(Me.iTotalParams)
     e.fParam.Resize(Me.TotalParams)
@@ -74,7 +74,7 @@ Public Function NewEntity(Optional fPoints As Float[], bNewHandle As Boolean = F
 
 End
 
-Public Function CopyEntity(enty As Entity, Optional NewHandle As Boolean = False, DuplicateBlocks As Boolean = False) As Entity
+Public Function CopyEntity(enty As Entity, Optional Newid As Boolean = False, DuplicateBlocks As Boolean = False) As Entity
 
 End
 
@@ -226,5 +226,51 @@ End
 
 '' Builds the geometry of the entity wthout drwing it
 Public Function BuildGeometry(E As Entity, Optional density As Float)
+
+End
+
+'' Crea una nueva entidad a partir de otra. Opcionalmente nueva Handle y un bloque nuevo si es que tiene.
+Public Sub ClonEntity(eOrigen As Entity) As Entity
+    ' clona una entidad
+    ' copia todos sus elementos
+    ' llama a las rutinas de reconstruccion del contorno y de los POI
+
+    Dim eNueva As Entity, i As Integer
+
+    eNueva = gcd.CCC[eOrigen.gender].newEntity()
+
+    ' arrays
+    eNueva.p.resize(eOrigen.p.count)
+    eNueva.fparam.resize(eOrigen.fparam.count)
+    eNueva.iparam.resize(eOrigen.iparam.count)
+    eNueva.psel.resize(eOrigen.psel.count)
+    eNueva.sParam.resize(eOrigen.sParam.count)
+    For i = 0 To eOrigen.p.Max
+        eNueva.P[i] = eOrigen.P[i]
+    Next
+    For i = 0 To eOrigen.fparam.Max
+        eNueva.fparam[i] = eOrigen.fparam[i]
+    Next
+    For i = 0 To eOrigen.iparam.Max
+        eNueva.iparam[i] = eOrigen.iparam[i]
+    Next
+    For i = 0 To eOrigen.sParam.Max
+        eNueva.sParam[i] = eOrigen.sParam[i]
+    Next
+
+    eNueva.Gender = eOrigen.Gender
+    eNueva.pLayer = eOrigen.pLayer
+    eNueva.pBlock = eOrigen.pBlock
+    eNueva.Group = eOrigen.Group
+    eNueva.colour = eOrigen.colour
+    eNueva.LineType = eOrigen.LineType
+    eNueva.LineWidth = eOrigen.LineWidth
+    eNueva.id = eOrigen.id
+    eNueva.idContainer = eOrigen.idContainer
+    eNueva.pStyle = eOrigen.pStyle
+
+    Gcd.CCC[eNueva.gender].BuildPoi(eNueva)
+
+    Return eNueva
 
 End

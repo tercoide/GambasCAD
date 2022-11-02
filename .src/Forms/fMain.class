@@ -52,8 +52,8 @@ Public Sub SearchTimer_Timer()
     gcd.Drawing.HoveredEntities = clsMouseTracking.CheckAboveEntities(xr, yr)
     If gcd.Drawing.HoveredEntities.Count > 0 Then
         gcd.Drawing.HoveredEntity = gcd.Drawing.HoveredEntities.First
-        If gcd.Drawing.HoveredEntity.HandleOwner <> "" Then
-            gcd.Drawing.HoveredInsert = gcd.Drawing.Entities[gcd.Drawing.HoveredEntity.HandleOwner]
+        If gcd.Drawing.HoveredEntity.IdContainer <> "" Then
+            gcd.Drawing.HoveredInsert = gcd.Drawing.Entities[gcd.Drawing.HoveredEntity.IdContainer]
         Else
             gcd.Drawing.HoveredInsert = Null
         End If
@@ -72,7 +72,7 @@ Public Sub Run() As Boolean
     Me.mbtColors.w = 32
     Me.cmbDimStyle.w = 128
     Me.grdLayers.w = 146
-    Me.Menus.Hide
+    Me.Menus.HIde
     'Me.tbnLayersOnScreen.w = 96
     Me.tabDrawings[0].Visible = False
 
@@ -467,9 +467,9 @@ Public Function Action_Activate(sAction As String) As Boolean
             clsEntities.EditEntities("linetype", gcd.Drawing.CurrLineType)
             clsEntities.DeSelection()
 
-        Case "grid"
-            gcd.Drawing.GridActive = Not gcd.Drawing.GridActive
-            If gcd.Drawing.GridActive Then DrawingAids.RebuildGrid
+        Case "grId"
+            gcd.Drawing.GrIdActive = Not gcd.Drawing.GrIdActive
+            If gcd.Drawing.GrIdActive Then DrawingAIds.RebuildGrId
 
         Case "ortho"
             gcd.Orthogonal = Not gcd.Orthogonal
@@ -604,8 +604,11 @@ Public Sub GLArea1_draw()
 
             gl.Enable(GL.sCISSOR_TEST)
 
-            For Each L In vpt.Layers
-                If L.Visible Then gl.CallList(L.glList)
+            'For Each L In vpt.Layers
+            For Each L In gcd.Drawing.Layers
+                If L.Visible Then
+                    gl.CallList(L.glList)
+                End If
             Next
             gl.Disable(gl.SCISSOR_TEST)
         Next
@@ -647,11 +650,11 @@ Public Sub GLArea1_draw()
     ' el orden del dibujo es importante en paint, porque una cosa tapa a la otra; en openGL aparentemente es al reves, lo primero se dibuja ultimo
 
     '
-    If gcd.DrawBounds Then DrawingAids.DrawPolygons
+    If gcd.DrawBounds Then DrawingAIds.DrawPolygons
 
-    DrawingAids.DrawCoordenadas
+    DrawingAIds.DrawCoordenadas
 
-    DrawingAids.DibujaHelper
+    DrawingAIds.DibujaHelper
 
     '
     'clsEntities.DrawArrays()
@@ -660,7 +663,7 @@ Public Sub GLArea1_draw()
     If gcd.Drawing.flgShowPOIinfo And gcd.Drawing.iEntity.Count > 0 Then
 
         Select gcd.Drawing.iEntity[2]
-            Case gcd.poiMidPoint
+            Case gcd.poiMIdPoint
                 glPlus.PolygonFilled([gcd.Drawing.iEntity[0] - gcd.Metros(4), gcd.Drawing.iEntity[1], gcd.Drawing.iEntity[0], gcd.Drawing.iEntity[1] + gcd.Metros(4), gcd.Drawing.iEntity[0] + gcd.Metros(4), gcd.Drawing.iEntity[1], gcd.Drawing.iEntity[0], gcd.Drawing.iEntity[1] - gcd.Metros(4)], Color.Blue, Color.Green)
             Case gcd.poiQuadrant
                 glPlus.PolygonFilled([gcd.Drawing.iEntity[0] - gcd.Metros(6), gcd.Drawing.iEntity[1], gcd.Drawing.iEntity[0], gcd.Drawing.iEntity[1] + gcd.Metros(6), gcd.Drawing.iEntity[0] + gcd.Metros(6), gcd.Drawing.iEntity[1], gcd.Drawing.iEntity[0], gcd.Drawing.iEntity[1] - gcd.Metros(6)], Color.Cyan, Color.Cyan)
@@ -678,7 +681,7 @@ Public Sub GLArea1_draw()
 
     Endif
 
-    If gcd.Drawing.GridActive Then gl.CallList(gcd.Drawing.GLListGrid)
+    If gcd.Drawing.GrIdActive Then gl.CallList(gcd.Drawing.GLListGrId)
     If gcd.flgNewPosition Then
         clsEntities.CollectVisibleEntities
         gcd.flgNewPosition = False
@@ -755,7 +758,7 @@ Public Sub GLArea1_MouseMove()
     Me.lblCoordX.Refresh
     Me.lblCoordY.Refresh
 
-    If Mouse.Middle Then
+    If Mouse.MIddle Then
         cadPan.MouseMove()
     Else If Mouse.Left Then
 
@@ -811,7 +814,7 @@ Public Sub GLArea1_MouseWheel()
     gcd.clsJob.MouseWHEEL()
 
     gcd.setdashes
-    DrawingAids.RebuildGrid
+    DrawingAIds.RebuildGrId
 
 End
 
@@ -1229,8 +1232,8 @@ Public Sub Form_Keyrelease()
                     KeysAccumulator &= Key.Text
                     'gcd.clsJob.KeyPress()
 
-                    DrawingAids.ErrorMessage = ""
-                    DrawingAids.Refresh
+                    DrawingAIds.ErrorMessage = ""
+                    DrawingAIds.Refresh
                 End If
                 ' If fmain.txtInput.Visible Then Return
                 ' If Key.Normal <> "" Then
@@ -1259,7 +1262,7 @@ End
 Public Sub grdLayers_Click()
 
     If gcd.flgShowingLayers Then
-        fLayersOnScreen.Hide
+        fLayersOnScreen.HIde
         gcd.flgShowingLayers = False
 
     Else
@@ -1419,7 +1422,7 @@ Public Sub UpdateLayersCombo()
     Next
     mLayer.Name = sName
     For Each aLayer In gcd.Drawing.Layers
-        If aLayer.Hidden Then Continue
+        If aLayer.HIdden Then Continue
         m2 = New Menu(mLayer)
         m2.Text = aLayer.Name
         m2.Picture = paintPlus.picCirculito(8, gcd.GetGBColor(aLayer.Colour), Color.ButtonForeground)
@@ -1463,12 +1466,12 @@ Public Sub UpdateLineWtCombo()
     '  +------------------------------------+
     Paint.MoveTo(0, imagen.h / 2)
     lw = gcd.Drawing.CurrLayer.LineWt '][dxf.codLWht] / 100 * 3
-    Paint.LineWidth = lw
-    If Paint.LineWidth < 1 Then Paint.LineWidth = 1
+    Paint.LineWIdth = lw
+    If Paint.LineWIdth < 1 Then Paint.LineWIdth = 1
     Paint.RelLineTo(imagen.w / 2, 0)
     Paint.Stroke
     Paint.MoveTo(imagen.w / 10 * 5.5, imagen.h * 0.1)
-    Paint.LineWidth = 1
+    Paint.LineWIdth = 1
     Paint.Text("ByLayer",,,, imagen.h * 0.6, Align.Left)
     Paint.Fill
     Paint.End
@@ -1487,12 +1490,12 @@ Public Sub UpdateLineWtCombo()
         '  +------------------------------------+
         Paint.MoveTo(0, imagen.h / 2)
         lw = f * 3
-        Paint.LineWidth = lw
-        If Paint.LineWidth < 1 Then Paint.LineWidth = 1
+        Paint.LineWIdth = lw
+        If Paint.LineWIdth < 1 Then Paint.LineWIdth = 1
         Paint.RelLineTo(imagen.w / 2, 0)
         Paint.Stroke
         Paint.MoveTo(imagen.w / 10 * 5.5, imagen.h * 0.1)
-        Paint.LineWidth = 1
+        Paint.LineWIdth = 1
         Paint.Text(Format(f, "0.00mm"),,,, imagen.h * 0.6, Align.Left)
         Paint.Fill
         Paint.End
@@ -1568,14 +1571,14 @@ Public Sub UpdateLineTypeCombo()
         Paint.Begin(imagen)
         Paint.AntiAlias = True
         Paint.MoveTo(0, imagen.h * 0.8)
-        Paint.LineWidth = 1
+        Paint.LineWIdth = 1
         Paint.Dash = lty.TrameLength
         Paint.RelLineTo(imagen.w, 0)
         Paint.Stroke
         Paint.Dash = Null
         ' Texto
         Paint.MoveTo(0, 0)
-        Paint.LineWidth = 1
+        Paint.LineWIdth = 1
         Paint.Text(lty.Name,,,, imagen.h * 0.5, Align.topLeft)
         Paint.Fill
         Paint.End
@@ -1698,6 +1701,7 @@ Public Function NewSheet(tabSheets As TabPanel, s As Sheet)
     Dim i As Integer
 
     InUse = True
+    gcd.DrawingReady = False
 
     tabSheets.Count += 1
 
@@ -1718,6 +1722,7 @@ Public Function NewSheet(tabSheets As TabPanel, s As Sheet)
     glPlus.Init(glaFile2)
     Debug "New tab", tabSheets.w, tabSheets.h, glaFile2.w, glaFile2.H
 
+    gcd.DrawingReady = True
     InUse = False
 
 End
@@ -1800,7 +1805,7 @@ Public Sub LoadButtons(Optional iSize As Integer = 32, iColumns As Integer = 2)
     Utils.TBNCreator(panEntities, "tbnRectangle", "cadRectangle")
     Utils.TBNCreator(panEntities, "tbnPolygon", "cadPolygon")
     Utils.TBNCreator(panEntities, "tbnPoint", "cadPoint")
-    Utils.TBNCreator(panEntities, "tbnSolid", "cadSolid")
+    Utils.TBNCreator(panEntities, "tbnSolId", "cadSolId")
 
     'Dimensiones
     Utils.tbnCreator(panDimensions, "tbnDimension_linear", "cadDimension_Linear")
@@ -1834,7 +1839,7 @@ Public Sub LoadButtons(Optional iSize As Integer = 32, iColumns As Integer = 2)
     Utils.tbnCreator(panTools, "tbnTrim", "cadtrim")
     Utils.tbnCreator(panTools, "tbnArray", "cadarray")
     Utils.tbnCreator(panTools, "tbnBreak", "cadbreak")
-    Utils.tbnCreator(panTools, "tbnDivide", "caddivide")
+    Utils.tbnCreator(panTools, "tbnDivIde", "caddivIde")
     Utils.tbnCreator(panTools, "tbnMirror", "cadMirror")
     Utils.tbnCreator(panTools, "tbnOffset", "cadoffset")
 
@@ -1851,20 +1856,20 @@ Public Sub FillBlocks()
     Dim sFilename As String
     Dim imgPreview As Image
     Dim entScale As Float
-    Dim entidad As Entity
+    Dim entIdad As Entity
     Dim sFActor As Float = 1.5
     Dim b As Block
     Dim iSize As Integer = 40
     Dim i, iRow, iCol As Integer
 
-    GridView1.Clear
-    GridView1.Columns.Count = (GridView1.W) / iSize ' deberia poder conocer el ancho del scrollview
-    For i = 0 To GridView1.Columns.Count - 1
-        GridView1.Columns[i].W = iSize
+    GrIdView1.Clear
+    GrIdView1.Columns.Count = (GrIdView1.W) / iSize ' deberia poder conocer el ancho del scrollview
+    For i = 0 To GrIdView1.Columns.Count - 1
+        GrIdView1.Columns[i].W = iSize
     Next
-    GridView1.rows.Count = CInt(gcd.Drawing.Blocks.Count / GridView1.Columns.Count) + 1
-    For i = 0 To GridView1.rows.Count - 1
-        GridView1.rows[i].h = iSize
+    GrIdView1.rows.Count = CInt(gcd.Drawing.Blocks.Count / GrIdView1.Columns.Count) + 1
+    For i = 0 To GrIdView1.rows.Count - 1
+        GrIdView1.rows[i].h = iSize
     Next
 
     'ListView1.Clear
@@ -1875,16 +1880,16 @@ Public Sub FillBlocks()
     For Each b In gcd.Drawing.Blocks
         If Left(b.name, 1) = "_" Or Left(b.name, 1) = "*" Then Continue
 
-        iRow = Int(i / GridView1.Columns.Count)
-        iCol = i Mod GridView1.Columns.Count
+        iRow = Int(i / GrIdView1.Columns.Count)
+        iCol = i Mod GrIdView1.Columns.Count
         i += 1
         imgPreview = New Image(iSize, iSize, Color.Black)
 
         gcd.FitEntitiesToImage(b.entities, imgPreview, Config.WhiteAndBlack, 0)
-        GridView1.Row = iRow
-        GridView1.Column = iCol
-        GridView1.Current.Picture = imgPreview.Picture
-        GridView1.Current.Tag = b.name
+        GrIdView1.Row = iRow
+        GrIdView1.Column = iCol
+        GrIdView1.Current.Picture = imgPreview.Picture
+        GrIdView1.Current.Tag = b.name
         'ListView1.Add(b.handle, "", imgPreview.Picture)
 
     Next
@@ -1897,9 +1902,9 @@ Public Sub togSnap_MouseDown()
 
 End
 
-Public Sub GridView1_MouseWheel()
+Public Sub GrIdView1_MouseWheel()
 
-    GridView1.ScrollY += Mouse.Delta * 40
+    GrIdView1.ScrollY += Mouse.Delta * 40
     'GridView1.Scroll(0, GridView1.ScrollYMouse.Delta * 40)
 
 End
@@ -1938,7 +1943,7 @@ Public Sub FillProperties(cEntities As Collection, Optional sFilter As String = 
         AddPropToCol(cProperties, "layer", e.pLayer.Name)                               'LAYER
         AddPropToCol(cProperties, "color", e.Colour)                                    'COLOR
         AddPropToCol(cProperties, "linetype", e.LineType.Name)                          'LINETYPE
-        AddPropToCol(cProperties, "linewidth", e.LineWidth)                             'LINEWIDTH
+        AddPropToCol(cProperties, "linewIdth", e.LineWIdth)                             'LINEWIDTH
 
         ' GEOMETRY
         Select Case E.Gender

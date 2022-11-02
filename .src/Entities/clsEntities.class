@@ -98,12 +98,12 @@ Public Sub DrawArrays()
 
 End
 
-Public Function FIndBlockIDbyHandle(BlockHandle As String) As Block
+Public Function FIndBlockIDbyid(Blockid As String) As Block
 
     Dim B As Block
 
     For Each B In gcd.Drawing.Blocks
-        If B.handle = BlockHandle Then Return B
+        If B.id = Blockid Then Return B
     Next
     Return Null
 
@@ -524,6 +524,16 @@ Public Sub Finish(Optional selected As Boolean = True)
 
 End
 
+Public Sub ClonEntity(eOrigen As Entity, Optional GetNewid As Boolean = True) As Entity
+
+    Dim e As Entity
+
+    e = gcd.CCC[eOrigen.Gender].ClonEntity(eOrigen)
+    If GetNewid Then e.id = gcd.Newid()
+    Return e
+
+End
+
 Public Sub ClonElements(Optional cEntities As Collection, GenerateGlList As Boolean = True) As Collection
 
     ' creo copias de cada elemento seleccionado
@@ -534,104 +544,51 @@ Public Sub ClonElements(Optional cEntities As Collection, GenerateGlList As Bool
     If cEntities Then cEntititesToClon = cEntities Else cEntititesToClon = gcd.Drawing.EntitiesSelected
 
     For Each E In cEntititesToClon
-        eClon = Me.ClonEntity(e, True, True)
+        eClon = Me.ClonEntity(e, True)
         Gcd.CCC[eClon.gender].finish(eClon)
         If GenerateGlList Then glGenDrawList(eClon)
-        cContainer.Add(eClon, eClon.Handle)
+        cContainer.Add(eClon, eClon.id)
 
     Next
     Return cContainer
 
 End
 
-Public Function CopyBlock(bBase As Variant, Optional NewHandle As Boolean) As Variant
+Public Function CopyBlock(bBase As Block) As Block
 
     Dim b As New Block
     Dim h As Hatch
     Dim s As SPline
     Dim e As Entity
-    Dim flxPoly As Float[]
 
-    If bBase.Gender = "BLOCK" Then
-        b.name = bBase.name
-        b.description = bBase.description
-        b.Explotability = bBase.Explotability
-        b.Flags = bBase.Flags
-        If NewHandle Then b.handle = gcd.NewHandle() Else b.handle = bBase.handle
-        ' b.HandleAsociatedLayout = bBase.HandleAsociatedLayout
-        ' b.HandleOwner = bBase.HandleOwner
-        ' b.HandleOwnerParent = bBase.HandleOwnerParent
-        b.InsertionPlace = bBase.InsertionPlace
-        b.InsertUnits = bBase.InsertUnits
-        b.layer = bBase.layer
-        b.Scalability = bBase.Scalability
-        b.x0 = bBase.x0
-        b.y0 = bBase.y0
-        b.z0 = bBase.z0
+    b.name = bBase.name
+    b.description = bBase.description
+    b.Explotability = bBase.Explotability
+    b.Flags = bBase.Flags
+    ' b.HandleAsociatedLayout = bBase.HandleAsociatedLayout
+    ' b.HandleOwner = bBase.HandleOwner
+    ' b.HandleOwnerParent = bBase.HandleOwnerParent
+    b.InsertionPlace = bBase.InsertionPlace
+    b.InsertUnits = bBase.InsertUnits
+    b.layer = bBase.layer
+    b.Scalability = bBase.Scalability
+    b.x0 = bBase.x0
+    b.y0 = bBase.y0
+    b.z0 = bBase.z0
 
-        b.entities = New Collection
+    b.entities = New Collection
 
-        b.entities = bBase.entities.Copy()
+    For Each e In bBase.entities
+        b.entities.Add(ClonEntity(e), gcd.Newid())
+    Next
 
-        Return b
-    Else If bBase.Gender = "HATCH" Then
 
-        h = New Hatch
+    Return b
 
-        h.SeedPoints.Insert(bBase.SeedPoints.copy())
-        h.Flag = bBase.Flag
-        h.eSegments.Insert(bBase.esegments.copy())
-        For Each flxPoly In bBase.Polylines
-            h.Polylines.add(flxPoly)
-        Next
-
-        Dim p As Pattern
-        For Each p In bBase.patterns
-            h.Patterns.add(p)
-        Next
-
-        Return h
-    Else If bBase.Gender = "SPLINE" Then
-        s = New SPline
-        s.ControlPoints.Insert(bBase.ControlPoints.copy())
-        s.ControlTolerance = bBase.ControlTolerance
-        s.Degree = bBase.Degree
-        s.FitPoints.Insert(bBase.FitPoints.copy())
-        s.FitTolerance = bBase.FitTolerance
-        s.KnotTolerance = bBase.KnotTolerance
-        s.KnotValues.Insert(bBase.KnotValues.copy())
-        s.Periodic = bBase.Periodic
-        s.Rational = bBase.Rational
-        s.TangentFinal.Insert(bBase.TangentFinal.copy())
-        s.TangentInitial.Insert(bBase.TangentInitial.copy())
-        s.Weigths.Insert(bBase.Weigths.copy())
-
-        Return s
-    End If
 
 End
 
-'' Crea una nueva entidad a partir de otra. Opcionalmente nueva Handle y un bloque nuevo si es que tiene.
-Public Sub ClonEntity(e As Entity, Optional GetNewHandle As Boolean = True, newBlock As Boolean = False) As Entity
-    ' clona una entidad
-    ' copia todos sus elementos
-    ' llama a las rutinas de reconstruccion del contorno y de los POI
 
-    Dim o As Entity
-
-    o = gcd.CCC[e.gender].newEntity()
-    CopyElemData(e, o)                              ' copy all values
-    Gcd.CCC[o.gender].BuildPoi(o)
-    If GetNewHandle Then o.Handle = gcd.NewHandle()
-    If newBlock Then
-        If e.pBlock Then
-            o.pBlock = Me.CopyBlock(e.pBlock, GetNewHandle)
-        Endif
-
-    Endif
-    Return o
-
-End
 
 Public Function DeSelection(Optional elementos As String = "todo", Accion As String = "deseleccionar") As Integer
     ' Esta rutina analiza si los elemento seleccionados para alguna accion pueden realizarla, caso contrario los deselecciona
@@ -659,7 +616,7 @@ Public Function DeSelection(Optional elementos As String = "todo", Accion As Str
 
                 If SelFull() And (elementos = "todo" Or elementos = clase) Then
 
-                    gcd.Drawing.EntitiesSelected.Add(eTesting, eTesting.handle)
+                    gcd.Drawing.EntitiesSelected.Add(eTesting, eTesting.id)
                     SelectElem(eTesting)
                     Inc i
 
@@ -672,7 +629,7 @@ Public Function DeSelection(Optional elementos As String = "todo", Accion As Str
             Case "estirar" ' necesito que dos puntos contiguos esten seleccionados
 
                 If SelPArtial() And (elementos = "todo" Or elementos = clase) Then
-                    gcd.Drawing.EntitiesSelected.Add(eTesting, eTesting.handle)
+                    gcd.Drawing.EntitiesSelected.Add(eTesting, eTesting.id)
                     SelectElem(eTesting, False) ' dont touch the points
                     Inc i
 
@@ -793,7 +750,7 @@ Public Sub SelectElem(eEntity As Entity, Optional AndItsPoints As Boolean = True
         Next
 
     End If
-    gcd.Drawing.EntitiesSelected.Add(eEntity, eEntity.Handle)
+    gcd.Drawing.EntitiesSelected.Add(eEntity, eEntity.id)
 
 End
 
@@ -810,45 +767,11 @@ Public Sub DeSelectElem(eEntity As Entity, Optional AndItsPoints As Boolean = Tr
         Next
 
     End If
-    gcd.Drawing.EntitiesSelected.Remove(eEntity.Handle)
+    gcd.Drawing.EntitiesSelected.Remove(eEntity.id)
 
 End
 
-Public Sub CopyElemData(origen As Entity, destino As Entity)
 
-    ' when adding stuff to the elements, it must be added here
-    Dim i As Integer
-    ' arrays
-    destino.p.resize(origen.p.count)
-    destino.fparam.resize(origen.fparam.count)
-    destino.iparam.resize(origen.iparam.count)
-    destino.psel.resize(origen.psel.count)
-    destino.sParam.resize(origen.sParam.count)
-    For i = 0 To origen.p.Max
-        destino.P[i] = origen.P[i]
-    Next
-    For i = 0 To origen.fparam.Max
-        destino.fparam[i] = origen.fparam[i]
-    Next
-    For i = 0 To origen.iparam.Max
-        destino.iparam[i] = origen.iparam[i]
-    Next
-    For i = 0 To origen.sParam.Max
-        destino.sParam[i] = origen.sParam[i]
-    Next
-
-    destino.Gender = origen.Gender
-    destino.pLayer = origen.pLayer
-    destino.pBlock = origen.pBlock
-    destino.Group = origen.Group
-    destino.colour = origen.colour
-    destino.LineType = origen.LineType
-    destino.LineWidth = origen.LineWidth
-    destino.Handle = origen.Handle
-    ' depre destino.HandleOwner = origen.HandleOwner
-    destino.pStyle = origen.pStyle
-
-End
 
 Public Sub Move(dX As Float, dY As Float, Optional cEntitiesToMove As Collection, OnlyPointSelected As Boolean = False)
 
@@ -987,7 +910,7 @@ Public Function CollectVisibleEntities(Optional sSheet As Sheet)
 
             If SelPArtial(e, x0, y0, x1, y1) Then
 
-                gcd.Drawing.EntitiesVisibles.Add(e, e.Handle)
+                gcd.Drawing.EntitiesVisibles.Add(e, e.id)
 
             End If
             'End If
@@ -1334,7 +1257,7 @@ End
 '' False if entity couldn't be created for some reason.
 Public Function DXFImportToEntity(c As Collection, Optional IsDummy As Boolean = False) As Entity
 
-    Dim clsHandler As Object
+    Dim clsidr As Object
     Dim sClass As Class
     Dim sClave As New String[]
     Dim sValue As New String[]
@@ -1345,23 +1268,16 @@ Public Function DXFImportToEntity(c As Collection, Optional IsDummy As Boolean =
     Dim LT As LineType
 
     dxf.DigestColeccion(c, ByRef sClave, ByRef sValue)
-    ' For Each lpValue In c
-    '     lpclave = c.Key
-    '     I = InStr(lpclave, "_")
-    '     If i > 0 Then lpclave = Left(lpclave, i - 1)
-    '     sClave.Add(lpclave)           ' el codigo es el tipo de variable
-    '     sValue.Add(lpValue)
-    '
-    ' Next
+
     e = gcd.CCC[c[dxf.codEntity]].newEntity()
     ' llenamos Common data:
     Try e.pLayer = GetLayerByName(c[dxf.codLayer])
-    e.Handle = c[dxf.codHandle]
+    e.id = c[dxf.codid]
 
     ' for testing FIXME: ojo con esto!!!
     '    If e.handle = "129D" Then Stop
 
-    e.HandleOwner = dxf.ReadCodeFromCol(c, dxf.codHandleOwner)
+    e.idContainer = dxf.ReadCodeFromCol(c, dxf.codidContainer)
     Try e.colour = c[dxf.codColor]            ' no es obligatorio
     Try e.LineWidth = c[dxf.codLWht] / 100    ' por eso el try
     ' 67 Absent or zero indicates entity is in model space. 1 indicates entity is in paper space (optional).
@@ -1400,13 +1316,13 @@ Public Function DXFImportToEntity(c As Collection, Optional IsDummy As Boolean =
 
 End
 
-Public Function GetEntityIndex(dDrawing As Drawing, sHandle As String, Optional iStart As Integer = 0) As Integer
+Public Function GetEntityIndex(dDrawing As Drawing, sid As String, Optional iStart As Integer = 0) As Integer
 
     Dim i As Integer
 
     For i = iStart To dDrawing.Entities
 
-        If dDrawing.Entities[i].Handle = sHandle Then Return i
+        If dDrawing.Entities[i].id = sid Then Return i
 
     Next
 
@@ -1418,10 +1334,10 @@ Public Sub DXFExportCommonCol(e As Entity, ByRef cExported As String[])
 
     cExported.Add(e.Gender)
     cExported.Add(dxf.codEntity)
-    cExported.add(e.Handle)
-    cExported.Add(dxf.codHandle)
+    cExported.add(e.id)
+    cExported.Add(dxf.codid)
     cExported.add("")   ' se agrega despues
-    cExported.Add(dxf.codHandleOwner)
+    cExported.Add(dxf.codidContainer)
     cExported.Add("AcDbEntity")
     cExported.Add("100")
     cExported.Add(e.pLayer.Name)
@@ -1513,13 +1429,13 @@ Public Function GetLTypeByIndex(sName As String) As LineType
 
 End
 
-Public Function GetLayerByHandle(sHandle As String) As Layer
+Public Function GetLayerByid(sid As String) As Layer
 
     Dim Lay As Layer
 
     For Each Lay In gcd.Drawing.Layers
 
-        If Lay.handle = sHandle Then Return Lay
+        If Lay.id = sid Then Return Lay
     Next
     Return Null
 
