@@ -1632,13 +1632,11 @@ Public Sub tabSheets_Click()
 
         Me.GLArea1 = gcd.Drawing.Sheet.GLSheet
 
-        Object.Attach(gcd.Drawing.Sheet.GLSheet, Me, "glarea1")
-
         Me.GLArea1.Refresh
 
-        If gcd.Drawing.Sheet.GlSheet Then clsEntities.CollectVisibleEntities
+        clsEntities.CollectVisibleEntities
 
-        Debug gcd.Drawing.FileName, gcd.Drawing.Sheet.Name
+        'Debug gcd.Drawing.FileName, gcd.Drawing.Sheet.Name
 
     End If
 
@@ -1664,7 +1662,6 @@ Public Function NewTabForDrawing(nDrawing As Drawing)
     Me.tabDrawings.Index = i
     Me.tabDrawings.Refresh
     Dim tabFileNew As New TabPanel(Me.tabDrawings[i])
-    tabFileNew[0].Visible = False
     tabFileNew.Expand = True
     tabFileNew.Arrangement = Arrange.Fill
     tabFileNew.Orientation = Align.Bottom
@@ -1678,7 +1675,7 @@ Public Function NewTabForDrawing(nDrawing As Drawing)
 
         For Each s In nDrawing.Sheets
             If i = s.TabOrder Then
-                NewSheet(tabFileNew, s)
+                NewSheet(tabFileNew, s, (i = 0))
                 Inc i
             End If
 
@@ -1688,6 +1685,8 @@ Public Function NewTabForDrawing(nDrawing As Drawing)
     GLArea1 = gcd.Drawing.Sheet.GlSheet
 
     InUse = False
+    tabFileNew.Index = 0
+
 
     Me.Refresh
 
@@ -1696,16 +1695,21 @@ Public Function NewTabForDrawing(nDrawing As Drawing)
 End
 
 '' Crea una nueva Tab para alojar una nueva hoja
-Public Function NewSheet(tabSheets As TabPanel, s As Sheet)
+Public Function NewSheet(tabSheets As TabPanel, s As Sheet, Optional UseFirst As Boolean = False)
 
     Dim i As Integer
 
     InUse = True
     gcd.DrawingReady = False
 
-    tabSheets.Count += 1
+    If Not UseFirst Then
+        tabSheets.Count += 1
+        tabSheets.Index = tabSheets.Count - 1
+    Else
+        tabSheets.Index = 0
+    End If
 
-    tabSheets.Index = tabSheets.Count - 1
+
 
     tabSheets.Text = s.Name
 
@@ -1719,6 +1723,7 @@ Public Function NewSheet(tabSheets As TabPanel, s As Sheet)
     tabSheets.Current.Tag = s
     tabSheets.Current.Refresh
     Me.GLArea1 = glaFile2
+    Me.GLArea1.Refresh
     glPlus.Init(glaFile2)
     Debug "New tab", tabSheets.w, tabSheets.h, glaFile2.w, glaFile2.H
 

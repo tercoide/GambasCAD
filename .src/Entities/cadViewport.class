@@ -9,25 +9,56 @@ Public Const ParamType As String = "PP"                             ' that is Po
 Public Const ParamHelper As String = "Start point;End point"
 Public Const TotalPoints As Integer = 2
 
+Public Function NewEntity(Optional fPoints As Float[], bNewid As Boolean = False) As Entity
+
+    Dim e As Entity
+
+    e = Super.NewEntity(fPoints, bNewid)
+
+    Dim v As New Viewport
+    e.pBlock = v
+    Return e
+
+
+End
+
+
+Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
+
+    Super.NewParameter(eBuild, vParam, Definitive)
+    Dim v As Viewport
+    v = eBuild.pBlock
+    v.X0 = eBuild.P[0]
+    v.Y0 = eBuild.P[1]
+    v.X1 = eBuild.P[2]
+    v.Y1 = eBuild.P[3]
+    If Definitive Then Return True
+
+
+End
+
+
 Public Sub Draw(oE As Entity)
 
     ' En esta entidad , la rutina Draw funciona solo durante la construccion
     Dim flxPoly As New Float[]
 
     Dim w, h As Float
+    Dim v As Viewport
 
-    w = oE.p[2] - oE.p[0]
-    h = oE.p[3] - oE.p[1]
-    flxPoly.Add(oE.p[0])
-    flxPoly.Add(oE.p[1])
-    flxPoly.Add(oE.p[0] + w)
-    flxPoly.Add(oE.p[1])
-    flxPoly.Add(oE.p[0] + w)
-    flxPoly.Add(oE.p[1] + h)
-    flxPoly.Add(oE.p[0])
-    flxPoly.Add(oE.p[1] + h)
-    flxPoly.Add(oE.p[0])
-    flxPoly.Add(oE.p[1])
+    v = oe.pBlock
+    w = v.x1 - v.x0
+    h = v.y1 - v.y0
+    flxPoly.Add(v.x0)
+    flxPoly.Add(v.y0)
+    flxPoly.Add(v.x0 + w)
+    flxPoly.Add(v.y0)
+    flxPoly.Add(v.x0 + w)
+    flxPoly.Add(v.y0 + h)
+    flxPoly.Add(v.x0)
+    flxPoly.Add(v.y0 + h)
+    flxPoly.Add(v.x0)
+    flxPoly.Add(v.y0)
 
     GLplus.PolyLines(flxPoly, Color.Blue, oe.LineWidth, oe.LineType.TrameLength)
 
@@ -38,17 +69,20 @@ End
 Public Sub DrawSelected(oE As Entity)
 
     Dim w, h As Float
+    Dim v As Viewport
 
-    w = oE.p[2] - oE.p[0]
-    h = oE.p[3] - oE.p[1]
+    v = oe.pBlock
+
+    w = v.x1 - v.x0
+    h = v.y1 - v.y0
 
     GLplus.PolyLines(oE.Polygon, config.WindowBackColor, oE.LineWidth, gcd.stiDashed)
     GLplus.PolyLines(oE.Polygon, config.ColorForSelected, oE.LineWidth, oE.LineType.TrameLength)
 
-    glPlus.Rectangle2D(oE.p[0] - gcd.Metros(4), oE.p[1] - gcd.Metros(4), gcd.Metros(8), gcd.Metros(8), Color.Blue,,,, Color.Blue, 1)
-    glPlus.Rectangle2D(oE.p[0] + W - gcd.Metros(4), oE.p[1] - gcd.Metros(4), gcd.Metros(8), gcd.Metros(8), Color.Blue,,,, Color.Blue, 1)
-    glPlus.Rectangle2D(oE.p[0] + W - gcd.Metros(4), oE.p[1] + H - gcd.Metros(4), gcd.Metros(8), gcd.Metros(8), Color.Blue,,,, Color.Blue, 1)
-    glPlus.Rectangle2D(oE.p[0] - gcd.Metros(4), oE.p[1] + H - gcd.Metros(4), gcd.Metros(8), gcd.Metros(8), Color.Blue,,,, Color.Blue, 1)
+    glPlus.Rectangle2D(v.x0 - gcd.Metros(4), v.y0 - gcd.Metros(4), gcd.Metros(8), gcd.Metros(8), Color.Blue,,,, Color.Blue, 1)
+    glPlus.Rectangle2D(v.x0 + W - gcd.Metros(4), v.y0 - gcd.Metros(4), gcd.Metros(8), gcd.Metros(8), Color.Blue,,,, Color.Blue, 1)
+    glPlus.Rectangle2D(v.x0 + W - gcd.Metros(4), v.y0 + H - gcd.Metros(4), gcd.Metros(8), gcd.Metros(8), Color.Blue,,,, Color.Blue, 1)
+    glPlus.Rectangle2D(v.x0 - gcd.Metros(4), v.y0 + H - gcd.Metros(4), gcd.Metros(8), gcd.Metros(8), Color.Blue,,,, Color.Blue, 1)
 
 End
 
@@ -139,21 +173,24 @@ Public Sub Finish(oE As Entity) As Boolean
     ' tareas finales de armado del objeto
     Dim l As Layer
     Dim c As Collection
+    Dim v As Viewport
+
+    v = oe.pBlock
 
     oe.PaperSpace = True
 
     Me.BuildGeometry(oe)
     Dim w, h As Float
-    w = oE.p[2] - oE.p[0]
-    h = oE.p[3] - oE.p[1]
-    oE.Polygon.add(oE.p[0])
-    oe.Polygon.add(oE.p[1])
-    oE.Polygon.add(oE.p[0] + w)
-    oe.Polygon.Add(oE.p[1])
-    oE.Polygon.add(oE.p[0] + w)
-    oe.Polygon.add(oE.p[1] + h)
-    oE.Polygon.add(oE.p[0])
-    oe.Polygon.add(oE.p[1] + h)
+    w = v.x1 - v.x0
+    h = v.y1 - v.y0
+    oE.Polygon.add(v.x0)
+    oe.Polygon.add(v.y0)
+    oE.Polygon.add(v.x0 + w)
+    oe.Polygon.Add(v.y0)
+    oE.Polygon.add(v.x0 + w)
+    oe.Polygon.add(v.y0 + h)
+    oE.Polygon.add(v.x0)
+    oe.Polygon.add(v.y0 + h)
     ' oE.Polygon.add(oE.p[0])
     ' oe.Polygon.add(oE.p[1])
 
@@ -163,14 +200,15 @@ Public Sub Finish(oE As Entity) As Boolean
 
     oE.Selected = False
 
-    gcd.Drawing.Sheet.Viewports.Add(oe.pBlock, oe.pBlock.id)
+    'gcd.Drawing.Sheet.Viewports.Add(oe.pBlock, oe.pBlock.id)
+    SetViewport(oe, gcd.Drawing.Sheet)
 
 
 
 
 End
 
-Public Sub SetViewport(oe As Entity)
+Public Sub SetViewport(oe As Entity, s As Sheet)
 
     Dim l As Layer
     Dim c As Collection
@@ -179,13 +217,13 @@ Public Sub SetViewport(oe As Entity)
     Me.BuildGeometry(oe)
     Dim w, h As Float
 
-    Dim v As New Viewport
-    oe.pBlock = v
-    v.id = gcd.Newid()
-    v.X0 = oe.P[0]
-    v.Y0 = oe.P[1]
-    v.X1 = oe.P[2]
-    v.Y1 = oe.P[3]
+    Dim v As Viewport
+    v = oe.pBlock '= v
+    ' v.id = gcd.Newid()
+    ' v.X0 = oe.P[0]
+    ' v.Y0 = oe.P[1]
+    ' v.X1 = oe.P[2]
+    ' v.Y1 = oe.P[3]
 
     If v.x0 > v.x1 Then Swap v.x0, v.x1
     If v.y0 > v.y1 Then Swap v.y0, v.y1
@@ -194,7 +232,7 @@ Public Sub SetViewport(oe As Entity)
     v.PanY = (v.y1 + v.y0) / 2
 
 
-    gcd.Drawing.Sheet.Viewports.Add(v, v.id)
+    s.Viewports.Add(v, oe.id)
     For Each l In gcd.Drawing.Layers
         If l.Visible Then v.Layers.add(l, l.id)
     Next
@@ -204,14 +242,14 @@ Public Sub SetViewport(oe As Entity)
     ' esto es un copy/paste de cadZoomE
     Dim limits As New Float[]
 
-    limits = clsEntities.ComputeLimits(gcd.Drawing.sheet.Entities)
+    limits = clsEntities.ComputeLimits(s.Entities)
 
     gcd.Drawing.xmenor = limits[0]
     gcd.Drawing.Ymenor = limits[1]
     gcd.Drawing.xmayor = limits[2]
     gcd.Drawing.ymayor = limits[3]
 
-    If gcd.Drawing.sheet.Entities.Count = 0 Then Return
+    If s.Entities.Count = 0 Then Return
 
     Dim SZx As Float
     ' ahora calculo donde estaria el centro de este dibujo
@@ -243,7 +281,7 @@ Public Sub SetViewport(oe As Entity)
         v.PanY = 0
     End If
 
-    gcd.Drawing.Sheet.Viewport = v
+    s.Viewport = v
 
     ' agrego el Handle del viewport a la entidad
     oe.sParam.Clear

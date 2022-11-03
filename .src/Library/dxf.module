@@ -1500,9 +1500,7 @@ Private Function Save5EntitiesDirect(eEntys As Collection) As Integer
 
 End
 
-Public Function CheckRepeatedids()
 
-End
 
 Private Function Save6Objects(cObjects As Collection) As Integer
 
@@ -1663,7 +1661,7 @@ Public Function ReadCodePlus(iExpectedCode As Integer, stxClaves As String[], st
 End
 
 '' Lee el codigo de la coleccion que se importa del DXF, puede ignorar lo que esta entre llaves {} que es info de ACAD privativa y puede empezar desde el ultimo leido antes
-Public Function ReadCodeFromCol(cDxfEntityData As Collection, iCode As Integer, Optional ReadNext As Boolean = False, IgnoreAcadData As Boolean = True) As String
+Public Function ReadCodeFromCol(cDxfEntityData As Collection, iCode As Integer, Optional ReadNext As Boolean = False, IgnoreAcadData As Boolean = True, vDefaultValue As Variant = "") As String
 
     Dim s, sKey As String, i, p As Integer, valid, OpenedSection As Boolean
 
@@ -1705,6 +1703,8 @@ Public Function ReadCodeFromCol(cDxfEntityData As Collection, iCode As Integer, 
         End If
 
     Next
+
+    Return CStr(vDefaultValue)
 
 End
 
@@ -1782,6 +1782,7 @@ Public Sub ReadLayers(cLaydata As Collection, drw As Drawing)
         hLay.id = cLay[dxf.codid]
         hLay.Visible = CInt(cLay[dxf.codColor]) >= 0
         hLay.Colour = Abs(CInt(cLay[dxf.codColor]))
+        hLay.LineType = drw.LineTypes[cLay[Me.codLType]]
         'depre hLay.handle = cLay[dxf.codHandle]
         ' If hLay.handle = "" Then hLay.handle = gcd.NewHandle()
         Drw.Layers.Add(hLay, hLay.Name)
@@ -1793,6 +1794,7 @@ Public Sub ReadLayers(cLaydata As Collection, drw As Drawing)
         hLay.Name = "0"
         hLay.Visible = True
         hLay.Colour = 0
+        hLay.LineType = drw.LineTypes[drw.LineTypes.First]
         'depre hLay.handle = gcd.NewHandle()
         Drw.Layers.Add(hLay, hLay.Name)
     Endif
@@ -1900,7 +1902,7 @@ Public Sub ReadLTypes(cData As Collection, drw As Drawing)
 
             r = dxf.ReadCodeFromCol(c, 49, True)
             hlty.TrameLength.Add(CFloat(r))
-            ri = CInt(dxf.ReadCodeFromCol(c, 74, True))
+            ri = CInt(dxf.ReadCodeFromCol(c, 74, True,, 0))
             hlty.TrameType.Add(ri)
             Select Case ri
                 Case 0
@@ -2045,6 +2047,13 @@ Public Sub SetViewports(cDxfData As Collection, drw As Drawing)
             Next
         End If
 
+    Next
+    For Each s In drw.Sheets
+        For Each e In s.entities
+            If e.Gender = cadViewport.Gender Then
+                cadViewport.SetViewport(e, s)
+            Endif
+        Next
     Next
 
     'Next
