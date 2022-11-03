@@ -19,9 +19,7 @@ Public Function NewEntity(Optional fPoints As Float[], bNewid As Boolean = False
     e.pBlock = v
     Return e
 
-
 End
-
 
 Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
 
@@ -32,11 +30,12 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
     v.Y0 = eBuild.P[1]
     v.X1 = eBuild.P[2]
     v.Y1 = eBuild.P[3]
-    If Definitive Then Return True
-
+    If Definitive Then
+        SetViewport(eBuild, gcd.Drawing.Sheet)
+        Return True
+    End If
 
 End
-
 
 Public Sub Draw(oE As Entity)
 
@@ -200,19 +199,12 @@ Public Sub Finish(oE As Entity) As Boolean
 
     oE.Selected = False
 
-    'gcd.Drawing.Sheet.Viewports.Add(oe.pBlock, oe.pBlock.id)
-    SetViewport(oe, gcd.Drawing.Sheet)
-
-
-
-
 End
 
 Public Sub SetViewport(oe As Entity, s As Sheet)
 
     Dim l As Layer
     Dim c As Collection
-
 
     Me.BuildGeometry(oe)
     Dim w, h As Float
@@ -230,7 +222,6 @@ Public Sub SetViewport(oe As Entity, s As Sheet)
 
     v.PanX = (v.x1 + v.x0) / 2
     v.PanY = (v.y1 + v.y0) / 2
-
 
     s.Viewports.Add(v, oe.id)
     For Each l In gcd.Drawing.Layers
@@ -331,8 +322,9 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     i = dxf.ReadCodePlus(69, sClaves, sValues, ByRef r, i)                       ' Id
 
     i = dxf.ReadCodePlus(12, sClaves, sValues, ByRef r, i)                       ' 12/22 View center point
+    v.PanX = -CFloat(r) / 2
     i = dxf.ReadCodePlus(22, sClaves, sValues, ByRef r, i)                       '
-
+    v.Pany = -CFloat(r) / 2
     i = dxf.ReadCodePlus(13, sClaves, sValues, ByRef r, i)                       ' Snap base point
     i = dxf.ReadCodePlus(23, sClaves, sValues, ByRef r, i)                       '
 
@@ -351,12 +343,18 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     i = dxf.ReadCodePlus(37, sClaves, sValues, ByRef r, i)
 
     i = dxf.ReadCodePlus(42, sClaves, sValues, ByRef r, i)' 42 Perspective lens length
+
     i = dxf.ReadCodePlus(43, sClaves, sValues, ByRef r, i)' 43 Front clip plane Z value
     i = dxf.ReadCodePlus(44, sClaves, sValues, ByRef r, i)' 44 Back clip plane Z value
     i = dxf.ReadCodePlus(45, sClaves, sValues, ByRef r, i)' 45 View height (in model space units)
+    Debug "Zoom", CFloat(r) / (v.Y1 - v.y0)
+    v.ScaleZoom = (v.Y1 - v.y0) / CFloat(r)
+    v.PanX *= v.ScaleZoom
+    v.PanY *= v.ScaleZoom
     i = dxf.ReadCodePlus(50, sClaves, sValues, ByRef r, i)' 50 Snap angle
     i = dxf.ReadCodePlus(51, sClaves, sValues, ByRef r, i)' 51 View twist angle
     i = dxf.ReadCodePlus(72, sClaves, sValues, ByRef r, i)' 72 Circle zoom percent
+
     Do
         i = dxf.ReadCodePlus(331, sClaves, sValues, ByRef r, i, 90)' 331 Frozen layer object ID/handle (multiple entries may exist) (optional)
         l = gcd.GetLayerByid(r)
@@ -455,7 +453,6 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     ' 343 Soft pointer reference to viewport object (for layer VP property override)
     ' 344 Soft pointer reference to viewport object (for layer VP property override)
     ' 91 Soft pointer reference to viewport object (for layer VP property override)
-
 
     Return True
 
