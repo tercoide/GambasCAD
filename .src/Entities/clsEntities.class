@@ -25,7 +25,7 @@ Create Static
 Public inxBuffersID As New Integer[]
 
 '' Changes the properties of the seleccted entities with given values
-Public Function EditEntities(sProperty As String, vValue As Variant, Optional DoRegen As Boolean = True, cEntities As Collection = gcd.Drawing.EntitiesSelected) As Boolean
+Public Function EditEntities(sProperty As String, vValue As Variant, Optional DoRegen As Boolean = True, cEntities As Collection = gcd.Drawing.Sheet.EntitiesSelected) As Boolean
 
     Dim e As Entity
 
@@ -149,22 +149,22 @@ Public Function ReconstruirBloques() As Boolean
 
     gcd.debuginfo("Recostruyendo bloques")
 
-    For i = 0 To gcd.Drawing.Entities
-        DrawingAids.CmdLineHelper = ("Loading blocks ") & Format$(i / gcd.Drawing.Entities, "0.00%")
+    For i = 0 To gcd.Drawing.Sheet.Entities
+        DrawingAids.CmdLineHelper = ("Loading blocks ") & Format$(i / gcd.Drawing.Sheet.Entities, "0.00%")
         Wait 0.0001
-        If gcd.Drawing.Entities[i].gender = "BLOCK" Then
+        If gcd.Drawing.Sheet.Entities[i].gender = "BLOCK" Then
             Dim newBlock As New Block
-            newBlock.name = gcd.Drawing.Entities[i].block
-            newBlock.x = gcd.Drawing.Entities[i].p[0]
-            newBlock.y = gcd.Drawing.Entities[i].p[1]
+            newBlock.name = gcd.Drawing.Sheet.Entities[i].block
+            newBlock.x = gcd.Drawing.Sheet.Entities[i].p[0]
+            newBlock.y = gcd.Drawing.Sheet.Entities[i].p[1]
             newBlock.entities = New Collection
             ' busco los objetos de este bloque y los reconstruyo
-            For i2 = iStart To gcd.Drawing.Entities
-                If gcd.Drawing.Entities[i2].block = newBlock.name And gcd.Drawing.Entities[i2].gender <> "BLOCK" Then ' sin recursividad en bloques
-                    If gcd.Drawing.Entities[i2].block = newBlock.name And gcd.Drawing.Entities[i2].gender <> "INSERT" Then 'no quiero insertarme a mi mismo
+            For i2 = iStart To gcd.Drawing.Sheet.Entities
+                If gcd.Drawing.Sheet.Entities[i2].block = newBlock.name And gcd.Drawing.Sheet.Entities[i2].gender <> "BLOCK" Then ' sin recursividad en bloques
+                    If gcd.Drawing.Sheet.Entities[i2].block = newBlock.name And gcd.Drawing.Sheet.Entities[i2].gender <> "INSERT" Then 'no quiero insertarme a mi mismo
                         PartesEncontradas = True
                         Dim o2 As Entity
-                        o2 = ClonEntity(gcd.Drawing.Entities[i2])
+                        o2 = ClonEntity(gcd.Drawing.Sheet.Entities[i2])
 
                         Gcd.CCC[o2.gender].finish(o2)
                         newBlock.entities.Add(o2)
@@ -215,8 +215,8 @@ Public Sub glGenBuffers(Optional eEntity As Entity = Null)
         glPlus.VBOFlush
         'glPlus.InmediateMode = False
 
-        If gcd.Drawing.Entities.Count = 0 Then Return
-        For Each e In gcd.Drawing.Entities
+        If gcd.Drawing.Sheet.Entities.Count = 0 Then Return
+        For Each e In gcd.Drawing.Sheet.Entities
 
             'If Not gl.islist(e.glDrwList) Then e.glDrwList = gl.GenLists(1)
             'gl.NewList(e.glDrwList, gl.COMPILE)
@@ -348,7 +348,7 @@ Public Sub glGenDrawListSel(Optional mode As Integer = 0)
 
     gl.NewList(gcd.Drawing.GlListEntitiesSelected, gl.COMPILE)
 
-    For Each e In gcd.Drawing.EntitiesSelected
+    For Each e In gcd.Drawing.Sheet.EntitiesSelected
 
         If mode = 0 Then gl.CallList(e.glDrwListSel)
         If mode = 1 Then gl.CallList(e.glDrwList)
@@ -399,7 +399,7 @@ Public Sub glGenDrawListLAyers(Optional aLayer As Layer)
 
         If Not gl.islist(aLayer.glList) Then aLayer.glList = gl.GenLists(1)
         gl.NewList(aLayer.glList, gl.COMPILE)
-        For Each e In gcd.Drawing.Entities
+        For Each e In gcd.Drawing.Sheet.Entities
 
             If e.pLayer = aLayer Then
                 If Not e.PaperSpace Then
@@ -482,7 +482,7 @@ Public Sub DrawPoiSymbolsAll()
 
     Dim i, total As Integer
 
-    For Each e As Entity In gcd.Drawing.EntitiesSelected
+    For Each e As Entity In gcd.Drawing.Sheet.EntitiesSelected
 
         ' If (e.Gender = "INSERT") Then
         DrawPoiSymbols(e)
@@ -528,7 +528,7 @@ Public Sub Finish(Optional selected As Boolean = True)
     ' creo copias de cada elemento seleccionado
     Dim m As Integer, E As Entity
 
-    For Each E In gcd.Drawing.Entities
+    For Each E In gcd.Drawing.Sheet.Entities
         If selected Then                                                    ' apply to only the selected ones
             If E.Selected Then gcd.CCC[e.gender].Finish(E)
         Else                                                                ' apply to all
@@ -556,7 +556,7 @@ Public Sub ClonElements(Optional cEntities As Collection, GenerateGlList As Bool
     Dim cEntititesToClon As Collection
     Dim cContainer As New Collection
 
-    If cEntities Then cEntititesToClon = cEntities Else cEntititesToClon = gcd.Drawing.EntitiesSelected
+    If cEntities Then cEntititesToClon = cEntities Else cEntititesToClon = gcd.Drawing.Sheet.EntitiesSelected
 
     For Each E In cEntititesToClon
         eClon = Me.ClonEntity(e, True)
@@ -615,9 +615,9 @@ Public Function DeSelection(Optional elementos As String = "todo", Accion As Str
     elementos = LCase(elementos)
 
     '   primero vacio la seleccion anterior
-    gcd.Drawing.EntitiesSelected.Clear
+    gcd.Drawing.Sheet.EntitiesSelected.Clear
 
-    For Each eTesting As Entity In gcd.Drawing.Entities
+    For Each eTesting As Entity In gcd.Drawing.Sheet.Entities
 
         clase = eTesting.Gender
 
@@ -627,7 +627,7 @@ Public Function DeSelection(Optional elementos As String = "todo", Accion As Str
 
                 If SelFull() And (elementos = "todo" Or elementos = clase) Then
 
-                    gcd.Drawing.EntitiesSelected.Add(eTesting, eTesting.id)
+                    gcd.Drawing.Sheet.EntitiesSelected.Add(eTesting, eTesting.id)
                     SelectElem(eTesting)
                     Inc i
 
@@ -640,7 +640,7 @@ Public Function DeSelection(Optional elementos As String = "todo", Accion As Str
             Case "estirar" ' necesito que dos puntos contiguos esten seleccionados
 
                 If SelPArtial() And (elementos = "todo" Or elementos = clase) Then
-                    gcd.Drawing.EntitiesSelected.Add(eTesting, eTesting.id)
+                    gcd.Drawing.Sheet.EntitiesSelected.Add(eTesting, eTesting.id)
                     SelectElem(eTesting, False) ' dont touch the points
                     Inc i
 
@@ -689,10 +689,10 @@ Public Function DeleteSelected() As Integer
 
     '  Purgue will also delete those with .ForDeletion = true
 
-    For Each E In gcd.Drawing.Entities
+    For Each E In gcd.Drawing.Sheet.Entities
 
         If E.Selected Then
-            gcd.Drawing.Entities.Remove(gcd.Drawing.Entities.Key)
+            gcd.Drawing.Sheet.Entities.Remove(gcd.Drawing.Sheet.Entities.Key)
             Inc c
         End If
 
@@ -716,17 +716,17 @@ Public Function SelectFromPoint(Xr As Float, Zr As Float, Optional Autoselect As
 
     Dim i As Integer
 
-    For i = gcd.Drawing.Entities To 0 Step -1
+    For i = gcd.Drawing.Sheet.Entities To 0 Step -1
         ' last elements are drawn last so the click belongs to them
-        If gcd.Drawing.Entities[i].pointClick(Xr, Zr) Then
+        If gcd.Drawing.Sheet.Entities[i].pointClick(Xr, Zr) Then
             If Autoselect Then
-                If Not gcd.Drawing.Entities[i].Selected Then
-                    SelectElem(gcd.Drawing.Entities[i])
+                If Not gcd.Drawing.Sheet.Entities[i].Selected Then
+                    SelectElem(gcd.Drawing.Sheet.Entities[i])
                 Else
-                    DeSelectElem(gcd.Drawing.Entities[i])
+                    DeSelectElem(gcd.Drawing.Sheet.Entities[i])
                 End If
             End If
-            Return gcd.Drawing.Entities[i]
+            Return gcd.Drawing.Sheet.Entities[i]
         End If
 
     Next
@@ -761,7 +761,7 @@ Public Sub SelectElem(eEntity As Entity, Optional AndItsPoints As Boolean = True
         Next
 
     End If
-    gcd.Drawing.EntitiesSelected.Add(eEntity, eEntity.id)
+    gcd.Drawing.Sheet.EntitiesSelected.Add(eEntity, eEntity.id)
 
 End
 
@@ -778,7 +778,7 @@ Public Sub DeSelectElem(eEntity As Entity, Optional AndItsPoints As Boolean = Tr
         Next
 
     End If
-    gcd.Drawing.EntitiesSelected.Remove(eEntity.id)
+    gcd.Drawing.Sheet.EntitiesSelected.Remove(eEntity.id)
 
 End
 
@@ -787,7 +787,7 @@ Public Sub Move(dX As Float, dY As Float, Optional cEntitiesToMove As Collection
     ' crea un backup de todos los puntos
     Dim e As Entity, i As Integer
 
-    If Not cEntitiesToMove Then cEntitiesToMove = gcd.Drawing.EntitiesSelected
+    If Not cEntitiesToMove Then cEntitiesToMove = gcd.Drawing.Sheet.EntitiesSelected
 
     For Each e In cEntitiesToMove
 
@@ -839,17 +839,17 @@ Public Function SelectionSquare(X1real As Float, Y1real As Float, X2real As Floa
     NuevaSumaResta = LCase$(NuevaSumaResta)
 
     If NuevaSumaResta = "nueva" Then ' nueva seleccion
-        For Each e In gcd.Drawing.Entities
+        For Each e In gcd.Drawing.Sheet.Entities
             e.selected = False
             For i2 = 0 To e.Psel.max
                 e.Psel[i2] = False
             Next
         Next
-        gcd.Drawing.EntitiesSelected.Clear
+        gcd.Drawing.Sheet.EntitiesSelected.Clear
         TotalSeleccionados = 0
     End If
 
-    For Each e In gcd.Drawing.Entities
+    For Each e In gcd.Drawing.Sheet.Entities
         ' cada entidad debe decidir si esta seleccionada o no
         If crossing Then
             If SelPArtial(e, X1real, Y1real, X2real, Y2real) Then
@@ -911,7 +911,7 @@ Public Function CollectVisibleEntities(Optional sSheet As Sheet)
     If Not sSheet Then sSheet = gcd.Drawing.Sheet
 
     'If gcd.Drawing.oEntities > gcd.Drawing.arrVisibleEntities.Max Then gcd.Drawing.arrVisibleEntities.Resize(gcd.Drawing.oEntities.Count)
-    gcd.Drawing.EntitiesVisibles.Clear
+    gcd.Drawing.Sheet.EntitiesVisibles.Clear
     For Each e In sSheet.Entities 'gcd.Drawing.Entities
         If e.pLayer.Visible Then
 
@@ -919,7 +919,7 @@ Public Function CollectVisibleEntities(Optional sSheet As Sheet)
 
             If SelPArtial(e, x0, y0, x1, y1) Then
 
-                gcd.Drawing.EntitiesVisibles.Add(e, e.id)
+                gcd.Drawing.Sheet.EntitiesVisibles.Add(e, e.id)
 
             End If
             'End If
@@ -967,7 +967,7 @@ Public Sub BuildPoi(Optional entities As Collection, OnlyVisibles As Boolean = T
     Dim entGroup As Collection
 
     If Not entities Then
-        entGroup = gcd.Drawing.Entities
+        entGroup = gcd.Drawing.Sheet.Entities
     Else
         entGroup = Entities
     End If
@@ -1330,9 +1330,9 @@ Public Function GetEntityIndex(dDrawing As Drawing, sid As String, Optional iSta
 
     Dim i As Integer
 
-    For i = iStart To dDrawing.Entities
+    For i = iStart To dDrawing.Sheet.Entities
 
-        If dDrawing.Entities[i].id = sid Then Return i
+        If dDrawing.Sheet.Entities[i].id = sid Then Return i
 
     Next
 
