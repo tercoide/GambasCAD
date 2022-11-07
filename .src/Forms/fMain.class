@@ -28,6 +28,7 @@ Public flgWheelCounter As Integer
 Public InUse As Boolean                         ' variable auxiliar para evitar eventos indeseados
 Public $hDrawTimer As New Timer As "DrawTimer"
 Public $hSearchTimer As New Timer As "SearchTimer"
+Public $hRecollectTimer As New Timer As "RecollectTimer"
 
 '' Printing stuff
 Public MyPrinter As Printer
@@ -44,6 +45,13 @@ Public Sub DrawTimer_Timer()
 
     'gcd.Drawing.GLAreaInUse.Refresh
     glarea1.Refresh
+
+End Sub
+
+Public Sub RecollectTimer_Timer()
+
+    'gcd.Drawing.GLAreaInUse.Refresh
+    clsEntities.CollectVisibleEntities()
 
 End Sub
 
@@ -605,9 +613,9 @@ Public Sub GLArea1_draw()
 
             gl.Enable(GL.sCISSOR_TEST)
 
-            'For Each L In vpt.Layers
-            For Each L In gcd.Drawing.Layers
-                If L.Visible Then
+            For Each L In vpt.Layers
+                'For Each L In gcd.Drawing.Layers
+                If L.Visible And Not l.Frozen Then
                     gl.CallList(L.glList)
                 End If
             Next
@@ -623,8 +631,7 @@ Public Sub GLArea1_draw()
         gl.Scalef(gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom, 1)
 
         For Each e In gcd.Drawing.Sheet.Entities
-            'gcd.CCC[e.gender].Draw(e)
-            gl.CallList(e.glDrwList)
+            If e.Visible Then gl.CallList(e.glDrwList)
         Next
 
         'gl.CallList(gcd.Drawing.Sheet.Layer.glList)
@@ -638,12 +645,13 @@ Public Sub GLArea1_draw()
             BackGroundColor = gcd.Drawing.Sheet.BackGroundColor
         End If
 
-        glPlus.Rectangle2D(0, 0, gcd.Drawing.Sheet.pPrintStyle.PaperSizeW, gcd.Drawing.Sheet.pPrintStyle.PaperSizeH, BackGroundColor,,,,,,, 2)
+        ' depre porque esto no parece ser necesario
+        'glPlus.Rectangle2D(0, 0, gcd.Drawing.Sheet.pPrintStyle.PaperSizeW, gcd.Drawing.Sheet.pPrintStyle.PaperSizeH, BackGroundColor,,,,,,, 2)
 
     Else ' Model view
 
         For Each L In gcd.Drawing.Layers
-            If L.Visible Then gl.CallList(L.glList)
+            If L.Visible And Not l.Frozen Then gl.CallList(L.glList)
         Next
 
     End If
@@ -684,7 +692,7 @@ Public Sub GLArea1_draw()
 
     If gcd.Drawing.GrIdActive Then gl.CallList(gcd.Drawing.GLListGrId)
     If gcd.flgNewPosition Then
-        clsEntities.CollectVisibleEntities
+        ReCollect
         gcd.flgNewPosition = False
     End If
 
@@ -957,6 +965,14 @@ Public Sub ReSearch()
     'Wait 0.001
 
 End
+
+Public Sub ReCollect()
+
+    $hRecollectTimer.Trigger
+
+End
+
+
 
 Public Sub CheckBestPOI()
 
@@ -1627,6 +1643,8 @@ Public Sub tabSheets_Click()
 
         gcd.Drawing.Sheet = Last.current.tag
 
+
+
         gcd.Drawing.LastLayer = gcd.Drawing.CurrLayer
 
         gcd.Drawing.Entities = gcd.Drawing.Sheet.Entities
@@ -1635,7 +1653,12 @@ Public Sub tabSheets_Click()
 
         Me.GLArea1.Refresh
 
-        clsEntities.CollectVisibleEntities
+        If Not gcd.Drawing.Sheet.Shown Then
+            cadZoomE.Start()
+            gcd.Drawing.Sheet.Shown = True
+        End If
+
+        Me.ReCollect
 
         'Debug gcd.Drawing.FileName, gcd.Drawing.Sheet.Name
 

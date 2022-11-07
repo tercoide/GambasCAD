@@ -926,39 +926,39 @@ Public Function CollectVisibleEntities(Optional sSheet As Sheet)
         End If
     Next
 
-    CollectDetectableEntities
+    ' depre porque todas son detectables ahora CollectDetectableEntities
     'gcd.debugInfo("Recolectadas las entidades visibles",,, True)
     gcd.flgSearchingAllowed = True
 
 End
 
-'' recolecta las entidades detectables de las entidades visibles
-
-Public Function CollectDetectableEntities()
-
-    Dim x0, y0, x1, y1 As Float
-    Dim lay As Layer
-    Dim e As Entity
-    Dim i, tot As Integer
-
-    For Each e In gcd.Drawing.EntitiesVisibles
-        Select Case e.Gender
-            Case "CIRCLE", "ARC", "SPline", "ELLIPSE"
-                If Config.TrackEntityCurves Then e.Trackable = True Else e.Trackable = False
-            Case "Mtext", "Text", "Attrib", "Attdef"
-                If Config.TrackEntityTexts Then e.Trackable = True Else e.Trackable = False
-            Case "INSERT"
-                If Config.TrackEntityInserts Then e.Trackable = True Else e.Trackable = False
-            Case "Hatch"
-                If Config.TrackEntityHatches Then e.Trackable = True Else e.Trackable = False
-
-            Case Like "Dim*"
-                If Config.TrackEntityDim Then e.Trackable = True Else e.Trackable = False
-
-        End Select
-    Next
-
-End
+' '' recolecta las entidades detectables de las entidades visibles
+'
+' Public Function CollectDetectableEntities()
+'
+'     Dim x0, y0, x1, y1 As Float
+'     Dim lay As Layer
+'     Dim e As Entity
+'     Dim i, tot As Integer
+'
+'     For Each e In gcd.Drawing.EntitiesVisibles
+'         Select Case e.Gender
+'             Case "CIRCLE", "ARC", "SPline", "ELLIPSE"
+'                 If Config.TrackEntityCurves Then e.Trackable = True Else e.Trackable = False
+'             Case "Mtext", "Text", "Attrib", "Attdef"
+'                 If Config.TrackEntityTexts Then e.Trackable = True Else e.Trackable = False
+'             Case "INSERT"
+'                 If Config.TrackEntityInserts Then e.Trackable = True Else e.Trackable = False
+'             Case "Hatch"
+'                 If Config.TrackEntityHatches Then e.Trackable = True Else e.Trackable = False
+'
+'             Case Like "Dim*"
+'                 If Config.TrackEntityDim Then e.Trackable = True Else e.Trackable = False
+'
+'         End Select
+'     Next
+'
+' End
 
 'Return bound limits for all verices in the array of entities
 Public Sub BuildPoi(Optional entities As Collection, OnlyVisibles As Boolean = True)
@@ -1000,17 +1000,17 @@ Public Function ComputeLimits(Optional entities As Collection, OnlyVisibles As B
     Dim IsVisible As Boolean
     Dim a As Integer
 
-    If Not entities Then entGroup = gcd.Drawing.Entities Else entGroup = Entities
+    If Not entities Then entGroup = gcd.Drawing.Sheet.Entities Else entGroup = Entities
 
     If entGroup.Count = 0 Then Return [0, 0, 0, 0]
 
     For Each e In entGroup
-        If OnlyModel And e.PaperSpace Then Continue
+
         If OnlyVisibles Then
             If IsNull(e.pLayer) Then
                 IsVisible = True
             Else
-                IsVisible = e.pLayer.Visible
+                IsVisible = e.pLayer.Visible And e.Visible And (Not e.pLayer.Frozen)
             End If
 
         Endif
@@ -1033,6 +1033,7 @@ Public Function ComputeLimits(Optional entities As Collection, OnlyVisibles As B
             '     'End If
             '
             ' Else
+            'If e.Gender = cadViewport.Gender Then Stop
             If e.Gender Like "DIM*" Then
 
                 If IsNull(e.pBlock) Then Continue

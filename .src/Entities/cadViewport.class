@@ -184,6 +184,7 @@ Public Sub Finish(oE As Entity) As Boolean
     Dim w, h As Float
     w = v.x1 - v.x0
     h = v.y1 - v.y0
+    oE.Polygon.Clear
     oE.Polygon.add(v.x0)
     oe.Polygon.add(v.y0)
     oE.Polygon.add(v.x0 + w)
@@ -192,12 +193,11 @@ Public Sub Finish(oE As Entity) As Boolean
     oe.Polygon.add(v.y0 + h)
     oE.Polygon.add(v.x0)
     oe.Polygon.add(v.y0 + h)
-    ' oE.Polygon.add(oE.p[0])
-    ' oe.Polygon.add(oE.p[1])
+    oE.Polygon.add(v.x0)
+    oe.Polygon.add(v.y0)
 
     oE.psel.resize(oE.p.count / 2)
 
-    Try oe.MakePolyLine(oe)
 
     oE.Selected = False
 
@@ -360,11 +360,15 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     i = dxf.ReadCodePlus(51, sClaves, sValues, ByRef r, i)' 51 View twist angle
     i = dxf.ReadCodePlus(72, sClaves, sValues, ByRef r, i)' 72 Circle zoom percent
 
+    For Each l In gcd.Drawing.Layers
+        v.Layers.Add(l, l.id)
+    Next
     Do
         i = dxf.ReadCodePlus(331, sClaves, sValues, ByRef r, i, 90)' 331 Frozen layer object ID/handle (multiple entries may exist) (optional)
+        'Debug v.Id, "Layer frozen", r
         l = gcd.GetLayerByid(r)
         If l Then
-            If l.Visible Then v.Layers.add(l, l.id)
+            v.Layers.Remove(l.id)
         End If
     Loop Until i < 0
     i = Abs(i)
@@ -461,7 +465,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     i = CInt(r)
 
     v.Visibile = i And 64 ' TODO: no se porque pasa esto FIXME: !!!!
-
+    e.Visible = v.Visibile
     Debug Bin(i)
     Return True
 
