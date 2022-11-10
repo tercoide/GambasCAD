@@ -155,8 +155,7 @@ Public Function DoFillet() As Boolean
     Dim hr1 As Float
     Dim I2x, I2y, Cx, Cy, T1x, T1y, T2x, T2y As Float
     Dim l1, l2, lc, lc2 As Float
-    Dim alpha, StartAngle As Float
-    Dim EndAngle As Float
+    Dim alpha, Beta, StartAngle, EndAngle As Float
     Dim eArco As Entity
 
     ' intenta hacer el fillet entre las dos entidades seleccionadas, devuelve True si tiene exito
@@ -197,6 +196,7 @@ Public Function DoFillet() As Boolean
                     ' ahora necesito el angulo entre ambas lineas
                     alpha = puntos.Angle([e1.P[0] - flxIntersec[0], e1.P[1] - flxIntersec[1]], [e2.P[0] - flxIntersec[0], e2.P[1] - flxIntersec[1]])
 
+                    If alpha > Pi Then alpha -= Pi
                     ' verifico que las tangentes esten sobre las lineas
                     hr1 = Me.Radious / Tan(alpha / 2)
 
@@ -242,7 +242,18 @@ Public Function DoFillet() As Boolean
                     StartAngle = Deg(Ang(e1.p[2] - cx, e1.p[3] - cy))
                     EndAngle = Deg(Ang(e2.p[2] - cx, e2.p[3] - cy))
 
-                    If StartAngle > EndAngle Then EndAngle += 2 * Pi
+                    If StartAngle < 0 Then StartAngle += 360
+                    If endAngle < 0 Then endAngle += 360
+                    If EndAngle < StartAngle Then endAngle += 360
+
+                    Beta = EndAngle - StartAngle
+
+                    If beta > 180 Then ' es el otro lado
+                        Swap EndAngle, StartAngle
+                        endAngle += 360
+
+                    End If
+
 
                     eArco = cadArc.NewEntity([cx, cy], True)
 
@@ -253,7 +264,6 @@ Public Function DoFillet() As Boolean
                     cadArc.Finish(eArco)
                     gcd.Drawing.Sheet.Entities.Add(eArco, eArco.Id)
 
-                    'gcd.AddArc(gcd.CurrDrawing.arrEntities, [cx, cy], Me.Radious, StartAngle, EndAngle, fMain.CurrentColor, fMain.CurrentLtype,, fMain.CurrentLayer)
 
                     Me.Finish
 
