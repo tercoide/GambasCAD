@@ -686,11 +686,20 @@ Public Function SaveFile(sName As String, drwToSAve As Drawing, Optional LoadMin
 
     ' Las HANDLES
     ' 0 -> Es el Drawing
-    ' 1 -> Es el Block_Record
+    ' 1 -> Es la tabla Block_Record
     ' 2 -> Es la entrada en el Block_Record del model view
+    '10 -> Tabla LType
+    '20 -> Tabla Layer
+    '30 -> Tabla Style
+    '40 -> Tabla DimStyle
+    '50 -> Tabla Viewport
+    '60 -> Tabla View
+    '70 -> Tabla AppId
+
+    '
     ' Las TABLES tiene su entrada y su owner es el 0=Drawing
     ' Los BLOCKS tienen su handle y su owner es la entrada en el Block_Record
-    ' Las entidades tienen su handle y su owner es un BLOCK o el MODEL o algun PAPER, que son bloques tambien
+    ' Las entidades tienen su handle y su owner es un BLOCK o el MODEL o algun PAPER o alguna entidad contenedora (INSERT HATCH, etc), que son bloques tambien
 
     If SaveHeader Then
         If Save1HeadersAndVarsDirect(drwToSAve.Headers) Then Goto Error1
@@ -1346,6 +1355,7 @@ End
 Private Function save31BlockRecord(drw As Drawing) As Integer
 
     Dim eBlock As Block
+    Dim s As Sheet
 
     Inc iLastid ' deberia ser = 1 aqui
     iTableid = iLastid
@@ -1357,13 +1367,40 @@ Private Function save31BlockRecord(drw As Drawing) As Integer
     Print #hFIle, "  2"
     Print #hFIle, "BLOCK_RECORD"
     Print #hFIle, "  5"         ' handle
-    Print #hFIle, iLastid
+    Print #hFIle, "1"
     Print #hFIle, "  330"   ' handle al padre de esta tabla, que es 0 porque pertenece al drawing
     Print #hFIle, "0"
     Print #hFIle, "  100"
     Print #hFIle, "AcDbSymbolTable"
     Print #hFIle, "  70"
-    Print #hFIle, CStr(drw.Blocks.Count)
+    Print #hFIle, CStr(drw.Blocks.Count + drw.Sheets.Count)
+
+    ' Las Sheets deben guardarse como Blocks tambien
+    For Each s In drw.Sheets
+        Inc iLastid
+        Block_Record.Add(iLastid, eBlock.name)
+        Print #hFIle, "   0"
+        Print #hFIle, "BLOCK_RECORD"
+        Print #hFIle, "   5"         ' handle
+        Print #hFIle, s.id
+        Print #hFIle, " 330"
+        Print #hFIle, "1"
+        Print #hFIle, " 100"
+        Print #hFIle, "AcDbSymbolTableRecord"
+        Print #hFIle, " 100"
+        Print #hFIle, "AcDbBlockTableRecord"
+        Print #hFIle, "   2"
+        Print #hFIle, eBlock.name
+        Print #hFIle, " 340"
+        Print #hFIle, s.id
+        Print #hFIle, "  70"
+        Print #hFIle, eBlock.InsertUnits
+        Print #hFIle, " 280"
+        Print #hFIle, eBlock.Explotability
+        Print #hFIle, " 281"
+        Print #hFIle, eBlock.Scalability
+
+    Next
 
     For Each eBlock In drw.Blocks
         Inc iLastid
@@ -1371,9 +1408,9 @@ Private Function save31BlockRecord(drw As Drawing) As Integer
         Print #hFIle, "  0"
         Print #hFIle, "BLOCK_RECORD"
         Print #hFIle, "  5"         ' handle
-        Print #hFIle, iLastid
+        Print #hFIle, eBlock.id
         Print #hFIle, " 330"
-        Print #hFIle, iTableid
+        Print #hFIle, "1"
         Print #hFIle, " 100"
         Print #hFIle, "AcDbSymbolTableRecord"
         Print #hFIle, " 100"
@@ -1381,7 +1418,7 @@ Private Function save31BlockRecord(drw As Drawing) As Integer
         Print #hFIle, "  2"
         Print #hFIle, eBlock.name
         Print #hFIle, " 340"
-        Print #hFIle, "0" 'eBlock.HandleAsociatedLayout
+        Print #hFIle, eBlock.idAsociatedLayout
         Print #hFIle, "  70"
         Print #hFIle, eBlock.InsertUnits
         Print #hFIle, " 280"
@@ -1989,8 +2026,17 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
                     newBlock.idAsociatedLayout = colData["TABLES"]["BLOCK_RECORD"][colBlk["330"]]["340"]
                 End If
             End If
+            'If Left(newBlock.name, 1) = "*" Then    ' puede ser una Dim o una Sheet
+            If InStr(newBlock.name, "_Space") > 0 Then
+                ' es una sheet, que ya fue creada por ReadObjectsFromDXF
+            Else
+                Drw.Blocks.Add(newBlock, newBlock.name)
 
-            Drw.Blocks.Add(newBlock, newBlock.name)
+            Endif
+
+            'Endif
+
+
         Next
     End If
 
@@ -2023,8 +2069,10 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
 
                 DXFtoEntity(colBlk["entities"], colData, drw, Drw.Blocks[colBlk[dxf.codName]].entities)
 
-            Else
+            Else If colBlk.Exist("entities") And Drw.Sheets.Exist(colData["TABLES"]["BLOCK_RECORD"][colBlk["330"]]["340"]) Then
 
+                DXFtoEntity(colBlk["entities"], colData, drw, Drw.Sheets[colData["TABLES"]["BLOCK_RECORD"][colBlk["330"]]["340"]].entities)
+            Else
                 Debug "Error loading block", newBlock.name
 
             End If
@@ -2146,7 +2194,7 @@ Public Sub DXFtoEntity(cDxfEntities As Collection, cDxfData As Collection, drw A
 
                     Select Case entNueva.Gender
                         Case "HATCH", "INSERT", "POLYLINE", "POLYLINE_2D"
-                            hContainers.Add(entNueva.pBlock.entities, entNueva.Id)
+                            If entNueva.pBlock Then hContainers.Add(entNueva.pBlock.entities, entNueva.Id)
                     End Select
 
                     If obx Then
