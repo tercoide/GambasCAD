@@ -25,7 +25,13 @@ Create Static
 Public Const Gender As String = "OFFSET"
 
 Public Offset As Float
-Public iEntitySelected As Integer
+
+' Para facilitarme el seguimiento y permitir al user que vaya por distintos caminos, tenemos estas variables
+Public StepOffsetDistance As Boolean = False
+Public StepSelectValidEntities As Boolean = False
+
+
+
 ' Workflow
 '   1 Enter offset distance
 '   2 Select entity
@@ -42,7 +48,7 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
     Me.PoiChecking = False
     Me.EntityChecking = True
 
-    DrawingAIds.CmdLineHelper = "Offset, " & ("enter distance") & " [0.10]"
+    Me.Prompt = "Offset: " & ("enter distance") & " [0.10]"
     Me.NextParamType = "F"
     Me.NextParamDefault = 0.1
     ' para esta herramienta necesito desdeleciconar todo
@@ -51,28 +57,51 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
     Me.Active = True
     gcd.ToolActive = True
 
+    Me.StepOffsetDistance = False
+    Me.StepSelectValidEntities = CheckValidEntities()
+
+
+End
+
+Public Function CheckValidEntities() As Boolean
+
+    Dim e As Entity
+
+    For Each e In gcd.Drawing.Sheet.EntitiesSelected
+
+        Select Case e.Gender
+            Case "LINE", "LWPOLYLINE", "CIRCLE", "ARC", "ELLIPSE", "SPLINE"
+                Return True
+                Break
+        End Select
+    Next
+
+
+    Return False
+
 End
 
 Public Function MouseUp()
 
     Dim d, dx, dy, m1, m2, angle As Float
     Dim flxIntersec As Float[]
-    Dim e As Entity
+    Dim e, eNew, e2 As Entity
     Dim flxItersec As Float[]
 
     If Me.PointsDone = 1 Then ' estoy intentando seleccionar una entidad
 
-        If gcd.Drawing.iEntity[3] >= 0 Then
-            Select Case gcd.Drawing.Sheet.Entities[gcd.Drawing.iEntity[3]].Gender
-                Case "LINE", "LWPOLYLINE", "CIRCLE", "ARC", "ELLIPSE", "SPLINE"
-                    Me.iEntitySelected = gcd.Drawing.iEntity[3]
-                    clsEntities.SelectElem(Me.iEntitySelected)
-                    DrawingAIds.Helper.texto = ("SIde to offset")
-                    Me.PointsDone = 2
-                Case Else
-                    Me.iEntitySelected = -1
-                    DrawingAIds.ErrorMessage = ("Can't offset that entity")
-            End Select
+        If gcd.Drawing.Sheet.EntitiesSelected.Count > 0 Then
+            For Each e In gcd.Drawing.Sheet.EntitiesSelected
+
+                Select Case e.Gender
+                    Case "LINE", "LWPOLYLINE", "CIRCLE", "ARC", "ELLIPSE", "SPLINE"
+                        Me.Prompt = "Offset: " & ("Side to offset")
+                        Me.PointsDone = 2
+                    Case Else
+                        DrawingAIds.ErrorMessage = ("Can't offset those entities")
+                        Break
+                End Select
+            Next
 
             ' punto real base
             Me.SelStartXr = gcd.Xreal(mouse.x)
@@ -82,71 +111,71 @@ Public Function MouseUp()
     Else If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
         Me.SelEndXr = gcd.Xreal(mouse.x)
         Me.SelEndYr = gcd.Yreal(mouse.y)
+        For Each e2 In gcd.Drawing.Sheet.EntitiesSelected
 
-        e = gcd.Drawing.Sheet.Entities[Me.iEntitySelected]
-        ' creo una nueva entidad en el mismo lugar
-        gcd.Drawing.Sheet.Entities.Add(clsEntities.ClonEntity(e))
-        e = gcd.Drawing.Sheet.Entities.Last
-        gcd.CCC[e.gender].Finish(e)
+            ' creo una nueva entidad en el mismo lugar
+            e = clsEntities.ClonEntity(e2)
+            gcd.CCC[e.gender].Finish(e)
 
-        Select Case e.Gender
-            Case "SPLINE", "LWPOLYLINE"
-                ' voy a aplicar una logica basica: veo cual es mayor dx, dy diferencia de clicks
-                If (Me.SelEndXr - Me.SelStartXr) > (Me.SelEndYr - Me.SelStartYr) Then ' X prevalece
-                    If (Me.SelEndXr > Me.SelStartXr) Then dx = offset Else dx = -offset
-                Else
-                    If (Me.SelEndYr > Me.SelStartYr) Then dy = offset Else dy = -offset
-                End If
-                gcd.CCC[e.gender].translate(e, dx, dy)
-
-            Case "CIRCLE", "ARC"
-                d = puntos.distancia(Me.SelEndXr, Me.SelEndyr, e.P[0], e.p[1])
-                If d < e.fParam[0] Then e.fParam[0] -= offset Else e.fParam[0] += offset
-
-            Case "ELLIPSE"
-                d = puntos.distancia(Me.SelEndXr, Me.SelEndyr, e.P[0], e.p[1])
-                m1 = puntos.distancia(e.P[0], e.p[1], e.P[2], e.p[3])
-
-                If d < m1 Then ' contraigo la ellipse
-                    e.P[2] -= (e.P[2] - e.p[0]) / m1 * offset
-                    e.P[3] -= (e.P[3] - e.p[1]) / m1 * offset
-                Else
-                    e.P[2] += (e.P[2] - e.p[0]) / m1 * offset
-                    e.P[3] += (e.P[3] - e.p[1]) / m1 * offset
-                End If
-
-            Case "LINE"
-
-                If (e.P[2] - e.P[0]) <> 0 Then
-                    ' la pendiente de la recta donde esta la linea es
-                    m1 = (e.P[3] - e.P[1]) / (e.P[2] - e.P[0])
-                    If m1 <> 0 Then
-                        m2 = -1 / m1
-                        angle = ATan(m2)
-                        dx = Offset * Cos(Angle)
-                        dy = Offset * Sin(angle)
-
-                        ' necesito saber de que lado estamos
-                        flxIntersec = puntos.lineLineIntersection([Me.SelEndXr, Me.SelEndyr], [10e6, Me.SelEndyr], [e.P[0], e.p[1]], [e.P[2], e.p[3]])
-                        If flxIntersec[0] > Me.SelEndXr Then            ' estamos a la izquierda
-                            dx *= -1
-                            dy *= -1
-                        Endif
+            Select Case e.Gender
+                Case "SPLINE", "LWPOLYLINE"
+                    ' voy a aplicar una logica basica: veo cual es mayor dx, dy diferencia de clicks
+                    If (Me.SelEndXr - Me.SelStartXr) > (Me.SelEndYr - Me.SelStartYr) Then ' X prevalece
+                        If (Me.SelEndXr > Me.SelStartXr) Then dx = offset Else dx = -offset
                     Else
-                        If Me.SelEndYr > e.P[1] Then dy = Offset Else dy = -Offset
+                        If (Me.SelEndYr > Me.SelStartYr) Then dy = offset Else dy = -offset
                     End If
-                Else
-                    If Me.SelEndXr > e.P[0] Then dx = Offset Else dx = -Offset
+                    gcd.CCC[e.gender].translate(e, dx, dy)
 
-                Endif
+                Case "CIRCLE", "ARC"
+                    d = puntos.distancia(Me.SelEndXr, Me.SelEndyr, e.P[0], e.p[1])
+                    If d < e.fParam[0] Then e.fParam[0] -= offset Else e.fParam[0] += offset
 
-                gcd.CCC[e.gender].translate(e, dx, dy)
+                Case "ELLIPSE"
+                    d = puntos.distancia(Me.SelEndXr, Me.SelEndyr, e.P[0], e.p[1])
+                    m1 = puntos.distancia(e.P[0], e.p[1], e.P[2], e.p[3])
 
-        End Select
+                    If d < m1 Then ' contraigo la ellipse
+                        e.P[2] -= (e.P[2] - e.p[0]) / m1 * offset
+                        e.P[3] -= (e.P[3] - e.p[1]) / m1 * offset
+                    Else
+                        e.P[2] += (e.P[2] - e.p[0]) / m1 * offset
+                        e.P[3] += (e.P[3] - e.p[1]) / m1 * offset
+                    End If
+
+                Case "LINE"
+
+                    If (e.P[2] - e.P[0]) <> 0 Then
+                        ' la pendiente de la recta donde esta la linea es
+                        m1 = (e.P[3] - e.P[1]) / (e.P[2] - e.P[0])
+                        If m1 <> 0 Then
+                            m2 = -1 / m1
+                            angle = ATan(m2)
+                            dx = Offset * Cos(Angle)
+                            dy = Offset * Sin(angle)
+
+                            ' necesito saber de que lado estamos
+                            flxIntersec = puntos.lineLineIntersection([Me.SelEndXr, Me.SelEndyr], [10e6, Me.SelEndyr], [e.P[0], e.p[1]], [e.P[2], e.p[3]])
+                            If flxIntersec[0] > Me.SelEndXr Then            ' estamos a la izquierda
+                                dx *= -1
+                                dy *= -1
+                            Endif
+                        Else
+                            If Me.SelEndYr > e.P[1] Then dy = Offset Else dy = -Offset
+                        End If
+                    Else
+                        If Me.SelEndXr > e.P[0] Then dx = Offset Else dx = -Offset
+
+                    Endif
+
+                    gcd.CCC[e.gender].translate(e, dx, dy)
+
+            End Select
+        Next
         clsEntities.glGenDrawList()
         'clsEntities.glGenDrawListAll
         gcd.Redraw
-        DrawingAIds.CmdLineHelper = "Offset: " & ("select an entity") & "/<Esc>"
+        Me.Prompt = "Offset: " & ("select an entity") & "/<Esc>"
 
         Me.PointsDone = 1
 
@@ -244,7 +273,7 @@ Public Sub KeyText(EnteredText As String)
                 Offset = CFloat(EnteredText)
 
             Endif
-            DrawingAIds.CmdLineHelper = "Offset: " & ("select an entity")
+            Me.Prompt = "Offset: " & ("select an entity")
 
             Inc Me.PointsDone
 

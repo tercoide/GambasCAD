@@ -24,6 +24,7 @@
 Inherits ToolsBase
 Create Static
 Public Const Gender As String = "MOVE"
+Public Offset As Float
 
 Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer = 0) As Boolean
     ' Llamada por FCAD al inicio de la aplicacion de esta herramienta
@@ -38,7 +39,7 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
 
     If gcd.Drawing.Sheet.EntitiesSelected.Count = 0 Then                                     ' we have no elements in the selection
 
-        DrawingAIds.CmdLineHelper = ("Move") & ": " & ("Select entities")
+        Me.Prompt = ("Move") & ": " & ("Select entities")
 
         gcd.clsJobPrevious = Me
         gcd.clsJob = cadSelection
@@ -46,7 +47,7 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
     Else                                                                    ' need the first point
 
         'DrawingAids.CmdLineHelper = DrawingAids.CmdLineHelper & ": " & ("Base point")
-        DrawingAIds.CmdLineHelper = ("Move") & " " & Str(gcd.Drawing.Sheet.EntitiesSelected.Count) & " " & ("elements") & ": " & ("Base point")
+        Me.Prompt = ("Move") & " " & Str(gcd.Drawing.Sheet.EntitiesSelected.Count) & " " & ("elements") & ": " & ("Base point")
 
         ' armamos el menu contextual y lo asignamos a la GL area
         gcd.Drawing.Sheet.GlSheet.PopupMenu = Me.Gender
@@ -103,7 +104,7 @@ Public Function MouseUp()
 
             ' ya tengo cosas seleccionadas
             DrawingAIds.Helper.texto = ("Final point")
-            DrawingAIds.CmdLineHelper = ("Move") & " " & Str(gcd.Drawing.Sheet.EntitiesSelected.Count) & " " & ("elements") & ": " & ("Final point")
+            Me.Prompt = ("Move") & " " & Str(gcd.Drawing.Sheet.EntitiesSelected.Count) & " " & ("elements") & ": " & ("Final point")
 
             ' prevenir acciones tontas como hacer click en otro elemento antes de terminar con el actual
             ' TODO: reparar -> gcd.CurrDrawing.DesHabilitarBotones
@@ -145,5 +146,114 @@ Public Function MouseMove()
 
     End If
     gcd.Redraw
+
+End
+
+Public Sub KeyText(EnteredText As String)
+
+
+
+    ' Lets see what are we expecting
+    Dim Xt, Zt As Float, ErrTxt As String, Relative As Boolean
+
+    Select Case Me.NextParamType
+
+        Case "P", "+"
+            ' errtxt = ", expected a valid point like 12.4,9.5  or @12.34,10.5"
+            ' ' lets filter
+            ' EnteredText = Trim$(UCase$(EnteredText))
+            ' ' So we expect a position x,y , but in some cases it can be
+            ' ' C = close
+            ' ' U = undo, delete last segment
+            ' ' and others
+            '
+            ' If Left(EnteredText, 1) = "C" Then          ' close the element
+            '     ' got othe first point and exit
+            '     elem.P[iPoints * 2] = elem.P[0]
+            '     elem.P[iPoints * 2 + 1] = elem.P[1]
+            '     Me.Finish
+            '
+            ' Else If Left(EnteredText, 1) = "U" Then     ' undo last command and go
+            '
+            '     elem.P.remove(elem.P.max)
+            '     elem.P.remove(elem.P.max)
+            '     Me.Finish
+            ' Else                                        ' an X,Y or @X,Y
+            '
+            '     If InStr(EnteredText, "@") > 0 Then    ' may be a point
+            '         Relative = True
+            '         EnteredText = Replace(EnteredText, "@", "")
+            '     Endif
+            '     Xt = CFloat(Split(EnteredText, ",")[0])
+            '     Zt = CFloat(Split(EnteredText, ",")[1])
+            '
+            '     ' if we are stll here, input was good
+            '     elem.P[iPoints * 2] = Xt
+            '     elem.P[iPoints * 2 + 1] = Zt
+            '
+            '     If Relative And (elem.P.count > 2) Then
+            '         elem.P[iPoints * 2] += elem.P[(iPoints - 1) * 2]
+            '         elem.P[iPoints * 2 + 1] += elem.P[(iPoints - 1) * 2 + 1]
+            '
+            '     Endif
+            '     Inc iPoints
+            '     AdvanceStep
+            '
+            ' End If
+
+        Case "T"
+            ' errtxt = ", expected text, not a point"
+            ' ' its a valid input?
+            ' If EnteredText = "" Then
+            '
+            '     'elem.stringdata[0] = EnteredText
+            '     elem.stringdata[0] &= ParamDefault[elem.Gcd.CCC[e.gender].StepsDone]
+            ' Else If elem.stringdata[0] <> "" Then                      ' we have a previous entry
+            '
+            '     elem.stringdata[0] &= "|" & EnteredText  ' split if necessary
+            '
+            ' Else
+            '
+            '     elem.stringdata[0] &= EnteredText                      ' first entry
+            '
+            ' End If
+            '
+            ' AdvanceStep
+
+        Case "F", "M", "A", "L"                 ' Float, Mixed, Angle, Longitud
+            ErrTxt = ("enter a valId text size")
+
+            If EnteredText = "" Then
+
+                Offset = Me.NextParamDefault
+
+            Else
+
+                Offset = CFloat(EnteredText)
+
+            Endif
+            Me.Prompt = "Offset: " & ("select an entity")
+
+            Inc Me.PointsDone
+
+        Case "C"                                ' color
+            ' If Dialog.SelectColor() Then
+            '     elem.fParam[iFloat] = CFloat(Dialog.Color)
+            '     Inc iFloat
+            '     AdvanceStep
+            '
+            ' Endif
+            ' Key.Cod
+
+    End Select
+
+Finally
+
+    Return
+
+    ' catch
+
+    ' unexpected input
+    DrawingAIds.ErrorMessage = ("Bad input") & " " & ErrTxt
 
 End
