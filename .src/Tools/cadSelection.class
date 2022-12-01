@@ -34,9 +34,6 @@ Public Const ModeSelectEntitiesListed As Integer = 4    '  but only from EntityT
 Public Const ModeAddEntities As Integer = 5             ' add select some entities
 Public Const ModeRemoveEntities As Integer = 6          ' remove select some entities
 
-Public Const ActionRectActive As Integer = 1
-Public Const ActionGripActive As Integer = 2
-Public Const ActionPanActive As Integer = 3
 
 Public EntityType As String[]
 Public EntityForEdit As Entity
@@ -45,6 +42,11 @@ Public GripPoint As Integer = -1
 Public dX As Float
 Public dY As Float
 Public ToolActive As Boolean = False
+Public PanActive As Boolean = False
+Public GripActive As Boolean = False
+Public RectActive As Boolean = False
+
+
 
 ' Funcionamiento:
 
@@ -182,9 +184,9 @@ Public Function MouseDown()
     ' A.1 Izquierdo
     If Mouse.Left Then
 
-        If Not gcd.Drawing.HoveredEntity Then
+        If Not gcd.Drawing.HoveredEntity Or Me.ModeRectSelection Then
             ' A.1.1 No estoy sobre ninguna entidad -> Inicio una seleccion rectangular ActionActive = ActionRectActive
-            Me.ActionActive = Me.ActionRectActive
+            Me.RectActive = True
         Else
             ' A.1.2 Estoy sobre una entidad
 
@@ -358,9 +360,9 @@ Public Sub MouseUp()
         ' C.1 Izquierdo
 
         Me.PoiChecking = True
-        If Me.ActionActive = Me.ActionRectActive Then
+        If Me.RectActive Then
             ' C.1.1 ActionActive = ActionRectActive -> Finalizo la seleccion por recuadro
-            Me.ActionActive = False
+            Me.RectActive = False
 
             ' corrijo para start<end
             If Me.SelStartX > Me.SelEndX Then
@@ -416,7 +418,7 @@ Public Sub MouseUp()
             Endif
         End If
 
-        If Me.ActionActive = Me.ActionGripActive Then
+        If Me.GripActive Then
             ' C.1.2 ActionActive = ActionGripActive -> Finalizo la edicion por grips
 
             Gcd.CCC[EntityForEdit.gender].buildpoi(EntityForEdit)
@@ -426,11 +428,11 @@ Public Sub MouseUp()
 
         End If
 
-        If Me.ActionActive = Me.ActionPanActive Then
+        If Me.Mode = Me.PanActive Then
             ' C.1.3 ActionActive = ActionPanActive -> nada
         End If
 
-        If Me.ActionActive = False Then
+        If Me.Mode = False Then
             ' C.1.4.1 Estoy sobre una entidad
 
         Endif
@@ -461,13 +463,13 @@ Public Sub MouseMove()
     Me.SelEndXr = gcd.Xreal(Me.SelEndX)
     Me.SelEndyr = gcd.Yreal(Me.SelEndy)
 
-    If Me.Active = Me.ActionRectActive Then
+    If Me.Active = Me.ModeRectSelection Then
         ' B.1 ActionActive = ActionRectActive: actualizo coordenadas del punto final del Rect
         ' (se hace mas arriba)
-    Else If Me.Active = Me.ActionGripActive Then
+    Else If Me.Active = Me.GripActive Then
         ' B.2 ActionActive = ActionGripActive: modifico la entidad con la nueva posicion del punto
         GripEdit
-    Else If Me.Active = Me.ActionPanActive Then
+    Else If Me.Active = Me.PanActive Then
         ' B.3 ActionActive = ActionPanActive: mando la coordenada a cadPan
         ' (ni siquiera deberiamos estar aca, deberiamos estar en cadPan.class)
     Else
@@ -541,7 +543,7 @@ End
 Public Sub Draw() ' esta rutina es llamada por FCAD en el evento DrawingArea_Draw
     ' por ultimo, y para que se vea arriba, la seleccion
 
-    If Me.ActionActive = Me.ActionRectActive Then
+    If Me.RectActive Then
 
         ' si estamos dentro un viewport no hay nada que dibujar, porque no estamos seleccionando nada
         If gcd.Drawing.Sheet.Viewport Then Return
@@ -557,7 +559,7 @@ Public Sub Draw() ' esta rutina es llamada por FCAD en el evento DrawingArea_Dra
         End If
         Return
     End If
-    If Me.ActionActive = Me.ActionGripActive Then
+    If Me.GripActive Then
 
         If GripPoint >= 0 Then
 
