@@ -1825,9 +1825,7 @@ Public Sub ReadLayers(cLaydata As Collection, drw As Drawing)
         hLay.Colour = Abs(CInt(cLay[dxf.codColor]))
         hLay.LineType = drw.LineTypes[cLay[Me.codLType]]
 
-
         hLay.LineWt = cLay["370"]
-
 
         'depre hLay.handle = cLay[dxf.codHandle]
         ' If hLay.handle = "" Then hLay.handle = gcd.NewHandle()
@@ -1996,8 +1994,15 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
     Dim i As Integer
     Dim S As New Sheet
     Dim newBlock As Block
+    Dim hasBlocks, hasTables, hasBlockRecord, hasEntities As Boolean
+    Dim cBlocks, cTables, cBlockRecord, cEntities As Collection
 
-    If Not colData.Exist("BLOCKS") Then Return
+    If colData.Exist("BLOCKS") Then cBlocks = colData["BLOCKS"]
+    If colData.Exist("TABLES") Then
+        cTables = colData["TABLES"]
+        If colData["TABLES"].Exist("BLOCK_RECORD") Then cBlockRecord = cTables["BLOCK_RECORD"]
+    End If
+    If Not cBlocks Then Return
     ' For Each colBlk In colData["TABLES"]["BLOCK_RECORD"]
     '     Dim newBlock As New Block
     '     newBlock.entities = New Collection
@@ -2012,9 +2017,9 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
     '
     ' Next
     ' hay DXF sin TAbles
-    If colData.Exist("TABLES") Then
+    If cTables Then
 
-        For Each colBlk In colData["BLOCKS"]
+        For Each colBlk In cBlocks
             newBlock = New Block
             newBlock.id = colBlk[dxf.codid]
             newBlock.entities = New Collection
@@ -2025,10 +2030,10 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
             Try newBlock.z0 = colBlk[dxf.codZ0]
             Try newBlock.flags = colBlk["70"]
 
-            If colData["TABLES"].Exist("BLOCK_RECORD") Then
-                If colData["TABLES"]["BLOCK_RECORD"].Exist(colBlk["330"]) Then
-                    newBlock.idContainer = colData["TABLES"]["BLOCK_RECORD"][colBlk["330"]]["5"]
-                    newBlock.idAsociatedLayout = colData["TABLES"]["BLOCK_RECORD"][colBlk["330"]]["340"]
+            If cBlockRecord Then
+                If cBlockRecord.Exist(colBlk["330"]) Then
+                    newBlock.idContainer = cBlockRecord[colBlk["330"]]["5"]
+                    newBlock.idAsociatedLayout = cBlockRecord[colBlk["330"]]["340"]
                 End If
             End If
             'If Left(newBlock.name, 1) = "*" Then    ' puede ser una Dim o una Sheet
@@ -2040,7 +2045,6 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
             Endif
 
             'Endif
-
 
         Next
     End If
@@ -2067,19 +2071,22 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
 
     'Block_Record = New Collection
 
-    If colData.Exist("BLOCKS") Then
-        For Each colBlk In colData["BLOCKS"]
+    If cBlocks Then
+        For Each colBlk In cBlocks
 
-            If colBlk.Exist("entities") And Drw.Blocks.Exist(colBlk[dxf.codName]) Then
+            cEntities = Null
+            If colBlk.Exist("entities") Then cEntities = colBlk["entities"]
+            If cEntities Then
+                If Drw.Blocks.Exist(colBlk[dxf.codName]) Then
 
-                DXFtoEntity(colBlk["entities"], colData, drw, Drw.Blocks[colBlk[dxf.codName]].entities)
+                    DXFtoEntity(cEntities, colData, drw, Drw.Blocks[colBlk[dxf.codName]].entities)
 
-            Else If colBlk.Exist("entities") And Drw.Sheets.Exist(colData["TABLES"]["BLOCK_RECORD"][colBlk["330"]]["340"]) Then
+                Else If cBlockRecord Then
+                    If cBlockRecord.Exist(colBlk["330"]["340"]) Then DXFtoEntity(cEntities, colData, drw, Drw.Sheets[cBlockRecord[colBlk["330"]]["340"]].entities)
+                Else
+                    Debug "Error loading block", colBlk["2"]
 
-                DXFtoEntity(colBlk["entities"], colData, drw, Drw.Sheets[colData["TABLES"]["BLOCK_RECORD"][colBlk["330"]]["340"]].entities)
-            Else
-                Debug "Error loading block", newBlock.name
-
+                End If
             End If
             Inc i
 
@@ -2194,15 +2201,15 @@ Public Sub DXFtoEntity(cDxfEntities As Collection, cDxfData As Collection, drw A
                                 obx = hContainers[hContainer]
                             End If
 
-
-
                         End If
 
                     End If
 
                     Select Case entNueva.Gender
                         Case "HATCH", "INSERT", "POLYLINE", "POLYLINE_2D"
-                            If entNueva.pBlock Then hContainers.Add(entNueva.pBlock.entities, entNueva.Id)
+                            If entNueva.pBlock Then
+                                hContainers.Add(entNueva.pBlock.entities, entNueva.Id)
+                            End If
                     End Select
 
                     If obx Then

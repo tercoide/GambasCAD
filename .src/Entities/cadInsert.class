@@ -43,7 +43,28 @@ Public CurrLType As Integer
 Public CurrColor As Integer
 Public CurrLwt As Float
 
+Public Function NewEntity(Optional fPoints As Float[], bNewid As Boolean = False) As Entity
 
+    Dim e As New Entity
+
+    e = Super.NewEntity(fPoints, bNewid)
+    e.Gender = Me.Gender
+    e.pBlock = New Block
+
+    Return e
+
+End
+
+'' Return if that position is over the entity within the tolerance
+Public Function OverMe(e As Entity, Xr As Float, Yr As Float, tolerance As Float) As Boolean
+
+    If e.Polygon Then
+        If puntos.isInside(e.Polygon, xr, yr) Then Return True
+    End If
+
+    Return False
+
+End
 
 Public Sub Translate(e As Entity, dX As Float, dY As Float, Optional OnlySelected As Boolean = False)
 
@@ -60,10 +81,7 @@ Public Sub Translate(e As Entity, dX As Float, dY As Float, Optional OnlySelecte
     '
     ' End Select
 
-
-
 End
-
 
 Public Sub Rotate(e As Entity, radians As Float)
 
@@ -94,11 +112,8 @@ Public Sub Draw(oE As Entity)
 
 End
 
-
-
 '' DrawMode: 0 Normal ; 1 Selected ; 2 Remark ; 3 Paint
 Public Sub Draw_List(eList As Collection, eParent As Entity, DrawMode As Integer)
-
 
     'insertion place:
     ' 0 = entity.P[0],[1]
@@ -119,18 +134,16 @@ Public Sub Draw_List(eList As Collection, eParent As Entity, DrawMode As Integer
 
             If et.pBlock Then Draw_List(et.pBlock.entities, et, DrawMode)
 
-
-
         Else
-            If et.Gender = "ATTRIB" Then
-                ' nada
-
-            Else
-                gl.PushMatrix
-                gl.Translatef(gcd.Pixels(eParent.p[0]) / gcd.Drawing.Sheet.ScaleZoom, gcd.Pixels(eParent.p[1]) / gcd.Drawing.Sheet.ScaleZoom, 0)
-                gl.Rotatef(eParent.fParam[Me.ipaRotacion], 0, 0, 1)
-                gl.Scalef(eParent.fParam[Me.ipaEscX], eParent.fParam[Me.ipaEscY], eParent.fParam[Me.ipaEscZ])
-            End If
+            ' If et.Gender = "ATTRIB" Then
+            '     ' nada
+            '
+            ' Else
+            '     gl.PushMatrix
+            '     gl.Translatef(gcd.Pixels(eParent.p[0]) / gcd.Drawing.Sheet.ScaleZoom, gcd.Pixels(eParent.p[1]) / gcd.Drawing.Sheet.ScaleZoom, 0)
+            '     gl.Rotatef(eParent.fParam[Me.ipaRotacion], 0, 0, 1)
+            '     gl.Scalef(eParent.fParam[Me.ipaEscX], eParent.fParam[Me.ipaEscY], eParent.fParam[Me.ipaEscZ])
+            ' End If
 
             Select Case DrawMode
                 Case 0 ' normal
@@ -143,11 +156,10 @@ Public Sub Draw_List(eList As Collection, eParent As Entity, DrawMode As Integer
                     GCD.CCC[et.gender].Draw2(et)
 
             End Select
-            If et.Gender <> "ATTRIB" Then gl.PopMatrix
+            'If et.Gender <> "ATTRIB" Then gl.PopMatrix
         End If
 
     Next
-
 
 End
 
@@ -213,13 +225,12 @@ Public Sub Draw_List2(eList As Collection, eParent As Entity, Optional Insertion
     Paint.Restore
 
 End
+
 '' Creo los puntos de interes
 '' Build point of interest
-
 Public Function BuildPOI(oE As Entity) As Integer
 
     ' si este valor no es provisto , estos POI son de la ultima entidad
-
 
     oe.PoiPoints.Clear
     oe.PoiType.Clear
@@ -231,17 +242,15 @@ Public Function BuildPOI(oE As Entity) As Integer
     'oe.poiEntities.Add(arrIndex)
     'If oe.Handle = "78193" Then Stop
 
-
-
     ' polygon
     Dim fLimits As Float[]
     'If IsNull(oe.pBlock) Then Return ' Stop
     fLimits = clsEntities.ComputeLimits(oe.pBlock.entities)
     If IsNull(fLimits) Then Stop 'Return
     oe.Polygon.Insert([fLimits[0], fLimits[1], fLimits[2], fLimits[1], fLimits[2], fLimits[3], fLimits[0], fLimits[3]])
-    puntos.Scale(oe.Polygon, oe.fParam[cadInsert.ipaEscX], oe.fParam[cadInsert.ipaEscY])
-    puntos.Rotate(oe.Polygon, Rad(oe.fParam[cadInsert.ipaRotacion])) ' TODO: verificar orden de esta y la siguiente linea
-    puntos.Translate(oe.Polygon, oe.P[0], oe.P[1])
+    ' puntos.Scale(oe.Polygon, oe.fParam[cadInsert.ipaEscX], oe.fParam[cadInsert.ipaEscY])
+    ' puntos.Rotate(oe.Polygon, Rad(oe.fParam[cadInsert.ipaRotacion])) ' TODO: verificar orden de esta y la siguiente linea
+    ' puntos.Translate(oe.Polygon, oe.P[0], oe.P[1])
 
 End
 
@@ -278,14 +287,12 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     e.fParam[Me.ipaEscY] = 1    ' esc Y
     e.fParam[Me.ipaEscZ] = 1    ' esc Z
 
-
-
     For i = 0 To sClaves.Max
 
         If sClaves[i] = "2" Then
             b = New Block
             b.name = sValues[i]
-            e.pBlock = gcd.Drawing.Blocks[sValues[i]] 'clsEntities.FIndBlock(sValues[i], gcd.Drawing.Blocks)
+            e.pBlock = b 'gcd.Drawing.Blocks[sValues[i]]
         Endif
         If sClaves[i] = "10" Then e.P[0] = (CFloat(sValues[i]))         ' X
         If sClaves[i] = "20" Then e.P[1] = (CFloat(sValues[i]))         ' Y
@@ -300,7 +307,6 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     ' esc Z
     'InsertParts(e, False)
 
-
     Return True
 
     '' catch
@@ -309,11 +315,17 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
 End
 
-
-
 '' Inserta las partes de un Insert en la coleccion de entidades
-Public Function InsertParts(eInsert As Entity, bDontMoveThem As Boolean) As Collection
+Public Function InsertParts(eInsert As Entity, bDontMoveThem As Boolean) As Boolean
 
+    eInsert.pBlock.entities = GetPartsFromBlock(eInsert)
+
+    Return True
+
+End
+
+'' Busca las entidades de un Block y las devuelve con los parametros del Insert
+Public Function GetPartsFromBlock(eInsert As Entity) As Collection
 
     ' la geometria de un inserto implica
     Dim e, e2 As Entity
@@ -321,40 +333,60 @@ Public Function InsertParts(eInsert As Entity, bDontMoveThem As Boolean) As Coll
 
     ' eInsert.pBlock.entities.Clear
     For Each e In gcd.Drawing.Blocks[eInsert.pBlock.name].entities
-        If e.Gender = "ATTDEF" Then Continue                    ' esta entidad ya viene digerida en el DXF
+        If e.Gender = "ATTRIB" Then Continue                    ' esta entidad ya viene digerida en el DXF
         If e.Gender = cadInsert.Gender Then
-            For Each e2 In insertParts(e, bDontMoveThem)
-                If Not bdontmovethem Then
-                    gcd.CCC[e2.gender].translate(e2, eInsert.p[0], eInsert.p[1])
-                    gcd.CCC[e2.gender].rotate(e2, eInsert.fParam[cadInsert.ipaRotacion])
-                    gcd.CCC[e2.gender].scale(e2, eInsert.fParam[cadInsert.ipaEscX], eInsert.fParam[cadInsert.ipaEscY])
-                End If
-                e2.IdContainer = eInsert.Id
+            For Each e2 In GetPartsFromBlock(e)
+                gcd.CCC[e2.gender].translate(e2, eInsert.p[0], eInsert.p[1])
+                gcd.CCC[e2.gender].rotate(e2, eInsert.fParam[cadInsert.ipaRotacion])
+                gcd.CCC[e2.gender].scale(e2, eInsert.fParam[cadInsert.ipaEscX], eInsert.fParam[cadInsert.ipaEscY])
+                'e2.IdContainer = eInsert.Id
                 cParts.Add(e2, e2.Id)
             Next
         Else
 
             e2 = clsEntities.ClonEntity(e)
             e2.IdContainer = eInsert.Id
-            'e2.Visible = False
-            If Not bDontMoveThem Then
-                gcd.CCC[e2.gender].translate(e2, eInsert.p[0], eInsert.p[1])
-                gcd.CCC[e2.gender].rotate(e2, eInsert.fParam[cadInsert.ipaRotacion])
-                gcd.CCC[e2.gender].scale(e2, eInsert.fParam[cadInsert.ipaEscX], eInsert.fParam[cadInsert.ipaEscY])
-            End If
-            'eInsert.pBlock.Entities.Add(e2, e2.Handle)
+
+            gcd.CCC[e2.gender].translate(e2, eInsert.p[0], eInsert.p[1])
+            gcd.CCC[e2.gender].rotate(e2, eInsert.fParam[cadInsert.ipaRotacion])
+            gcd.CCC[e2.gender].scale(e2, eInsert.fParam[cadInsert.ipaEscX], eInsert.fParam[cadInsert.ipaEscY])
 
             ' llamo recursivamente en caso que sea inserto
             cParts.Add(e2, e2.Id)  ' tambien guardo una referencia aqui
         End If
 
-
     Next
-
-
 
     Return cParts
 
+End
+
+'' Mueve las entidades de un insert a su posicion final
+Public Function MoveInsertParts(eInsert As Entity)
+
+    Dim e As Entity
+
+    For Each e In eInsert.pBlock.entities
+        'If e.Gender = "ATTRIB" Then Continue
+        gcd.CCC[e.gender].translate(e, eInsert.p[0], eInsert.p[1])
+        gcd.CCC[e.gender].rotate(e, eInsert.fParam[cadInsert.ipaRotacion])
+        gcd.CCC[e.gender].scale(e, eInsert.fParam[cadInsert.ipaEscX], eInsert.fParam[cadInsert.ipaEscY])
+    Next
 
 End
 
+Public Sub Finish(oE As Entity) As Boolean
+
+    InsertParts(oe, True)
+    'MoveInsertParts(oe)
+
+    ' tareas finales de armado del objeto
+    Me.BuildPOI(oe)
+
+    'Me.BuildGeometry(oe)
+
+    oE.psel.resize(oE.p.count / 2)
+
+    'oE.Selected = False
+
+End
