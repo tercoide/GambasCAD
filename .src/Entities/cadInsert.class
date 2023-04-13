@@ -286,23 +286,22 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     e.fParam[Me.ipaEscX] = 1    ' esc X
     e.fParam[Me.ipaEscY] = 1    ' esc Y
     e.fParam[Me.ipaEscZ] = 1    ' esc Z
-
-    For i = 0 To sClaves.Max
-
-        If sClaves[i] = "2" Then
-            b = New Block
-            b.name = sValues[i]
-            e.pBlock = b 'gcd.Drawing.Blocks[sValues[i]]
-        Endif
-        If sClaves[i] = "10" Then e.P[0] = (CFloat(sValues[i]))         ' X
-        If sClaves[i] = "20" Then e.P[1] = (CFloat(sValues[i]))         ' Y
-        If sClaves[i] = "41" Then e.fParam[Me.ipaEscX] = CFloat(sValues[i])         ' esc X
-        If sClaves[i] = "42" Then e.fParam[Me.ipaEscY] = CFloat(sValues[i])         ' esc Y
-        If sClaves[i] = "43" Then e.fParam[Me.ipaEscZ] = CFloat(sValues[i])         ' esc Z
-        If sClaves[i] = "50" Then e.fParam[Me.ipaRotacion] = CFloat(sValues[i])      ' rotacion
-        If sClaves[i] = "66" Then e.fParam[Me.ipaAttribs] = CFloat(sValues[i])      ' hay ATTRIB data perteneciente a este Insert, terminado en un SEQEND
-    Next
-
+    
+    
+        b = New Block
+e.pBlock = b 'gcd.Drawing.Blocks[sValues[i]]
+    
+        i = dxf.ReadCodePlus(2, sClaves, sValues, ByRef b.name,,, 0)
+        
+        i = dxf.ReadCodePlus(10, sClaves, sValues, ByRef e.p[0],,, 0)
+        i = dxf.ReadCodePlus(20, sClaves, sValues, ByRef e.p[1],,, 0)
+        i = dxf.ReadCodePlus(41, sClaves, sValues, ByRef e.fParam[Me.ipaEscX],,, 0)
+        i = dxf.ReadCodePlus(42, sClaves, sValues, ByRef e.fParam[Me.ipaEscY],,, 0)
+        i = dxf.ReadCodePlus(43, sClaves, sValues, ByRef e.fParam[Me.ipaEscZ],,, 0)
+        i = dxf.ReadCodePlus(50, sClaves, sValues, ByRef e.fParam[Me.ipaRotacion],,, 0)
+        i = dxf.ReadCodePlus(66, sClaves, sValues, ByRef e.fParam[Me.ipaAttribs],,, 0)
+        
+    
     If e.fParam[Me.ipaEscZ] = 0 Then e.fParam[Me.ipaEscZ] = 1    ' esc Z
     ' esc Z
     'InsertParts(e, False)
@@ -334,22 +333,28 @@ Public Function GetPartsFromBlock(eInsert As Entity) As Collection
     ' eInsert.pBlock.entities.Clear
     For Each e In gcd.Drawing.Blocks[eInsert.pBlock.name].entities
         If e.Gender = "ATTRIB" Then Continue                    ' esta entidad ya viene digerida en el DXF
+        If e.Gender = "ATTDEF" Then Continue                    ' esta entidad ya viene digerida en el DXF
         If e.Gender = cadInsert.Gender Then
             For Each e2 In GetPartsFromBlock(e)
-                gcd.CCC[e2.gender].translate(e2, eInsert.p[0], eInsert.p[1])
-                gcd.CCC[e2.gender].rotate(e2, eInsert.fParam[cadInsert.ipaRotacion])
-                gcd.CCC[e2.gender].scale(e2, eInsert.fParam[cadInsert.ipaEscX], eInsert.fParam[cadInsert.ipaEscY])
-                'e2.IdContainer = eInsert.Id
+                If e.Gender = "ATTRIB" Then Continue                    ' esta entidad ya viene digerida en el DXF
+                If e.Gender = "ATTDEF" Then Continue                    ' esta entidad ya viene digerida en el DXF      
+            gcd.CCC[e2.gender].scale(e2, eInsert.fParam[cadInsert.ipaEscX], eInsert.fParam[cadInsert.ipaEscY])
+            gcd.CCC[e2.gender].rotate(e2, eInsert.fParam[cadInsert.ipaRotacion])
+            gcd.CCC[e2.gender].translate(e2, eInsert.p[0], eInsert.p[1])
+            ' gcd.CCC[e2.gender].rotate(e2, eInsert.fParam[cadInsert.ipaRotacion])
+            ' gcd.CCC[e2.gender].scale(e2, eInsert.fParam[cadInsert.ipaEscX], eInsert.fParam[cadInsert.ipaEscY])
+    'e2.IdContainer = eInsert.Id
                 cParts.Add(e2, e2.Id)
             Next
         Else
 
             e2 = clsEntities.ClonEntity(e)
             e2.IdContainer = eInsert.Id
-
-            gcd.CCC[e2.gender].translate(e2, eInsert.p[0], eInsert.p[1])
-            gcd.CCC[e2.gender].rotate(e2, eInsert.fParam[cadInsert.ipaRotacion])
             gcd.CCC[e2.gender].scale(e2, eInsert.fParam[cadInsert.ipaEscX], eInsert.fParam[cadInsert.ipaEscY])
+            gcd.CCC[e2.gender].rotate(e2, eInsert.fParam[cadInsert.ipaRotacion])
+            gcd.CCC[e2.gender].translate(e2, eInsert.p[0], eInsert.p[1])
+            ' gcd.CCC[e2.gender].rotate(e2, eInsert.fParam[cadInsert.ipaRotacion])
+            ' gcd.CCC[e2.gender].scale(e2, eInsert.fParam[cadInsert.ipaEscX], eInsert.fParam[cadInsert.ipaEscY])
 
             ' llamo recursivamente en caso que sea inserto
             cParts.Add(e2, e2.Id)  ' tambien guardo una referencia aqui
@@ -361,19 +366,19 @@ Public Function GetPartsFromBlock(eInsert As Entity) As Collection
 
 End
 
-'' Mueve las entidades de un insert a su posicion final
-Public Function MoveInsertParts(eInsert As Entity)
-
-    Dim e As Entity
-
-    For Each e In eInsert.pBlock.entities
-        'If e.Gender = "ATTRIB" Then Continue
-        gcd.CCC[e.gender].translate(e, eInsert.p[0], eInsert.p[1])
-        gcd.CCC[e.gender].rotate(e, eInsert.fParam[cadInsert.ipaRotacion])
-        gcd.CCC[e.gender].scale(e, eInsert.fParam[cadInsert.ipaEscX], eInsert.fParam[cadInsert.ipaEscY])
-    Next
-
-End
+' '' Mueve las entidades de un insert a su posicion final
+' Public Function MoveInsertParts(eInsert As Entity)
+' 
+'     Dim e As Entity
+' 
+'     For Each e In eInsert.pBlock.entities
+'         'If e.Gender = "ATTRIB" Then Continue
+'         gcd.CCC[e.gender].translate(e, eInsert.p[0], eInsert.p[1])
+'         gcd.CCC[e.gender].rotate(e, eInsert.fParam[cadInsert.ipaRotacion])
+'         gcd.CCC[e.gender].scale(e, eInsert.fParam[cadInsert.ipaEscX], eInsert.fParam[cadInsert.ipaEscY])
+'     Next
+' 
+' End
 
 Public Sub Finish(oE As Entity) As Boolean
 
