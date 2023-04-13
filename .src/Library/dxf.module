@@ -1642,16 +1642,28 @@ End
 '   iStartPos = la posicion inicial en los array para la busqueda (def = 0)
 '   iEscapeCode = si encuentra este codigo, sale
 
-Public Function ReadCodePlus(iExpectedCode As Integer, stxClaves As String[], stxValues As String[], ByRef RetValue As Variant, Optional iStartPos As Integer = 0, iEscapeCode As Integer = -1) As Integer
+Public Function ReadCodePlus(iExpectedCode As Integer, stxClaves As String[], stxValues As String[], ByRef RetValue As Variant, Optional iStartPos As Integer = 0, iEscapeCode As Integer = -1, iStartCode As Integer = -1) As Integer
 
     Dim i, iMax As Integer
+    Dim StartOK As Boolean = True
 
     If stxClaves.max <> stxValues.max Then
         Debug "ReadCode: error, bad lists"
         Return -1
     Endif
     'If ExactPos Then iMax = iStartPos Else imax = stxClaves.Max
+    If iStartCode >= 0 Then StartOK = False
     For i = iStartPos To stxClaves.max
+        ' veo si proveyo un codigo inicial
+        If iStartCode >= 0 Then 
+            
+            If CInt(stxClaves[i]) = iStartCode Then
+                StartOK = True
+            Endif
+        Endif
+        
+        If Not StartOK Then Continue 
+        
         If CInt(stxClaves[i]) = iExpectedCode Then
             Select Case TypeOf(RetValue)
                 Case gb.Integer
@@ -1680,20 +1692,20 @@ Public Function ReadCodePlus(iExpectedCode As Integer, stxClaves As String[], st
             End Select
 
             Return -i
-        Else If iEscapeCode = -1 Then
-            Select Case TypeOf(RetValue)
-                Case gb.Integer
-                    RetValue = 0
-
-                Case gb.Float
-                    RetValue = 0
-
-                Case gb.String
-                    RetValue = ""
-
-            End Select
-
-            Return -i
+        ' Else If iEscapeCode = -1 Then
+        '     Select Case TypeOf(RetValue)
+        '         Case gb.Integer
+        '             RetValue = 0
+        ' 
+        '         Case gb.Float
+        '             RetValue = 0
+        ' 
+        '         Case gb.String
+        '             RetValue = ""
+        ' 
+        '     End Select
+        ' 
+        '     Return -i
 
         Endif
     Next
@@ -1825,7 +1837,8 @@ Public Sub ReadLayers(cLaydata As Collection, drw As Drawing)
         hLay.Colour = Abs(CInt(cLay[dxf.codColor]))
         hLay.LineType = drw.LineTypes[cLay[Me.codLType]]
 
-        hLay.LineWt = cLay["370"]
+        Try hLay.LineWt = cLay["370"]       ' algunos dxf no traen esta info
+        If hLay.LineWt = 0 Then hLay.LineWt = 1
 
         'depre hLay.handle = cLay[dxf.codHandle]
         ' If hLay.handle = "" Then hLay.handle = gcd.NewHandle()
