@@ -47,11 +47,13 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
     Else                                                                    ' need the first point
 
         'DrawingAids.CmdLineHelper = DrawingAids.CmdLineHelper & ": " & ("Base point")
-        Me.Prompt = ("Move") & " " & Str(gcd.Drawing.Sheet.EntitiesSelected.Count) & " " & ("elements") & ": " & ("Base point")
+        Me.Prompt = ("Move") & " " & Str(gcd.Drawing.Sheet.EntitiesSelected.Count) & " " & ("elements") & "-> " & ("Base point") & ":"
 
+        Me.NextParamType = "P"
         ' armamos el menu contextual y lo asignamos a la GL area
         gcd.Drawing.Sheet.GlSheet.PopupMenu = Me.Gender
 
+        Me.PointsDone = 1
 
 
         gcd.SnapMode = Config.SnapModeSaved                 ' vuelvo al Snap Guardado
@@ -71,19 +73,67 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
 
 End
 
+Public Function KeyText(EnteredText As String)
 
-'' Una nueva accion del user: definitive significa que no es un MouseMove o algo similar
-Public Function NewParameter(vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
+    Super.KeyText(EnteredText)
+    If Me.PointsDone = 1 Then ' acabo de marcar el punto base
+        PuntoBase
+    Else If Me.PointsDone = 2 Then ' acabo de marcar el punto final
 
-    If vParam[0] = "point" Then
+        PuntoFinal
 
-        ' enganio al evento mouse
-        MouseMove(gcd.Xpix(vParam[1]), gcd.Ypix(vParam[2]))
-        MouseUp(gcd.Xpix(vParam[1]), gcd.Ypix(vParam[2]))
+    End If
 
-    Endif
 
 End
+
+
+'
+' '' Una nueva accion del user: definitive significa que no es un MouseMove o algo similar
+' Public Function NewParameter(vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
+'
+'     If vParam[0] = "point" Then
+'
+'         ' enganio al evento mouse
+'         MouseMove
+'         MouseUp
+'
+'     Endif
+'
+' End
+
+Public Sub PuntoBase()
+
+    ' punto real base
+    Me.SelStartXr = Me.LastX
+    Me.SelStartYr = Me.LastY
+
+    ' volvemos el Snap al original
+    gcd.SnapMode = Config.SnapModeSaved
+
+    ' ya tengo cosas seleccionadas
+    DrawingAIds.Helper.texto = ("Final point")
+    Me.Prompt = ("Move") & " " & Str(gcd.Drawing.Sheet.EntitiesSelected.Count) & " " & ("elements") & ": " & ("Final point")
+    Me.PointsDone = 2
+
+End
+
+Public Sub PuntoFinal()
+
+    Me.SelEndXr = Me.LastX
+    Me.SelEndYr = Me.LastY
+
+    clsEntities.Move(Me.SelEndXr - Me.SelStartXr, Me.SelEndyr - Me.SelStartYr)
+
+
+    gcd.Drawing.uUndo.CloseUndoStage()
+
+    Me.Finish
+
+
+End
+
+
 
 Public Function MouseUp()
 
@@ -91,23 +141,10 @@ Public Function MouseUp()
         Me.Cancel()
 
     Else If Mouse.Left Then
-        Inc Me.PointsDone
 
         If Me.PointsDone = 1 Then ' acabo de marcar el punto base
 
-            ' ya tengo cosas seleccionadas
-
-            ' punto real base
-            Me.SelStartXr = Me.LastX
-            Me.SelStartYr = Me.LastY
-
-            ' volvemos el Snap al original
-            gcd.SnapMode = Config.SnapModeSaved
-
-            ' ya tengo cosas seleccionadas
-            DrawingAIds.Helper.texto = ("Final point")
-            Me.Prompt = ("Move") & " " & Str(gcd.Drawing.Sheet.EntitiesSelected.Count) & " " & ("elements") & ": " & ("Final point")
-
+            PuntoBase
             ' prevenir acciones tontas como hacer click en otro elemento antes de terminar con el actual
             ' TODO: reparar -> gcd.CurrDrawing.DesHabilitarBotones
         Else If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
@@ -117,13 +154,7 @@ Public Function MouseUp()
             ' job finished correctly
 
             ' and now we move
-            clsEntities.Move(Me.SelEndXr - Me.SelStartXr, Me.SelEndyr - Me.SelStartYr)
-
-
-            gcd.Drawing.uUndo.CloseUndoStage()
-
-            Me.Finish
-
+            PuntoFinal
         Endif
     End If
 
@@ -135,7 +166,7 @@ Public Function MouseMove()
     Super.MouseMove()
 
 
-    If Me.PointsDone = 1 Then
+    If Me.PointsDone = 2 Then
         ' we compare Real values from the starting point to the location
         ' represente by the mouse now, taking account that the drawing
         ' could have being moved by the mouse wheel
@@ -151,111 +182,4 @@ Public Function MouseMove()
 
 End
 
-Public Sub KeyText(EnteredText As String)
 
-
-
-    ' Lets see what are we expecting
-    Dim Xt, Zt As Float, ErrTxt As String, Relative As Boolean
-
-    Select Case Me.NextParamType
-
-        Case "P", "+"
-            ' errtxt = ", expected a valid point like 12.4,9.5  or @12.34,10.5"
-            ' ' lets filter
-            ' EnteredText = Trim$(UCase$(EnteredText))
-            ' ' So we expect a position x,y , but in some cases it can be
-            ' ' C = close
-            ' ' U = undo, delete last segment
-            ' ' and others
-            '
-            ' If Left(EnteredText, 1) = "C" Then          ' close the element
-            '     ' got othe first point and exit
-            '     elem.P[iPoints * 2] = elem.P[0]
-            '     elem.P[iPoints * 2 + 1] = elem.P[1]
-            '     Me.Finish
-            '
-            ' Else If Left(EnteredText, 1) = "U" Then     ' undo last command and go
-            '
-            '     elem.P.remove(elem.P.max)
-            '     elem.P.remove(elem.P.max)
-            '     Me.Finish
-            ' Else                                        ' an X,Y or @X,Y
-            '
-            '     If InStr(EnteredText, "@") > 0 Then    ' may be a point
-            '         Relative = True
-            '         EnteredText = Replace(EnteredText, "@", "")
-            '     Endif
-            '     Xt = CFloat(Split(EnteredText, ",")[0])
-            '     Zt = CFloat(Split(EnteredText, ",")[1])
-            '
-            '     ' if we are stll here, input was good
-            '     elem.P[iPoints * 2] = Xt
-            '     elem.P[iPoints * 2 + 1] = Zt
-            '
-            '     If Relative And (elem.P.count > 2) Then
-            '         elem.P[iPoints * 2] += elem.P[(iPoints - 1) * 2]
-            '         elem.P[iPoints * 2 + 1] += elem.P[(iPoints - 1) * 2 + 1]
-            '
-            '     Endif
-            '     Inc iPoints
-            '     AdvanceStep
-            '
-            ' End If
-
-        Case "T"
-            ' errtxt = ", expected text, not a point"
-            ' ' its a valid input?
-            ' If EnteredText = "" Then
-            '
-            '     'elem.stringdata[0] = EnteredText
-            '     elem.stringdata[0] &= ParamDefault[elem.Gcd.CCC[e.gender].StepsDone]
-            ' Else If elem.stringdata[0] <> "" Then                      ' we have a previous entry
-            '
-            '     elem.stringdata[0] &= "|" & EnteredText  ' split if necessary
-            '
-            ' Else
-            '
-            '     elem.stringdata[0] &= EnteredText                      ' first entry
-            '
-            ' End If
-            '
-            ' AdvanceStep
-
-        Case "F", "M", "A", "L"                 ' Float, Mixed, Angle, Longitud
-            ErrTxt = ("enter a valId text size")
-
-            If EnteredText = "" Then
-
-                Offset = Me.NextParamDefault
-
-            Else
-
-                Offset = CFloat(EnteredText)
-
-            Endif
-            Me.Prompt = "Offset: " & ("select an entity")
-
-            Inc Me.PointsDone
-
-        Case "C"                                ' color
-            ' If Dialog.SelectColor() Then
-            '     elem.fParam[iFloat] = CFloat(Dialog.Color)
-            '     Inc iFloat
-            '     AdvanceStep
-            '
-            ' Endif
-            ' Key.Cod
-
-    End Select
-
-Finally
-
-    Return
-
-    ' catch
-
-    ' unexpected input
-    DrawingAIds.ErrorMessage = ("Bad input") & " " & ErrTxt
-
-End
