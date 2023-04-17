@@ -251,63 +251,101 @@ End
 
 Public Sub Translate(e As Entity, dX As Float, dY As Float, Optional OnlySelected As Boolean = False)
 
-    Dim p As Float[]
+    Dim p As Float[], eBorder As Entity, eBorders As Entity[], pater As Pattern
 
     h = e.pBlock
-    For Each p In h.Polylines
-        puntos.Translate(p, dx, dy)
+
+    ' muevo las entidades que definen el contorno
+    For Each eBorders In h.eSegments
+        For Each eborder In eBorders
+            gcd.CCC[eborder.Gender].Translate(eborder, dx, dy)
+        Next
     Next
-    puntos.Translate(e.PolyLine, dx, dy)
+
+    ' muevo el patron
+    For Each pater In h.Patterns
+        pater.BaseX += dx
+        pater.BaseY += dy
+
+    Next
+
+    puntos.Translate(h.SeedPoints, dx, dy)
+
+    Me.BuildGeometry(e)
+    ' puntos.Translate(e.PolyLine, dx, dy)
+    ' puntos.Translate(e.Polygon, dx, dy)
 
 End
 
 Public Sub Rotate(e As Entity, radians As Float)
 
-    Dim p As Float[]
+    Dim p As New Float[], eBorder As Entity, eBorders As Entity[], pater As Pattern
 
     h = e.pBlock
-    For Each p In h.Polylines
-        puntos.Rotate(p, radians)
+
+    ' muevo las entidades que definen el contorno
+    For Each eBorders In h.eSegments
+        For Each eborder In eBorders
+            gcd.CCC[eborder.Gender].rotate(eborder, radians)
+        Next
     Next
 
-    If e.sParam[Me.sdaPattern] <> "SOLID" Then
-        e.fParam[Me.ipaRotation] += Deg(radians)
-        cadHatchBuilder.MakePattern(e, e.sParam[Me.sdaPattern], e.fParam[Me.ipaRotation], e.fParam[Me.ipaScale])
-        e.PolyLine.Clear
-        FillEntityWithHatch4(e)
+    ' muevo el patron
+    For Each pater In h.Patterns
 
-    Else
+        p.Clear
+        p.Insert([pater.BaseX, pater.BaseY, pater.OffsetX, pater.OffsetY])
+        pater.BaseX = p[0]
+        pater.BaseY = p[1]
+        pater.OffsetX = p[2]
+        pater.OffsetY = p[3]
+        pater.AngleDeg += Deg(radians)
+    Next
 
-        For Each p In e.pBlock.PolyLines
-            e.Polygon.Insert(puntos.PolygonTriangulation(p))
-        Next
+    puntos.Rotate(h.SeedPoints, radians)
 
-    End If
+    Me.BuildGeometry(e)
+
+    ' If e.sParam[Me.sdaPattern] <> "SOLID" Then
+    '     e.fParam[Me.ipaRotation] += Deg(radians)
+    '     cadHatchBuilder.MakePattern(e, e.sParam[Me.sdaPattern], e.fParam[Me.ipaRotation], e.fParam[Me.ipaScale])
+    '     e.PolyLine.Clear
+    '     FillEntityWithHatch4(e)
+    '
+    ' Else
+    '
+    '     For Each p In e.pBlock.PolyLines
+    '         e.Polygon.Insert(puntos.PolygonTriangulation(p))
+    '     Next
+    '
+    ' End If
 
 End
 
 Public Sub Scale(e As Entity, sX As Float, sY As Float)
 
-    Dim p As Float[]
+    Dim p As Float[], eBorder As Entity, eBorders As Entity[], pater As Pattern
 
     h = e.pBlock
-    For Each p In h.Polylines
-        puntos.Scale(p, sx, sy)
+
+    ' muevo las entidades que definen el contorno
+    For Each eBorders In h.eSegments
+        For Each eborder In eBorders
+            gcd.CCC[eborder.Gender].scale(eborder, sx, sy)
+        Next
     Next
 
-    If e.sParam[Me.sdaPattern] <> "SOLID" Then
-        e.fParam[Me.ipaScale] *= SX
-        cadHatchBuilder.MakePattern(e, e.sParam[Me.sdaPattern], e.fParam[Me.ipaRotation], e.fParam[Me.ipaScale])
-        e.PolyLine.Clear
-        FillEntityWithHatch4(e)
+    ' muevo el patron
+    For Each pater In h.Patterns
+        pater.BaseX *= sx
+        pater.BaseY *= sy
+        pater.OffsetX *= sx
+        pater.OffsetY *= sy
+    Next
 
-    Else
+    puntos.Scale(h.SeedPoints, sx, sy)
 
-        For Each p In e.pBlock.PolyLines
-            e.Polygon.Insert(puntos.PolygonTriangulation(p))
-        Next
-
-    End If
+    Me.BuildGeometry(e)
 
 End
 
@@ -1175,6 +1213,9 @@ Public Sub MakeBorder2(oPath As Hatch)
     Dim FirstPointSet As Boolean = False
     Dim BoundaryGotClosed As Boolean = False
 
+    oPath.Polylines.Clear
+    oPath.Levels.Clear
+
     ' armo ese contorno
     For Each borders In oPath.eSegments
 
@@ -1351,7 +1392,6 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
 
     'For Each oLoop In entToFill.pBlock
 
-
     'If entToFill.id = "45ED" Then Stop
     'If entToFill.StringData[0] = "ANSI31" Then Stop
     'If entToFill.sParam[0] = "GRAVEL" Then Return 'entToFill.Colour = 2
@@ -1376,6 +1416,8 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
     ' Calculo el CG
     Xcg = (Xmayor + Xmenor) / 2
     Ycg = (Ymayor + Ymenor) / 2
+
+    If entToFill.pBlock.Patterns.count = 0 Then Return
 
     DeltaX = Xcg - entToFill.pBlock.Patterns[0].BaseX
     DeltaY = ycg - entToFill.pBlock.Patterns[0].BaseY
@@ -1544,6 +1586,7 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
 
     SeedIndex = -1
     Filled = False
+    entToFill.PolyLine.Clear
     For Each flxContorno In entToFill.pBlock.Polylines
         Inc SeedIndex
         If entToFill.pBlock.Levels[SeedIndex] > 0 Then Continue ' es un borde
