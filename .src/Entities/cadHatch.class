@@ -381,7 +381,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     e.pBlock = New Hatch
     NewPath = e.pBlock
 
-    'If e.id = "7A44" Then Stop
+    If e.id = "FE725" Then Stop
     i = dxf.ReadCodePlus(2, sClaves, sValues, ByRef e.sParam[Me.sdaPattern], 0, 70)
     i = dxf.ReadCodePlus(70, sClaves, sValues, ByRef e.fParam[Me.ipaSolId], i, 71)
     i = dxf.ReadCodePlus(71, sClaves, sValues, ByRef e.fParam[Me.ipaAsociativity], i, 91)
@@ -505,35 +505,31 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
                         If i > 0 Then sp.Periodic += CInt(r)
 
                         ' ignoro estos dos
-                        i = dxf.ReadCodePlus(95, sClaves, sValues, ByRef r, i)
-                        i = dxf.ReadCodePlus(96, sClaves, sValues, ByRef r, i)
-
-                        Do
+                        i = dxf.ReadCodePlus(95, sClaves, sValues, ByRef r, i) 'numero de knots
+                        sp.KnotValues.Resize(CInt(r))
+                        i = dxf.ReadCodePlus(96, sClaves, sValues, ByRef r, i) ' numero de control points
+                        sp.ControlPoints.Resize(CInt(r) * 2)
+                        For i2 = 0 To sp.KnotValues.Max
                             i = dxf.ReadCodePlus(40, sClaves, sValues, ByRef r, i)
-                            If i > 0 Then sp.KnotValues.Add(CFloat(r))
-                        Loop Until i < 0
+                            If i > 0 Then sp.KnotValues[i2] = CFloat(r)
+                        Next
                         i = Abs(i)
 
                         ' por lo general hay fit points o controls points, pero no ambos, cargo lo que sea en P
                         ' Control points
-                        Do
+                        For i2 = 0 To sp.ControlPoints.Count / 2 - 1
                             i = dxf.ReadCodePlus(10, sClaves, sValues, ByRef r, i)
-                            If i > 0 Then
-                                sp.ControlPoints.Add(CFloat(r))
-                            Else
-                                i = Abs(i)
-                                Break
-                            End If
+                            sp.ControlPoints[i2 * 2] = CFloat(r)
 
                             i = dxf.ReadCodePlus(20, sClaves, sValues, ByRef r, i)
-                            sp.ControlPoints.Add(CFloat(r))
+                            sp.ControlPoints[i2 * 2 + 1] = CFloat(r)
 
-                        Loop
+                        Next
 
                         Do
                             i = dxf.ReadCodePlus(42, sClaves, sValues, ByRef r, i)
                             If i > 0 Then sp.Weigths.Add(CFloat(r))
-                        Loop Until i < 0
+                        Loop Until i <= 0
                         i = Abs(i)
 
                         ' numero de Fit Points
@@ -613,10 +609,11 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
                 i = dxf.ReadCodePlus(20, sClaves, sValues, ByRef r, i)
                 eContour.P[iPoints * 2 + 1] = CFloat(r)
-                i2 = dxf.ReadCodePlus(42, sClaves, sValues, ByRef r, i)
-                If i2 > 0 Then
-                    eContour.fParam.Add(CFloat(r))
-                    i = i2
+
+                ' ahora chequeo el bulge, que es opcional
+                If sClaves[i] = "42" Then
+                    eContour.fParam.Add(CFloat(sValues[i]))
+                    i += 1
                 Endif
 
             Next
