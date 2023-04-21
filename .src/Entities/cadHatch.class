@@ -61,7 +61,7 @@ Public h As Hatch
 ' StringData[0]: nombre del patron del sombreado
 Public Sub ClonEntity(eOrigen As Entity) As Entity
 
-    Dim e As Entity, bBase As Hatch, flxPoly As Float[]
+    Dim e, eSegment, eSegmentNew As Entity, bBase As Hatch, flxPoly, flxPoly2 As Float[], eSegments, eSegmentsNew As Entity[]
 
     e = Super.ClonEntity(eOrigen)
 
@@ -69,15 +69,38 @@ Public Sub ClonEntity(eOrigen As Entity) As Entity
     e.pBlock = h
     bBase = eOrigen.pBlock
     h.SeedPoints.Insert(bBase.SeedPoints.copy())
+    h.Levels.Insert(bBase.Levels.Copy())
     h.Flag = bBase.Flag
-    h.eSegments.Insert(bBase.esegments.copy())
-    For Each flxPoly In bBase.Polylines
-        h.Polylines.add(flxPoly)
+    h.eSegments = New Entity[][]
+    For Each eSegments In bBase.eSegments
+        eSegmentsNew = New Entity[]
+        For Each eSegment In eSegments
+            eSegmentNew = gcd.CCC[eSegment.gender].ClonEntity(eSegment)
+            eSegmentsNew.Add(eSegmentNew)
+        Next
+        h.eSegments.Add(eSegmentsNew)
     Next
 
-    Dim p As Pattern
+    For Each flxPoly In bBase.Polylines
+        flxPoly2 = New Float[]
+        flxPoly2.Insert(flxPoly.Copy())
+        h.Polylines.add(flxPoly2)
+    Next
+
+    Dim p, p2 As Pattern
+    Dim f As Float
     For Each p In bBase.patterns
-        h.Patterns.add(p)
+        p2 = New Pattern
+        p2.AngleDeg = p.AngleDeg
+        p2.BaseX = p.BaseX
+        p2.BaseY = p.BaseY
+        p2.OffsetX = p.OffsetX
+        p2.OffsetY = p.OffsetY
+        p2.DashLength = New Float[]
+        For Each f In p.DashLength
+            p2.DashLength.Add(f)
+        Next
+        h.Patterns.add(p2)
     Next
 
     Return e
@@ -381,7 +404,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     e.pBlock = New Hatch
     NewPath = e.pBlock
 
-    If e.id = "FE725" Then Stop
+    'If e.id = "FE725" Then Stop
     i = dxf.ReadCodePlus(2, sClaves, sValues, ByRef e.sParam[Me.sdaPattern], 0, 70)
     i = dxf.ReadCodePlus(70, sClaves, sValues, ByRef e.fParam[Me.ipaSolId], i, 71)
     i = dxf.ReadCodePlus(71, sClaves, sValues, ByRef e.fParam[Me.ipaAsociativity], i, 91)
