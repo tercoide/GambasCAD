@@ -87,23 +87,18 @@ Public Sub Translate(e As Entity, dX As Float, dY As Float, Optional OnlySelecte
     ' Select Case e.pBlock.InsertionPlace
     '     Case 0  ' simplemente muevo P
     puntos.Translate(e.p, dx, dy)
+    puntos.Translate(e.Polygon, dx, dy)
 
     For Each eBlock In e.pBlock.entities
         gcd.CCC[eBlock.gender].translate(eBlock, dx, dy)
     Next
-    '     Case 1  ' aca es mas complicado porque P no se tiene en cuenta, hay que mover todas las entidades del bloque
-    '         puntos.Translate(e.p, dx, dy)
-    '         For Each eBlock In e.pBlock.entities
-    '             gcd.CCC[eBlock.gender].translate(eBlock, dx, dy)
-    '         Next
-    '
-    ' End Select
 
 End
 
 Public Sub Rotate(e As Entity, radians As Float)
 
     puntos.Rotate(e.P, radians)
+    puntos.Rotate(e.Polygon, radians)
     E.fParam[Me.ipaRotacion] += Deg(radians)
 
     Dim eBlock As Entity
@@ -120,12 +115,9 @@ Public Sub Scale(e As Entity, sX As Float, sY As Float)
 
     E.fParam[Me.ipaEscX] *= sX
     E.fParam[Me.ipaEscY] *= sY
-    For i = 0 To e.p.max Step 2
 
-        e.P[i] = e.P[i] * sX
-        e.P[i + 1] = e.P[i + 1] * sY
-
-    Next
+    puntos.Scale(e.P, sx, sy)
+    puntos.Scale(e.Polygon, sx, sy)
 
     Dim eBlock As Entity
 
@@ -425,14 +417,17 @@ Public Sub Finish(oE As Entity) As Boolean
 
 End
 
-Public Sub ClonEntity(eOrigen As Entity) As Entity
+Public Sub ClonEntity(eOrigen As Entity, Optional GetNewid As Boolean = True) As Entity
 
-    Dim e As Entity
+    Dim e, ePart As Entity
 
-    e = Super.ClonEntity(eOrigen)
+    e = Super.ClonEntity(eOrigen, GetNewid)
 
     e.pBlock = New Block
     e.pBlock = clsEntities.CopyBlock(eOrigen.pBlock)
+    For Each ePart In e.pBlock.entities
+        ePart.idContainer = e.id
+    Next
 
     Return e
 
