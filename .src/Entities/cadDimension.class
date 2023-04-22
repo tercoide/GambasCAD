@@ -375,7 +375,6 @@ End
 Public Sub Finish(oE As Entity) As Boolean
 
     InsertParts(oe, True)
-    'MoveInsertParts(oe)
 
     ' tareas finales de armado del objeto
     Me.BuildPOI(oe)
@@ -389,16 +388,16 @@ Public Sub Finish(oE As Entity) As Boolean
 End
 
 '' Inserta las partes de un Insert en la coleccion de entidades
-Public Function InsertParts(eInsert As Entity, bDontMoveThem As Boolean) As Boolean
+Public Function InsertParts(eInsert As Entity, Optional GetAttributes As Boolean = False) As Boolean
 
-    eInsert.pBlock.entities = GetPartsFromBlock(eInsert)
+    eInsert.pBlock.entities = GetPartsFromBlock(eInsert, GetAttributes)
 
     Return True
 
 End
 
 '' Busca las entidades de un Block y las devuelve con los parametros del Insert
-Public Function GetPartsFromBlock(eInsert As Entity) As Collection
+Public Function GetPartsFromBlock(eInsert As Entity, GetAttributes As Boolean) As Collection
 
     ' la geometria de un inserto implica
     Dim e, e2 As Entity
@@ -406,9 +405,18 @@ Public Function GetPartsFromBlock(eInsert As Entity) As Collection
 
     ' eInsert.pBlock.entities.Clear
     For Each e In gcd.Drawing.Blocks[eInsert.pBlock.name].entities
-        If e.Gender = "ATTRIB" Then Continue                    ' esta entidad ya viene digerida en el DXF
+        If Not GetAttributes Then
+            If e.Gender = "ATTRIB" Then Continue                    ' esta entidad ya viene digerida en el DXF
+            If e.Gender = "ATTDEF" Then Continue                    ' esta entidad ya viene digerida en el DXF
+        End If
+
         If e.Gender = cadInsert.Gender Then
-            For Each e2 In GetPartsFromBlock(e)
+            For Each e2 In GetPartsFromBlock(e, GetAttributes)
+                If Not GetAttributes Then
+                    If e.Gender = "ATTRIB" Then Continue                    ' esta entidad ya viene digerida en el DXF
+                    If e.Gender = "ATTDEF" Then Continue                    ' esta entidad ya viene digerida en el DXF
+                End If
+
                 gcd.CCC[e2.gender].translate(e2, eInsert.p[0], eInsert.p[1])
                 gcd.CCC[e2.gender].rotate(e2, eInsert.fParam[cadInsert.ipaRotacion])
                 gcd.CCC[e2.gender].scale(e2, eInsert.fParam[cadInsert.ipaEscX], eInsert.fParam[cadInsert.ipaEscY])

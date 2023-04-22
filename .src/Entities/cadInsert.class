@@ -304,7 +304,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
     Dim i As Integer, b As Block
 
-    If e.id = "140F84" Then Stop
+    'If e.id = "140F84" Then Stop
 
     ' tengo q presuponer que las escalas son = 1
     e.fParam[Me.ipaEscX] = 1    ' esc X
@@ -324,8 +324,6 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     i = dxf.ReadCodePlus(66, sClaves, sValues, ByRef e.fParam[Me.ipaAttribs],,, 0)
 
     If e.fParam[Me.ipaEscZ] = 0 Then e.fParam[Me.ipaEscZ] = 1    ' esc Z
-    ' esc Z
-    'InsertParts(e, False)
 
     Return True
 
@@ -336,16 +334,16 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 End
 
 '' Inserta las partes de un Insert en la coleccion de entidades
-Public Function InsertParts(eInsert As Entity, bDontMoveThem As Boolean) As Boolean
+Public Function InsertParts(eInsert As Entity, Optional GetAttributes As Boolean = False) As Boolean
 
-    eInsert.pBlock.entities = GetPartsFromBlock(eInsert)
+    eInsert.pBlock.entities = GetPartsFromBlock(eInsert, GetAttributes)
 
     Return True
 
 End
 
 '' Busca las entidades de un Block y las devuelve con los parametros del Insert
-Public Function GetPartsFromBlock(eInsert As Entity) As Collection
+Public Function GetPartsFromBlock(eInsert As Entity, GetAttributes As Boolean) As Collection
 
     ' la geometria de un inserto implica
     Dim e, e2 As Entity
@@ -353,14 +351,19 @@ Public Function GetPartsFromBlock(eInsert As Entity) As Collection
 
     ' eInsert.pBlock.entities.Clear
     For Each e In gcd.Drawing.Blocks[eInsert.pBlock.name].entities
-        If e.Gender = "ATTRIB" Then Continue                    ' esta entidad ya viene digerida en el DXF
-        If e.Gender = "ATTDEF" Then Continue                    ' esta entidad ya viene digerida en el DXF
+        If Not GetAttributes Then
+            'If e.Gender = "ATTRIB" Then Continue                    ' esta entidad ya viene digerida en el DXF
+            If e.Gender = "ATTDEF" Then Continue                    ' esta entidad ya viene digerida en el DXF
+        End If
+
         If e.Gender = cadInsert.Gender Then
-            For Each e2 In GetPartsFromBlock(e)
-                If e.Gender = "ATTRIB" Then Continue                    ' esta entidad ya viene digerida en el DXF
-                If e.Gender = "ATTDEF" Then Continue                    ' esta entidad ya viene digerida en el DXF
+            For Each e2 In GetPartsFromBlock(e, GetAttributes)
+                If Not GetAttributes Then
+                    'If e.Gender = "ATTRIB" Then Continue                    ' esta entidad ya viene digerida en el DXF
+                    If e.Gender = "ATTDEF" Then Continue                    ' esta entidad ya viene digerida en el DXF
+                End If
                 gcd.CCC[e2.gender].scale(e2, eInsert.fParam[cadInsert.ipaEscX], eInsert.fParam[cadInsert.ipaEscY])
-                gcd.CCC[e2.gender].rotate(e2, rad(eInsert.fParam[cadInsert.ipaRotacion]))
+                gcd.CCC[e2.gender].rotate(e2, Rad(eInsert.fParam[cadInsert.ipaRotacion]))
                 gcd.CCC[e2.gender].translate(e2, eInsert.p[0], eInsert.p[1])
                 ' gcd.CCC[e2.gender].rotate(e2, eInsert.fParam[cadInsert.ipaRotacion])
                 ' gcd.CCC[e2.gender].scale(e2, eInsert.fParam[cadInsert.ipaEscX], eInsert.fParam[cadInsert.ipaEscY])
@@ -403,8 +406,7 @@ End
 
 Public Sub Finish(oE As Entity) As Boolean
 
-    InsertParts(oe, True)
-    'MoveInsertParts(oe)
+    InsertParts(oe)
 
     ' tareas finales de armado del objeto
     Me.BuildPOI(oe)
