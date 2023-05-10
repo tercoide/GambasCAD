@@ -374,8 +374,6 @@ End
 
 Public Sub Finish(oE As Entity) As Boolean
 
-    InsertParts(oe, True)
-
     ' tareas finales de armado del objeto
     Me.BuildPOI(oe)
 
@@ -384,60 +382,5 @@ Public Sub Finish(oE As Entity) As Boolean
     oE.psel.resize(oE.p.count / 2)
 
     'oE.Selected = False
-
-End
-
-'' Inserta las partes de un Insert en la coleccion de entidades
-Public Function InsertParts(eInsert As Entity, Optional GetAttributes As Boolean = False) As Boolean
-
-    eInsert.pBlock.entities = GetPartsFromBlock(eInsert, GetAttributes)
-
-    Return True
-
-End
-
-'' Busca las entidades de un Block y las devuelve con los parametros del Insert
-Public Function GetPartsFromBlock(eInsert As Entity, GetAttributes As Boolean) As Collection
-
-    ' la geometria de un inserto implica
-    Dim e, e2 As Entity
-    Dim cParts As New Collection
-
-    ' eInsert.pBlock.entities.Clear
-    For Each e In gcd.Drawing.Blocks[eInsert.pBlock.name].entities
-        If Not GetAttributes Then
-            If e.Gender = "ATTRIB" Then Continue                    ' esta entidad ya viene digerida en el DXF
-            If e.Gender = "ATTDEF" Then Continue                    ' esta entidad ya viene digerida en el DXF
-        End If
-
-        If e.Gender = cadInsert.Gender Then
-            For Each e2 In GetPartsFromBlock(e, GetAttributes)
-                If Not GetAttributes Then
-                    If e.Gender = "ATTRIB" Then Continue                    ' esta entidad ya viene digerida en el DXF
-                    If e.Gender = "ATTDEF" Then Continue                    ' esta entidad ya viene digerida en el DXF
-                End If
-
-                gcd.CCC[e2.gender].translate(e2, eInsert.p[0], eInsert.p[1])
-                gcd.CCC[e2.gender].rotate(e2, eInsert.fParam[cadInsert.ipaRotacion])
-                gcd.CCC[e2.gender].scale(e2, eInsert.fParam[cadInsert.ipaEscX], eInsert.fParam[cadInsert.ipaEscY])
-                'e2.IdContainer = eInsert.Id
-                cParts.Add(e2, e2.Id)
-            Next
-        Else
-
-            e2 = clsEntities.ClonEntity(e)
-            e2.IdContainer = eInsert.Id
-
-            ' gcd.CCC[e2.gender].translate(e2, eInsert.p[0], eInsert.p[1])
-            ' gcd.CCC[e2.gender].rotate(e2, eInsert.fParam[cadInsert.ipaRotacion])
-            ' gcd.CCC[e2.gender].scale(e2, eInsert.fParam[cadInsert.ipaEscX], eInsert.fParam[cadInsert.ipaEscY])
-
-            ' llamo recursivamente en caso que sea inserto
-            cParts.Add(e2, e2.Id)  ' tambien guardo una referencia aqui
-        End If
-
-    Next
-
-    Return cParts
 
 End
