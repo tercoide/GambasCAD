@@ -2232,13 +2232,14 @@ Public Sub DXFtoEntity(cDxfEntities As Collection, cDxfData As Collection, drw A
                 Else
                     sId = entNueva.Id
                 End If
+                'If e[dxf.codEntity] = "VERTEX" Then Stop
                 If flgIsPolyline Then
-                    pBlockPolyline.entities.Add(entNueva, sId)
+                    'pBlockPolyline.entities.Add(entNueva, sId)
                 Else
                     If cEntity Then                                         ' el contenedor fue provisto
                         obx = cEntity
                     Else
-                        'If e[dxf.codEntity] = "VERTEX" Then Stop
+
                         hContainer = ReadCodeFromCol(e, 330)                 ' esto puede ser un:
                         'If ReadCodeFromCol(e, 5) = "129D" Then Stop
                         'Debug "Contenedor", hContainer
@@ -2273,41 +2274,42 @@ Public Sub DXFtoEntity(cDxfEntities As Collection, cDxfData As Collection, drw A
                                 hContainers.Add(entNueva.pBlock.entities, entNueva.Id)
                             End If
                     End Select
-
-                    If obx Then
-
-                        obx.Add(entNueva, sId)
-                        ' pero , ademas
-
-                        'drw.Entities.Add(entNueva, sId)
-                    Else
-
-                        drw.Sheet.entities.Add(entNueva, sId)
-                        EntitiesToModel = True
-                    End If
-
-                    'If e[dxf.codEntity] = "POLYLINE" Then Stop
-                    '     flgIsPolyline = True
-                    '     pBlockPolyline = New Block
-                    '     pBlockPolyline.entities = New Collection
-                    '
-                    '     entNueva.pBlock = pBlockPolyline
-                    ' End If
-                    ' If e[dxf.codEntity] = "SEQEND" And flgIsPolyline = True Then
-                    '     flgIsPolyline = False
-                    '     pBlockPolyline = Null
-                    ' End If
-                    fTime = (Timer - t)
-                    ReadTimes[entNueva.Gender] += fTime
-                    ReadEntities[entNueva.Gender] += 1
-                    ' If entNueva.Gender = "HATCH" Then
-                    '     ReadTimes.Add(fTime, entNueva.Handle)
-                    ' Endif
-                    ' If entNueva.HandleOwner = "640" Then Debug "640", entNueva.Gender
-
-                    entNueva = Null                                           ' limpiamos
-
                 End If
+
+                If obx Then
+
+                    obx.Add(entNueva, sId)
+                    ' pero , ademas
+
+                    'drw.Entities.Add(entNueva, sId)
+                Else
+
+                    drw.Sheet.entities.Add(entNueva, sId)
+                    EntitiesToModel = True
+                End If
+
+                If e[dxf.codEntity] = "POLYLINE" Then 'Stop
+                    flgIsPolyline = True
+                    obx = entNueva.pBlock.entities
+                    ' pBlockPolyline = New Block
+                    ' pBlockPolyline.entities = New Collection
+                    '
+                    ' entNueva.pBlock = pBlockPolyline
+                End If
+                If (e[dxf.codEntity] = "SEQEND") And (flgIsPolyline = True) Then
+                    flgIsPolyline = False
+                    obx = Null
+                    'pBlockPolyline = Null
+                End If
+                fTime = (Timer - t)
+                ReadTimes[entNueva.Gender] += fTime
+                ReadEntities[entNueva.Gender] += 1
+                ' If entNueva.Gender = "HATCH" Then
+                '     ReadTimes.Add(fTime, entNueva.Handle)
+                ' Endif
+                ' If entNueva.HandleOwner = "640" Then Debug "640", entNueva.Gender
+
+                entNueva = Null                                           ' limpiamos
 
             End If
         End If
