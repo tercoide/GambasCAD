@@ -2482,7 +2482,7 @@ Public FontsNameList As String[]            ' lista de fuentes LFF disponibles y
 
 Public FontsCAllLists As Integer[]          ' listas de listas de caracteres
 
-Public glFont As New LFFFonts[]
+Public glFont As New Collection
 
 Public Struct textureSt
     FileName As String
@@ -3167,13 +3167,12 @@ End
 '' Establece la fuente con que se dibujaran los textos
 Public Function SelectFont(FontName As String) As Boolean
 
-    For Each f As LFFFonts In glFont
-        If LCase(f.FontName) = LCase(FontName) Then
-            ActualFont = f
-            Return True ' fuente encontrada
+    If glFont.Exist(FontName) Then
+        ActualFont = glFont[FontName]
+        Return True ' fuente encontrada
 
-        Endif
-    Next
+    Endif
+
     Return False  ' fuente no encontrada
 
 End
@@ -3325,8 +3324,8 @@ Public Function LoadFonts(DirPath As String) As String[]
             Endif                                                   ' ignoro todos los comentarios
 
         Loop Until Eof(fFile)
-        fntNuevas.FontName = Left$(sFilename, -4)
-        glFont.Add(fntNuevas)
+        fntNuevas.FontName = Utils.FileWithoutExtension(sFilename)
+        glFont.Add(fntNuevas, fntNuevas.FontName)
         ActualFont = fntNuevas
         If fntNuevas.FontName = "unicode" Then UnicodeFont = fntNuevas
 
@@ -3482,7 +3481,7 @@ Public Function DrawTextPoly(UTFstring As String, Optional textH As Float = 1, s
     Dim dX, dY As Float ' donde tengo el cursor
     Dim flxArc, flxGlyps, flxAnswer As New Float[]
 
-    'SelectFont("amiri-regular")
+    'SelectFont("romant")
     ' gl.Scalef(textH * FontScale, textH * FontScale, 1)
     For i = 1 To String.Len(UTFstring)                                                 ' para cada letra
         UTFcode = String.Code(UTFstring, i)                                     ' obtengo el UTF code
