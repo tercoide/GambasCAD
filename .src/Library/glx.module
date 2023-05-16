@@ -3468,8 +3468,7 @@ End
 
 '' Devuelve una poly con el texto en el contexto actual de acuerdo a los parametros pasados
 '' Debe estar definida la Font con nombre y altura
-'Fast Unsafe
-Public Function DrawTextPoly(UTFstring As String, Optional textH As Float = 1, sRotationRad As Single = 0, sItalicAngle As Single = 0) As Float[]
+Fast Unsafe Public Function DrawTextPoly(UTFstring As String, Optional textH As Float = 1, sRotationRad As Single = 0, sItalicAngle As Single = 0) As Float[]
 
     Dim i, iii, i2, UTFcode, LetterIndex As Integer, Xadvance, xMax As Float
     Dim fArcParams As New Single[]
@@ -3596,51 +3595,13 @@ End
 
 '' devuelve un rectangulo que contiene al texto
 '' [ancho,alto]
-Fast Unsafe Public Function TextExtends(UTFstring As String, textH As Float) As Float[]
+Fast Unsafe Public Function TextExtends(UTFstring As String, Optional textH As Float = 1, sRotationRad As Single = 0, sItalicAngle As Single = 0) As Float[]
 
-    Dim ibulge, i, iii, UTFcode, LetterIndex As Integer, Xadvance As Float
-    Dim tRect As New Float[]
-    Dim fArcParams As New Single[]
-    Dim Glyps, Bulges As New Single[]
-    Dim TGlyps, TBulges As New Single[][]
+    Dim flxText, tRect As New Float[]
 
-    tRect.Insert([0.0, 0.0])
-
-    For i = 1 To String.Len(UTFstring)                                                 ' para cada letra
-        UTFcode = String.Code(UTFstring, i)                                     ' obtengo el UTF code
-        If UTFcode = 32 Then                                                    ' es un espacio
-            tRect[0] += ActualFont.LetterSpacing * textH * FontScale
-        Else
-            ' DEPRE LetterIndex = GetCodeIndex(ActualFont, UTFcode)                     ' obtengo el indice de la letra
-
-            If ActualFont.Letter.Exist(UTFcode) Then
-                TGlyps = ActualFont.Letter[UTFcode].FontGlyps
-                TBulges = ActualFont.Letter[UTFcode].FontBulges
-
-            Else If UnicodeFont.Letter.Exist(UTFcode) Then ' is unicode
-                TGlyps = UnicodeFont.Letter[UTFcode].FontGlyps
-                TBulges = UnicodeFont.Letter[UTFcode].FontBulges
-            End If
-
-            iBulge = 0
-
-            For Each Glyps In TGlyps
-                Bulges = TBulges[iBulge]
-                For iii = 0 To Glyps.Max Step 2  ' calculo cuanto tiene que avanzar el puntero
-                    If Glyps[iii] > Xadvance Then Xadvance = Glyps[iii]
-                    If Glyps[iii + 1] > tRect[1] Then tRect[1] = Glyps[iii + 1]
-                Next
-
-            Next
-            Inc iBulge
-
-        End If
-        tRect[0] += (Xadvance + ActualFont.LetterSpacing) * textH * FontScale
-
-        Xadvance = 0
-    Next
-
-    tRect[1] *= textH * FontScale * 1.2
+    flxText = DrawTextPoly(UTFstring, textH, sRotationRad, sItalicAngle)
+    tRect = puntos.Limits(flxText)
+    'tRect[1] *= textH * FontScale * 1.2
 
     Return tRect
 

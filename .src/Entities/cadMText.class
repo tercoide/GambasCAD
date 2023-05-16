@@ -315,7 +315,7 @@ Public Sub Draw(oE As Entity)
     'If InStr(oE.Handle, "1C1DD12D") > 0 Then Stop
     '
     ' If InStr(oE.stringdata[0], "TRANSFERE") > 0 Then Stop
-    'If oe.Handle = "13C574" Then Stop
+    'If oe.id = "1A7131" Then Stop
 
     ' https://ezdxf.readthedocs.io/en/stable/tutorials/mtext.html
     ' https://ezdxf.readthedocs.io/en/stable/dxfentities/mtext.html#mtext-inline-codes
@@ -329,7 +329,7 @@ Public Sub Draw(oE As Entity)
     oe.pStyle = gcd.Drawing.TextStyles[oE.sParam[Me.sdaStyle]]
 
     CurrentTextFont = Utils.FileWithoutExtension(oe.pStyle.sFont_3)
-
+    'If oe.id = "1B4467" Then Stop
     ProcessText3(oE.sParam[Me.sdaText])
 
     CreatePolygon(oe)
@@ -366,7 +366,7 @@ Public Sub ProcessText3(RTF As String)
 
     ' con esto los glyps vienen hacia abajo
     CurrentTextPosY = 0'-CurrentTextHeigth * 1.4
-    CurrentParagraphAlignment = 0
+    CurrentParagraphAlignment = CurrentTextAlignment
     For Each sRemains In sLines
         'Print sRemains
         ProcessPart3(sRemains)
@@ -396,7 +396,7 @@ Public Sub ProcessText3(RTF As String)
     'If CurrentTextAlignment = 2 Then px = OriginalTextPosX + CurrentTextBoxWidth - dx
     If CurrentTextAlignment = 2 Then px = OriginalTextPosX - dx
 
-    puntos.Translate(flxText, px, py)
+    puntos.Translate(flxText, OriginalTextPosX, py)
 
     puntos.RotatePointsFromBase(OriginalTextPosX, OriginalTextPosY, Rad(CurrentTextAngle), flxText)
 
@@ -689,47 +689,48 @@ Public Function ProcessPart3(sLine As String) As String
 
             ' tengo que trimar?
             If TrimText Then
-                stxWords = Split(s5, " ")
-                ' For iSpace = stxWords.Max To 0 Step -1
-                '     If stxWords[iSpace] = "" Then stxWords.Remove(iSpace)
-                ' Next
-
-                For iSpace = 0 To stxWords.Max - 1
-                    If stxWords[iSpace] <> "" Then stxWords[iSpace] &= " "
-                Next
-                ' If stxWords[stxWords.max] = "" Then stxWords.Remove(stxWords.Max)
-                NewLine = False   ' supongo que entra todo
-                If (CurrentTextBoxWidth > 0) And (stxWords.Count > 1) Then ' debo trimar
-
-                    iSpace = 0
-                    ' nuevo:  tengo que ver si no excede el ancho del rectangulo
-
-                    s5 = ""
-
-                    Do
-                        s5 &= stxWords[iSpace]
-                        fRect = glx.TextExtends(s5, CurrentTextHeigth)
-
-                        If fRect[0] + LineOffsetX < CurrentTextBoxWidth Then
-                            's5 = s4
-                            Inc iSpace
-                        Else' debo trimar
-                            NewLine = True
-                            Trimmed = True
-
-                            Break
-
-                        End If
-                    Loop Until iSpace = stxWords.Count
+                stxWords = Split(Trim(s5), " ")
+                Dim iWordsFit As Integer
+                iWordsFit = stxWords.Max
+                ' voy testeando a ver cuantas palabras entran
+                Do ' hasta que no tenga mas palabras
+                    If stxWords.Count = 0 Then Break
+                    ' armo la frase con las palabras
 
                     s4 = ""
-                    For i4 = iSpace + 1 To stxWords.max
-                        s4 &= stxWords[i4]
-
+                    For iSpace = 0 To iWordsFit - 1
+                        s4 &= stxWords[iSpace] & " "
                     Next
-                    s2 = s4 & s2
+                    s4 &= stxWords[iWordsFit]
 
-                End If
+                    'veo si entra
+                    fRect = glx.TextExtends(s4, CurrentTextHeigth,, CurrentTextItalic)
+                    If (CurrentTextBoxWidth > (fRect[2] - fRect[0])) Or (iWordsFit = 0) Then '  entra o no me queda otra opcion
+                        s5 = s4 ' s5 es el texto a trazar
+
+                        ' armo lo que me falta, pero primero verifico que me queden letras
+                        If iWordsFit < stxWords.Max Then
+                            NewLine = True  ' me faltaron palabras
+                            Trimmed = True
+                            s2 = ""
+                            For iSpace = iWordsFit + 1 To stxWords.Max - 1
+
+                                s2 &= stxWords[iSpace] & " "
+                            Next
+                            s2 &= stxWords[stxWords.Max]
+                        Else
+                            NewLine = False
+                            Trimmed = False
+
+                        Endif
+
+                        Break
+                    Else
+                        Dec iWordsFit
+
+                    End If
+
+                Loop
 
             End If
 
@@ -751,6 +752,17 @@ Public Function ProcessPart3(sLine As String) As String
             flxWords.Insert(flxTemp)
             puntos.Translate(flxWords, LineOffsetX, CurrentTextPosY)
             LineOffsetX += fRect[2]
+            If NewLine Or (s2 = "") Or (s2 = "}") Then         ' necesito una nueva linea porque tuve que ajustar el texto
+                fRect = puntos.Limits(flxWords)
+
+                ' If CurrentParagraphAlignment = 1 Then dx = CurrentTextBoxWidth / 2 - fRect[0] / 2
+                ' If CurrentParagraphAlignment = 2 Then dx = CurrentTextBoxWidth - fRect[0]
+                If CurrentParagraphAlignment = 1 Then dx = -(fRect[2] - fRect[0]) / 2
+                If CurrentParagraphAlignment = 2 Then dx = -(fRect[2] - fRect[0])
+
+                puntos.Translate(flxWords, dx, 0)
+
+            Endif
             flxPAragraph.Insert(flxWords)
             flxWords.Clear
 
@@ -762,15 +774,10 @@ Public Function ProcessPart3(sLine As String) As String
             Endif
 
         End If
+
     Loop Until s2 = ""
     ' alinemaiento produce problemas porque se refiere a todo el texto y no a la parte
-    fRect = puntos.Limits(flxPAragraph)
-    fRect[0] = fRect[2] - fRect[0]
-    dx = 0
-    If CurrentParagraphAlignment = 1 Then dx = CurrentTextBoxWidth / 2 - fRect[0] / 2
-    If CurrentParagraphAlignment = 2 Then dx = CurrentTextBoxWidth - fRect[0]
 
-    puntos.Translate(flxPAragraph, dx, 0)
     flxText.insert(flxPAragraph)
     CurrentTextPosY -= CurrentTextHeigth * 1.4
 
@@ -845,8 +852,6 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     Dim TextAngleSet As Boolean = False
     Dim ax, ay, az As Single ' angulo del texto
     Dim s As String
-
-    'If e.id = "1B43BA" Then Stop
 
     i = dxf.ReadCodePlus(10, sClaves, sValues, ByRef e.p[0],, 101, 100)
     i = dxf.ReadCodePlus(20, sClaves, sValues, ByRef e.p[1],, 101, 100)
