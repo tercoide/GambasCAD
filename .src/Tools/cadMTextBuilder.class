@@ -52,92 +52,8 @@ Public Function Start(Optional filename As Variant, _mode As Integer = 0) As Boo
     Select Case StepsDone
         Case 0
             eMtext = cadMText.NewEntity()
-            fMText.Show
 
-            '     Debug gcd.Drawing.LastHatchFile
-            '
-            '     Select Case iRet
-            '         Case 2 ' busqueda de contorno
-            '             gcd.clsJobPrevious = Me
-            '             gcd.clsJob = cadSelection
-            '
-            '             gcd.Drawing.Sheet.GlSheet.PopupMenu = ""
-            '
-            '             StepsDone = 1 ' cuando vuelvo aca, ya tengo un contorno
-            '
-            '         Case 1 ' el user cancelo el hetch
-            '             gcd.clsJobPrevious = Me
-            '             gcd.clsJob = cadSelection
-            '             StepsDone = 0 ' cuando vuelvo aca, empiezo de nuevo
-            '
-            '     End Select
-            '
-            ' Case 1 ' vengo de seleccionar los parametros de hatch
-            '
-            '     nSel = gcd.Drawing.EntitiesSelected.Count
-            '     If nsel = 0 Then Return
-            '     If (gcd.Drawing.EntitiesSelected[gcd.Drawing.EntitiesSelected.First].Gender <> "LWPOLYLINE") And (gcd.Drawing.EntitiesSelected[gcd.Drawing.EntitiesSelected.First].PolyLine.Count < 6) Then
-            '         Message("El contorno esta mal definido")
-            '
-            '     Else
-            '         StepsDone = 2
-            '         iRet = FHatch.Showmodal()
-            '
-            '         Debug gcd.Drawing.LastHatchFile
-            '
-            '         Select Case iRet
-            '             Case 2 ' nueva busqueda de contorno
-            '                 gcd.clsJobPrevious = Me
-            '                 gcd.clsJob = cadSelection
-            '                 StepsDone = 1 ' cuando vuelvo aca, ya tengo un contorno
-            '
-            '             Case 1 ' el user cancelo el hetch
-            '                 gcd.clsJobPrevious = Me
-            '                 gcd.clsJob = cadSelection
-            '                 StepsDone = 0 ' cuando vuelvo aca, empiezo de nuevo
-            '
-            '             Case 3 ' confirma el Hatch
-            '
-            '                 entHatch = gcd.Drawing.LastEntity
-            '                 entHatch.Handle = gcd.NewHandle()
-            '                 entHatch.PolyLine.Clear
-            '                 entHatch.pBlock.PolyLines.Clear
-            '
-            '                 For Each eBorder In gcd.Drawing.EntitiesSelected
-            '                     Select Case eBorder.Gender  ' veo si me sirve de borde
-            '                         Case "LINE"
-            '
-            '                             entHatch.pBlock.eSegments.Add(eBorder)
-            '                         Case "LWPOLYLINE"
-            '                             entHatch.pBlock.eSegments.Add(eBorder)
-            '                         Case Else
-            '
-            '                     End Select
-            '
-            '                 Next
-            '
-            '
-            '
-            '
-            '
-            '                 gcd.Drawing.Entities.Add(entHatch, entHatch.Handle)
-            '
-            '                 Gcd.CCC[entHatch.gender].Finish(entHatch)
-            '
-            '                 'LastEntity = entHatch                                       ' save it to repeat on rigth click
-            '
-            '                 gcd.clsJobPrevious = Me
-            '                 gcd.clsJob = cadSelection
-            '                 cadSelection.PoiChecking = True
-            '                 DrawingAids.CleanTexts
-            '
-            '                 'clsEntities.GLGenDrawList
-            '
-            '                 gcd.Regen()
-            '                 StepsDone = 0
-            '         End Select
-            '
-            '     Endif
+            fMText.Show
 
     End Select
 
@@ -164,6 +80,8 @@ Public Sub MouseUp()
         Me.SelEndyr = Me.SelStartYr
 
     End If
+    eMtext.p[0] = Me.SelStartXr
+    eMtext.p[1] = Me.SelStartYr
 
 End
 
@@ -177,6 +95,8 @@ Public Sub MouseMove()
         Me.SelEndyr = Me.LastY
 
     End If
+    eMtext.p[0] = Me.SelStartXr
+    eMtext.p[1] = Me.SelStartYr
 
 End
 
@@ -195,82 +115,40 @@ Public Sub KeyPress(iCode As Integer, sKey As String)
 
     End If
 
-    MakeMtext
+    'MakeMtext
     gcd.redraw
 
 End
 
-Public Sub Draw() ' esta rutina es llamada por FCAD en el evento DrawingArea_Draw
-    ' por ultimo, y para que se vea arriba, la seleccion
+Public Sub Draw()
 
-    If Me.Active Then
+    Dim fSide, fWidth As Float
 
-        glx.Rectangle2D(Me.SelStartXr, Me.SelStartYr, Me.SelEndXr - Me.SelStartXr, Me.SelEndyr - Me.SelStartYr, Color.Cyan,,,, Color.DarkBlue, 1,, 1)
-
-    Else If Me.RectSelected Then
-        glx.Rectangle2D(Me.SelStartXr, Me.SelStartYr, Me.SelEndXr - Me.SelStartXr, Me.SelEndyr - Me.SelStartYr, Color.Blue,,,, Color.DarkBlue, 1,, 2)
-        cadMText.Draw(eMtext)
-    End If
-
-End
-
-Public Sub MakeMtext()
-
-    eMtext.fParam[cadMText.ipaTextAngle] = Rad(Val(fMText.txtRot.Text))
-
-    eMtext.fParam[cadMText.ipaTextHeight] = Val(fMText.txtHeight.Text)
-
-    eMtext.fParam[cadMText.ipaRectangleWIdth] = Me.SelEndXr - Me.SelStartXr
-
-    eMtext.fParam[cadMText.ipaAttchmPoint] = fMText.cmbAlignment.Index + 1
-
-    eMtext.sParam[cadMText.sdaText] = "\\f" & fMText.cmbFont.Text & "|b0|i0|c128|p34;" & sText
-
-    ' antes de ubicar el texto, acomodamos el recuadro
-    If Me.SelStartXr > Me.SelEndXr Then Swap Me.SelStartXr, Me.SelEndXr
-    If Me.SelStartyr > Me.SelEndyr Then Swap Me.SelStartyr, Me.SelEndyr
-
-    eMtext.p[0] = Me.SelStartXr
-    eMtext.p[1] = Me.SelStartYr
-
-    Select Case eMtext.fParam[cadMText.ipaAttchmPoint]
-
-        Case 1      ' Top/Left
-            eMtext.p[0] = Me.SelStartXr
-            eMtext.p[1] = Me.SelEndYr
-        Case 2      ' Top/Center
-
-            eMtext.p[0] = Me.SelStartXr
-            eMtext.p[1] = Me.SelEndYr
-
-        Case 3      ' Top/Right
-            eMtext.p[0] = Me.SelStartXr
-            eMtext.p[1] = Me.SelEndYr
-
-        Case 4      ' Middle/Left
-            eMtext.p[0] = Me.SelStartXr
-            eMtext.p[1] = (Me.SelEndYr + Me.SelStartYr) / 2
-
-        Case 5      ' Middle/Center
-            eMtext.p[0] = Me.SelStartXr
-            eMtext.p[1] = (Me.SelEndYr + Me.SelStartYr) / 2
-
-        Case 6      ' Middle/Right
-            eMtext.p[0] = Me.SelStartXr
-            eMtext.p[1] = (Me.SelEndYr + Me.SelStartYr) / 2
-
-        Case 7      ' Bottom/Left
-            eMtext.p[0] = Me.SelStartXr
-            eMtext.p[1] = Me.SelStartYr
-
-        Case 8      ' Bottom/Center
-            eMtext.p[0] = Me.SelStartXr
-            eMtext.p[1] = Me.SelStartYr
-
-        Case 9      ' Bottom/Right
-            eMtext.p[0] = Me.SelStartXr
-            eMtext.p[1] = Me.SelStartYr
+    fSide = gcd.Metros(8)
+    Select Case StepsDone
+        Case 0 ' nada aun
+            fWidth = gcd.Metros(30)
+            glx.DrawLines([Me.SelStartXr, Me.SelStartYr, Me.SelEndXr + fWidth, Me.SelStartYr], Color.Blue)
+            glx.Rectangle2D(Me.SelStartXr - fSide / 2, Me.SelStartYr - fSide / 2, fSide, fside, Color.DarkBlue,,,, Color.DarkBlue, 1,, 1)
+            glx.Rectangle2D(Me.SelStartXr + fWidth - fSide / 2, Me.SelEndyr - fSide / 2, fSide, fside, Color.Cyan,,,, Color.DarkBlue, 1,, 1)
+            cadMText.Draw(eMtext)
+        Case 1 ' ya ubique el punto inicial
+            fWidth = gcd.Metros(30)
+            glx.DrawLines([Me.SelStartXr, Me.SelStartYr, Me.SelEndXr + fWidth, Me.SelStartYr], Color.Blue)
+            glx.Rectangle2D(Me.SelStartXr - fSide / 2, Me.SelStartYr - fSide / 2, fSide, fside, Color.DarkBlue,,,, Color.DarkBlue, 1,, 1)
+            glx.Rectangle2D(Me.SelStartXr + fWidth - fSide / 2, Me.SelEndyr - fSide / 2, fSide, fside, Color.Cyan,,,, Color.DarkBlue, 1,, 1)
 
     End Select
+
+    ' If Me.Active Then
+    '
+    '     glx.DrawLines([Me.SelStartXr, Me.SelStartYr, Me.SelEndXr, Me.SelEndyr], Color.Blue)
+    '     glx.Rectangle2D(Me.SelStartXr - fSide / 2, Me.SelStartYr - fSide / 2, fSide, fside, Color.DarkBlue,,,, Color.DarkBlue, 1,, 1)
+    '     glx.Rectangle2D(Me.SelEndXr - fSide / 2, Me.SelEndyr - fSide / 2, fSide, fside, Color.Cyan,,,, Color.DarkBlue, 1,, 1)
+    '
+    ' Else If Me.RectSelected Then
+    '     'glx.Rectangle2D(Me.SelStartXr, Me.SelStartYr, Me.SelEndXr - Me.SelStartXr, Me.SelEndyr - Me.SelStartYr, Color.Blue,,,, Color.DarkBlue, 1,, 2)
+    '     cadMText.Draw(eMtext)
+    ' End If
 
 End

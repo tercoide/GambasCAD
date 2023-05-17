@@ -315,7 +315,7 @@ Public Sub Draw(oE As Entity)
     'If InStr(oE.Handle, "1C1DD12D") > 0 Then Stop
     '
     ' If InStr(oE.stringdata[0], "TRANSFERE") > 0 Then Stop
-    'If oe.id = "1A7131" Then Stop
+    'If oe.id = "1B45C9" Then Stop
 
     ' https://ezdxf.readthedocs.io/en/stable/tutorials/mtext.html
     ' https://ezdxf.readthedocs.io/en/stable/dxfentities/mtext.html#mtext-inline-codes
@@ -323,8 +323,8 @@ Public Sub Draw(oE As Entity)
     ' MTEXT tiene in-line formatting, ver esa web
 
     TxtStyle = gcd.Drawing.CurrTextStyle
-    If Not TxtStyle Then TxtStyle = New TextStyle
-    TxtStyles.Add(TxtStyle)
+    ' If Not TxtStyle Then TxtStyle = New TextStyle
+    ' TxtStyles.Add(TxtStyle)
 
     oe.pStyle = gcd.Drawing.TextStyles[oE.sParam[Me.sdaStyle]]
 
@@ -389,14 +389,14 @@ Public Sub ProcessText3(RTF As String)
     If CurrentTextAlignment = 0 Then px = OriginalTextPosX
 
     ' TODO: ver cual de los dos es valido
-    ' If CurrentTextAlignment = 1 Then px = OriginalTextPosX + CurrentTextBoxWidth / 2 - dx / 2
-    If CurrentTextAlignment = 1 Then px = OriginalTextPosX - dx / 2
+    If CurrentTextAlignment = 1 Then px = OriginalTextPosX + CurrentTextBoxWidth / 2
+    'If CurrentTextAlignment = 1 Then px = OriginalTextPosX - dx / 2
 
     ' TODO: ver cual de los dos es valido
-    'If CurrentTextAlignment = 2 Then px = OriginalTextPosX + CurrentTextBoxWidth - dx
-    If CurrentTextAlignment = 2 Then px = OriginalTextPosX - dx
+    If CurrentTextAlignment = 2 Then px = OriginalTextPosX + CurrentTextBoxWidth
+    'If CurrentTextAlignment = 2 Then px = OriginalTextPosX - dx
 
-    puntos.Translate(flxText, OriginalTextPosX, py)
+    puntos.Translate(flxText, px, py)
 
     puntos.RotatePointsFromBase(OriginalTextPosX, OriginalTextPosY, Rad(CurrentTextAngle), flxText)
 
@@ -512,11 +512,12 @@ Public Function ProcessPart3(sLine As String) As String
 
                     p1 = InStr(s2, "|b")
                     If p1 > 0 Then
+                        CurrentTextBold = (Mid$(s2, p1 + 2, 1) = "1")
                         TxtStyle.Bold = (Mid$(s2, p1 + 2, 1) = "1")
                     End If
                     p1 = InStr(s2, "|i")
                     If p1 > 0 Then
-
+                        CurrentTextItalic = (Mid$(s2, p1 + 2, 1) = "1")
                         TxtStyle.Italic = (Mid$(s2, p1 + 2, 1) = "1")
                     End If
 
@@ -708,7 +709,7 @@ Public Function ProcessPart3(sLine As String) As String
                     If (CurrentTextBoxWidth > (fRect[2] - fRect[0])) Or (iWordsFit = 0) Then '  entra o no me queda otra opcion
                         s5 = s4 ' s5 es el texto a trazar
 
-                        ' armo lo que me falta, pero primero verifico que me queden letras
+                        ' armo lo que me falta, pero primero verifico que me queden palabras
                         If iWordsFit < stxWords.Max Then
                             NewLine = True  ' me faltaron palabras
                             Trimmed = True
@@ -718,9 +719,6 @@ Public Function ProcessPart3(sLine As String) As String
                                 s2 &= stxWords[iSpace] & " "
                             Next
                             s2 &= stxWords[stxWords.Max]
-                        Else
-                            NewLine = False
-                            Trimmed = False
 
                         Endif
 
@@ -734,7 +732,7 @@ Public Function ProcessPart3(sLine As String) As String
 
             End If
 
-            flxTemp = glx.DrawTextPoly(s5, CurrentTextHeigth,, CurrentTextItalic)
+            flxTemp = glx.DrawTextPoly(s5, CurrentTextHeigth,, -15 * CurrentTextItalic)
             fRect = puntos.Limits(flxTemp)
 
             If CurrentTextUnderline Then
@@ -752,7 +750,7 @@ Public Function ProcessPart3(sLine As String) As String
             flxWords.Insert(flxTemp)
             puntos.Translate(flxWords, LineOffsetX, CurrentTextPosY)
             LineOffsetX += fRect[2]
-            If NewLine Or (s2 = "") Or (s2 = "}") Then         ' necesito una nueva linea porque tuve que ajustar el texto
+            If NewLine Or trimmed Then         ' necesito una nueva linea porque tuve que ajustar el texto
                 fRect = puntos.Limits(flxWords)
 
                 ' If CurrentParagraphAlignment = 1 Then dx = CurrentTextBoxWidth / 2 - fRect[0] / 2
