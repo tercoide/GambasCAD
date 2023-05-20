@@ -525,21 +525,21 @@ Public Sub DrawPoiSymbols(oE As Entity)
 
 End
 
-Public Sub Finish(Optional selected As Boolean = True)
-
-    ' creo copias de cada elemento seleccionado
-    Dim m As Integer, E As Entity
-
-    For Each E In gcd.Drawing.Sheet.Entities
-        If selected Then                                                    ' apply to only the selected ones
-            If E.Selected Then gcd.CCC[e.gender].Finish(E)
-        Else                                                                ' apply to all
-            gcd.CCC[e.gender].Finish(E)
-        End If
-
-    Next
-
-End
+' Public Sub Finish(Optional selected As Boolean = True)
+'
+'     ' creo copias de cada elemento seleccionado
+'     Dim m As Integer, E As Entity
+'
+'     For Each E In gcd.Drawing.Sheet.Entities
+'         If selected Then                                                    ' apply to only the selected ones
+'             If E.Selected Then gcd.CCC[e.gender].Finish(E)
+'         Else                                                                ' apply to all
+'             gcd.CCC[e.gender].Finish(E)
+'         End If
+'
+'     Next
+'
+' End
 
 Public Sub ClonEntity(eOrigen As Entity, Optional GetNewid As Boolean = True) As Entity
 
@@ -690,19 +690,29 @@ Public Function DeleteSelected() As Integer
 
     '  Purgue will also delete those with .ForDeletion = true
 
-    For Each E In gcd.Drawing.Sheet.Entities
+    gcd.debugInfo("Borrando entidades",, True)
+    Debug "Borrando", Now
+    gcd.Drawing.uUndo.OpenUndoStage(("Delete entities"), Undo.TypeDelete)
+    c = gcd.Drawing.Sheet.EntitiesSelected.Count
+    If c = 0 Then Return 0
+    For Each E In gcd.Drawing.Sheet.EntitiesSelected
 
-        If E.Selected Then
-            gcd.Drawing.Sheet.Entities.Remove(gcd.Drawing.Sheet.Entities.Key)
-            Inc c
-        End If
+        gcd.Drawing.uUndo.AddUndoItem(e)
+        gcd.Drawing.Sheet.Entities.Remove(gcd.Drawing.Sheet.EntitiesSelected.Key)
 
     Next
 
+    gcd.Drawing.uUndo.CloseUndoStage()
+    gcd.debugInfo("Regenerando graficos",, True)
+    Debug "Regenrando", Now
     '   we also need to regenerate the drawing list
     For Each lay In gcd.Drawing.Layers
         If lay.Visible Then glGenDrawListLayers(lay)
+
     Next
+
+    gcd.debugInfo("Listo",, True)
+    Debug "Listo", Now
 
     ' we also need too recalculate visible items
     Me.CollectVisibleEntities()
