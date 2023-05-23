@@ -160,6 +160,7 @@ End
 Public Function MouseDown()
 
     Dim i As Integer
+    Dim g As Grip
 
     GripPoint = -1
     Me.SelStartX = mouse.X
@@ -190,34 +191,46 @@ Public Function MouseDown()
             If Not gcd.Drawing.Sheet.EntitiesSelected.Exist(gcd.Drawing.HoveredEntity.Id) Then
                 ' A.1.2.1 No esta seleccionada -> seleccionar
                 gcd.Drawing.Sheet.EntitiesSelected.add(gcd.Drawing.HoveredEntity, gcd.Drawing.HoveredEntity.Id)
+                gcd.Drawing.Sheet.Grips.Clear
+                gcd.CCC[gcd.Drawing.HoveredEntity.Gender].generategrips(gcd.Drawing.HoveredEntity)
                 clsEntities.glGenDrawListSel
                 fMain.FillProperties(gcd.Drawing.Sheet.EntitiesSelected)
                 gcd.Redraw
             Else
                 ' A.1.2.2 Esta seleccionada previamente
                 If Not Me.ToolActive Then
-                    ' veo si esta en un grip (solo si ToolActive=False)
-                    For i = 0 To gcd.Drawing.HoveredEntity.PoiType.Max
-                        If puntos.Around(Me.SelStartXr, Me.SelStartYr, gcd.Drawing.HoveredEntity.PoiPoints[i * 2], gcd.Drawing.HoveredEntity.poiPoints[i * 2 + 1], gcd.Metros(8)) Then
-                            ' A.1.2.2.1 Estoy sobre un grip -> Inicio edicion por grip ActionActive = ActionGripActive (solo si ToolActive=False)
-                            ' estoy editando la entidad desde un grip
-                            EntityForEdit = gcd.Drawing.HoveredEntity
+                    ' veo si esta en un grip(solo si ToolActive = False)
+                    GripPoint = -1
+                    For i = 0 To gcd.Drawing.Sheet.Grips.Max
+                        If puntos.Around(Me.SelStartXr, Me.SelStartYr, gcd.Drawing.Sheet.Grips[i].x, gcd.Drawing.Sheet.Grips[i].y, gcd.Metros(Config.ProximityDistance)) Then
                             GripPoint = i
 
-                            ' chequeo
-                            If EntityForEdit.PoiType[GripPoint] = gcd.poiQuadrant Then
-                                dx = EntityForEdit.P[0]
-                                dY = EntityForEdit.P[1]
-
-                            Endif
-
-                            Me.PoiChecking = True
-                            gcd.Drawing.flgShowPOIinfo = True
-
                             Break
-
                         Endif
+                        '
                     Next
+
+                    ' For i = 0 To gcd.Drawing.HoveredEntity.PoiType.Max
+                    '     If puntos.Around(Me.SelStartXr, Me.SelStartYr, gcd.Drawing.HoveredEntity.PoiPoints[i * 2], gcd.Drawing.HoveredEntity.poiPoints[i * 2 + 1], gcd.Metros(8)) Then
+                    '         ' A.1.2.2.1 Estoy sobre un grip -> Inicio edicion por grip ActionActive = ActionGripActive (solo si ToolActive=False)
+                    '         ' estoy editando la entidad desde un grip
+                    '         EntityForEdit = gcd.Drawing.HoveredEntity
+                    '         GripPoint = i
+                    '
+                    '         ' chequeo
+                    '         If EntityForEdit.PoiType[GripPoint] = gcd.poiQuadrant Then
+                    '             dx = EntityForEdit.P[0]
+                    '             dY = EntityForEdit.P[1]
+                    '
+                    '         Endif
+                    '
+                    '         Me.PoiChecking = True
+                    '         gcd.Drawing.flgShowPOIinfo = True
+                    '
+                    '         Break
+                    '
+                    '     Endif
+                    ' Next
                 End If
 
                 If GripPoint < 0 Then
@@ -334,6 +347,7 @@ Public Sub MouseUp()
     Dim Crossing As Boolean = False
     Dim tipo As String
     Dim t As Float = Timer
+    Dim e As Entity
 
     Me.SelEndX = mouse.x
     Me.SelEndy = mouse.Y
@@ -390,6 +404,11 @@ Public Sub MouseUp()
                 clsEntities.DeSelection()
 
             End If
+            e = gcd.Drawing.Sheet.EntitiesSelected[gcd.Drawing.Sheet.EntitiesSelected.Last]
+            If e Then
+                'gcd.Drawing.Sheet.Grips.Clear
+                gcd.CCC[e.Gender].generategrips(e)
+            Endif
             fMain.FillProperties(gcd.Drawing.Sheet.EntitiesSelected)
             clsEntities.GLGenDrawListSel()
 
@@ -415,13 +434,14 @@ Public Sub MouseUp()
             Endif
         End If
 
-        If Me.GripActive Then
+        If GripPoint >= 0 Then
             ' C.1.2 ActionActive = ActionGripActive -> Finalizo la edicion por grips
 
-            Gcd.CCC[EntityForEdit.gender].buildpoi(EntityForEdit)
+            e = gcd.Drawing.Sheet.Grips[GripPoint].AsociatedEntity
+            gcd.Drawing.Sheet.Grips.Clear
+            gcd.CCC[e.Gender].generategrips(e)
+            clsEntities.glGenDrawList(e)
             GripPoint = -1
-            clsEntities.glGenDrawList(EntityForEdit)
-            iEntityForEdit = -1
 
         End If
 
@@ -460,13 +480,13 @@ Public Sub MouseMove()
     Me.SelEndXr = gcd.Xreal(Me.SelEndX)
     Me.SelEndyr = gcd.Yreal(Me.SelEndy)
 
-    If Me.Active = Me.ModeRectSelection Then
+    If Me.Active And Me.ModeRectSelection Then
         ' B.1 ActionActive = ActionRectActive: actualizo coordenadas del punto final del Rect
         ' (se hace mas arriba)
-    Else If Me.Active = Me.GripActive Then
+    Else If GripPoint >= 0 Then
         ' B.2 ActionActive = ActionGripActive: modifico la entidad con la nueva posicion del punto
         GripEdit
-    Else If Me.Active = Me.PanActive Then
+    Else If Me.Active And Me.PanActive Then
         ' B.3 ActionActive = ActionPanActive: mando la coordenada a cadPan
         ' (ni siquiera deberiamos estar aca, deberiamos estar en cadPan.class)
     Else
@@ -556,52 +576,58 @@ Public Sub Draw() ' esta rutina es llamada por FCAD en el evento DrawingArea_Dra
         End If
         Return
     End If
-    If Me.GripActive Then
 
-        If GripPoint >= 0 Then
+    If GripPoint >= 0 Then
 
-            Gcd.CCC[EntityForEdit.gender].Draw(EntityForEdit)
+        Gcd.CCC[gcd.Drawing.Sheet.Grips[GripPoint].AsociatedEntity.Gender].Draw(gcd.Drawing.Sheet.Grips[GripPoint].AsociatedEntity)
 
-        Endif
-        'EntityForEdit.Gcd.CCC[e.gender].drawremark(EntityForEdit)
-        gl.CallList(gcd.Drawing.GlListEntitiesSelected)
-        clsEntities.DrawPoiSymbols(EntityForEdit)
+    Endif
+    'EntityForEdit.Gcd.CCC[e.gender].drawremark(EntityForEdit)
+    'gl.CallList(gcd.Drawing.GlListEntitiesSelected)
+    'clsEntities.DrawPoiSymbols(EntityForEdit)
 
-    Else
-
-        gl.CallList(gcd.Drawing.GlListEntitiesSelected)
-    End If
+    ' Else
+    '
+    '     gl.CallList(gcd.Drawing.GlListEntitiesSelected)
+    ' End If
 
 End
 
 Public Sub GripEdit()
 
+    Dim g As Grip
+
     If GripPoint >= 0 Then
-        Select Case EntityForEdit.PoiType[GripPoint]
-            Case gcd.poiBasePoint, gcd.poiCenter, gcd.poiMIdPoint
-                Gcd.CCC[EntityForEdit.gender].translate(EntityForEdit, Me.SelEndXr - dx, Me.SelEndYr - dY)
-                dX = Me.SelEndXr
-                dY = Me.SelEndYr
-            Case gcd.poiEndPoint
-                Select Case EntityForEdit.Gender
-                    Case "LINE", "LWPOLYLINE", "SPline"
-                        If GripPoint > 0 Then ' tengo que descontar los midPoints o me dara error de desborde
+        g = gcd.Drawing.Sheet.Grips[GripPoint]
+        g.Xn = Me.SelEndXr
+        g.Yn = Me.SelEndYr
+        gcd.CCC[g.AsociatedEntity.Gender].GripEdit(g)
 
-                            EntityForEdit.p[GripPoint] += Me.SelEndXr - dx
-                            EntityForEdit.p[GripPoint + 1] += Me.SelEndYr - dY
-                        Else
-                            EntityForEdit.p[0] += Me.SelEndXr - dx
-                            EntityForEdit.p[1] += Me.SelEndYr - dY
-
-                        Endif
-                        dX = Me.SelEndXr
-                        dY = Me.SelEndYr
-
-                End Select
-            Case gcd.poiQuadrant
-                EntityForEdit.fparam[0] = puntos.distancia(Me.SelEndXr, Me.SelEndYr, dx, dY)
-
-        End Select
+        ' Select Case EntityForEdit.PoiType[GripPoint]
+        '     Case gcd.poiBasePoint, gcd.poiCenter, gcd.poiMIdPoint
+        '         Gcd.CCC[EntityForEdit.gender].translate(EntityForEdit, Me.SelEndXr - dx, Me.SelEndYr - dY)
+        '         dX = Me.SelEndXr
+        '         dY = Me.SelEndYr
+        '     Case gcd.poiEndPoint
+        '         Select Case EntityForEdit.Gender
+        '             Case "LINE", "LWPOLYLINE", "SPline"
+        '                 If GripPoint > 0 Then ' tengo que descontar los midPoints o me dara error de desborde
+        '
+        '                     EntityForEdit.p[GripPoint] += Me.SelEndXr - dx
+        '                     EntityForEdit.p[GripPoint + 1] += Me.SelEndYr - dY
+        '                 Else
+        '                     EntityForEdit.p[0] += Me.SelEndXr - dx
+        '                     EntityForEdit.p[1] += Me.SelEndYr - dY
+        '
+        '                 Endif
+        '                 dX = Me.SelEndXr
+        '                 dY = Me.SelEndYr
+        '
+        '         End Select
+        '     Case gcd.poiQuadrant
+        '         EntityForEdit.fparam[0] = puntos.distancia(Me.SelEndXr, Me.SelEndYr, dx, dY)
+        '
+        ' End Select
 
     Endif
 
