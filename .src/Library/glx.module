@@ -3359,7 +3359,8 @@ End
 '' Grafica un texto en el contexto actual de acuerdo a los parametros pasados
 '' Debe estar definida la Font con nombre y altura
 ''
-Fast Unsafe Public Function DrawText(UTFstring As String, posX As Float, posY As Float, Optional angle As Float = 0, textH As Float = 1, colour As Integer = -14, linewIdth As Float = 1, rectW As Float = 0, rectH As Float = 0, alignHoriz As Integer = 0, alignVert As Integer = 0) As Boolean
+'Fast Unsafe
+Public Function DrawText(UTFstring As String, posX As Float, posY As Float, Optional angle As Float = 0, textH As Float = 1, colour As Integer = -14, linewIdth As Float = 1, rectW As Float = 0, rectH As Float = 0, alignHoriz As Integer = 0, alignVert As Integer = 0) As Boolean
 
     Dim i, iii, i2, UTFcode, LetterIndex As Integer, Xadvance As Float
     Dim fArcParams As New Single[]
@@ -3376,7 +3377,7 @@ Fast Unsafe Public Function DrawText(UTFstring As String, posX As Float, posY As
     For i = 1 To String.Len(UTFstring)                                                 ' para cada letra
         UTFcode = String.Code(UTFstring, i)                                     ' obtengo el UTF code
         If UTFcode = 32 Then                                                    ' es un espacio
-            gl.Translatef(ActualFont.LetterSpacing, 0, 0)                       ' muevo el puntero a la siguiente posicion
+            gl.Translatef(ActualFont.WordSpacing, 0, 0)                       ' muevo el puntero a la siguiente posicion
         Else
             ' DEPRE LetterIndex = GetCodeIndex(ActualFont, UTFcode)                     ' obtengo el indice de la letra
             If ActualFont.Letter.Exist(UTFcode) Then
@@ -3416,6 +3417,7 @@ Fast Unsafe Public Function DrawText(UTFstring As String, posX As Float, posY As
                         ' aqui podria usar una rutina de arco entre 3 puntos
                         fArcParams = puntos.Arc3Point(Glyps[i2 * 2], Glyps[i2 * 2 + 1], bx, by, Glyps[(i2 + 1) * 2], Glyps[(i2 + 1) * 2 + 1])
                         ' traslado el centro
+                        If (Bulges[i2 + 1] > 0) Then Swap fArcParams[3], fArcParams[4]
 
                         gl.Translatef(fArcParams[0], fArcParams[1], 0)
 
@@ -3423,7 +3425,8 @@ Fast Unsafe Public Function DrawText(UTFstring As String, posX As Float, posY As
                         ' las combinaciones de angulos son diversas, Arc3Point puede no funcionar bien en otra circunstancia
 
                         If fArcParams[3] > 0 And fArcParams[4] > 0 Then
-
+                            ' TODO verificar si la siguiente linea debe incorporarse a LWPolyline
+                            If fArcParams[3] > fArcParams[4] Then fArcParams[4] += 2 * Pi
                         Else If fArcParams[3] > 0 And fArcParams[4] < 0 Then
 
                             Swap fArcParams[3], fArcParams[4]
@@ -3431,9 +3434,11 @@ Fast Unsafe Public Function DrawText(UTFstring As String, posX As Float, posY As
                         Else If fArcParams[3] < 0 And fArcParams[4] < 0 Then
                             fArcParams[3] += 2 * Pi
                             fArcParams[4] += 2 * Pi
+                            If fArcParams[3] > fArcParams[4] Then fArcParams[4] += 2 * Pi
 
                         Else If fArcParams[3] < 0 And fArcParams[4] > 0 Then
                             fArcParams[3] += 2 * Pi
+                            If fArcParams[3] > fArcParams[4] Then fArcParams[4] += 2 * Pi
 
                         Endif
 
