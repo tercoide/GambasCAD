@@ -35,9 +35,10 @@ Public Const ModeAddEntities As Integer = 5             ' add select some entiti
 Public Const ModeRemoveEntities As Integer = 6          ' remove select some entities
 
 Public EntityType As String[]
-Public EntityForEdit As Entity
+
 Public iEntityForEdit As Integer = -1
-Public GripPoint As Integer = -1
+Public GripPoint As Grip
+Public GripHovered As Grip
 Public dX As Float
 Public dY As Float
 Public ToolActive As Boolean = False
@@ -106,6 +107,7 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
 
     Me.PoiChecking = True
     gcd.DrawHoveredEntity = True
+    GripPoint = Null
 
 End
 
@@ -159,10 +161,9 @@ End
 
 Public Function MouseDown()
 
-    Dim i As Integer
-    Dim g As Grip
+    Dim i As Integer, e As Entity
 
-    GripPoint = -1
+    'GripPoint = -1
     Me.SelStartX = mouse.X
     Me.SelStartY = mouse.Y
     Me.SelStartXr = gcd.Xreal(Me.SelStartX)
@@ -181,6 +182,23 @@ Public Function MouseDown()
 
     ' A.1 Izquierdo
     If Mouse.Left Then
+        If Not Me.ToolActive Then
+            ' veo si esta en un grip(solo si ToolActive = False)
+
+            ' chequeo si estoy sobre un grip
+            GripPoint = FindGrip(Me.SelStartXr, Me.SelStartYr)
+
+            If GripPoint Then
+
+                ' creo una entidad al vuelo, clonada de la engripada
+                Me.OriginalEntityForEdit = clsEntities.ClonEntity(GripPoint.AsociatedEntity, False)
+                Me.EntityForEdit = GripPoint.AsociatedEntity
+                gcd.Drawing.Sheet.SkipSearch = GripPoint.AsociatedEntity
+
+                Return
+            End If
+
+        End If
 
         If Not gcd.Drawing.HoveredEntity Then 'Or Me.ModeRectSelection Then
             ' A.1.1 No estoy sobre ninguna entidad -> Inicio una seleccion rectangular ActionActive = ActionRectActive
@@ -198,53 +216,15 @@ Public Function MouseDown()
                 gcd.Redraw
             Else
                 ' A.1.2.2 Esta seleccionada previamente
-                If Not Me.ToolActive Then
-                    ' veo si esta en un grip(solo si ToolActive = False)
-                    GripPoint = -1
-                    For i = 0 To gcd.Drawing.Sheet.Grips.Max
-                        If puntos.Around(Me.SelStartXr, Me.SelStartYr, gcd.Drawing.Sheet.Grips[i].x, gcd.Drawing.Sheet.Grips[i].y, gcd.Metros(Config.ProximityDistance)) Then
-                            GripPoint = i
-
-                            Break
-                        Endif
-                        '
-                    Next
-
-                    ' For i = 0 To gcd.Drawing.HoveredEntity.PoiType.Max
-                    '     If puntos.Around(Me.SelStartXr, Me.SelStartYr, gcd.Drawing.HoveredEntity.PoiPoints[i * 2], gcd.Drawing.HoveredEntity.poiPoints[i * 2 + 1], gcd.Metros(8)) Then
-                    '         ' A.1.2.2.1 Estoy sobre un grip -> Inicio edicion por grip ActionActive = ActionGripActive (solo si ToolActive=False)
-                    '         ' estoy editando la entidad desde un grip
-                    '         EntityForEdit = gcd.Drawing.HoveredEntity
-                    '         GripPoint = i
-                    '
-                    '         ' chequeo
-                    '         If EntityForEdit.PoiType[GripPoint] = gcd.poiQuadrant Then
-                    '             dx = EntityForEdit.P[0]
-                    '             dY = EntityForEdit.P[1]
-                    '
-                    '         Endif
-                    '
-                    '         Me.PoiChecking = True
-                    '         gcd.Drawing.flgShowPOIinfo = True
-                    '
-                    '         Break
-                    '
-                    '     Endif
-                    ' Next
-                End If
-
-                If GripPoint < 0 Then
-
-                    ' A.1.2.2.2 No estoy sobre un grip -> deseleccionar
-                    gcd.Drawing.Sheet.EntitiesSelected.Remove(gcd.Drawing.HoveredEntity.Id)
-                    fMain.FillProperties(gcd.Drawing.Sheet.EntitiesSelected)
-                    clsEntities.glGenDrawListSel
-                    gcd.Redraw
-                End If
-
-            Endif
+                ' A.1.2.2.2 No estoy sobre un grip -> deseleccionar
+                gcd.Drawing.Sheet.EntitiesSelected.Remove(gcd.Drawing.HoveredEntity.Id)
+                fMain.FillProperties(gcd.Drawing.Sheet.EntitiesSelected)
+                clsEntities.glGenDrawListSel
+                gcd.Redraw
+            End If
 
         Endif
+
         Return ' este return es para evitar clicks simultaneos
     End If
 
@@ -345,7 +325,7 @@ End
 Public Sub MouseUp()
 
     Dim Crossing As Boolean = False
-    Dim tipo As String
+    Dim s, tipo As String
     Dim t As Float = Timer
     Dim e As Entity
 
@@ -434,14 +414,21 @@ Public Sub MouseUp()
             Endif
         End If
 
-        If GripPoint >= 0 Then
-            ' C.1.2 ActionActive = ActionGripActive -> Finalizo la edicion por grips
+        If GripPoint Then
 
-            e = gcd.Drawing.Sheet.Grips[GripPoint].AsociatedEntity
+            ' C.1.2 ActionActive = ActionGripActive -> Finalizo la edicion por grips
+            ' guardo todo
+            s = GripPoint.ToolTip & (" in ") & GripPoint.AsociatedEntity.Gender
+            gcd.Drawing.uUndo.OpenUndoStage(s, Undo.TypeModify)
+            gcd.Drawing.uUndo.AddUndoItem(Me.OriginalEntityForEdit)
+            Me.OriginalEntityForEdit = Null
+            clsEntities.glGenDrawList(Me.EntityForEdit)
+            clsEntities.glGenDrawListLAyers(Me.EntityForEdit.pLayer)
+            Me.EntityForEdit = Null
+            e = GripPoint.AsociatedEntity
             gcd.Drawing.Sheet.Grips.Clear
             gcd.CCC[e.Gender].generategrips(e)
-            clsEntities.glGenDrawList(e)
-            GripPoint = -1
+            GripPoint = Null
 
         End If
 
@@ -475,15 +462,39 @@ End
 
 Public Sub MouseMove()
 
+    Dim g As Grip, e As Entity
+
     Me.SelEndX = mouse.X
     Me.SelEndy = mouse.Y
     Me.SelEndXr = gcd.Xreal(Me.SelEndX)
     Me.SelEndyr = gcd.Yreal(Me.SelEndy)
 
+    GripHovered = FindGrip(Me.SelStartXr, Me.SelStartYr)
+
+    ' yo soy el responsable de chequear POI
+    If Not gcd.flgSearchingPOI Then
+        If GripPoint Then
+            'e = GripPoint.AsociatedEntity
+
+            gcd.Drawing.iEntity = clsMouseTracking.CheckBestPOI(Me.SelEndXr, Me.SelEndYr)
+
+            If (gcd.Drawing.iEntity[2] > 0) Then
+
+                Me.SelEndXr = gcd.Drawing.iEntity[0]
+                Me.SelEndYr = gcd.Drawing.iEntity[1]
+
+                ' Else
+                '
+
+            End If
+            Me.SelEndXr = gcd.Near(Me.SelEndXr)
+            Me.SelEndYr = gcd.Near(Me.SelEndYr)
+        End If
+    End If
     If Me.Active And Me.ModeRectSelection Then
         ' B.1 ActionActive = ActionRectActive: actualizo coordenadas del punto final del Rect
         ' (se hace mas arriba)
-    Else If GripPoint >= 0 Then
+    Else If GripPoint Then
         ' B.2 ActionActive = ActionGripActive: modifico la entidad con la nueva posicion del punto
         GripEdit
     Else If Me.Active And Me.PanActive Then
@@ -494,14 +505,7 @@ Public Sub MouseMove()
     End If
 
     ' Else
-    '     If gcd.Drawing.iEntity.Count > 0 Then
-    '         If (gcd.Drawing.iEntity[2] >= 0) Then
-    '
-    '             Me.SelEndXr = gcd.Drawing.iEntity[0]
-    '             Me.SelEndYr = gcd.Drawing.iEntity[1]
-    '
-    '         End If
-    '     End If
+
     ' End If
 
 End
@@ -577,11 +581,22 @@ Public Sub Draw() ' esta rutina es llamada por FCAD en el evento DrawingArea_Dra
         Return
     End If
 
-    If GripPoint >= 0 Then
+    If Me.EntityForEdit Then Gcd.CCC[Me.EntityForEdit.Gender].Draw(Me.EntityForEdit)
+    If Me.OriginalEntityForEdit Then Gcd.CCC[Me.OriginalEntityForEdit.Gender].DrawShadow(Me.OriginalEntityForEdit)
 
-        Gcd.CCC[gcd.Drawing.Sheet.Grips[GripPoint].AsociatedEntity.Gender].Draw(gcd.Drawing.Sheet.Grips[GripPoint].AsociatedEntity)
+    If GripPoint Then
+
+        Gcd.CCC[GripPoint.AsociatedEntity.Gender].DrawEditing(GripPoint)
+        Gcd.CCC[GripPoint.AsociatedEntity.Gender].DrawShadow(Me.EntityForEdit)
+
+    Else If GripHovered Then
+
+        DrawingAids.Helper.texto = GripHovered.ToolTip
+        DrawingAids.Helper.dX = 15
+        DrawingAids.Helper.dY = 15
 
     Endif
+
     'EntityForEdit.Gcd.CCC[e.gender].drawremark(EntityForEdit)
     'gl.CallList(gcd.Drawing.GlListEntitiesSelected)
     'clsEntities.DrawPoiSymbols(EntityForEdit)
@@ -595,13 +610,11 @@ End
 
 Public Sub GripEdit()
 
-    Dim g As Grip
+    If GripPoint Then
 
-    If GripPoint >= 0 Then
-        g = gcd.Drawing.Sheet.Grips[GripPoint]
-        g.Xn = Me.SelEndXr
-        g.Yn = Me.SelEndYr
-        gcd.CCC[g.AsociatedEntity.Gender].GripEdit(g)
+        GripPoint.X = Me.SelEndXr
+        GripPoint.Y = Me.SelEndYr
+        gcd.CCC[GripPoint.AsociatedEntity.Gender].GripEdit(GripPoint)
 
         ' Select Case EntityForEdit.PoiType[GripPoint]
         '     Case gcd.poiBasePoint, gcd.poiCenter, gcd.poiMIdPoint
@@ -628,7 +641,23 @@ Public Sub GripEdit()
         '         EntityForEdit.fparam[0] = puntos.distancia(Me.SelEndXr, Me.SelEndYr, dx, dY)
         '
         ' End Select
+        gcd.redraw
 
     Endif
+
+End
+
+Public Function FindGrip(x As Float, y As Float) As Grip
+
+    Dim g As Grip
+
+    For Each g In gcd.Drawing.Sheet.Grips
+        If puntos.Around(x, y, g.x, g.y, gcd.Metros(Config.ProximityDistance)) Then
+
+            Return g
+        Endif
+        '
+    Next
+    Return Null
 
 End
