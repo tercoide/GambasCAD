@@ -921,3 +921,106 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     Return True
 
 End
+
+'' Genera un conjunto de grips para ser usados por cadSelection
+Public Function GenerateGrips(e As Entity) As Integer
+
+    Dim i As Integer
+    Dim g As Grip
+    Dim iCount As Integer
+    Dim OffsetWidth, OffsetHeigth, h As Float
+
+    g = New Grip
+    g.Shape = 0
+    g.X = e.P[0]
+    g.Y = e.P[1]
+    g.Action = 0 ' mover
+    g.AsociatedEntity = e
+    g.AsociatedPoint = -1
+    gcd.Drawing.Sheet.Grips.Add(g)
+    g.ToolTip = ("Move base")
+
+    ' GRIP PARA EL ANCHO DEL AREA DEL TEXTO
+    ' tengo que ver el attch point
+    Select Case e.fParam[Me.ipaAttchmPoint]
+        Case 1, 4, 7  ' left
+            OffsetWidth = e.fParam[Me.ipaRectangleWIdth]
+        Case 2, 5, 8  ' mid
+            OffsetWidth = e.fParam[Me.ipaRectangleWIdth] / 2
+        Case Else ' rigth
+            OffsetWidth = 0
+    End Select
+    g = New Grip
+    g.Shape = 1
+    g.X = e.P[0] + OffsetWidth
+    g.Y = e.P[1]
+    g.Action = 1 ' este dato es propio de la clase
+    g.AsociatedEntity = e
+    g.AsociatedPoint = 0
+    g.DrawLineToAsociatedGrip = True
+    g.ToolTip = ("Change width")
+    gcd.Drawing.Sheet.Grips.Add(g)
+
+    ' GRIP PARA CAMBIAR LA ALTURA DEL TEXTO
+    g = New Grip
+    g.Shape = 1
+    g.X = e.P[0]
+    g.Y = e.P[1] + e.fParam[Me.ipaTextHeight]
+    g.Xr = g.X
+    g.Yr = g.Y
+    g.Value = e.fParam[Me.ipaTextHeight]
+    g.Action = 2
+    g.AsociatedEntity = e
+    g.AsociatedPoint = 0
+    g.DrawLineToAsociatedGrip = True
+    g.ToolTip = ("Text height")
+    gcd.Drawing.Sheet.Grips.Add(g)
+    '
+    ' g = New Grip
+    ' g.Shape = 1
+    ' g.X = e.P[0]
+    ' g.Y = e.P[1] + e.fParam[0]
+    ' g.Action = 1
+    ' g.AsociatedEntity = e
+    ' g.AsociatedPoint = 0
+    ' g.ToolTip = ("Change radius")
+    ' gcd.Drawing.Sheet.Grips.Add(g)
+    '
+    ' g = New Grip
+    ' g.Shape = 1
+    ' g.X = e.P[0]
+    ' g.Y = e.P[1] - e.fParam[0]
+    ' g.Action = 1
+    ' g.AsociatedEntity = e
+    ' g.AsociatedPoint = 0
+    ' g.ToolTip = ("Change radius")
+    ' gcd.Drawing.Sheet.Grips.Add(g)
+
+    Return iCount
+
+End
+
+Public Function GripEdit(g As Grip) As Boolean
+
+    Dim e As Entity
+    Dim r, r1, r2 As Float
+
+    e = g.AsociatedEntity
+    Select Case g.Action
+        Case 0 ' mover la base
+            e.P[0] = g.X
+            e.P[1] = g.Y
+        Case 1 ' cambiar el ancho
+            r1 = Abs(e.P[0] - g.X)
+            r2 = Abs(e.P[1] - g.y)
+            If r1 > r2 Then r = r1 Else r = r2
+            e.fParam[Me.ipaRectangleWIdth] = r
+
+        Case 2 ' cambiar la altura
+            r = puntos.distancia(e.P[0], e.P[1], g.x, g.Y)
+            r = (g.Y - e.P[1]) / (g.Y - g.yr)
+            e.fParam[Me.ipaTextHeight] = r * g.Value
+
+    End Select
+
+End
