@@ -57,9 +57,9 @@ Private lpValue As String
 
 Private LastCodeReadIndex As Integer = 0
 Private eExports As Boolean
-Private Handle_Block_REcord As New Collection
-Private Handle_Block As New Collection
-Private Handle_Layout As New Collection
+' Private Handle_Block_REcord As New Collection
+' Private Handle_Block As New Collection
+' Private Handle_Layout As New Collection
 
 Private hContainers As New Collection
 Private ReadTimes As New Collection
@@ -127,7 +127,7 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
     cEntitiesUnread = New Collection
     nEntitiesUnread = 0
     nEntitiesRead = 0
-    hContainers = New Collection
+    hContainers = New Collection        '' Clave = Handle , Dato = Colection
 
     While Not Eof(fp)
         'Wait 0.0001
@@ -236,7 +236,7 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
         SetViewports(cToFill, drw)
     End If
 
-    DiscardBlocks(drw)
+    'DiscardBlocks(drw)
 
     For Each ft As Float In ReadTimes
         gcd.debugInfo(ReadEntities[ReadTimes.Key] & " " & gb.Tab & ReadTimes.Key & gb.Tab & gb.Tab & gb.Tab & " total time: " & Format(fT, "0.0000"))
@@ -772,10 +772,10 @@ Public Function SaveFile(sName As String, drwToSAve As Drawing, Optional LoadMin
     Dim s As Sheet, cEntities As Collection
     For Each s In drwToSAve.Sheets
 
-        If Save5EntitiesDirect(s.Entities, Handle_Block_Record[drwToSAve.Sheets.Key]) Then Goto Error1
+        If Save5EntitiesDirect(s.Entities, s.Block.idContainer) Then Goto Error1
 
     Next
-    'If Save6Objects(cData["OBJECTS"]) Then Return False
+    If Save6Objects(drwToSAve) Then Return False
     If SaveThumbnail Then
         Save7ThumbNail(Null)
     End If
@@ -869,32 +869,31 @@ Private Function Save3TablesDirect(drw As Drawing) As Integer
 
     ' antes que nada armo el block_record
     sHandle1 = NewHandle(1)
-    Handle_Block_REcord = New Collection
-    Handle_Block = New Collection
-    Handle_Layout = New Collection
+    ' Handle_Block_REcord = New Collection
+    ' Handle_Block = New Collection
+    ' Handle_Layout = New Collection
+    '
+
     For Each s In drw.Sheets
-        ' ss = s.Name
-        ' If s.IsModel Then
-        '     'ss = "*Model_Space"
-        '     s.BlockName = "*Model_Space"
-        ' Else
-        '     s.BlockName = "*Paper_Space" & Str(iSheetCounter)
-        ' End If
-        Handle_Block_Record.Add(NewHandle(), s.Name)
-        Handle_Block.Add(NewHandle(), s.Name)
-        Handle_Layout.Add(NewHandle(), s.Name)
+
+        s.Block.idContainer = NewHandle()
+        s.Block.id = NewHandle()
+        s.id = NewHandle()
+
     Next
     For Each b In drw.Blocks
-        Handle_Block_Record.Add(NewHandle(), b.Name)
-        Handle_Block.Add(NewHandle(), b.Name)
+        b.idContainer = NewHandle()
+        b.id = NewHandle()
     Next
 
     For Each s In drw.Sheets
         For Each e In s.Entities
             If InStr(e.Gender, "DIMENSION") > 0 Then
                 e.pBlock.name = "*D" & Str(iDimCounter)
-                Handle_Block_Record.Add(NewHandle(), e.pBlock.name)
-                Handle_Block.Add(NewHandle(), e.pBlock.name)
+                e.pBlock.idContainer = NewHandle()
+                e.pBlock.id = NewHandle()
+                ' Handle_Block_Record.Add(NewHandle(), e.pBlock.name)
+                ' Handle_Block.Add(NewHandle(), e.pBlock.name)
                 Inc iDimCounter
             Endif
         Next
@@ -1394,6 +1393,15 @@ Private Function save31BlockRecord(drw As Drawing) As Integer
 
     Dim InsertUnits, Explotability, Scalability, idAsociatedLayout As String
 
+    For Each s In drw.Sheets
+        For Each e In s.Entities
+            If InStr(e.Gender, "DIMENSION") > 0 Then
+                Inc iDimCounter
+            Endif
+        Next
+
+    Next
+
     Print #hFIle, "  0"
     Print #hFIle, "TABLE"
     Print #hFIle, "  2"
@@ -1405,51 +1413,72 @@ Private Function save31BlockRecord(drw As Drawing) As Integer
     Print #hFIle, "  100"
     Print #hFIle, "AcDbSymbolTable"
     Print #hFIle, "  70"
-    Print #hFIle, CStr(handle_Block_Record.Count)
+    Print #hFIle, CStr(drw.Sheets.Count + drw.Blocks.Count + iDimCounter)
 
-    ' For Each s In drw.Sheets
-    '     s.pPrintStyle.handle = NewHandle()
-    '     ' busco datos extra
-    '     If s.IsModel Then
-    '         sBlockName = "*Model_Space"
-    '     Else
-    '         sBlockName = "*" & s.Name 'Block_Record.Key
-    '     End If
-    '     idAsociatedLayout = s.pprintstyle.handle
-    '     InsertUnits = "0"
-    '     Explotability = "0"
-    '     Scalability = "0"
-    '
-    ' Next
-
-    For Each sBlockHandle In Handle_Block_Record
-        ' busco datos extra
-        sBlockName = Handle_Block_Record.Key
-        If drw.Sheets.Exist(sBlockName) Then
-            idAsociatedLayout = Handle_Layout[sBlockName]
-            If drw.Sheets[sBlockName].IsModel Then
-                sBlockName = "*Model_Space"
-            Else
-                sBlockName = "*Paper_Space" & Str(iPaperSpaceCounter)
-                Inc iPaperSpaceCounter
-            Endif
-            InsertUnits = "0"
-            Explotability = "0"
-            Scalability = "0"
-        Else If drw.Blocks.Exist(sBlockName) Then
-            InsertUnits = drw.Blocks[sBlockName].InsertUnits
-            Explotability = drw.Blocks[sBlockName].Explotability
-            Scalability = drw.Blocks[sBlockName].Scalability
-            idAsociatedLayout = "0"
-        Else
-            sBlockName = Handle_Block_Record.Key
-            InsertUnits = "0"
-            Explotability = "0"
-            Scalability = "0"
-            idAsociatedLayout = "0"
-        Endif
+    For Each s In drw.Sheets
+        sBlockHandle = s.Block.idContainer
+        sBlockName = s.Block.name
+        idAsociatedLayout = s.id
+        InsertUnits = "0"
+        Explotability = "1"
+        Scalability = "0"
         GoSub SaveBlock
     Next
+    For Each b In drw.Blocks
+        sBlockHandle = b.idContainer
+        sBlockName = b.name
+        idAsociatedLayout = "0"
+        InsertUnits = b.InsertUnits
+        Explotability = b.Explotability
+        Scalability = b.Scalability
+        GoSub SaveBlock
+    Next
+
+    For Each s In drw.Sheets
+        For Each e In s.Entities
+            If InStr(e.Gender, "DIMENSION") > 0 Then
+                ' e.pBlock.name = "*D" & Str(iDimCounter)
+                ' e.pBlock.idContainer = NewHandle()
+                ' e.pBlock.id = NewHandle()
+                ' Handle_Block_Record.Add(NewHandle(), e.pBlock.name)
+                ' Handle_Block.Add(NewHandle(), e.pBlock.name)
+                sBlockHandle = e.pBlock.idContainer
+                sBlockName = e.pBlock.name
+                idAsociatedLayout = "0"
+                GoSub SaveBlock
+            Endif
+        Next
+
+    Next
+
+    ' For Each sBlockHandle In Handle_Block_Record
+    '     ' busco datos extra
+    '     sBlockName = Handle_Block_Record.Key
+    '     If drw.Sheets.Exist(sBlockName) Then
+    '         idAsociatedLayout = Handle_Layout[sBlockName]
+    '         If drw.Sheets[sBlockName].IsModel Then
+    '             sBlockName = "*Model_Space"
+    '         Else
+    '             sBlockName = "*Paper_Space" & Str(iPaperSpaceCounter)
+    '             Inc iPaperSpaceCounter
+    '         Endif
+    '         InsertUnits = "0"
+    '         Explotability = "1"
+    '         Scalability = "0"
+    '     Else If drw.Blocks.Exist(sBlockName) Then
+    '         InsertUnits = drw.Blocks[sBlockName].InsertUnits
+    '         Explotability = drw.Blocks[sBlockName].Explotability
+    '         Scalability = drw.Blocks[sBlockName].Scalability
+    '         idAsociatedLayout = "0"
+    '     Else
+    '         sBlockName = Handle_Block_Record.Key
+    '         InsertUnits = "0"
+    '         Explotability = "0"
+    '         Scalability = "0"
+    '         idAsociatedLayout = "0"
+    '     Endif
+    '     GoSub SaveBlock
+    ' Next
 
     Print #hFIle, "  0"
     Print #hFIle, "ENDTAB"
@@ -1490,63 +1519,61 @@ Private Function Save4BlocksDirect(drw As Drawing) As Integer
     Dim sValues, lpclave, sBlockName As String
     Dim s As Sheet, eBlocks As Collection, e As Entity
 
-    Dim hBlock As String
-
     Print #hFIle, "  0"
     Print #hFIle, "SECTION"
     Print #hFIle, "2"
     Print #hFIle, "BLOCKS"
 
-    For Each s In drw.Sheets
-        If s.IsModel Then
-            sBlockName = "*Model_Space"
-        Else
-            sBlockName = "*Paper_Space" & Str(iPaperSpaceCounter)
-            Inc iPaperSpaceCounter
-        Endif
-        Print #hFIle, "  0"
-        Print #hFIle, "BLOCK"
-        Print #hFIle, "  5"         ' handle
-        Print #hFIle, Handle_Block[s.name] ' Handle_Block[drw.Sheets.name]
-        Print #hFIle, "  330"
-        Print #hFIle, Handle_Block_Record[s.name] 'eBlock.idContainer' Handle_Block_Record[drw.Sheets.key] 'eBlock.idContainer
-        Print #hFIle, "  100"
-        Print #hFIle, "AcDbEntity"
-        Print #hFIle, " 8"          ' layer name
-        Print #hFIle, "0" ' eBlock.layer
-        Print #hFIle, "100"
-        Print #hFIle, "AcDbBlockBegin"
-        Print #hFIle, "  2"
-        Print #hFIle, sBlockName 'drw.Sheets.key ' eBlock.name
-        Print #hFIle, "  70"
-        Print #hFIle, "0" 'eBlock.Flags
-        Print #hFIle, codX0
-        Print #hFIle, 0 'eBlock.x0
-        Print #hFIle, cody0
-        Print #hFIle, 0' eBlock.y0
-        Print #hFIle, codz0
-        Print #hFIle, 0' eBlock.z0
-        Print #hFIle, "  3"
-        Print #hFIle, sBlockName 'drw.Sheets.key ' eBlock.name
-        Print #hFIle, "  1"
-        Print #hFIle, ""            ' X ref path
-
-        SaveCode(0, "ENDBLK")
-        SaveCode(5, NewHandle())
-        SaveCode(330, Handle_Block_Record[s.name])
-        SaveCode(100, "AcDbEntity")
-        SaveCode(8, "0")
-        SaveCode(100, "AcDbBlockEnd")
-    Next
+    ' For Each s In drw.Sheets
+    '     If s.IsModel Then
+    '         sBlockName = "*Model_Space"
+    '     Else
+    '         sBlockName = "*Paper_Space" & Str(iPaperSpaceCounter)
+    '         Inc iPaperSpaceCounter
+    '     Endif
+    '     Print #hFIle, "  0"
+    '     Print #hFIle, "BLOCK"
+    '     Print #hFIle, "  5"         ' handle
+    '     Print #hFIle, Handle_Block[s.name] ' Handle_Block[drw.Sheets.name]
+    '     Print #hFIle, "  330"
+    '     Print #hFIle, Handle_Block_Record[s.name] 'eBlock.idContainer' Handle_Block_Record[drw.Sheets.key] 'eBlock.idContainer
+    '     Print #hFIle, "  100"
+    '     Print #hFIle, "AcDbEntity"
+    '     Print #hFIle, " 8"          ' layer name
+    '     Print #hFIle, "0" ' eBlock.layer
+    '     Print #hFIle, "100"
+    '     Print #hFIle, "AcDbBlockBegin"
+    '     Print #hFIle, "  2"
+    '     Print #hFIle, sBlockName 'drw.Sheets.key ' eBlock.name
+    '     Print #hFIle, "  70"
+    '     Print #hFIle, "0" 'eBlock.Flags
+    '     Print #hFIle, codX0
+    '     Print #hFIle, 0 'eBlock.x0
+    '     Print #hFIle, cody0
+    '     Print #hFIle, 0' eBlock.y0
+    '     Print #hFIle, codz0
+    '     Print #hFIle, 0' eBlock.z0
+    '     Print #hFIle, "  3"
+    '     Print #hFIle, sBlockName 'drw.Sheets.key ' eBlock.name
+    '     Print #hFIle, "  1"
+    '     Print #hFIle, ""            ' X ref path
+    '
+    '     SaveCode(0, "ENDBLK")
+    '     SaveCode(5, NewHandle())
+    '     SaveCode(330, Handle_Block_Record[s.name])
+    '     SaveCode(100, "AcDbEntity")
+    '     SaveCode(8, "0")
+    '     SaveCode(100, "AcDbBlockEnd")
+    ' Next
 
     For Each eBlock In drw.Blocks
 
         Print #hFIle, "  0"
         Print #hFIle, "BLOCK"
         Print #hFIle, "  5"         ' handle
-        Print #hFIle, Handle_Block[eBlock.name]
+        Print #hFIle, eBlock.id 'Handle_Block[eBlock.name]
         Print #hFIle, "  330"
-        Print #hFIle, Handle_Block_Record[eBlock.name]
+        Print #hFIle, eBlock.idContainer 'Handle_Block_Record[eBlock.name]
         Print #hFIle, "  100"
         Print #hFIle, "AcDbEntity"
         Print #hFIle, " 8"          ' layer name
@@ -1582,7 +1609,7 @@ Private Function Save4BlocksDirect(drw As Drawing) As Integer
                 For i = 0 To stxEnty.max Step 2
                     lpclave = stxEnty[i + 1]
                     lpvalue = stxEnty[i]
-                    If lpclave = "330" Then lpvalue = hBlock
+                    If lpclave = "330" Then lpvalue = eBlock.idContainer 'Handle_Block_Record[eBlock.name]
                     Print #hFile, lpclave
                     Print #hFIle, lpvalue
                 Next
@@ -1595,8 +1622,7 @@ Private Function Save4BlocksDirect(drw As Drawing) As Integer
         Endif
         SaveCode(0, "ENDBLK")
         SaveCode(5, NewHandle())
-        If Not Handle_Block_Record[eBlock.name] Then Stop
-        SaveCode(330, Handle_Block_Record[eBlock.name])
+        SaveCode(330, eBlock.idContainer)
         SaveCode(100, "AcDbEntity")
         SaveCode(8, "0")
         SaveCode(100, "AcDbBlockEnd")
@@ -1612,9 +1638,9 @@ Private Function Save4BlocksDirect(drw As Drawing) As Integer
                 Print #hFIle, "  0"
                 Print #hFIle, "BLOCK"
                 Print #hFIle, "  5"         ' handle
-                Print #hFIle, Handle_Block[e.pBlock.name]
+                Print #hFIle, e.pBlock.id 'Handle_Block[e.pBlock.name]
                 Print #hFIle, "  330"
-                Print #hFIle, Handle_Block_Record[e.pBlock.name]
+                Print #hFIle, e.pBlock.idContainer 'Handle_Block_Record[e.pBlock.name]
                 Print #hFIle, "  100"
                 Print #hFIle, "AcDbEntity"
                 Print #hFIle, " 8"          ' layer name
@@ -1650,7 +1676,7 @@ Private Function Save4BlocksDirect(drw As Drawing) As Integer
                         For i = 0 To stxEnty.max Step 2
                             lpclave = stxEnty[i + 1]
                             lpvalue = stxEnty[i]
-                            If lpclave = "330" Then lpvalue = hBlock
+                            If lpclave = "330" Then lpvalue = e.pBlock.idContainer 'Handle_Block_Record[e.pBlock.name]
                             Print #hFile, lpclave
                             Print #hFIle, lpvalue
                         Next
@@ -1664,7 +1690,7 @@ Private Function Save4BlocksDirect(drw As Drawing) As Integer
 
                 SaveCode(0, "ENDBLK")
                 SaveCode(5, NewHandle())
-                SaveCode(330, Handle_Block_Record[e.pBlock.name])
+                SaveCode(330, e.pBlock.idContainer) 'Handle_Block_Record[e.pBlock.name])
                 SaveCode(100, "AcDbEntity")
                 SaveCode(8, "0")
                 SaveCode(100, "AcDbBlockEnd")
@@ -1796,25 +1822,29 @@ Private Function Save5EntitiesDirect(eEntys As Collection, hContainer As String)
 
 End
 
-Private Function Save6Objects(cObjects As Collection) As Integer
+Private Function Save6Objects(drw As Drawing) As Boolean
 
     Dim sValues, lpclave As String
     Dim i As Integer
 
     Dim cObject As Collection
+    Dim cObjects As New Collection
+    Dim s As Sheet
+
+    For Each s In drw.Sheets
+        cObject = New Collection
+        objLayout.ExportDXF(s, cObject)
+        ' pequeña correccion del handle
+        'cObject["5"] = Handle_Layout[s.Name]
+        cObjects.Add(cObject, s.Name)
+    Next
 
     Print #hFIle, "  0"
     Print #hFIle, "SECTION"
     Print #hFIle, "2"
     Print #hFIle, "OBJECTS"
     For Each cObject In cObjects
-        For Each sValues In cObject
-            lpclave = cObject.Key
-            I = InStr(lpclave, "_")
-            If i > 0 Then lpclave = Left(lpclave, i - 1)
-            Print #hFile, lpclave
-            Print #hFIle, sValues
-        Next
+        SaveColection(cObject)
     Next
     ' end section code
     Print #hFIle, "  0"
@@ -1849,6 +1879,24 @@ Private Function Save7ThumbNail(imgGLArea As Image) As Integer
     ' end file code
     Print #hFIle, "  0"
     Print #hFIle, "EOF"
+
+End
+
+'' Inserta un codigo en una coleccion considerando repeticiones de la Key
+Public Sub InsertCode(iCode As Integer, sData As Variant, cAcumulator As Collection)
+
+    Dim NewKey As String, iCodeAux As Integer
+
+    NewKey = Str(iCode)
+    If cAcumulator.Exist(NewKey) Then
+        Do
+            iCodeAux += 1
+            NewKey = Str(iCode) & "_" & CStr(iCodeAux)
+
+            If Not cAcumulator.exist(NewKey) Then Break
+        Loop
+    Endif
+    cAcumulator.Add(CStr(sData), NewKey)
 
 End
 
@@ -2029,6 +2077,20 @@ Private Sub SaveCode(sCode As Variant, sValue As Variant)
     '   sToPrint = svalue
     ' Endif
     Print #hFIle, CStr(svalue)
+
+End Sub
+
+Private Sub SaveColection(cData As Collection)
+
+    Dim sValues, lpclave As String, i As Integer
+
+    For Each sValues In cData
+        lpclave = cData.Key
+        I = InStr(lpclave, "_")
+        If i > 0 Then lpclave = Left(lpclave, i - 1)
+        Print #hFile, lpclave
+        Print #hFIle, sValues
+    Next
 
 End Sub
 
@@ -2270,6 +2332,7 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
     Dim newBlock As Block
     Dim hasBlocks, hasTables, hasBlockRecord, hasEntities As Boolean
     Dim cBlocks, cTables, cBlockRecord, cEntities As Collection
+    Dim b As New Block
 
     If colData.Exist("BLOCKS") Then cBlocks = colData["BLOCKS"]
     If colData.Exist("TABLES") Then
@@ -2308,12 +2371,18 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
                 If cBlockRecord.Exist(colBlk["330"]) Then
                     newBlock.idContainer = cBlockRecord[colBlk["330"]]["5"]
                     newBlock.idAsociatedLayout = cBlockRecord[colBlk["330"]]["340"]
+                    ' If newBlock.idAsociatedLayout <> "0" Then
+                    '     hContainers.Add(newBlock, newBlock.idAsociatedLayout)
+                    ' Else
+                    hContainers.Add(newBlock, newBlock.idContainer)
+                    ' End If
                 End If
             End If
             'If Left(newBlock.name, 1) = "*" Then    ' puede ser una Dim o una Sheet
             ' If InStr(newBlock.name, "_Space") > 0 Then
             '     ' es una sheet, que ya fue creada por ReadObjectsFromDXF
             ' Else
+
             Drw.Blocks.Add(newBlock, newBlock.name)
 
             'Endif
@@ -2322,6 +2391,19 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
 
         Next
     End If
+    If Drw.Blocks.Count = 0 Then ' agrego el Model
+
+        ' lo agrego a los bloques
+
+        b.name = "*Model_Space"
+        b.entities = New Collection
+        b.idContainer = gcd.NewId()
+        b.id = gcd.NewId()
+        b.idAsociatedLayout = gcd.NewId()
+        b.IsAuxiliar = True
+        b.IsReciclable = False
+        Drw.Blocks.Add(b, newBlock.name)
+    End If
 
     ' voy a hacer un chequeo final, porque algunos DXF vienen sin el bloque Model
     If Drw.Sheets.Count = 0 Then
@@ -2329,41 +2411,36 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
         S = New Sheet
         s.Name = "Model"
         s.IsModel = True
+        s.Block = b
+        s.id = b.idAsociatedLayout
         Drw.Sheets.Add(s, "Model")
         drw.Sheet = s
         drw.Model = s
 
-        ' ' creo ql bloque
-        ' newBlock = New Block
-        ' newBlock.entities = New Collection
-        ' newBlock.name = "*Model_Space"
-        ' s.Block = newBlock
-        ' s.Entities = newBlock.entities
-        ' Drw.Blocks.Add(newBlock, newBlock.name)
-
     End If
 
-    If cBlocks Then
-        For Each colBlk In cBlocks
-
-            cEntities = Null
-            If colBlk.Exist("entities") Then cEntities = colBlk["entities"]
-            If cEntities Then
-                If Drw.Blocks.Exist(colBlk[dxf.codName]) Then
-
-                    DXFtoEntity(cEntities, colData, drw, Drw.Blocks[colBlk[dxf.codName]].entities)
-
-                Else If cBlockRecord Then
-                    If cBlockRecord.Exist(colBlk["330"]["340"]) Then DXFtoEntity(cEntities, colData, drw, Drw.Sheets[cBlockRecord[colBlk["330"]]["340"]].entities)
-                Else
-                    Debug "Error loading block", colBlk["2"]
-
-                End If
-            End If
-            Inc i
-
+    ' ' ahora vinculo las Sheets con su bloque
+    For Each s In Drw.Sheets
+        For Each b In drw.Blocks
+            If b.idAsociatedLayout = s.id Then
+                s.Block = b
+                s.Entities = b.entities
+                Break
+            Endif
         Next
-    End If
+    Next
+
+    For Each colBlk In cBlocks
+
+        cEntities = Null
+        If colBlk.Exist("entities") Then
+
+            DXFtoEntity(colBlk["entities"], colData, drw)
+
+        End If
+        Inc i
+
+    Next
 
 End
 
@@ -2407,7 +2484,7 @@ Public Sub DXFtoEntity(cDxfEntities As Collection, cDxfData As Collection, drw A
     Dim entNueva As Entity
     Dim flgIsPolyline, IsDummy, EntitiesToModel As Boolean
     Dim pBlockPolyline, b As Block
-    Dim sid, sName As String
+    Dim sid, sName, sIdLayout As String
 
     Dim fTime As Float
     Dim t As Date
@@ -2448,61 +2525,59 @@ Public Sub DXFtoEntity(cDxfEntities As Collection, cDxfData As Collection, drw A
                 If flgIsPolyline Then
                     'pBlockPolyline.entities.Add(entNueva, sId)
                 Else
-                    If cEntity Then                                         ' el contenedor fue provisto
-                        obx = cEntity
+                    ' If cEntity Then                                         ' el contenedor fue provisto
+                    '     obx = cEntity
+                    ' Else
+
+                    hContainer = ReadCodeFromCol(e, 330)
+                    ' esto puede ser un:
+                    'If ReadCodeFromCol(e, 5) = "129D" Then Stop
+                    'Debug "Contenedor", hContainer
+                    ' -hBlock-Record
+                    ' -hInsert
+                    ' -hHatch               OTRA ENTIDAD que tenga .pBlock.enities as Collection
+                    ' -Polyline
+
+                    If hContainers.Exist(hContainer) Then
+                        obx = hContainers[hContainer].entities
                     Else
+                        obx = drw.Sheet.Entities
+                    Endif
 
-                        hContainer = ReadCodeFromCol(e, 330)                 ' esto puede ser un:
-                        'If ReadCodeFromCol(e, 5) = "129D" Then Stop
-                        'Debug "Contenedor", hContainer
-                        ' -hBlock-Record
-                        ' -hInsert
-                        ' -hHatch               OTRA ENTIDAD que tenga .pBlock.enities as Collection
-                        ' -Polyline
+                    ' If hContainer <> "" And cDxfData.Exist("TABLES") Then                 ' busco la hoja donde dibujar esta entidad
+                    '
+                    '     If cDxfData["TABLES"]["BLOCK_RECORD"].Exist(hContainer) Then      ' busco en los bloques
+                    '         sIdLayout = cDxfData["TABLES"]["BLOCK_RECORD"][hContainer]["340"]
+                    '         sName = Handle_Layout[sidLayout]
+                    '         If drw.Sheets.Exist(sName) Then                                 ' busco en las Sheets
+                    '             obx = drw.Sheets[sName].entities
+                    '         Else    ' los DXF viejos no tienen contenedores,   ni paperspace, probablemente
+                    '
+                    '             obx = drw.Sheet.entities
+                    '         End If
+                    '
+                    '     Else                                                               ' busco en otro lado
+                    '         obx = hContainers[hContainer]
+                    '     End If
+                    '
+                    ' End If
 
-                        If hContainer <> "" And cDxfData.Exist("TABLES") Then ' busco la hoja donde dibujar esta entidad
-
-                            If cDxfData["TABLES"]["BLOCK_RECORD"].Exist(hContainer) Then      ' busco en los bloques
-                                sName = cDxfData["TABLES"]["BLOCK_RECORD"][hContainer]["340"]
-
-                                If drw.Sheets.Exist(sName) Then               ' busco en las Sheets
-                                    obx = drw.Sheets[sName].entities
-                                Else    ' los DXF viejos no tienen contenedores,   ni paperspace, probablemente
-
-                                    obx = drw.Sheet.entities
-                                End If
-
-                            Else                                                               ' busco en otro lado
-                                obx = hContainers[hContainer]
-                            End If
-
-                        End If
-
-                    End If
+                    'End If
 
                     Select Case entNueva.Gender
                         Case "HATCH", "INSERT", "POLYLINE", "POLYLINE_2D"
                             If entNueva.pBlock Then
-                                hContainers.Add(entNueva.pBlock.entities, entNueva.Id)
+                                hContainers.Add(entNueva.pBlock, entNueva.Id)
                             End If
                     End Select
                 End If
 
-                If obx Then
-
-                    obx.Add(entNueva, sId)
-                    ' pero , ademas
-
-                    'drw.Entities.Add(entNueva, sId)
-                Else
-
-                    drw.Sheet.entities.Add(entNueva, sId)
-                    EntitiesToModel = True
-                End If
+                obx.Add(entNueva, sId)
+                'entNueva.Container = obx
 
                 If e[dxf.codEntity] = "POLYLINE" Then 'Stop
                     flgIsPolyline = True
-                    obx = entNueva.pBlock.entities
+                    'obx = entNueva.pBlock
                     ' pBlockPolyline = New Block
                     ' pBlockPolyline.entities = New Collection
                     '
@@ -2528,7 +2603,6 @@ Public Sub DXFtoEntity(cDxfEntities As Collection, cDxfData As Collection, drw A
             End If
         End If
     Next
-    If EntitiesToModel Then Debug "Algun contenedor no fue encontrado y sus entidades fueron al Model"
 
 End
 
@@ -2599,7 +2673,7 @@ Public Function ReadObjectsFromDXF(cData As Collection, drw As Drawing)
     Dim s As Sheet
 
     gcd.debugInfo("Importing DXF object data",,, True)
-
+    'Handle_Layout = New Collection
     If Not cData.Exist("OBJECTS") Then Return
     For Each cObject In cData["OBJECTS"]
 
@@ -2609,6 +2683,8 @@ Public Function ReadObjectsFromDXF(cData As Collection, drw As Drawing)
             s = New Sheet
             objLayout.importDXF(s, cObject)
             drw.Sheets.Add(s, s.name)
+            'Handle_Layout.Add(s.Name, s.id)
+            'hContainers.Add(s.Entities, s.id)
             If LCase(s.Name) = "model" Then
                 s.IsModel = True
                 drw.Sheet = s

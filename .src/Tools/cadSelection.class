@@ -39,6 +39,9 @@ Public EntityType As String[]
 Public iEntityForEdit As Integer = -1
 Public GripPoint As Grip
 Public GripHovered As Grip
+Public GripCopying As Boolean = False
+'Public GripCopying As Boolean = False
+
 Public dX As Float
 Public dY As Float
 Public ToolActive As Boolean = False
@@ -496,7 +499,12 @@ Public Sub MouseMove()
         ' (se hace mas arriba)
     Else If GripPoint Then
         ' B.2 ActionActive = ActionGripActive: modifico la entidad con la nueva posicion del punto
-        GripEdit
+        If GripCopying Then
+
+        Else
+
+            GripEdit
+        Endif
         DrawingAids.txtFrom = GripPoint.ToolTip
 
     Else If Me.Active And Me.PanActive Then
@@ -584,12 +592,21 @@ Public Sub Draw() ' esta rutina es llamada por FCAD en el evento DrawingArea_Dra
     End If
 
     If Me.EntityForEdit Then Gcd.CCC[Me.EntityForEdit.Gender].Draw(Me.EntityForEdit)
-    If Me.OriginalEntityForEdit Then Gcd.CCC[Me.OriginalEntityForEdit.Gender].DrawShadow(Me.OriginalEntityForEdit)
-
+    If Me.OriginalEntityForEdit Then
+        If GripCopying Then
+        Else
+            Gcd.CCC[Me.OriginalEntityForEdit.Gender].DrawShadow(Me.OriginalEntityForEdit)
+        End If
+    End If
     If GripPoint Then
 
         Gcd.CCC[GripPoint.AsociatedEntity.Gender].DrawEditing(GripPoint)
-        Gcd.CCC[GripPoint.AsociatedEntity.Gender].DrawShadow(Me.EntityForEdit)
+        If GripCopying Then
+            'Stop
+        Else
+
+            Gcd.CCC[GripPoint.AsociatedEntity.Gender].DrawShadow(Me.EntityForEdit)
+        Endif
         DrawingAids.DrawSnapText()
 
     Else If GripHovered Then
@@ -614,11 +631,17 @@ End
 Public Sub GripEdit()
 
     If GripPoint Then
+        If GripCopying Then
+            ' GripPoint.X = Me.SelEndXr
+            ' GripPoint.Y = Me.SelEndYr
+            ' gcd.CCC[GripPoint.AsociatedEntity.Gender].translate(GripPoint.AsociatedEntity, Me.SelEndXr - Me.SelStartXr, Me.SelEndYr - Me.SelStartYr)
 
-        GripPoint.X = Me.SelEndXr
-        GripPoint.Y = Me.SelEndYr
-        gcd.CCC[GripPoint.AsociatedEntity.Gender].GripEdit(GripPoint)
+        Else
 
+            GripPoint.X = Me.SelEndXr
+            GripPoint.Y = Me.SelEndYr
+            gcd.CCC[GripPoint.AsociatedEntity.Gender].GripEdit(GripPoint)
+        Endif
         gcd.redraw
 
     Endif
@@ -638,5 +661,11 @@ Public Function FindGrip(x As Float, y As Float) As Grip
     Next
     DrawingAids.txtFrom = ""
     Return Null
+
+End
+
+Public Sub KeyDown(iCode As Integer)
+
+    If iCode = Key.ControlKey Then GripCopying = True Else GripCopying = False
 
 End
