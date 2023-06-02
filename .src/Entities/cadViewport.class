@@ -478,13 +478,13 @@ Public Sub ExportDXFCol(e As Entity, ByRef stxExport As String[]) As Boolean
     Dim V As New Viewport
     Dim r As String
     Dim l As Layer
-    Dim fVal, CenterX, CenterY As Float
+    Dim fVal, CenterX, CenterY, px, py As Float
 
     v = e.pBlock
 
     ' Los datos comunes a todas las entidades son guardados por la rutina que llama a esta
     stxExport.insert(["AcDbViewport", "100"])
-    stxExport.insert([(v.X1 + v.X0) / 2, "10"])
+    stxExport.insert([(v.X1 + v.X0) / 2, "10"])            ' center point
     stxExport.insert([(v.Y1 + v.Y0) / 2, "20"])
     stxExport.insert(["0", "30"])
     stxExport.insert([(v.X1 - v.X0), "40"])
@@ -492,9 +492,14 @@ Public Sub ExportDXFCol(e As Entity, ByRef stxExport As String[]) As Boolean
 
     stxExport.insert(["0", "68"])                      ' Viewport status field
     stxExport.insert(["0", "69"])                      ' Id
+    'v.PanX1 = -(v.PanX0 * v.ScaleZoom) + CenterX
+    'v.PanY1 = -(v.PanY0 * v.ScaleZoom) + CenterY
 
-    stxExport.insert([v.PanX, "12"])                   ' 12/22 View center point
-    stxExport.insert([v.PanY, "22"])
+    ' vpan0 = (vpan1 - center)/scalezoom
+    px = -(v.PanX - (v.X1 + v.X0) / 2) / v.ScaleZoom
+    py = -(v.Pany - (v.y1 + v.y0) / 2) / v.ScaleZoom
+    stxExport.insert([px, "12"])                   ' 12/22 View center point
+    stxExport.insert([py, "22"])
     stxExport.insert(["0", "13"])                      ' Snap base point
     stxExport.insert(["0", "23"])
 
@@ -519,9 +524,6 @@ Public Sub ExportDXFCol(e As Entity, ByRef stxExport As String[]) As Boolean
     stxExport.insert([(v.Y1 - v.y0) / v.ScaleZoom, "45"])                       ' 45 View height (in model space units)
 
     'v.ScaleZoom = (v.Y1 - v.y0) / CFloat(r)
-
-    v.PanX = -(v.PanX * v.ScaleZoom) + CenterX
-    v.PanY = -(v.PanY * v.ScaleZoom) + CenterY
 
     stxExport.insert(["0", "50"])                       ' 50 Snap angle
     stxExport.insert(["0", "51"])                       ' 51 View twist angle
