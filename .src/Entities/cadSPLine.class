@@ -27,7 +27,7 @@ Public numDrawingPoints As Integer = 100
 
 Public Const DXF_Export As Boolean = True
 
-Public LOD As Integer = 100
+Public nTramos As Integer = 100
 
 Public g_points As New Float[]
 Public Knots As Float[]
@@ -143,9 +143,7 @@ Public Sub Translate(e As Entity, dX As Float, dY As Float, Optional OnlySelecte
     puntos.Translate(sp.FitPoints, dx, dy)
     puntos.Translate(sp.TangentFinal, dx, dy)
     puntos.Translate(sp.TangentInitial, dx, dy)
-
-    e.PolyLine.Clear
-    Me.makepolyline(e)
+    puntos.Translate(e.PolyLine, dx, dy)
 
 End
 
@@ -157,9 +155,7 @@ Public Sub Rotate(e As Entity, radians As Float)
     puntos.Rotate(sp.FitPoints, radians)
     puntos.Rotate(sp.TangentFinal, radians)
     puntos.Rotate(sp.TangentInitial, radians)
-
-    e.PolyLine.Clear
-    Me.makepolyline(e)
+    puntos.Rotate(e.PolyLine, radians)
 
 End
 
@@ -171,9 +167,7 @@ Public Sub Scale(e As Entity, dX As Float, dY As Float)
     puntos.Scale(sp.FitPoints, dx, dy)
     puntos.Scale(sp.TangentFinal, dx, dy)
     puntos.Scale(sp.TangentInitial, dx, dy)
-
-    e.PolyLine.Clear
-    Me.makepolyline(e)
+    puntos.Scale(e.PolyLine, dx, dy)
 
 End
 
@@ -301,31 +295,31 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
 End
 
-Private Function CoxDeBoor(u As Float, i As Float, k As Float) As Float
-
-    Dim Eq1, Eq2 As Float
-    Dim Den1, Den2 As Float
-
-    If (k = 1) Then
-
-        If ((Knots[i] <= u) And (u <= Knots[i + 1])) Then
-            Return 1.0
-        Else
-            Return 0.0
-        End If
-    End If
-    Den1 = Knots[i + k - 1] - Knots[i]
-    Den2 = Knots[i + k] - Knots[i + 1]
-
-    If (Den1 > 0) Then
-        Eq1 = ((u - Knots[i]) / Den1) * CoxDeBoor(u, i, k - 1)
-    End If
-    If (Den2 > 0) Then
-        Eq2 = (Knots[i + k] - u) / Den2 * CoxDeBoor(u, i + 1, k - 1)
-    End If
-    Return Eq1 + Eq2
-
-End
+' Private Function CoxDeBoor(u As Float, i As Float, k As Float) As Float
+'
+'     Dim Eq1, Eq2 As Float
+'     Dim Den1, Den2 As Float
+'
+'     If (k = 1) Then
+'
+'         If ((Knots[i] <= u) And (u <= Knots[i + 1])) Then
+'             Return 1.0
+'         Else
+'             Return 0.0
+'         End If
+'     End If
+'     Den1 = Knots[i + k - 1] - Knots[i]
+'     Den2 = Knots[i + k] - Knots[i + 1]
+'
+'     If (Den1 > 0) Then
+'         Eq1 = ((u - Knots[i]) / Den1) * CoxDeBoor(u, i, k - 1)
+'     End If
+'     If (Den2 > 0) Then
+'         Eq2 = (Knots[i + k] - u) / Den2 * CoxDeBoor(u, i + 1, k - 1)
+'     End If
+'     Return Eq1 + Eq2
+'
+' End
 
 ' - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -GetOutpoint()
 '
@@ -357,7 +351,7 @@ Public Sub makepolyline(oe As Entity, Optional density As Integer = 36)
 
     Dim OutPoint As New Float[]
     Dim i As Integer
-    Dim t As Float
+    Dim t, MaxDist, md As Float
 
     sp = oe.pBlock
 
@@ -367,12 +361,26 @@ Public Sub makepolyline(oe As Entity, Optional density As Integer = 36)
         cadLine.Draw(oe)
         Return
     End If
+
+    ' determino la maxima distancia entre puntos
+    For i = 0 To sp.ControlPoints.Max - 2 Step 2
+
+        md = puntos.distancia(sp.ControlPoints[i], sp.ControlPoints[i + 1], sp.ControlPoints[i + 2], sp.ControlPoints[i + 3])
+        If MaxDist < md Then MaxDist = md
+    Next
+
+    ' veo los tramos
+    nTramos = MaxDist / gcd.metros(Config.ArcDensity)
+
+    If nTramos < 24 Then nTramos = 24
+    If nTramos > 120 Then nTramos = 120
+
     oe.PolyLine.Clear
 
-    For i = 0 To LOD - 1    ' LOD es el nummero de tramos
+    For i = 0 To nTramos - 1    ' LOD es el nummero de tramos
 
         't = Knots[Knots.Max] * i / (LOD - 1)
-        t = i / (LOD - 1)
+        t = i / (nTramos - 1)
         'If (i = LOD - 1) Then t -= 0.001
 
         OutPoint = interpolate2(t, sp.Degree, sp.ControlPoints, sp.KnotValues)
