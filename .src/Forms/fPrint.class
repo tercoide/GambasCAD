@@ -400,6 +400,163 @@ Public Sub PrintModel(psy As PrintStyle)
         If ScaleX < ScaleY Then gcd.PrintingScale = ScaleX Else gcd.PrintingScale = Scaley
         Paint.Scale(gcd.PrintingScale * 0.85, -gcd.PrintingScale * 0.85)
 
+        dx = -(PSY.PrintAreaX1 + PSY.PrintAreaX0) / 2
+        dy = -(PSY.PrintAreaY1 + PSY.PrintAreaY0) / 2
+        ' centro el dibujo
+        'Paint.Translate(-(PSY.PrintAreaX1 + PSY.PrintAreaX0) / 2, -(PSY.PrintAreaY1 + PSY.PrintAreaY0) / 2)
+    Else ' tengo que aplicar cierta escala y ciertos margenes
+
+        'Paint.Translate(0, -Paint.H) '
+        ' Escala basica de impresion, luego de esto, la escala a aplicar seran 1 unidad=1 m
+        sX = Paint.WIdth / Printer1.PaperWIdth
+        sY = Paint.Height / Printer1.PaperHeight
+        ' primero aplico la escala, Unidades de dibujo:Metros
+        gcd.PrintingScale = PSY.PrintScale * 1000 ' para pasar de mm a metros
+        sX *= gcd.PrintingScale
+        sY *= gcd.PrintingScale
+
+        ' ahora los margenes solicitados
+
+        If PSY.CenteringStyle = 0 Then 'custom
+            Paint.Translate(0, Paint.H) ' centro el dibujo
+            Paint.Scale(sX, -sY)
+            dX = -PSY.PrintAreaX0
+            dY = -PSY.PrintAreaY0
+
+            dX += PSY.PrintOffsetX * gcd.PrintingScale
+            dY += PSY.PrintOffsetY * gcd.PrintingScale
+
+        Else If PSY.CenteringStyle = 1 Then ' top left
+            'Paint.Translate(-PSY.PrintAreaX0 * gcd.PrintingScale, -PSY.PrintAreaY0 * gcd.PrintingScale)
+            Paint.Translate(0, Paint.H) ' centro el dibujo
+            Paint.Scale(sX, -sY)
+
+            dX = -PSY.PrintAreaX0
+            dY = -PSY.PrintAreaY0
+
+        Else If PSY.CenteringStyle = 2 Then ' centered
+            Paint.Translate(Paint.w / 2, Paint.H / 2) ' centro el dibujo
+            Paint.Scale(sX, -sY)
+
+            dx = -(PSY.PrintAreaX1 + PSY.PrintAreaX0) / 2
+            dy = -(PSY.PrintAreaY1 + PSY.PrintAreaY0) / 2
+
+        Endif
+        'Paint.Translate(dX, dY)
+
+    End If
+
+    Dim L As Layer, E, E2 As Entity
+    For Each E2 In gcd.Drawing.Sheet.Entities
+        If e2.pLayer.Visible Then
+
+            If Not e2.Visible Then Continue
+            If PSY.PrintArea <> 0 Then E = clsEntities.TrimmedEntity(E2, PSY.PrintAreaX0, PSY.PrintAreaY0, PSY.PrintAreaX1, PSY.PrintAreaY1) Else e = e2
+            If IsNull(e) Then Continue
+            If psy.ColorStyle = 0 Then
+                Paint.Brush = Paint.Color(Color.Black)
+            Else If psy.ColorStyle = 1 Then
+                Paint.Brush = Paint.Color(Color.Black)
+            Else If psy.ColorStyle = 2 Then
+                If E.Colour = 0 Or E.Colour >= 255 Or E.Colour = 8 Then
+                    Paint.Brush = Paint.Color(Color.Black)
+                Else
+                    Paint.Brush = Paint.Color(gcd.GetGBColor(E.Colour, e.pLayer))
+                End If
+            End If
+
+            ' TODO: aplicar las puntas segun color de la entidad
+            Paint.LineWIdth = gcd.GetLineWt(e.LineWidth, e.pLayer) / gcd.PrintingScale  ' punta 0.15mm
+            Paint.Save  ' guardamos la matriz de transformacion por si la entidad la modifica
+            If InStr("TEXT MTEXT ATTRIB ATTDEF", e.Gender) Then
+                paint.Font.Size = Abs(e.fParam[cadText.ipaTextHeight] / gcd.PrintingScale * 2)   ' TODO: verificar
+            End If
+            clsEntities.Translate(e, dx, dy)
+            clsEntities.Draw2(e)
+            clsEntities.Translate(e, -dx, -dy)
+            Paint.Restore ' restauramos la matriz
+
+        End If
+    Next
+
+End
+
+Public Sub PrintModelBackup(psy As PrintStyle)
+
+    Dim flxLimits As New Float[]
+    Dim scaleX, scaleY As Float
+
+    Dim dX, dY, sX, sY As Float
+
+    gcd.debuginfo("Printing pages")
+    '  Dim jPrint As New JSONCollection
+
+    ' DETERMINO LO QUE HAY QUE IMPRIMIR
+    If PSY.PrintArea = 0 Then ' all drawing
+
+        flxLimits = clsEntities.ComputeLimits(gcd.Drawing.Sheet.Entities)
+
+        PSY.PrintAreaX0 = flxLimits[0]
+        PSY.PrintAreaY0 = flxLimits[1]
+        PSY.PrintAreaX1 = flxLimits[2]
+        PSY.PrintAreaY1 = flxLimits[3]
+
+    Else If PSY.PrintArea = 1 Then ' viewport
+
+        PSY.PrintAreaX0 = gcd.Xreal(0)
+        PSY.PrintAreaY1 = gcd.Yreal(0)
+        PSY.PrintAreaX1 = gcd.Xreal(fmain.GLArea1.WIdth)
+        PSY.PrintAreaY0 = gcd.Yreal(fmain.GLArea1.h)
+
+    Else
+
+        ' nada porque ya estan seteados
+
+    End If
+
+    If ((PSY.PrintAreaX1 - PSY.PrintAreaX0) = 0) Or ((PSY.PrintAreaY1 - PSY.PrintAreaY0) = 0) Then
+        Message.Error(("Wrong print area"))
+        Printer1.Cancel
+        Return
+    Endif
+
+    ' '==============================TEST 1==========================================
+    ' ' De no mediar escalado y centrado, la impresion ocurrente entre
+    '
+    ' '   0,0 +-------------------------------+
+    ' '       |                               |
+    ' '       |                               |
+    ' '       |                               |
+    ' '       |                               |
+    ' '       |                               |
+    ' '       +-------------------------------+ Paint.W, Paint.H (ambos positivos)
+    '
+    ' '   Pero en OpenGL (y por ende las coordenadas de los dibujos)
+    ' '       +-------------------------------+ Xmax,Ymax
+    ' '       |                               |
+    ' '       |                               |
+    ' '       |            0;0                |
+    ' '       |                               |
+    ' '       |                               |
+    ' '       +-------------------------------+
+    '      -Xmin,-Ymin
+
+    '==============================ACTUAL PRINT==========================================
+
+    Paint.Reset ' vuelvo escalas y traslados a cero
+
+    ' APLICO LA ESCALA
+
+    If PSY.PrintScale = -1 Then ' fit to page
+
+        Paint.Translate(Paint.W / 2, Paint.H / 2) ' centro el dibujo
+        ' trato de meter centrado
+        If (PSY.PrintAreaX1 - PSY.PrintAreaX0) > 1e-10 Then scaleX = Paint.w / (PSY.PrintAreaX1 - PSY.PrintAreaX0) Else scaleX = 1e10
+        If (PSY.PrintAreaY1 - PSY.PrintAreaY0) > 1e-10 Then scaleY = Paint.H / (PSY.PrintAreaY1 - PSY.PrintAreaY0) Else scaleY = 1e10
+
+        If ScaleX < ScaleY Then gcd.PrintingScale = ScaleX Else gcd.PrintingScale = Scaley
+        Paint.Scale(gcd.PrintingScale * 0.85, -gcd.PrintingScale * 0.85)
+
         ' centro el dibujo
         Paint.Translate(-(PSY.PrintAreaX1 + PSY.PrintAreaX0) / 2, -(PSY.PrintAreaY1 + PSY.PrintAreaY0) / 2)
     Else ' tengo que aplicar cierta escala y ciertos margenes

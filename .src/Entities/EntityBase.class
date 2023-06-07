@@ -109,11 +109,15 @@ Public Sub Translate(e As Entity, dX As Float, dY As Float, Optional OnlySelecte
         puntos.Translate(e.p, dx, dy)
     Endif
 
+    BuildGeometry(e)
+
 End
 
 Public Sub Rotate(e As Entity, radians As Float)
 
     puntos.Rotate(e.p, radians)
+
+    BuildGeometry(e)
 
 End
 
@@ -127,6 +131,8 @@ Public Sub Scale(e As Entity, sX As Float, sY As Float)
         e.P[i + 1] = e.P[i + 1] * sY
 
     Next
+
+    BuildGeometry(e)
 
 End
 
@@ -162,46 +168,44 @@ Public Function Draw2(e As Entity)
 
 End
 
-'' Creo los puntos de interes
-'' Build point of interest
-
-Public Function BuildPOI(e As Entity) As Integer
-
-    Dim i As Integer
-
-    e.PoiPoints.Clear
-    e.PoiType.Clear
-
-    If e.P.Count = 0 Then Return 0
-
-    e.poiPoints.insert([e.P[0], e.P[1]])
-    e.poiType.Add(gcd.poiEndPoint)
-
-    For i = 0 To e.P.count - 4 Step 2
-
-        e.poiPoints.insert([(e.P[i + 0] + e.P[i + 2]) / 2, (e.P[i + 1] + e.P[i + 3]) / 2])   ' mid
-        e.poiType.Add(gcd.poiMidPoint)
-        'oe.poiEntities.Add(arrIndex)
-
-        e.poiPoints.insert([e.P[i + 2], e.P[i + 3]])
-        e.poiType.Add(gcd.poiEndPoint)
-
-    Next
-
-End
+' '' Creo los puntos de interes
+' '' Build point of interest
+'
+' Public Function BuildPOI(e As Entity) As Integer
+'
+'     Dim i As Integer
+'
+'     e.PoiPoints.Clear
+'     e.PoiType.Clear
+'
+'     If e.P.Count = 0 Then Return 0
+'
+'     e.poiPoints.insert([e.P[0], e.P[1]])
+'     e.poiType.Add(gcd.poiEndPoint)
+'
+'     For i = 0 To e.P.count - 4 Step 2
+'
+'         e.poiPoints.insert([(e.P[i + 0] + e.P[i + 2]) / 2, (e.P[i + 1] + e.P[i + 3]) / 2])   ' mid
+'         e.poiType.Add(gcd.poiMidPoint)
+'         'oe.poiEntities.Add(arrIndex)
+'
+'         e.poiPoints.insert([e.P[i + 2], e.P[i + 3]])
+'         e.poiType.Add(gcd.poiEndPoint)
+'
+'     Next
+'
+' End
 
 ' This function will return False if the element couldn't be created for some reason: bad or incomple user input
 ' True means all is good, False will instruct the clsENTITYBUILDER to delete it
 Public Sub Finish(e As Entity) As Boolean
 
     ' tareas finales de armado del objeto
-    Me.BuildPOI(e)
+    'Me.BuildPOI(e)
 
     Me.BuildGeometry(e)
 
     e.psel.resize(e.p.count / 2)
-
-    Try e.MakePolyLine(e)
 
 End
 
@@ -235,6 +239,13 @@ End
 
 '' Builds the geometry of the entity wthout drwing it
 Public Function BuildGeometry(E As Entity, Optional density As Float)
+
+    Me.MakePolyLine(e)
+
+End
+
+'' Builds the geometry of the entity wthout drwing it
+Public Function MakePolyLine(E As Entity)
 
 End
 
@@ -279,7 +290,7 @@ Public Sub ClonEntity(eOrigen As Entity, Optional GetNewid As Boolean = True) As
     eNueva.Container = eOrigen.Container
     eNueva.pStyle = eOrigen.pStyle
 
-    Gcd.CCC[eNueva.gender].BuildPoi(eNueva)
+    'depre Gcd.CCC[eNueva.gender].BuildPoi(eNueva)
 
     Return eNueva
 
@@ -327,5 +338,120 @@ Public Function GripEdit(g As Grip) As Boolean
 
     e.P[g.AsociatedPoint * 2] = g.X
     e.P[g.AsociatedPoint * 2 + 1] = g.Y
+
+    BuildGeometry(e)
+
+End
+
+'' Determines if the entity was selected by a rectanle surrounding al points
+'' by default, if ALL points are selected, it can.
+Public Function SelFull(eTesting As Entity, X1real As Float, Y1real As Float, X2real As Float, Y2real As Float) As Boolean
+
+    Dim ii As Integer, puedo As Boolean
+
+    Select Case eTesting.Gender
+
+        Case Else
+
+            ' Si tengo un bounding poligon, entonces verifico que todos los puntos esten dentro
+            If eTesting.Polygon.Count > 0 Then
+
+                Return puntos.IsPoligonInsideRect(eTesting.Polygon, X1real, Y1real, X2real, Y2real)
+            Else If eTesting.PolyLine.Count > 0 Then
+                Return puntos.IsPoligonInsideRect(eTesting.PolyLine, X1real, Y1real, X2real, Y2real)
+
+            Else    ' no tengo un poligono, entonces verifico que todos los puntos definitorios de al entidad esten dentro
+
+                If eTesting.p.Count > 0 Then puedo = True Else puedo = False                     ' supongamos que puedo, por ahora, si hay puntos
+                For ii = 0 To eTesting.p.max Step 2
+                    If ii + 1 > eTesting.p.max Then Break
+                    If Not ((eTesting.p[ii] >= X1real And eTesting.p[ii] <= X2real) And (eTesting.p[ii + 1] >= Y1real And eTesting.p[ii + 1] <= Y2real)) Then
+                        puedo = False
+                    End If
+                Next
+
+                If puedo Then
+                    For ii = 0 To eTesting.PSel.Max
+                        eTesting.PSel[ii] = True
+                    Next
+
+                    Return True
+                Else
+                    For ii = 0 To eTesting.PSel.Max
+                        eTesting.PSel[ii] = False
+                    Next
+
+                    Return False
+                End If
+            Endif
+    End Select
+
+End
+
+'' Determines if the entity
+'' by default, if ANY point is selected, it can.
+Public Function SelPartial(eTesting As Entity, X1real As Float, Y1real As Float, X2real As Float, Y2real As Float) As Boolean
+
+    Dim ii As Integer, puedo As Boolean = False
+    Dim oLoop As Hatch, flxPoly As Float[]
+
+    Select Case eTesting.Gender
+
+        Case "Hatch"
+
+            'For Each oLoop In eTesting.pBlock
+
+            For Each flxPoly In eTesting.pBlock.Polylines
+
+                puedo = puntos.IsPoligonInsideRect(flxPoly, X1real, Y1real, X2real, Y2real)
+                If puedo Then Break
+
+                puedo = puntos.IsPoligonCrossingRect(flxPoly, X1real, Y1real, X2real, Y2real)
+                If puedo Then Break
+            Next
+            'Next
+
+        Case Else
+
+            ' Si tengo un bounding poligon, entonces verifico que todos los puntos esten dentro
+            If eTesting.Polygon.Count > 0 Then
+
+                ' Si tengo un bounding poligon, entonces verifico que alguna linea lo cruce
+
+                puedo = puntos.IsPoligonInsideRect(eTesting.Polygon, X1real, Y1real, X2real, Y2real)
+                If puedo Then Return True
+
+                Return puntos.IsPoligonCrossingRect(eTesting.Polygon, X1real, Y1real, X2real, Y2real)
+
+            Else If eTesting.PolyLine.Count > 0 Then
+                puedo = puntos.IsPoligonInsideRect(eTesting.PolyLine, X1real, Y1real, X2real, Y2real)
+                If puedo Then Return True
+
+                Return puntos.IsPoligonCrossingRect(eTesting.PolyLine, X1real, Y1real, X2real, Y2real)
+
+            Else
+                ' si cualquier linea cruza alguna linea de la eentiidad, esta queda seleccionada
+
+                For Ii = 0 To eTesting.p.max Step 2
+                    If ii + 1 > eTesting.p.max Then Break
+                    If ii / 2 > eTesting.Psel.Max Then Break
+                    If ((eTesting.p[iI] >= X1real And eTesting.p[Ii] <= X2real) And (eTesting.p[iI + 1] >= Y1real And eTesting.p[iI + 1] <= Y2real)) Then
+                        eTesting.PSel[iI / 2] = True
+                        puedo = True
+                    End If
+
+                Next
+
+                If puntos.IsPoligonCrossingRect(eTesting.p, X1real, Y1real, X2real, Y2real) Then puedo = True
+            End If
+
+    End Select
+
+    If puedo Then
+
+        Return True
+    Else
+        Return False
+    End If
 
 End
