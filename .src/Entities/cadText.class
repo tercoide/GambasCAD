@@ -53,6 +53,10 @@ Public Const sdaText As Integer = 0
 Public Const sdaStyle As Integer = 1
 Public Const TotalPoints As Integer = 1 ' 2021 cambie esto
 
+Public PrintingType As Integer
+
+Public MyPolygon As New Float[]
+
 ' The entity handler receives a user action, and returns the number of expected parameter
 ' If definitive = true, means the parameter is set
 Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
@@ -168,9 +172,9 @@ Public Sub Draw(oE As Entity)
     '
 
     SetMtextVars(oe)
-    cadMText.Printing = False
+    cadMText.PrintingType = 0
     cadMText.ProcessText3(oE.sParam[Me.sdaText])
-    cadMText.CreatePolygon(oe)
+
     'If InStr(oE.sParam[Me.sdaText], "COMPUTADORA") > 0 Then Stop
 
 End
@@ -178,7 +182,7 @@ End
 '' A fat version of the line
 Public Sub DrawSelected(oE As Entity)
 
-    glx.PolyLines(oE.Polygon, config.ColorForSelected, gcd.GetLineWt(oE.LineWIdth, oe.pLayer), gcd.stiDashedSmall)
+    glx.PolyLines(oE.Polygon, Color.Gradient(gcd.GetGBColor(oE.Colour, oe.pLayer), Config.BackgroundColor), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), gcd.stiDashedSmall)
 
 End
 
@@ -187,7 +191,7 @@ Public Sub DrawRemark(oE As Entity)
 
     If Not oE.Visible Then Return
 
-    glx.PolyLines(oE.Polygon, Color.Gradient(gcd.GetGBColor(oE.Colour, oe.pLayer), Config.BackgroundColor), gcd.GetLineWt(oE.LineWIdth, oe.pLayer))
+    glx.PolyLines(oE.Polygon, Color.Gradient(gcd.GetGBColor(oE.Colour, oe.pLayer), Config.WhiteAndBlack), gcd.GetLineWt(oE.LineWIdth, oe.pLayer))
 
 End
 
@@ -196,9 +200,9 @@ Public Function Draw2(oE As Entity)
     If Not oE.Visible Then Return
 
     SetMtextVars(oe)
-    cadMText.Printing = True
+    cadMText.PrintingType = 1
     cadMText.ProcessText3(oE.sParam[Me.sdaText])
-    cadMText.Printing = False
+    cadMText.PrintingType = 0
 
 End
 
@@ -386,3 +390,30 @@ End
 '     Return False
 '
 ' End
+
+Public Sub CreatePolygon(oE As Entity)
+
+    Dim tRect As New Float[]
+
+    oE.Polygon.Clear
+
+    ' tRect = glx.MTextExtends(oE.stringdata[Me.sdaText], oE.p[0], oE.p[1], oE.fParam[Me.ipaTextHeight])
+    If Me.MyPolygon.Count = 0 Then
+        Me.MyPolygon.Clear
+        Me.MyPolygon.insert([1e10, 1e10, -1e10, -1e10])
+
+    Endif
+
+    Me.PrintingType = 2
+    Draw(oe)
+    Me.PrintingType = 0
+
+    ' armo el poligono , que ya tiene la escala
+    If Abs(Me.MyPolygon[0]) > 1e9 Then Return
+    oE.Polygon.Insert([Me.MyPolygon[0], Me.MyPolygon[1]])
+    oE.Polygon.Insert([Me.MyPolygon[0], Me.MyPolygon[3]])
+    oE.Polygon.Insert([Me.MyPolygon[2], Me.MyPolygon[3]])
+    oE.Polygon.Insert([Me.MyPolygon[2], Me.MyPolygon[1]])
+    oE.Polygon.Insert([Me.MyPolygon[0], Me.MyPolygon[1]])
+
+End

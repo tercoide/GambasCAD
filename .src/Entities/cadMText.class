@@ -31,9 +31,6 @@ Public Const ParamType As String = "PAFT"
 Public Const ParamHelper As String = "Start point;Angle;Heigth;"     ' a little text that is shown at the prompt waiting for user input during build
 Public Const ParamDefault As String = " ; 0 ; 10 ; "
 
-' esto es para texto RTF o complejos
-Public Printing As Boolean
-
 Public TextAngle As Float
 
 Public TextLines As New String[]
@@ -78,7 +75,6 @@ Public LastTextLengh As Integer
 
 ' to create the contour
 
-Public MyPolygon As New Float[]
 Public flxText As New Float[]
 
 Public TxtStyles As New TextStyle[] ' creados a partir de {}
@@ -154,7 +150,7 @@ Public Sub Translate(e As Entity, dX As Float, dY As Float, Optional OnlySelecte
         puntos.Translate(e.p, dx, dy)
     Endif
 
-    CreatePolygon(e)
+    puntos.Translate(e.Polygon, dx, dy)
     'depre BuildPOI(e)
 
 End
@@ -166,7 +162,7 @@ Public Sub Rotate(e As Entity, radians As Float)
     ' el parametro lo tengo que pasar a grados porque la rutina que dibuja el texto usa eso
     E.fParam[Me.ipaTextAngle] += radians
 
-    CreatePolygon(e)
+    puntos.Rotate(e.Polygon, radians)
     'depre BuildPOI(e)
 
 End
@@ -183,7 +179,7 @@ Public Sub Scale(e As Entity, sX As Float, sY As Float)
 
     Next
 
-    CreatePolygon(e)
+    puntos.Scale(e.Polygon, sx, sy)
     'depre BuildPOI(e)
 
 End
@@ -191,7 +187,7 @@ End
 '' A fat version of the line
 Public Sub DrawSelected(oE As Entity)
 
-    glx.PolyLines(oE.Polygon, config.ColorForSelected, gcd.GetLineWt(oE.LineWIdth, oe.pLayer), gcd.stiDashed)
+    glx.PolyLines(oE.Polygon, Color.Gradient(gcd.GetGBColor(oE.Colour, oe.pLayer), Config.BackgroundColor), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), gcd.stiDashed)
 
 End
 
@@ -200,39 +196,18 @@ Public Sub DrawRemark(oE As Entity)
 
     If Not oE.Visible Then Return
 
-    glx.PolyLines(oE.Polygon, Color.Gradient(gcd.GetGBColor(oE.Colour, oe.pLayer), Config.BackgroundColor), gcd.GetLineWt(oE.LineWIdth, oe.pLayer))
+    glx.PolyLines(oE.Polygon, Color.Gradient(gcd.GetGBColor(oE.Colour, oe.pLayer), Config.WhiteAndBlack), gcd.GetLineWt(oE.LineWIdth, oe.pLayer))
 
 End
 
 Public Function Draw2(oE As Entity)
 
-    Printing = True
+    Me.PrintingType = 1
     Draw(oe)
-    Printing = False
+    Me.PrintingType = 0
 
 End
 
-Public Sub CreatePolygon(oE As Entity)
-
-    Dim tRect As New Float[]
-
-    oE.Polygon.Clear
-
-    ' tRect = glx.MTextExtends(oE.stringdata[Me.sdaText], oE.p[0], oE.p[1], oE.fParam[Me.ipaTextHeight])
-    If MyPolygon.Count = 0 Then
-        MyPolygon.Clear
-        MyPolygon.insert([1e10, 1e10, -1e10, -1e10])
-
-    Endif
-    ' armo el poligono , que ya tiene la escala
-    If Abs(Me.MyPolygon[0]) > 1e9 Then Return
-    oE.Polygon.Insert([Me.MyPolygon[0], Me.MyPolygon[1]])
-    oE.Polygon.Insert([Me.MyPolygon[0], Me.MyPolygon[3]])
-    oE.Polygon.Insert([Me.MyPolygon[2], Me.MyPolygon[3]])
-    oE.Polygon.Insert([Me.MyPolygon[2], Me.MyPolygon[1]])
-    oE.Polygon.Insert([Me.MyPolygon[0], Me.MyPolygon[1]])
-
-End
 ' '' Creo los puntos de interes
 ' '' Build point of interest
 '
@@ -349,8 +324,8 @@ Public Sub ProcessText3(RTF As String)
 
     flxText.Clear ' limpio los glyphs
 
-    MyPolygon.Clear
-    MyPolygon.insert([1e10, 1e10, -1e10, -1e10])
+    Me.MyPolygon.Clear
+    Me.MyPolygon.insert([1e10, 1e10, -1e10, -1e10])
 
     Trimmed = False
 
@@ -405,10 +380,14 @@ Public Sub ProcessText3(RTF As String)
     Me.MyPolygon[2] = fRect[2]
     Me.MyPolygon[3] = fRect[3]
 
-    If Printing Then
+    If Me.PrintingType = 1 Then
         paintPlus.Lines(flxText)
-    Else
+    Else If Me.PrintingType = 0 Then
         glx.DrawLines(flxText, CurrentTextColor)
+
+    Else If Me.PrintingType = 2 Then
+        ' nada es para crear el poligono
+
     End If
     ' Code   Description
     ' \L   Start underline
