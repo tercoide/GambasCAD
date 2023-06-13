@@ -40,6 +40,8 @@ Public Function NewEntity(Optional fPoints As Float[], bNewHandle As Boolean = F
     e = Super.NewEntity(fPoints, bNewHandle)
 
     e.pBlock = New SPline
+    e.pBlock.ControlPoints.Add(0)
+    e.pBlock.ControlPoints.Add(0)
 
     Return e
 
@@ -114,6 +116,7 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
 
 DoKnots:
 
+    ' necesito n + degree +1
     sp.kNotValues.Clear
 
     sp.kNotValues.Add(0)
@@ -121,14 +124,16 @@ DoKnots:
     sp.kNotValues.Add(0)
 
     If sp.ControlPoints.Count / 2 > 3 Then
-        For i = 1 To sp.ControlPoints.count / 2 - 3
+        For i = 1 To sp.ControlPoints.count / 2 - 2
             sp.kNotValues.Add(i / ((sp.ControlPoints.count / 2 - 2)))
         Next
     End If
     sp.kNotValues.Add(1)
     sp.kNotValues.Add(1)
     sp.kNotValues.Add(1)
-
+    If sp.ControlPoints.Count / 2 > 3 Then
+        If sp.KnotValues.Count <> (sp.ControlPoints.Count / 2 + sp.Degree + 1) Then Stop
+    End If
     Return
 
 End
@@ -354,11 +359,11 @@ Public Sub makepolyline(oe As Entity)
     Dim t, MaxDist, md As Float
 
     sp = oe.pBlock
-
+    oe.PolyLine.Clear
     If sp.ControlPoints.Count = 2 Then Return
 
-    If sp.ControlPoints.Count = 4 Then
-        cadLine.Draw(oe)
+    If sp.ControlPoints.Count <= 6 Then
+        oe.PolyLine.Insert(sp.ControlPoints.Copy())
         Return
     End If
 
@@ -374,8 +379,6 @@ Public Sub makepolyline(oe As Entity)
 
     If nTramos < 24 Then nTramos = 24
     If nTramos > 120 Then nTramos = 120
-
-    oe.PolyLine.Clear
 
     For i = 0 To nTramos - 1    ' LOD es el nummero de tramos
 
@@ -431,7 +434,9 @@ Public Function interpolate2(t As Float, degree As Integer, points As Float[], O
     Endif
 
     ' genero los nudos
-    If Not knots Then knots = New Float[]
+    If Not knots Then
+        knots = New Float[]
+    End If
     If knots.Count = 0 Then
         ' build knot vector Of length[n + degree + 1]
 
