@@ -1,35 +1,68 @@
 ' Gambas class file
 
-' Config
-' A simple, self contained configuration class
-'
-' Copyright (C) Ing Martin P Cristia and Martin Belmonte
-'
-' This program is free software; you can redistribute it and/or modify
-' it under the terms of the GNU General Public License as published by
-' the Free Software Foundation; either version 3 of the License, or
-' (at your option) any later version.
-'
-' This program is distributed in the hope that it will be useful,
-' but WITHOUT ANY WARRANTY; without even the implied warranty of
-' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-' GNU General Public License for more details.
-'
-' You should have received a copy of the GNU General Public License
-' along with this program; if not, write to the Free Software
-' Foundation, Inc., 51 Franklin St, Fifth Floor,
-' Boston, MA  02110-1301  USA
-
 Create Static
 Export
-Public ConfigFile As String
+''TINCHO 2023.05.22 > Config.class implementation
+'' STANDAR VARIABLES
+Public Root As String
+Public Depot As String
+Public Log As String
+
+'' GambasCAD Variables
+'' INTERFACE
+Public ShowConsoleTab As Boolean 'Show console tab
+Public ModelBackgroundColor As Integer 'Model background color
+Public ButtonSize As Integer = 32
+Public ShowEntityInspector As Boolean 'Show entity inspector
+Public DecimalDigitsCoords As Integer 'Decimal digits for coordinates
+Public DecimalDigitsInquiries As Integer 'Decimal digits for inquiries
+Public IconFamily As String 'Icon family
+
+'' GRID
+Public GrIdSize As Integer = 50                 ' pixels
+Public GrIdActive As Boolean = True             '
+Public GrIdStyle As Integer = 0                  ' 0 = dots, 1 = lines
+Public GrIdBorder As Boolean = False    ' TODO: borde no listo
+
+'' Voy a agregar una variable
+'================================SNAP=========================================
+Public SnapDistancePix As Integer = 8 '' Minimal distance to point
+Public SnapModeSaved As Integer
+Public GripSize As Integer = 8
+Public GripProximityDistance As Integer = 16
+Public GripTextOnScreenSize As Float = 10
+Public GripTextOnScreenColor As Integer = Color.gray
+Public GripTextOnScreenFont As String = "romand"
+Public GripLineColor As Integer = Color.gray
+
+'' FORMATS
+Public DigitsCoord As Integer = 2
+Public DigitsInquiries As Integer = 2
+Public FormatCoord As String = "0.00"
+Public FormatInquiries As String = "0.00"
+Public DrawingAreaDarkMode As Boolean = True
+Public FileConversion As String = "ODA"
+
+'NEW: Estas variables provienen del formulario main. En dicho formulario se estableceran pero sean guardadas siempre en esta clase y no se alterraran manualmente (de momento)
+''TINCHO 2023.05.22 > Config.class implementation
+Public dirResources As String
+Public dirDwgIn As String
+Public dirDxfIn As String
+Public dirDwgOut As String
+Public dirDxfOut As String
+Public dirTemplates As String
+Public dirBlocks As String          ''Path to Blocks
+Public dirPrintStyles As String
+Public dirPatterns As String
+
+'TODO: Estas faltan definir como seran editadas
 ' ==============Variables de configuracion a guardar, agregar las necesarias=======================
 Public CurrentColor As Byte = 1
 Public DefLineWt As Float = 0.25 'mm
 Public CurrentLType As Byte = 1
 Public NuevoParametro As Float = 1.2299
 Public otroparametro As String = "Gaucho pampa"
-'===========================SCREEN========================================
+
 Public WindowBackColor As Integer '= Color.Blac  '' Window backgrount color
 Public WindowTextColor As Integer   '' Window helper text color
 Public WindowInfoColor As Integer   '' Window helper text colorPublic flgWindowCursorColor As Integer '' Window cursor color
@@ -40,12 +73,11 @@ Public WhiteAndBlack As Integer     '' El color blanco/negro siempre sera distin
 Public OnScreenHelpColor As Integer = Color.LightGray
 Public ColorForSelected As Integer = &H70E000
 Public ColorForRemark As Integer = &H0000FF00
-Public IconFamily As String = ""
 Public ArcDensity As Float = 10             '' Pixels que tiene que tramo de un circulo
 
 '===========================LAYOUT=========================================
-Public SplitterH As New Integer[]
-Public SplitterV As New Integer[]
+Public SplitterH As Integer[] = [144, 500, 144]
+Public SplitterV As Integer[] = [400, 80]
 
 '===========================DETECCION=========================================
 Public TrackEntityLines As Boolean = True       ' line polyline lwpolyline
@@ -57,42 +89,9 @@ Public TrackEntityInserts As Boolean = True     ' inserts
 Public TrackShowInspector As Boolean = True
 Public TrackingIntervalMilisec As Integer = 50
 
-'================================GRID==========================================
-Public GridSize As Integer = 50                 ' pixels
-Public GridActive As Boolean = True             '
-Public GridStyle As Integer = 0                  ' 0 = dots, 1 = lines
-Public GridBorder As Boolean = False    ' TODO: borde no listo
-
-'================================SNAP=========================================
-Public SnapDistancePix As Integer = 8 '' Minimal distance to point
-Public SnapModeSaved As Integer
-
-Public ShowConsoleTab As Boolean
-Public BackgroundColor As Integer
-Public ButtonSize As Integer = 32
-Public GripSize As Integer = 8
-Public GripProximityDistance As Integer = 16
-Public GripTextOnScreenSize As Float = 10
-Public GripTextOnScreenColor As Integer = Color.gray
-Public GripTextOnScreenFont As String = "romand"
-Public GripLineColor As Integer = Color.gray
-
-'=======================FLOATING INPUT FORM=================================
-Public InputTextSize As Float
-Public InputBorderColor As Integer = Color.blue
-Public InputBorderWidth As Float = 2
-
-'===========================FORMATS=========================================
-Public DigitsCoord As Integer = 2
-Public DigitsInquiries As Integer = 2
-Public FormatCoord As String = "0.00"
-Public FormatInquiries As String = "0.00"
-Public DrawingAreaDarkMode As Boolean = True
-Public FileConversion As String = "ODA"
-
 '===========================FILES AND DIRS=========================================
-Public BlocksLibraryPath As String = gcd.dirResources &/ "library"
-Public ConfigPath As String = User.Home &/ ".config/GambasCAD"
+Public BlocksLibraryPath As String ''TINCHO 2023.05.22 > Config.class implementation
+'Public ConfigPath As String '= User.Home &/ ".config/GambasCAD" '' Reemplazada por Config.Depot
 Public AutoSaveDelayMin As Integer = 15
 Public FilesLastPath As String = ""
 Public FilesLastOpen1 As String = ""
@@ -106,23 +105,162 @@ Public FilesLastOpen8 As String = ""
 Public FilesLastOpen9 As String = ""
 Public FilesLastOpen10 As String = ""
 
-' Print Styles
-Public PrintStyles As New Collection
+''DIMENSIONS
+'Style
+'Font
+'Format
+'Placement
+'Extension lines
+'Color for extension lines
 
-'' Este metodo lo corre Gambas al crear la clase, no debe ser llamado. Nosotros lo usaremos para inicializar cosas que
-'' no puedan hacerse en la declaracion misma.
-Public Sub _New()
+'' This function creates a list of parameters that allow you to define how to edit variables in a form.
+'' This list allows to know things like if the variables will be read-only, if a specific control will be used to edit them or if the data will be managed in a fully automatic way, among other things.
 
-    SplitterH.Insert([144, 500, 144])
-    SplitterV.Insert([400, 80])
+Static Public Function Behaviour() As Collection
+    'o.Add(["section",("Title of the variable"), "e", "DirChooser","Section"], "Root")
+    ' r=Read only, e=Read Write, a=Automatic. Section is te group of the variable
+    ' El cuarto parámetro es la funcion que modificara el valor, por ejemplo:
+    ' toggle.2 = Es un boton togle que puede ofrecer dos estados, on y off por ejemplo
+    ' toggle.3 = Es un boton togle que puede ofrecer tres estados, on y off y standby, por ejemplo
+    ' color.choose.16x16 = Es un boton normal que al producirse el evento click llamara a un formulario de seleccion de colores
+    ' integer = Un SpinBox para un numero entero n donde n > -1 y n < 7
+    ' select.from.list = Un combobox solo lectura que presenta una lista de opciones.
 
-    ' verifico la creacion de los dirs
-    If Not IsDir(User.Home &/ ".config/GambasCAD") Then Mkdir User.Home &/ ".config/GambasCAD"
+    Dim o As New Collection
+    '' INTERFACE
+    o.Add(["interface", ("Show console tab"), "e", "toggle.2"], "ShowConsoleTab")
+    o.Add(["interface", ("Model Background Color"), "e", "color.choose.16x16"], "ModelBackgroundColor")
+    o.Add(["interface", ("Show entity inspector"), "e", "toggle.2"], "ShowEntityInspector")
+    o.Add(["interface", ("Decimal digits for coordinates"), "e", "integer", [0, 6]], "DecimalDigitsCoords")
+    o.Add(["interface", ("Decimal digits for inquiries"), "e", "integer", [0, 6]], "DecimalDigitsInquiries")
+    o.Add(["interface", ("Show console tab"), "e", "ToggleButton"], "toggle.2")
+    o.Add(["interface", ("Icon family"), "e", "select.from.list", ["CAD", "Sketch"]], "IconFamily")
 
-    If Not IsDir(User.Home &/ ".config/GambasCAD/PrintStyles") Then Mkdir User.Home &/ ".config/GambasCAD/PrintStyles"
+    '' GRID
+    o.Add(["grid", ("Grid size"), "e", "integer"], "GrIdSize") ' ¿Tiene limites?
+    o.Add(["grid", ("Show grid"), "e", "toggle.2"], "GrIdActive")
+    o.Add(["grid", ("Grid style"), "e", "integer"], "GrIdStyle") ' ¿Tiene limites?
+    o.Add(["grid", ("Show grid border"), "e", "toggle.2"], "GrIdBorder")
 
-    If Not IsDir(User.Home &/ ".config/GambasCAD/Patterns") Then Mkdir User.Home &/ ".config/GambasCAD/Patterns"
+    '' Como me interesa poder cambiar este parametro en el formulario de configuración entonces la agrego a la colección de comportamiento
+    '' SNAP
+    o.Add(["snap", ("Minimal distance to point"), "e", "integer", [0, 10]], "SnapDistancePix")
+    o.Add(["snap", ("Snap mode saved"), "e", "integer", [0, 10]], "SnapModeSaved")
+    o.Add(["snap", ("Background color"), "e", "color.choose.16x16"], "BackgroundColor")
 
-    ConfigFile = User.Home &/ ".config/GambasCAD/config.json"
+    '' FORMATS
+    'TODO: ¿Esto es para los valores enteros de las coordenadas o para los decimales?
+    o.Add(["formats", ("Digits for coords"), "e", "integer", [0, 6]], "DigitsCoord")
+    'TODO: ¿Esto es para los valores enteros de las consultas o para los decimales?
+    o.Add(["formats", ("Digits for inquiries"), "e", "integer", [0, 6]], "DigitsInquiries")
+
+    'NOTE: ¿Esto se puede restringir o no? yo use una selección de parametros con una lista en vez de dejarlo totalmete libre
+    o.Add(["formats", ("Coordnates format"), "e", "select.from.list", ["0.00", "0,00"]], "FormatCoord")
+    o.Add(["formats", ("Inquires format"), "e", "select.from.list", ["0.00", "0,00"]], "FormatInquiries")
+
+    o.Add(["formats", ("File converter"), "e", "select.from.list", ["ODA", "LibreDWG"]], "FileConversion")
+    o.Add(["formats", ("Drawing area dark mode"), "e", "toggle.2"], "DrawingAreaDarkMode")
+
+    Return o.Copy()
+    o.Clear
+
+End
+
+Public Sub Load(sFile As String)
+
+    Dim cConfig As Collection
+    Dim sSymbol As String
+    Dim obj As Object = Me
+    Dim MyClass As Class = Object.Class(obj)
+
+    If Exist(sFile) Then
+        cConfig = JSON.FromString(File.Load(sFile))
+        For Each sSymbol In myClass.Symbols
+            If cConfig.Exist(sSymbol) Then
+                Object.SetProperty(obj, sSymbol, cConfig[sSymbol])
+            Endif
+        Next
+    Endif
+
+End
+
+Static Public Sub Save(sFile As String, Optional j As JSONCollection)
+
+    Dim jConfig As New JSONCollection
+    Dim obj As Object = Me
+    Dim MyClass As Class = Object.Class(obj)
+    Dim sSymbol As String
+    Dim Var As String
+    Dim Valor As Variant
+
+    If Not Exist(File.Dir(sFile)) Then
+        Shell "mkdir -p " & File.Dir(sFile) Wait
+    Endif
+
+    If j Then
+        jConfig = j.Copy()
+        For Each sSymbol In myClass.Symbols
+            If jConfig.Exist(sSymbol) Then
+                Object.SetProperty(obj, sSymbol, jConfig[sSymbol])
+            Endif
+        Next
+    Else
+        For Each Var In myClass.Symbols
+            If (MyClass[var].kind = Class.Variable) Or (MyClass[var].kind = Class.Property) Then
+                valor = Object.GetProperty(obj, var)
+                jConfig.Add(Valor, var)
+            End If
+        Next
+    Endif
+
+    File.Save(sFile, JSON.Encode2(jConfig))
+
+End
+
+Static Public Function List() As JSONCollection
+
+    Dim j As New JSONCollection
+    Dim obj As Object = Me
+    Dim MyClass As Class = Object.Class(obj)
+    Dim sName As String
+    Dim v1, v2 As Variant
+    Dim oBehaviour As Collection
+    Dim sTitle As String
+    Dim vTemp As New Variant[]
+    Dim i As Integer
+
+    oBehaviour = Behaviour()
+
+    'For Each sName In myClass.Symbols
+    For Each sName In oBehaviour.Keys
+        If myClass.Symbols.Exist(sName) Then
+            vTemp.Clear
+            If (MyClass[sName].kind = Class.Variable) Or (MyClass[sName].kind = Class.Property) Then
+                v1 = Object.GetProperty(obj, sName)
+
+                vTemp.Add(v1)
+                vTemp.Add(MyClass[sName].Type)
+                sTitle = sName
+                'If oBehaviour.Exist(sName) Then
+                If oBehaviour[sName][0] <> "" Then
+                    sTitle = oBehaviour[sName][0]
+                Endif
+                'Endif
+                vTemp.Add(sTitle)
+                'If oBehaviour.Exist(sName) Then
+                For i = 1 To oBehaviour[sName].Max
+                    v2 = oBehaviour[sName][i]
+                    vTemp.Add(v2)
+                Next
+                'Endif
+
+                j.Add(vTemp.Copy(), sName)
+                vTemp.Clear
+
+            Endif
+        Endif
+    Next
+
+    Return j
 
 End

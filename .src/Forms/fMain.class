@@ -204,12 +204,12 @@ Public Function Action_Activate(sAction As String) As Boolean
 
     Select Case LCase(sAction)
 
-        Case "applyprops"
-            For i = 0 To tblProperties.Rows.Max
-                If tblProperties[i, 1].Tag Then ' esta propiedad cambio
-                    clsEntities.EditEntities(LCase(tblProperties[i, 0].text), tblProperties[i, 1].Text)
-                End If
-            Next
+        Case "applyprops"   ' FIXME: pasa al nuevo formulario flotante
+            ' For i = 0 To tblProperties.Rows.Max
+            '     If tblProperties[i, 1].Tag Then ' esta propiedad cambio
+            '         clsEntities.EditEntities(LCase(tblProperties[i, 0].text), tblProperties[i, 1].Text)
+            '     End If
+            ' Next
 
         Case "new_sheet"
 
@@ -238,11 +238,12 @@ Public Function Action_Activate(sAction As String) As Boolean
 
             gcd.Drawing.uUndo.DoRedo()
             gcd.Regen
-        Case "config"
 
-            fOptions.ShowModal
-            Me.tabDrawings[0].Visible = Config.ShowConsoleTab
-            glx.ClearColor(Config.BackgroundColor)
+        Case "config"
+            'fOptions.ShowModal
+            FConfig.ShowModal()
+            Me.tabDrawings[0].Visible = True 'Config.ShowConsoleTab
+            glx.ClearColor(Config.ModelBackgroundColor)
 
         Case "center"
 
@@ -609,6 +610,7 @@ Public Sub GLArea1_draw()
         End If
     End If
 
+    gcd.clsJob.Draw()
     If Not gcd.Drawing.Sheet.IsModel Then   ' Sheet view
 
         For Each vpt In gcd.Drawing.Sheet.Viewports
@@ -683,7 +685,7 @@ Public Sub GLArea1_draw()
 
     DrawingAids.DrawGrips(gcd.Drawing.Sheet.Grips)
 
-    DrawingAIds.DrawCoordenadas
+    'DrawingAIds.DrawCoordenadas
 
     DrawingAIds.DibujaHelper
 
@@ -762,6 +764,12 @@ Public Sub GLArea1_MouseDown()
     Redraw
 
 End
+
+' Public Sub GLPaper_MouseDown()
+'
+'     gcd.clsJob.mouseDown()
+'
+' End
 
 Public Sub GLArea1_DblClick()
 
@@ -1645,7 +1653,9 @@ Public Sub tabDrawings_Click()
 
     gcd.Drawing = tabDrawings[tabDrawings.Index].Tag
 
-    If gcd.Drawing Then FillBlocks
+    If Not gcd.Drawing Then Return
+
+    'If gcd.Drawing Then FillBlock ' FIXME: pasa al nuevo formulario flotante
     If Not gcd.Drawing.Sheet.GLSheet Then Stop
 
     Me.GLArea1 = gcd.Drawing.Sheet.GLSheet
@@ -1728,7 +1738,7 @@ Public Function NewTabForDrawing(nDrawing As Drawing)
         Next
     Loop Until i = nDrawing.Sheets.Count
 
-    GLArea1 = gcd.Drawing.Sheet.GlSheet
+    GLArea1 = nDrawing.Sheet.GlSheet
 
     InUse = False
     tabFileNew.Index = 0
@@ -1759,7 +1769,7 @@ Public Function NewSheet(tabSheets As TabPanel, s As Sheet, Optional UseFirst As
     Dim glaFile2 As New GLArea(tabSheets.Current)
     Me.GLArea1 = glaFile2
     Object.Attach(glaFile2, Me, "GLArea1")
-    glaFile2.Background = Config.BackgroundColor
+    glaFile2.Background = Config.ModelBackgroundColor
     glaFile2.Expand = True
     glaFile2.Tracking = True
     s.GLSheet = glaFile2
@@ -1801,7 +1811,7 @@ Public Sub tabDrawings_Close(Index As Integer)
 
     tabDrawings.Index = tabDrawings.Count - 1
     InUse = False
-    'tabDrawings_Click
+    tabDrawings_Click
 
 End
 
@@ -1901,274 +1911,9 @@ Public Sub LoadButtons(Optional iSize As Integer = 32, iColumns As Integer = 2)
 
 End
 
-Public Sub FillBlocks()
-
-    Dim sFilename As String
-    Dim imgPreview As Image
-    Dim entScale As Float
-    Dim entIdad As Entity
-    Dim sFActor As Float = 1.5
-    Dim b As Block
-    Dim iSize As Integer = 40
-    Dim i, iRow, iCol As Integer
-
-    GrIdView1.Clear
-    GrIdView1.Columns.Count = (GrIdView1.W) / iSize ' deberia poder conocer el ancho del scrollview
-    For i = 0 To GrIdView1.Columns.Count - 1
-        GrIdView1.Columns[i].W = iSize
-    Next
-    GrIdView1.rows.Count = CInt(gcd.Drawing.Blocks.Count / GrIdView1.Columns.Count) + 1
-    For i = 0 To GrIdView1.rows.Count - 1
-        GrIdView1.rows[i].h = iSize
-    Next
-
-    'ListView1.Clear
-
-    'ListView1.GridSize = iSize
-
-    i = 0
-    For Each b In gcd.Drawing.Blocks
-        If Left(b.name, 1) = "_" Or Left(b.name, 1) = "*" Then Continue
-
-        iRow = Int(i / GrIdView1.Columns.Count)
-        iCol = i Mod GrIdView1.Columns.Count
-        i += 1
-        imgPreview = New Image(iSize, iSize, Color.Black)
-
-        gcd.FitEntitiesToImage(b.entities, imgPreview, Config.WhiteAndBlack, 0)
-        GrIdView1.Row = iRow
-        GrIdView1.Column = iCol
-        GrIdView1.Current.Picture = imgPreview.Picture
-        GrIdView1.Current.Tag = b.name
-        'ListView1.Add(b.handle, "", imgPreview.Picture)
-
-    Next
-
-End
-
 Public Sub togSnap_MouseDown()
 
     If Mouse.Right Then fPoiOptions.show
-
-End
-
-Public Sub GrIdView1_MouseWheel()
-
-    GrIdView1.ScrollY += Mouse.Delta * 40
-    'GridView1.Scroll(0, GridView1.ScrollYMouse.Delta * 40)
-
-End
-
-'' Llena la tabla de propiedades
-Public Sub FillProperties(cEntities As Collection, Optional sFilter As String = "")
-
-    Dim cTypes As New Collection
-    Dim cProperties As New Collection
-    'Dim cmbLayers As New ComboBox()
-    Dim e As Entity
-    Dim l As Layer, LastLayer As String
-    Dim sv As String = "<< " & ("varies") & " >>"
-    Dim sProp As Variant
-    Dim i As Integer
-
-    If cEntities.Count = 0 Then
-        tblProperties.Clear
-        Return
-    Endif
-    ' cmbLayers.Insert(sv)
-    ' For Each l In gcd.Drawing.Layers
-    '     cmbLayers.Insert(l.Name)
-    ' Next
-
-    sFilter = UCase(sFilter)
-
-    ' RECOLECTO LAS PROPIEDADES EN UNA COLECCION
-    For Each e In cEntities
-        If sFilter <> "" And (sFilter <> e.Gender) Then Continue
-
-        ' veo el tipo
-        If Not cTypes.Exist(e.Gender) Then cTypes.Add(e.Gender, e.Gender)
-
-        ' GENERAL
-        AddPropToCol(cProperties, "layer", e.pLayer.Name)                               'LAYER
-        AddPropToCol(cProperties, "color", e.Colour)                                    'COLOR
-        AddPropToCol(cProperties, "linetype", e.LineType.Name)                          'LINETYPE
-        AddPropToCol(cProperties, "linewIdth", e.LineWIdth)                             'LINEWIDTH
-
-        ' GEOMETRY
-        Select Case E.Gender
-            Case "LINE", "LWPOLYLINE", "SOLID", "POLYLINE", "POLYLINE_2D", "SPLINE", "POINT", "RAY", "VERTEX", "VERTEX_2D"
-                AddPropToCol(cProperties, "points", Utils.FloatToString(e.p))                                 'POINTS
-            Case "CIRCLE", "ARC", "ELLIPSE"
-                AddPropToCol(cProperties, "center", Utils.FloatToString(e.p))                                 'CENTER
-                AddPropToCol(cProperties, "radius", e.fParam[0])                         'radius
-                If e.Gender = "ARC" Then
-                    AddPropToCol(cProperties, "start", e.fParam[1])                       'start
-                    AddPropToCol(cProperties, "end", e.fParam[2])                         'end
-                Endif
-            Case "INSERT", "TEXT", "MTEXT"
-                AddPropToCol(cProperties, "base point", Utils.FloatToString(e.p))                              'BASE POINTS
-                If e.Gender = "INSERT" Then
-                    AddPropToCol(cProperties, "scaleX", e.fParam[cadInsert.ipaEscX])
-                    AddPropToCol(cProperties, "scaleY", e.fParam[cadInsert.ipaEscY])
-                    AddPropToCol(cProperties, "rotation", e.fParam[cadInsert.ipaRotacion])
-                Endif
-            Case Like "*DIM"
-                AddPropToCol(cProperties, "base point", Utils.FloatToString(e.p))                              'BASE POINTS
-        End Select
-
-        'CONTENTS
-        Select Case E.Gender
-            Case "TEXT"
-                AddPropToCol(cProperties, "text", e.sParam[cadText.sdaText])               'TEXT
-                AddPropToCol(cProperties, "style", e.sParam[cadText.sdaStyle])             'STYLE
-            Case "MTEXT"
-                AddPropToCol(cProperties, "text", e.sParam[cadmText.sdaText])               'TEXT
-                AddPropToCol(cProperties, "style", e.sParam[cadMText.sdaStyle])             'STYLE
-            Case "INSERT"
-                AddPropToCol(cProperties, "block", e.pBlock.name)               'TEXT
-        End Select
-
-        ' FORMAT
-        Select Case E.Gender
-            Case "TEXT"
-                AddPropToCol(cProperties, "vertical justification", e.fParam[cadText.ipaVertJustif])
-                AddPropToCol(cProperties, "alignment", e.fParam[cadText.ipaAttchmPoint])
-                AddPropToCol(cProperties, "style", e.sParam[cadText.sdaStyle])
-            Case "MTEXT"
-                AddPropToCol(cProperties, "text", e.sParam[cadmText.sdaText])               'TEXT
-                AddPropToCol(cProperties, "style", e.sParam[cadMText.sdaStyle])             'STYLE
-            Case "INSERT"
-                AddPropToCol(cProperties, "block", e.pBlock.name)               'TEXT
-        End Select
-
-    Next
-
-    cmbEntityType.Clear
-    cmbEntityType.Add(("All types"))
-    For Each sProp In cTypes
-        cmbEntityType.Add(sProp)
-    Next
-
-    ' ARMO LA TABLA DE PROPIEDADES
-    tblProperties.Rows.Count = cProperties.Count
-    tblProperties.Columns.Count = 2
-    For Each sProp In cProperties
-
-        tblProperties[i, 0].Text = UCase$(Left(cProperties.Key, 1)) & Mid(cProperties.Key, 2)
-
-        If TypeOf(sProp) = gb.String Then
-            tblProperties[i, 1].Text = sProp
-        Else If TypeOf(sProp) = gb.Float Then
-            tblProperties[i, 1].Text = sProp
-        Else If TypeOf(sProp) = gb.Object Then
-            tblProperties[i, 1].Text = Utils.FloatToString(sProp)
-        Else
-            tblProperties[i, 1].Text = sProp
-
-        End If
-
-        tblProperties[i, 1].Font.Bold = True
-        Inc i
-    Next
-
-    Return
-
-End
-
-'' agrego la propiedad a la coleccion si es que no existe (retorna True en este caso)
-Public Function AddPropToCol(cProperties As Collection, sPropName As String, sValue As Variant, Optional sVariesText As String = "<< " & ("varies") & " >>") As Boolean
-
-    If cProperties.Exist(sPropName) Then
-        If sValue <> cProperties[sPropName] Then
-            cProperties[sPropName] = sVariesText
-            Return False
-        End If
-    Else
-        cProperties.Add(sValue, sPropName)
-        Return True
-
-    Endif
-
-End
-
-Public Sub cmbEntityType_Click()
-
-    If cmbEntityType.Index > 0 Then
-        FillProperties(gcd.Drawing.Sheet.EntitiesSelected, cmbEntityType.Text)
-    Else
-        FillProperties(gcd.Drawing.Sheet.EntitiesSelected)
-    End If
-
-End
-
-Public Sub tblProperties_Click()
-
-    Dim s, sProp As String, iProp As Integer
-    Dim sLayers, sLinetypes, sStyles, sDimStyles As New String[]
-    Dim lay As Layer, lty As LineType, dst As DimStyle, sty As TextStyle
-    Dim flxPoints As Float[]
-
-    If tblProperties.Column = 0 Then tblProperties.Column = 1
-
-    sProp = LCase(tblProperties[tblProperties.Row, 0].Text)
-
-    ' lleno los combos de edicion
-    For Each lay In gcd.Drawing.Layers
-        sLayers.Add(lay.Name)
-    Next
-
-    For Each lty In gcd.Drawing.LineTypes
-        sLinetypes.Add(lty.Name)
-    Next
-
-    For Each dst In gcd.Drawing.DimStyles
-        sDimStyles.Add(dst.Name)
-    Next
-    For Each sty In gcd.Drawing.TextStyles
-        sStyles.Add(sty.Name)
-    Next
-
-    Select Case sProp
-        Case "color"
-            iProp = fColors.ShowModal()
-            If iprop >= 0 Then
-                tblProperties[tblProperties.Row, 1].Text = iProp
-                tblProperties[tblProperties.Row, 1].Tag = True
-            End If
-
-        Case "layer"
-            tblProperties.Edit(sLayers, True)
-        Case "linetype"
-            tblProperties.Edit(sLinetypes, True)
-        Case "dimstyle"
-            tblProperties.Edit(sDimStyles, True)
-        Case "style"
-            tblProperties.Edit(sStyles, True)
-        Case "points", "center", "base point"
-            flxPoints = Utils.StringToFloatArray(tblProperties[tblProperties.Row, 1].Text)
-
-            tblProperties[tblProperties.Row, 1].Tag = fPointsEdit.EditPoints(flxPoints)
-        Case Else
-            tblProperties.Edit()
-
-    End Select
-
-End
-
-Public Sub tblProperties_Save(Row As Integer, Column As Integer, Value As String)
-
-    Dim s, sProp As String
-
-    sProp = LCase(tblProperties[Row, 0].Text)
-
-    Select Case sProp
-
-        Case Else
-            tblProperties[row, Column].Text = value
-            tblProperties[row, Column].Tag = value
-
-    End Select
 
 End
 
@@ -2208,25 +1953,13 @@ Public Sub tmrSlash_Timer()
 
 End
 
-Public Sub txtDebug_KeyPress()
+Public Sub Form_Open()
 
-    txtDebug.pos = txtDebug.Length
-
-End
-
-Public Sub cmbFont_Click()
+    Layout.Fix(Me)
+    'Layout.Shoot(Me)
 
 End
 
-Public Sub cmbType_Click()
-
-    If Lower(cmbType.Text) = "attdef" Then
-        pnlAttdef1.Visible = True
-        pnlAttdef2.Visible = True
-    Else
-        pnlAttdef1.Visible = False
-        pnlAttdef2.Visible = False
-
-    Endif
+Public Sub pnlToolBarRigth_MouseDown()
 
 End

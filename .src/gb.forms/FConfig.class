@@ -1,0 +1,399 @@
+' Gambas class file
+
+Private j As JSONCollection
+Private k As New JSONCollection
+Private loaded As Boolean
+Private iStatus As Integer = 0
+
+Public Sub Form_Open()
+
+    LoadControls()
+    Icons.Update(Me)
+
+    Dim n As Integer
+    Dim x As Integer
+    Dim b As Integer
+
+    For n = 0 To Screens.Count - 1
+        If Screens[n].AvailableWidth > b Then
+            b = Screens[n].AvailableWidth
+            x = n
+        Endif
+    Next
+
+    Me.Resize(800, 600)
+    Me.x = Screens[x].AvailableX + Screens[x].AvailableWidth / 2 - Me.W / 2
+    Me.y = Screens[x].AvailableY + Screens[x].AvailableHeight / 2 - Me.H / 2
+
+    ' Me.Center
+
+End
+
+Public Sub LoadControls()
+
+    Dim v As Variant
+    Dim p As Panel
+    Dim lb As TextLabel
+    Dim tb As TextBox
+    Dim vb As ValueBox
+    Dim kb As CheckBox
+    'Dim lm As ListMaker
+    Dim aList As New String[]
+    Dim aTypes As New String[]
+    Dim iTitleWidth As Integer
+    Dim sLastPanelName As String
+    Dim sLastLabelName As String
+    Dim o As Object
+    Dim iHLine As Integer = 28 * 2
+    'Dim iHList As Integer = 28 * 6 + 16
+    'Dim cp As ColorPalette
+    Dim cn As ColorNext
+    Dim cb As ComboBox
+    'Dim bt As Button
+    Dim sb As SpinBox
+
+    j = Config.List()
+    k.Clear
+
+    For Each v In j
+        k.Add(v[0], j.Key)
+    Next
+
+    loaded = False
+
+    For Each v In j
+        aList.clear
+        p = New Panel(pSettings)
+        sLastPanelName = j.Key & "." & Object.Type(p)
+        With p
+            If v.count > 3 Then
+                If v[3] = "a" Then
+                    .Enabled = False
+                Endif
+            Endif
+            .Margin = True
+            .Border = False
+            .Background = Color.LightBackground
+            .Tag = j.Key
+            .Name = sLastPanelName
+            .H = iHLine
+            .Arrangement = Arrange.Horizontal
+        End With
+
+        lb = New TextLabel(p)
+        sLastLabelName = j.Key & "." & Object.Type(lb)
+        With lb
+            .Text = v[3]
+            .Padding = 2
+            .Name = sLastLabelName
+            .Alignment = Align.Normal
+            iTitleWidth = dsk.TextWidth(" " & v[3], Me.Font.Name, Me.Font.Size) + 42
+            If v.count > 2 Then
+                If v[3] <> "" Then
+                    .Text = " " & v[3]
+                    iTitleWidth = dsk.TextWidth(" " & v[3], Me.Font.Name, Me.Font.Size) + 42
+                    If iTitleWidth > (240 * 2 / 3) - 7 Then
+                        iTitleWidth = (240 * 2 / 3) - 7
+                        .Alignment = Align.Justify
+                    Endif
+                Endif
+            Endif
+            .Width = iTitleWidth
+        End With
+        If Not aTypes.Exist(v[1]) Then
+            aTypes.Add(v[1])
+        Endif
+
+        Select v[5]
+
+            Case "select.from.list"
+                cb = New ComboBox(p) As "xData"
+                With cb
+                    .Name = j.Key & "." & Object.Type(cb)
+                    .Tag = j.Key
+                    .ReadOnly = True
+                    If v.Count > 6 Then
+                        If TypeOf(v[6]) = gb.Object Then
+                            cb.List = v[6]
+                            If v[6].Exist(v[0]) Then
+                                cb.Text = v[0]
+                            Endif
+                        Endif
+                    Endif
+                    .Border = True
+                    .Expand = True
+                    '.W = 40
+                    '.H = 35
+                End With
+                'o = Me[sLastLabelName]
+                'o.Expand = True
+
+            Case "color.choose.16x16"
+                cn = New ColorNext(p) As "xData"
+                With cn
+                    .Name = j.Key & "." & Object.Type(cn)
+                    .Tag = j.Key
+                    .Color256 = v[0]
+                    .Tooltip = v[0]
+                    .Border = True
+                    .W = 40
+                    .H = 35
+                End With
+                o = Me[sLastLabelName]
+                o.Expand = True
+
+            Case "integer"
+                If v.Count > 6 Then
+                    If TypeOf(v[6]) = gb.Object Then
+                        sb = New SpinBox(p) As "xData"
+                        With Sb
+                            .Name = j.Key & "." & Object.Type(sb)
+                            .Tag = j.Key
+                            .Value = v[0]
+                            If v[6].Count > 1 Then
+                                .MinValue = v[6][0]
+                                .MaxValue = v[6][1]
+                            Endif
+                            .Alignment = Align.Center
+                            .Expand = True
+                            .Border = False
+                        End With
+                    Endif
+                Else
+                    vb = New ValueBox(p) As "xData"
+                    With vb
+                        .Name = j.Key & "." & Object.Type(vb)
+                        .Tag = j.Key
+                        .Value = v[0]
+                        .Alignment = Align.Right
+                        .Expand = True
+                        .Border = False
+                    End With
+                Endif
+
+            Case "toggle.2"
+                kb = New CheckBox(p) As "xData"
+                With kb
+                    .Name = j.Key & "." & Object.Type(kb)
+                    .Tag = j.Key
+                    .Value = v[0]
+                    .Text = ""
+                    .W = p.H / 2
+                End With
+                o = Me[sLastLabelName]
+                o.Expand = True
+                '
+                ' Case "Collection", "Integer[]", "Byte[]", "Single[]", "Float[]", "String[]"
+                '   lm = New ListMaker(p) As "xData"
+                '
+                '   o = Me[sLastLabelName]
+                '   o.H = 28
+                '   o.Alignment = Align.Top
+                '   o.Expand = False
+                '
+                '   With lm
+                '     .List = v[0]
+                '     .Name = j.Key & "." & Object.Type(lm)
+                '     .Tag = j.Key
+                '     .Font = Font["Monocrome,Normal,12"]
+                '     .Expand = True
+                '     .Border = False
+                '   End With
+                '
+                '   o = Me[sLastPanelName]
+                '   o.Arrangement = Arrange.Vertical
+                '   o.H = iHList
+
+            Case Else
+                '   Print v[1]
+                tb = New TextBox(p) As "xData"
+                With tb
+                    .Name = j.Key & "." & Object.Type(tb)
+                    .Tag = j.Key
+                    .Text = v[1]
+                    .Expand = True
+                    .Border = False
+                End With
+
+        End Select
+        o = Me[sLastPanelName]
+        If v[1] = "Collection" Then
+            o.W = 480
+        Else
+            o.W = 240
+        Endif
+
+    Next
+
+    ' Print aTypes.Join("\n")
+
+    loaded = True
+
+End
+
+Public Sub xData_Click()
+
+    Dim fc As FColors16
+    Dim ob As Object
+    Dim iColor As Integer
+
+    If loaded Then
+        Select Object.Type(Last)
+            Case "ComboBox"
+                k[Last.Tag] = Last.Text
+
+            Case "CheckBox"
+                If Last.Value = -1 Then
+                    k[Last.Tag] = True
+                Else
+                    k[Last.Tag] = False
+                Endif
+            Case "ColorNext"
+                ob = Last
+                fc = New FColors16
+                iColor = fc.Run()
+                ob.Color256 = iColor
+                ob.Tooltip = iColor
+                k[ob.Tag] = iColor
+
+        End Select
+    Endif
+
+End
+
+'' Este toma los valores del los controles TextBox, ValueBox, TextBox,
+
+Public Sub xData_Change()
+
+    Dim cTemp As Collection
+    Dim v As Variant
+
+    If loaded Then
+        Select Object.Type(Last)
+            Case "TextBox"
+                k[Last.Tag] = Last.Text
+
+            Case "ValueBox", "SpinBox"
+                k[Last.Tag] = Last.Value
+
+            Case "TextArea"
+                cTemp = JSON.Decode(Last.Text)
+                For Each v In k[Last.Tag]
+                    If cTemp.Exist(k[Last.Tag].Key) Then
+                        k[Last.Tag][k[Last.Tag].Key] = cTemp[k[Last.Tag].Key]
+                    Endif
+                Next
+
+        End Select
+
+        bSave.Enabled = True
+        iStatus = 1
+    Endif
+
+End
+
+'' Este toma los valores del control ListMaker
+
+Public Sub xData_Changed(NewValue As Variant)
+
+    Dim oV As New Collection
+    Dim v As Variant
+    Dim aF As New Float[]
+    Dim aI As New Integer[]
+    Dim aB As New Byte[]
+    Dim aL As New Long[]
+    Dim aS As New Short[]
+    Dim aT As New String[]
+
+    If loaded Then
+        If TypeOf(k[Last.tag]) = gb.Object Then
+            Select Object.Type(k[Last.tag])
+                Case "Collection"
+                    For Each v In NewValue
+                        If TypeOf(v[2]) <> gb.Object Then
+                            oV[v[0]] = v[1]
+                        Endif
+                    Next
+                    k[Last.tag] = oV.Copy()
+
+                Case "Float[]"
+                    For Each v In NewValue
+                        aF.Add(v[1])
+                    Next
+                    k[Last.tag] = aF.Copy()
+
+                Case "Integer[]"
+                    For Each v In NewValue
+                        aI.Add(v[1])
+                    Next
+                    k[Last.tag] = aI.Copy()
+                Case "Byte[]"
+                    For Each v In NewValue
+                        aB.Add(v[1])
+                    Next
+                    k[Last.tag] = aB.Copy()
+                Case "Long[]"
+                    For Each v In NewValue
+                        aL.Add(v[2])
+                    Next
+                    k[Last.tag] = aL.Copy()
+                Case "Short[]"
+                    For Each v In NewValue
+                        aS.Add(v[1])
+                    Next
+                    k[Last.tag] = aS.Copy()
+                Case "String[]"
+                    For Each v In NewValue
+                        aT.Add(v[1])
+                    Next
+                    k[Last.tag] = aT.Copy()
+
+                Case Else
+                    Message.Warning(("Data type not covered"))
+
+            End Select
+        Endif
+
+        bSave.Enabled = True
+        iStatus = 1
+
+    Endif
+
+End
+
+Public Sub tools_Click()
+
+    Select Last.Tag
+        Case "fileclose"
+            Me.Close(False)
+
+        Case "filesave"
+            Config.Save(Config.Depot, k.Copy())
+            Me.Close(True)
+
+        Case "fileopen"
+            Desktop.Open(Config.Depot)
+
+    End Select
+
+End
+
+Public Sub ButtonBox1_Change()
+
+    Dim o As Control
+
+    If ButtonBox1.Text = "" Then
+        For Each o In pSettings.Children
+            o.Visible = True
+        Next
+    Else
+        For Each o In pSettings.Children
+            If InStr(Lower(o.Tag), Lower(ButtonBox1.Text)) > 0 Then
+                o.Visible = True
+            Else
+                o.Visible = False
+            Endif
+        Next
+    Endif
+
+End

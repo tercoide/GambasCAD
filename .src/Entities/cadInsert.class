@@ -442,12 +442,103 @@ End
 Public Function GripEdit(g As Grip) As Boolean
 
     Dim e As Entity
+    Dim Xr, Yr, xs, ys As Float
 
     e = g.AsociatedEntity
+    If g.Action = 0 Then
+        translate(e, g.X - e.P[0], g.Y - e.P[1])
 
-    translate(e, g.X - g.Xr, g.Y - g.Yr)
+    Else If g.Action = 2 Then
 
+        xr = e.P[0]
+        yr = e.P[1]
+
+        xs = g.X / g.Xr
+        ys = g.Y / g.Yr
+
+        translate(e, -e.P[0], -e.P[1])
+        scale(e, xs * e.fParam[Me.ipaEscX], ys * e.fParam[Me.ipaEscY])
+        translate(e, xr, yr)
+        g.Xr = g.X
+        g.Yr = g.Y
+
+    Else If g.Action = 1 Then ' rotate
+
+        xr = e.P[0]
+        yr = e.P[1]
+        translate(e, -e.P[0], -e.P[1])
+        rotate(e, Ang(g.X - xr, g.Y - yr) - Rad(e.fParam[Me.ipaRotacion]))
+        translate(e, xr, yr)
+
+        ' vamos a corregir la posicion del grip
+
+    End If
+
+    ' g.Xr = g.X
+    ' g.Yr = g.Y
+
+End
+
+'' Genera un conjunto de grips para ser usados por cadSelection
+Public Function GenerateGrips(e As Entity) As Integer
+
+    Dim i As Integer
+    Dim g As Grip
+    Dim iCount As Integer
+    Dim flxGrip As New Float[]
+
+    g = New Grip
+    g.Shape = 0
+    g.X = e.P[0]
+    g.Y = e.P[1]
+    g.Action = 0 ' mover
+    g.AsociatedEntity = e
+    g.AsociatedPoint = 0
+    gcd.Drawing.Sheet.Grips.Add(g)
+    g.ToolTip = ("Move base")
+
+    g = New Grip
+    g.Shape = 2
+    g.X = gcd.Metros(120)
+    g.Y = 0
     g.Xr = g.X
     g.Yr = g.Y
+    flxGrip.Add(g.X)
+    flxGrip.Add(g.y)
+    puntos.Rotate(flxGrip, Rad(e.fParam[Me.ipaRotacion]))
+    g.X = e.P[0] + flxGrip[0]
+    g.y = e.P[1] + flxGrip[1]
+    g.Xr = g.X
+    g.Yr = g.Y
+    g.Action = 1 ' este dato es propio de la clase
+    g.AsociatedEntity = e
+    g.AsociatedPoint = 0
+    g.AsociatedGrip = 0
+    g.iFillColor = Color.Red
+    g.DrawLineToAsociatedGrip = True
+    g.ToolTip = ("Rotate insert")
+    gcd.Drawing.Sheet.Grips.Add(g)
+
+    g = New Grip
+    g.Shape = 2
+    g.X = 0
+    g.Y = gcd.Metros(120)
+    g.Value = gcd.Metros(120)   ' el valor original
+    flxGrip.Clear
+    flxGrip.Add(g.X)
+    flxGrip.Add(g.y)
+    puntos.Rotate(flxGrip, Rad(e.fParam[Me.ipaRotacion]))
+    g.X = e.P[0] + flxGrip[0]
+    g.y = e.P[1] + flxGrip[1]
+    g.Xr = g.X
+    g.Yr = g.Y
+    g.Action = 2 ' este dato es propio de la clase
+    g.AsociatedEntity = e
+    g.AsociatedPoint = 0
+    g.AsociatedGrip = 0
+    g.iFillColor = Color.Green
+    g.DrawLineToAsociatedGrip = True
+    g.ToolTip = ("Scale insert")
+    gcd.Drawing.Sheet.Grips.Add(g)
 
 End

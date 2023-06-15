@@ -20,13 +20,16 @@
 ' Foundation, Inc., 51 Franklin St, Fifth Floor,
 ' Boston, MA  02110-1301  USA
 
-Public dirResources As String = "/usr/share/gambascad"
-Public dirDwgIn As String = User.Home &/ ".config/GambasCAD/DwgIn"
-Public dirDxfIn As String = User.Home &/ ".config/GambasCAD/DxfIn"
-Public dirDwgOut As String = User.Home &/ ".config/GambasCAD/DwgOut"
-Public dirDxfOut As String = User.Home &/ ".config/GambasCAD/DxfOut"
-Public dirTemplates As String = User.Home &/ ".config/GambasCAD/templates"
-Public dirBlocks As String      ' path to Blocks
+''TINCHO 2023.05.22 > Config.class implementation
+'' Eviado a la clase Config.class
+' Public dirResources As String = "/usr/share/gambascad"
+' Public dirDwgIn As String = User.Home &/ ".config/GambasCAD/DwgIn"
+' Public dirDxfIn As String = User.Home &/ ".config/GambasCAD/DxfIn"
+' Public dirDwgOut As String = User.Home &/ ".config/GambasCAD/DwgOut"
+' Public dirDxfOut As String = User.Home &/ ".config/GambasCAD/DxfOut"
+' Public dirTemplates As String = User.Home &/ ".config/GambasCAD/templates"
+' Public dirBlocks As String      ' path to Blocks
+''TINCHO 2023.05.22 > Config.class implementation
 
 ' file conversion
 Public convLibreDWG As Boolean
@@ -38,30 +41,71 @@ Public Sub main()
 
     Dim sFile As String
 
+    ''TINCHO 2023.05.22 > Config.class implementation
+    '' Estableciendo los parametros de configuración
+    If Exist(User.Home &/ ".config/gambascad/config.json") Then
+        Config.Load(User.Home &/ ".config/gambascad/config.json")
+    Endif
+
+    Config.Root = User.Home &/ ".config/gambascad"
+    Config.Depot = Config.Root &/ "config.json"
+    Config.Log = Config.Root &/ "log.txt"
+    Config.dirDwgIn = Config.Root &/ "dwgin"
+    Config.dirDxfIn = Config.Root &/ "dxfin"
+    Config.dirDwgOut = Config.Root &/ "dwgout"
+    Config.dirDxfOut = Config.Root &/ "dxfout"
+    Config.dirTemplates = Config.Root &/ "templates"
+    Config.dirBlocks = Config.Root &/ "blocks"
+    Config.dirPrintStyles = Config.Root &/ "printstyles"
+    Config.dirPatterns = Config.Root &/ "patterns"
+    Config.dirResources = Config.Root &/ "resources"
+
+    If Config.SplitterH.Count = 0 Then
+        Config.SplitterH = [144, 500, 144]
+    Endif
+
+    If Config.SplitterV.Count = 0 Then
+        Config.SplitterV = [400, 80]
+    Endif
+
+    Config.Save(Config.Depot)
+
+    ' Public dirResources As String = "/usr/share/gambascad"
+    ' Public dirDwgIn As String = User.Home &/ ".config/GambasCAD/DwgIn"
+    ' Public dirDxfIn As String = User.Home &/ ".config/GambasCAD/DxfIn"
+    ' Public dirDwgOut As String = User.Home &/ ".config/GambasCAD/DwgOut"
+    ' Public dirDxfOut As String = User.Home &/ ".config/GambasCAD/DxfOut"
+    ' Public dirTemplates As String = User.Home &/ ".config/GambasCAD/templates"
+    ' Public dirBlocks As String      ' path to Blocks
+
     Application.MainWindow = fMain
 
     Wait
 
-    fSplash.Visible = False
+    fSplash.Visible = True
 
-    'fSplash.Show
+    fSplash.Show
 
     Wait
 
+    ''TINCHO 2023.05.22 > Config.class implementation
+    '' Anualdo: Los recursos se copiaran una unica vez, en la primera ejecucion, en el directorio del usuario.
     ' necesitamo saber desde donde estamos corriendo
-    If Application.Path Like "/usr/bin*" Then
-        DebugMode = False
-        gcd.dirResources = "/usr/share/gambascad"
-
-    Else
-        DebugMode = True
-        gcd.dirResources = Application.Path
-    Endif
+    'If Application.Path Like "/usr/bin*" Then
+    '    DebugMode = False
+    '    gcd.dirResources = "/usr/share/gambascad"
+    'Else
+    '    DebugMode = True
+    '    gcd.dirResources = Application.Path
+    'Endif
+    ''TINCHO 2023.05.22 > Config.class implementation
 
     ' Inicializo el programa
     Initialize          ' general init
 
-    MyLog = Open User.Home &/ ".config/GambasCAD/log.txt" For Write Create
+    'MyLog = Open User.Home &/ ".config/gambascad/log.txt" For Write Create
+    ''TINCHO 2023.05.22 > Config.class implementation
+    MyLog = Open Config.Log For Write Create
 
     gcd.debugInfo("Init program - Version " & Application.Version,,, True)
     gcd.debugInfo("Debug mode = " & Str(DebugMode),,, True)
@@ -69,16 +113,11 @@ Public Sub main()
     'fMain.tabFile.Index = 0
 
     ' leo la configuracion inicial
-    Utils.LoadClass(Config, Config.ConfigFile)
-
+    'Utils.LoadClass(Config, Config.ConfigFile) ' Deshabilitado, con la nueva configuracion no es necesario.
     InitColors          ' CAD color init
-
     InitClasses
-
     InitMenus           ' fMain menus
-
     loadPrintStyles
-
     LoadPatterns
 
     ' TODO: DATO INTERESANTE SI LLAMO A LA SIGUIENTE LINEA DESPUES DE Fmain.Run , los graficos se ven opacos
@@ -106,7 +145,7 @@ Public Sub main()
     gcd.clsJob.start()
     ' bloques common
     gcd.LoadCommon
-    ' glx.Init(fmain.glarea1)
+    glx.Init(fmain.glarea1)
     ' glx.Resize(fmain.glarea1)
     ' fmain.glarea1.Refresh
     gcd.redraw
@@ -116,36 +155,24 @@ End
 Public Sub Initialize()
 
     Dim aFile As String
+    Dim aDirs As String[] = [Config.dirResources &/ "minimal", Config.dirDwgIn, Config.dirDxfIn, Config.dirDwgOut, Config.dirDxfOut, Config.dirPrintStyles, Config.dirTemplates, Config.dirPatterns]
+    Dim aTemp As String[] = [Config.dirDwgIn, Config.dirDxfIn, Config.dirDwgOut, Config.dirDxfOut, Config.dirPrintStyles, Config.dirTemplates, Config.dirPatterns]
+    Dim sDir As String
 
-    ' Dirs
-    If Not IsDir(User.Home &/ ".config/GambasCAD") Then            ' first timer
-        Mkdir User.Home &/ ".config/GambasCAD"
-        Mkdir dirDwgIn       ' DWG to be converted by ODA
-        Mkdir dirDxfIn       ' where ODA puts the converted DWG into DXF
-        Mkdir dirDxfOut      ' drawings saved into DXF prior to be converted back to DWG
-        Mkdir dirDwgOut     ' where ODA puts the converted DXF into DWG, prior to final destination
-        Mkdir dirTemplates
-        ' Copio lo templates
-        For Each aFile In Dir(gcd.dirResources &/ "minimal")
-            Copy gcd.dirResources &/ "minimal/" &/ afile To dirTemplates &/ aFile
-        Next
-
-    Else                    ' empty temporary files in case there are any
-
-        For Each aFile In Dir(dirDwgIn)
-            Kill dirDwgIn &/ aFile
-        Next
-        For Each aFile In Dir(dirDxfIn)
-            Kill dirDxfIn &/ aFile
-        Next
-        For Each aFile In Dir(dirDwgOut)
-            Kill dirDwgOut &/ aFile
-        Next
-        For Each aFile In Dir(dirDxfOut)
-            Kill dirDxfOut &/ aFile
-        Next
-
-    End If
+    ''TINCHO 2023.05.22 > Config.class implementation
+    '' Checking that the necessary directories exist
+    For Each sDir In aDirs
+        If Not Exist(sDir) Then
+            Shell "mkdir -p " & sDir Wait
+        Else
+            Shell "rm -R " & sDir & "/*" Wait
+        Endif
+    Next
+    ' Copio lo templates
+    For Each aFile In Dir("./minimal")
+        ''TINCHO 2023.05.22 > Config.class implementation
+        Copy "./minimal" &/ afile To Config.dirTemplates &/ aFile
+    Next
 
     ' External programs availability
     ' libredwg
@@ -154,57 +181,34 @@ Public Sub Initialize()
     ' ODA
     If Exist("/usr/bin/ODAFileConverter") Then convODA = True
 
-    ' Select Config.DrawingAreaDarkMode
-    '
-    '     Case False
-    '         Config.WindowBackColor = Color.White
-    '         Config.WindowInfoColor = &HFFFF00
-    '         Config.WindowTextColor = Color.Blue
-    '         Config.WindowCursorColor = Color.Black
-    '         gcd.WhiteAndBlack = Color.Black
-    '
-    '     Case True
-    '         Config.WindowBackColor = Color.Black
-    '         Config.WindowInfoColor = &HA0A000
-    '         Config.WindowTextColor = Color.Yellow
-    '         Config.WindowCursorColor = Color.White
-    '         Config.WhiteAndBlack = Color.White
-    '
-    ' End Select
-
     If Config.FileConversion = "ODA" Then
         If convODA Then
             'nothing
         Else If convLibreDWG Then
-
             Config.FileConversion = "LibreDWG"
         Else
             ' none available
             Config.FileConversion = ""
-
         Endif
     Else If Config.FileConversion = "LibreDWG" Then
         If convLibreDWG Then
             'nothing
         Else If convODA Then
-
             Config.FileConversion = "ODA"
         Else
             ' none available
             Config.FileConversion = ""
-
         Endif
     Else    ' none selected
         If convODA Then
-
             Config.FileConversion = "ODA"
         Else If convLibreDWG Then
-
             Config.FileConversion = "LibreDWG"
         Endif
     Endif
 
-    dirBlocks = Config.BlocksLibraryPath
+    ''TINCHO 2023.05.22 > Config.class implementation
+    'dirBlocks = Config.BlocksLibraryPath
 
 End
 
@@ -214,7 +218,7 @@ Public Sub LoadPatterns()
     Dim sp, spd As String
     Dim p As HatchPattern
 
-    spd = Config.ConfigPath &/ "Patterns"
+    spd = Config.dirPatterns
     s = Dir(spd, "*.pat")
     For Each sp In s
         ' p = New HatchPattern
@@ -231,7 +235,7 @@ Public Sub SavePatterns()
     Dim sp As String
     Dim p As HatchPattern
 
-    sp = config.ConfigPath &/ "Patterns"
+    sp = Config.dirPatterns
     For Each p In gcd.HatchPatterns
         Utils.SaveClass2(p, sp &/ p.Name)
     Next
@@ -244,7 +248,7 @@ Public Sub LoadPrintStyles()
     Dim sp, spd As String
     Dim p As PrintStyle
 
-    spd = Config.ConfigPath &/ "PrintStyles"
+    spd = Config.dirPrintStyles
     s = Dir(spd)
     For Each sp In s
         p = New PrintStyle
@@ -260,7 +264,7 @@ Public Sub SavePrintStyles()
     Dim sp As String
     Dim p As PrintStyle
 
-    sp = config.ConfigPath &/ "PrintStyles"
+    sp = Config.dirPrintStyles
     For Each p In gcd.PrintStyles
         Utils.SaveClass(p, sp &/ p.Name)
     Next
