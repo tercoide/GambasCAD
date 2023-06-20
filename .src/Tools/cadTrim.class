@@ -25,10 +25,10 @@ Create Static
 Public Const Gender As String = "TRIM"
 
 Public Tijeras As Collection
+Public Recortes As Collection
 Public eRecortar As Entity
 
 Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer = 0) As Boolean
-    ' Llamada por FCAD al inicio de la aplicacion de esta herramienta
 
     Dim i As Integer
     ' Aprovechamos para establecer los helpers (comentarios de ayuda en pantalla)
@@ -40,24 +40,29 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
 
     If gcd.Drawing.Sheet.EntitiesSelected.Count = 0 Then                                     ' we have no elements in the selection
 
-        DrawingAIds.Helper.texto = Me.Prompt & ": " & ("Select cutting edges")
+        Me.Prompt &= ": " & ("Select cutting edges")
 
         gcd.clsJobPrevious = Me
         gcd.clsJob = cadSelection
-
+        cadSelection.Prompt = Me.Prompt
+        cadSelection.ReturnOnFirstSelection = False
     Else                                                               ' TENEMOS QUE PEDIR MAS ENTIDADES PARA CORTAR
 
         ' recolecto las tijeras
 
         Tijeras = gcd.Drawing.Sheet.EntitiesSelected
 
-        '
-        DrawingAIds.Helper.texto = Me.Prompt & ": " & ("entities to cut")
+        Me.Prompt &= ": " & ("entities to cut")
+        cadSelection.ReturnOnFirstSelection = True
         'DrawingAids.CmdLineHelper = DrawingAids.CmdLineHelper & str(gcd.Drawing.oSelected.count) & (" elements")
 
     Endif
-
+    DrawingAIds.Helper.texto = Me.Prompt
     gcd.ToolActive = True
+
+End
+
+Public Sub Run()
 
 End
 
@@ -96,67 +101,63 @@ Public Sub DoTrim()
 
 End
 
-Public Sub Draw()
-
-End
-
-Public Function MouseUp()
-
-    If Mouse.Left Then
-
-        Me.SelEndX = mouse.x
-        Me.SelEndy = mouse.y
-
-        If Me.Active Then
-            Dim Crossing As Boolean = False
-            ' corrijo para start<end
-            Me.Active = False
-            If Me.SelStartX > Me.SelEndX Then
-                crossing = True
-                Swap Me.SelStartX, Me.SelEndX
-            Else
-                crossing = False
-            End If
-            If Me.SelStartY < Me.SelEndy Then Swap Me.SelStartY, Me.SelEndy                     ' this is FLIPPED
-
-            ' Paso a coordenadas reales
-            Me.SelStartXr = gcd.Xreal(Me.SelStartX)
-            Me.SelStartYr = gcd.Yreal(Me.SelStartY)
-            Me.SelEndXr = gcd.Xreal(Me.SelEndX)
-            Me.SelEndyr = gcd.Yreal(Me.SelEndy)
-
-            ' veo si el rectangulo es suficientemente grande como para representar una seleccion por rectangulo
-            If (Me.SelEndX - Me.SelStartX + (-Me.SelEndy + Me.SelStartY)) > 10 Then
-
-                Me.selectionCount = clsEntities.SelectionSquare(Me.SelStartXr, Me.SelStartYr, Me.SelEndXr, Me.SelEndyr,, crossing)
-                gcd.regen
-
-            End If
-
-            Me.Prompt = ("Selected") & " " & Str$(Me.selectionCount) & " " & ("elements")
-
-            '     'aprovecho para ver si hay algo util en la seleccion
-            '
-            ' Select Case Me.Mode
-            '
-            '     Case 0 ' Move, all vertices must be selected
-            '        DrawingAids.CmdLineHelper = ("Selected ") & Str$(clsEntities.DeSelection("todo", "mover")) & (" elements")
-            '
-            '     Case 1 ' Stretch
-            '         DrawingAids.CmdLineHelper = ("Selected ") & Str$(clsEntities.DeSelection("todo", "estirar")) & (" elements")
-            '
-            ' End Select
-        Else
-
-        End If
-
-    Else
-
-        Me.Finish
-
-    Endif
-
-End
+' Public Function MouseUp()
+'
+'     If Mouse.Left Then
+'
+'         Me.SelEndX = mouse.x
+'         Me.SelEndy = mouse.y
+'
+'         If Me.Active Then
+'             Dim Crossing As Boolean = False
+'             ' corrijo para start<end
+'             Me.Active = False
+'             If Me.SelStartX > Me.SelEndX Then
+'                 crossing = True
+'                 Swap Me.SelStartX, Me.SelEndX
+'             Else
+'                 crossing = False
+'             End If
+'             If Me.SelStartY < Me.SelEndy Then Swap Me.SelStartY, Me.SelEndy                     ' this is FLIPPED
+'
+'             ' Paso a coordenadas reales
+'             Me.SelStartXr = gcd.Xreal(Me.SelStartX)
+'             Me.SelStartYr = gcd.Yreal(Me.SelStartY)
+'             Me.SelEndXr = gcd.Xreal(Me.SelEndX)
+'             Me.SelEndyr = gcd.Yreal(Me.SelEndy)
+'
+'             ' veo si el rectangulo es suficientemente grande como para representar una seleccion por rectangulo
+'             If (Me.SelEndX - Me.SelStartX + (-Me.SelEndy + Me.SelStartY)) > 10 Then
+'
+'                 Me.selectionCount = clsEntities.SelectionSquare(Me.SelStartXr, Me.SelStartYr, Me.SelEndXr, Me.SelEndyr,, crossing)
+'                 gcd.regen
+'
+'             End If
+'
+'             Me.Prompt = ("Selected") & " " & Str$(Me.selectionCount) & " " & ("elements")
+'
+'             '     'aprovecho para ver si hay algo util en la seleccion
+'             '
+'             ' Select Case Me.Mode
+'             '
+'             '     Case 0 ' Move, all vertices must be selected
+'             '        DrawingAids.CmdLineHelper = ("Selected ") & Str$(clsEntities.DeSelection("todo", "mover")) & (" elements")
+'             '
+'             '     Case 1 ' Stretch
+'             '         DrawingAids.CmdLineHelper = ("Selected ") & Str$(clsEntities.DeSelection("todo", "estirar")) & (" elements")
+'             '
+'             ' End Select
+'         Else
+'
+'         End If
+'
+'     Else
+'
+'         Me.Finish
+'
+'     Endif
+'
+' End
 
 '' Esta sub recorta una linea con otras cosas
 Public Sub DoTrimLine()

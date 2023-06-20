@@ -887,62 +887,60 @@ End
 '
 ' End
 
-Public Function SelectionSquare(X1real As Float, Y1real As Float, X2real As Float, Y2real As Float, Optional NuevaSumaResta As String = "nueva", crossing As Boolean) As Integer
+Public Function SelectionSquare(X1real As Float, Y1real As Float, X2real As Float, Y2real As Float, Optional crossing As Boolean = False) As Collection
 
     ' Veo que accion estoy tomando
     Dim e As Entity, i, i2, TotalSeleccionados As Integer
+    Dim c As New Collection
 
-    NuevaSumaResta = LCase$(NuevaSumaResta)
+    ' NuevaSumaResta = LCase$(NuevaSumaResta)
+    '
+    ' If NuevaSumaResta = "nueva" Then ' nueva seleccion
+    '     For Each e In gcd.Drawing.Sheet.EntitiesSelected
+    '         For i2 = 0 To e.Psel.max
+    '             e.Psel[i2] = False
+    '         Next
+    '     Next
+    '     gcd.Drawing.Sheet.EntitiesSelected.Clear
+    '     TotalSeleccionados = 0
+    ' End If
 
-    If NuevaSumaResta = "nueva" Then ' nueva seleccion
-        For Each e In gcd.Drawing.Sheet.EntitiesSelected
-            For i2 = 0 To e.Psel.max
-                e.Psel[i2] = False
-            Next
-        Next
-        gcd.Drawing.Sheet.EntitiesSelected.Clear
-        TotalSeleccionados = 0
-    End If
-
-    For Each e In gcd.Drawing.Sheet.Entities
+    For Each e In gcd.Drawing.Sheet.Entities ' TODO: podria ser solo las visibles
         ' cada entidad debe decidir si esta seleccionada o no
         If crossing Then
-            If SelPArtial(e, X1real, Y1real, X2real, Y2real) Then
-                ' el punto esta en el recuadro
-                If NuevaSumaResta <> "resta" Then
-                    Inc TotalSeleccionados
-                    Me.SelectElem(e, False)
-
-                Else If NuevaSumaResta = "resta" Then
-                    Dec TotalSeleccionados
-                    Me.DeSelectElem(e, False)
-
-                End If
-
-            Endif
+            If SelPArtial(e, X1real, Y1real, X2real, Y2real) Then c.Add(e, e.id)
+            '     ' el punto esta en el recuadro
+            '     If NuevaSumaResta <> "resta" Then
+            '         Inc TotalSeleccionados
+            '         Me.SelectElem(e, False)
+            '
+            '     Else If NuevaSumaResta = "resta" Then
+            '         Dec TotalSeleccionados
+            '         Me.DeSelectElem(e, False)
+            '
+            '     End If
+            '
+            ' Endif
         Else
-            If SelFull(e, X1real, Y1real, X2real, Y2real) Then
-                ' el punto esta en el recuadro
-                If NuevaSumaResta <> "resta" Then
-                    Inc TotalSeleccionados
-                    Me.SelectElem(e, False)
-
-                Else If NuevaSumaResta = "resta" Then
-                    Dec TotalSeleccionados
-                    Me.DeSelectElem(e, False)
-
-                End If
-
-            Endif
+            If SelFull(e, X1real, Y1real, X2real, Y2real) Then c.Add(e, e.id)
+            ' el punto esta en el recuadro
+            '     If NuevaSumaResta <> "resta" Then
+            '         Inc TotalSeleccionados
+            '         Me.SelectElem(e, False)
+            '
+            '     Else If NuevaSumaResta = "resta" Then
+            '         Dec TotalSeleccionados
+            '         Me.DeSelectElem(e, False)
+            '
+            '     End If
+            '
+            ' Endif
 
         End If
     Next
     ' GetSelectionCount()
 
-    ' deprecada
-    ' GetSelectionHandles(gcd.Drawing.hSelection)
-
-    Return TotalSeleccionados
+    Return c
 
 End
 
@@ -1518,5 +1516,36 @@ Public Sub EntityToJsonString(e As Entity) As String
 
     s = JSON.encode2(j)
     Return s
+
+End
+
+Public Function SelectionCombine(cBase As Collection, cNew As Collection, sMode As String) As Collection
+
+    Dim cCombined As New Collection, e As Entity
+
+    If sMode = "new" Then
+        For Each e In cNew
+            cCombined.Add(e, e.id)
+        Next
+    Else If sMode = "add" Then
+        For Each e In cBase
+            cCombined.Add(e, e.id)
+        Next
+        For Each e In cNew
+            cCombined.Add(e, e.id)
+        Next
+
+    Else If sMode = "rem" Then
+
+        For Each e In cBase
+            cCombined.Add(e, e.id)
+        Next
+
+        For Each e In cNew
+            If cCombined.Exist(e.id) Then cCombined.Remove(e.id)
+        Next
+    End If
+
+    Return cCombined
 
 End
