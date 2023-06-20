@@ -24,8 +24,8 @@ Inherits ToolsBase
 Create Static
 Public Const Gender As String = "TRIM"
 
-Public Tijeras As Collection
-Public Recortes As Collection
+Public Tijeras As New Collection
+Public Recortes As New Collection
 Public eRecortar As Entity
 
 Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer = 0) As Boolean
@@ -37,7 +37,7 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
 
     Me.Prompt = ("Trim") & " "
     gcd.clsJob.EntityChecking = True
-
+    Tijeras.Clear
     If gcd.Drawing.Sheet.EntitiesSelected.Count = 0 Then                                     ' we have no elements in the selection
 
         Me.Prompt &= ": " & ("Select cutting edges")
@@ -49,8 +49,7 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
     Else                                                               ' TENEMOS QUE PEDIR MAS ENTIDADES PARA CORTAR
 
         ' recolecto las tijeras
-
-        Tijeras = gcd.Drawing.Sheet.EntitiesSelected
+        Tijeras = clsEntities.SelectionCombine(Null, gcd.Drawing.Sheet.EntitiesSelected, "new")
         gcd.clsJobPrevious = Me
         gcd.clsJob = cadSelection
         cadSelection.Prompt = Me.Prompt
@@ -65,11 +64,46 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
 
 End
 
+'' cadSelection o algun otro proceso nos devuelve el control
 Public Sub Run()
+
+    Dim e As Entity
 
     Me.SelEndXr = cadSelection.SelEndXr ' gcd.Xreal(mouse.x)
     Me.SelEndyr = cadSelection.SelEndyr 'gcd.Yreal(mouse.y)
-    DoTrim
+    If Me.PointsDone = 0 Then ' estamos recolectando tijeras para el Trim
+        If Tijeras.Count = 0 Then
+            Me.Prompt &= ": " & ("Select cutting edges")
+            gcd.clsJobPrevious = Me
+            gcd.clsJob = cadSelection
+            cadSelection.Prompt = Me.Prompt
+            cadSelection.ReturnOnFirstSelection = False
+
+        Else
+
+            ' recolecto las tijeras
+            Tijeras = clsEntities.SelectionCombine(Null, gcd.Drawing.Sheet.EntitiesSelected, "new")
+            gcd.clsJobPrevious = Me
+            gcd.clsJob = cadSelection
+            cadSelection.Prompt = Me.Prompt
+
+            Me.Prompt &= ": " & ("entities to cut")
+            cadSelection.ReturnOnFirstSelection = True
+            Me.PointsDone = 1
+        Endif
+    Else    ' estamos recolectando entodades a recortar
+
+        For Each e In gcd.Drawing.Sheet.EntitiesSelected
+            eRecortar = e
+            DoTrim
+        Next
+
+        ' verifico que el user haya terminado de recortar
+        If gcd.Drawing.Sheet.EntitiesSelected.Count = 0 Then
+            Me.Finish
+        Endif
+
+    End If
 
 End
 
@@ -93,7 +127,6 @@ End
 '' Esta sub recorta una linea con otras cosas
 Public Sub DoTrim()
 
-    Me.eRecortar = gcd.Drawing.HoveredEntity
     Select Case eRecortar.Gender
         Case "LINE"
             DoTrimLine
