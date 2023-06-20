@@ -44,7 +44,7 @@ Public GripCopying As Boolean = False
 
 Public dX As Float
 Public dY As Float
-Public ToolActive As Boolean = False
+'Public ToolActive As Boolean = False
 Public PanActive As Boolean = False
 Public GripActive As Boolean = False
 Public RectActive As Boolean = False
@@ -207,14 +207,14 @@ Public Function MouseDown()
 
     Me.PoiChecking = False
     If Mouse.Right Then Return
-    If Me.ToolActive Then Return
+    If gcd.toolactive Then Return
     If Me.RectActive Then Return
 
     ' A.1 Izquierdo
     If Mouse.Left Then
 
         ' veo si esta en un grip(solo si ToolActive = False)
-        If Me.ToolActive Then Return
+        If gcd.toolactive Then Return
 
         ' chequeo si estoy sobre un grip
         GripPoint = FindGrip(Me.SelStartXr, Me.SelStartYr)
@@ -357,8 +357,11 @@ Public Sub MouseUp()
             e = gcd.Drawing.Sheet.EntitiesSelected[gcd.Drawing.Sheet.EntitiesSelected.Last]
 
             ' determino que hacer con la seleccion
-            If Me.ToolActive And Me.ReturnOnFirstSelection Then
-
+            If gcd.toolactive And Me.ReturnOnFirstSelection Then
+                gcd.clsJob = gcd.clsJobPrevious
+                gcd.clsJobPrevious = Null
+                gcd.clsJob.run
+                Return
             Endif
             If e Then
                 'gcd.Drawing.Sheet.Grips.Clear
@@ -379,11 +382,11 @@ Public Sub MouseUp()
 
                 Else If gcd.Drawing.Sheet.EntitiesSelected.Count = 1 Then
 
-                    gcd.Drawing.Sheet.GlSheet.PopupMenu = "mColors"
+                    'gcd.Drawing.Sheet.GlSheet.PopupMenu = "mColors"
 
                 Else ' tenemos varias entidades
 
-                    gcd.Drawing.Sheet.GlSheet.PopupMenu = "mEntities"
+                    'gcd.Drawing.Sheet.GlSheet.PopupMenu = "mEntities"
 
                 End If
             Endif
@@ -392,6 +395,13 @@ Public Sub MouseUp()
 
             If gcd.Drawing.HoveredEntity Then
                 ' A.1.2 Estoy sobre una entidad
+
+                If gcd.toolactive And Me.ReturnOnFirstSelection Then
+                    gcd.clsJob = gcd.clsJobPrevious
+                    gcd.clsJobPrevious = Null
+                    gcd.clsJob.run
+                    Return
+                Endif
 
                 If Not gcd.Drawing.Sheet.EntitiesSelected.Exist(gcd.Drawing.HoveredEntity.Id) Then
                     ' A.1.2.1 No esta seleccionada -> seleccionar
@@ -460,7 +470,7 @@ Public Sub MouseUp()
     If Mouse.Right Then
 
         ' A.2 Derecho
-        If Not Me.ToolActive Then
+        If Not gcd.toolactive Then
             ' A.2.1 ToolActive = False?
             If gcd.Drawing.Sheet.EntitiesSelected.Count = 0 Then
                 ' A.2.1.1 No tengo ninguna seleccion previa-> Repito el ultimo comando, independientemente de si estoy sobre una entidad o no
@@ -805,7 +815,7 @@ Public Sub Draw()
     End If
 
     '' No vamos a dibujar nada relativo a los grips si estamsos selecionando para alguna Tool
-    If Me.ToolActive Then Return
+    If gcd.toolactive Then Return
 
     DrawingAids.DrawGrips(gcd.Drawing.Sheet.Grips)
 
