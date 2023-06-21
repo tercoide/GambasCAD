@@ -27,31 +27,25 @@ Inherits ToolsBase
 ' Create Static
 Public Const Gender As String = "DEFAULT"
 
-Public Const ModePointSelection As Integer = 1             ' only mark a point
-Public Const ModeRectSelection As Integer = 2              ' make a rect
-Public Const ModeNewSelection As Integer = 3          ' select some entities
-Public Const ModeSelectEntitiesListed As Integer = 4    '  but only from EntityType list\
-Public Const ModeAddEntities As Integer = 5             ' add select some entities
-Public Const ModeRemoveEntities As Integer = 6          ' remove select some entities
+Private EntityType As String[]
 
-Public EntityType As String[]
-
-Public iEntityForEdit As Integer = -1
-Public GripPoint As Grip
-Public GripHovered As Grip
-Public GripCopying As Boolean = False
+Private iEntityForEdit As Integer = -1
+Private GripPoint As Grip
+Private GripHovered As Grip
+Private GripCopying As Boolean = False
 'Public GripCopying As Boolean = False
 
-Public dX As Float
-Public dY As Float
+Private dX As Float
+Private dY As Float
 'Public ToolActive As Boolean = False
-Public PanActive As Boolean = False
-Public GripActive As Boolean = False
-Public RectActive As Boolean = False
+Private PanActive As Boolean = False
+Private GripActive As Boolean = False
+Private RectActive As Boolean = False
 
 ' nuevo, para integrar el resto de las tools con esta, que es la principal
 Public AllowSingleSelection As Boolean = True
 Public AllowRectSelection As Boolean = True
+Public AllowPolySelection As Boolean = True
 Public AllowGripEdit As Boolean = True
 Public AllowTextInput As Boolean = True
 
@@ -68,6 +62,10 @@ Public SelectMode As Integer = 0
 Public Const SelectModeNew As Integer = 0
 Public Const SelectModeAdd As Integer = 1
 Public Const SelectModeRem As Integer = 2
+
+Public SelectStyle As Integer = 0
+Public Const SelectStyleNormal As Integer = 0
+Public Const SelectStyleCrossing As Integer = 1
 
 Public SelectionPoly As New Float[]
 
@@ -112,23 +110,23 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
 
     Me.Mode = _Mode
 
-    If Me.Mode = ModeNewSelection Then
-        fMain.PopupMenu = ""                    ' no hay menu contextual
-        Me.Prompt = "New selection"
-        If gcd.clsJobPrevious.gender = cadEntityBuilder.gender Then
-            If cadEntityBuilder.LastEntity Then
-                Me.Prompt &= " or <rigth click> to repeat " & cadEntityBuilder.LastEntity.gender
-            End If
-        End If
-    Else If Me.Mode = ModeAddEntities Then
-        Me.Prompt = "Add entities to selection"
-    Else If Me.Mode = ModeRemoveEntities Then
-        Me.Prompt = "Remove entities from selection"
-
-    Else
-        Utils.MenuMaker(fMain, "mToolsBase", Me.ContextMenu)
-        'gcd.Drawing.Sheet.GlSheet.PopupMenu = "mToolsBase"  ' TODO: ver si damos soporte a menus
-    End If
+    ' If Me.Mode = ModeNewSelection Then
+    '     fMain.PopupMenu = ""                    ' no hay menu contextual
+    '     Me.Prompt = "New selection"
+    '     If gcd.clsJobPrevious.gender = cadEntityBuilder.gender Then
+    '         If cadEntityBuilder.LastEntity Then
+    '             Me.Prompt &= " or <rigth click> to repeat " & cadEntityBuilder.LastEntity.gender
+    '         End If
+    '     End If
+    ' Else If Me.Mode = ModeAddEntities Then
+    '     Me.Prompt = "Add entities to selection"
+    ' Else If Me.Mode = ModeRemoveEntities Then
+    '     Me.Prompt = "Remove entities from selection"
+    '
+    ' Else
+    '     Utils.MenuMaker(fMain, "mToolsBase", Me.ContextMenu)
+    '     'gcd.Drawing.Sheet.GlSheet.PopupMenu = "mToolsBase"  ' TODO: ver si damos soporte a menus
+    ' End If
 
     Me.PoiChecking = True
     gcd.DrawHoveredEntity = True
@@ -208,7 +206,7 @@ Public Function MouseDown()
     Me.PoiChecking = False
     If Mouse.Right Then Return
     If gcd.toolactive Then Return
-    If Me.RectActive Then Return
+    If RectActive Then Return
 
     ' A.1 Izquierdo
     If Mouse.Left Then
@@ -319,7 +317,7 @@ Public Sub MouseUp()
         ' C.1 Izquierdo
 
         Me.PoiChecking = True
-        If Me.RectActive Then
+        If RectActive Then
 
             If Me.SelectType = Me.SelectTypePoly Then
                 Me.SelectionPoly.Add(gcd.Xreal(Mouse.x))
@@ -327,7 +325,7 @@ Public Sub MouseUp()
                 Return ' porque esto requiere un RigthClick para terminar
             End If
             ' C.1.1 ActionActive = ActionRectActive -> Finalizo la seleccion por recuadro
-            Me.RectActive = False
+            RectActive = False
 
             ' corrijo para start<end
             If Me.SelStartX > Me.SelEndX Then
@@ -358,8 +356,8 @@ Public Sub MouseUp()
 
             ' determino que hacer con la seleccion
             If gcd.toolactive And Me.ReturnOnFirstSelection Then
-                gcd.clsJob = gcd.clsJobPrevious
-                gcd.clsJobPrevious = Null
+                gcd.clsJob = gcd.clsJobCallBack
+                gcd.clsJobCallBack = Null
                 gcd.clsJob.run
                 Return
             Endif
@@ -393,24 +391,29 @@ Public Sub MouseUp()
 
         Else If RectActive = False And Not GripPoint Then
 
+            ' A.1.2 Estoy sobre una entidad
             If gcd.Drawing.HoveredEntity Then
-                ' A.1.2 Estoy sobre una entidad
 
-                If gcd.toolactive And Me.ReturnOnFirstSelection Then
-                    gcd.clsJob = gcd.clsJobPrevious
-                    gcd.clsJobPrevious = Null
-                    gcd.clsJob.run
-                    Return
-                Endif
+                If AllowSingleSelection Then
 
-                If Not gcd.Drawing.Sheet.EntitiesSelected.Exist(gcd.Drawing.HoveredEntity.Id) Then
                     ' A.1.2.1 No esta seleccionada -> seleccionar
-                    gcd.Drawing.Sheet.EntitiesSelected.add(gcd.Drawing.HoveredEntity, gcd.Drawing.HoveredEntity.Id)
+                    If Not gcd.Drawing.Sheet.EntitiesSelected.Exist(gcd.Drawing.HoveredEntity.Id) Then gcd.Drawing.Sheet.EntitiesSelected.add(gcd.Drawing.HoveredEntity, gcd.Drawing.HoveredEntity.Id)
+
+                    If gcd.toolactive And Me.ReturnOnFirstSelection Then
+                        gcd.clsJob = gcd.clsJobCallBack
+                        gcd.clsJobCallBack = Null
+                        gcd.clsJob.run
+                        Return
+                    End If
+
+                Else If AllowGripEdit Then
+
                     gcd.Drawing.Sheet.Grips.Clear
                     clsEntities.GenGrips(gcd.Drawing.HoveredEntity)
                     clsEntities.glGenDrawListSel
                     fProps.FillProperties(gcd.Drawing.Sheet.EntitiesSelected)
                     gcd.Redraw
+
                     ' Else  ' TODO: ver que pasa con esto
 
                     '     ' A.1.2.2 Esta seleccionada previamente
@@ -422,7 +425,7 @@ Public Sub MouseUp()
                 End If
             Else    ' inicio la seleccion por recuadro
 
-                If Me.SelectType > 0 Then Me.RectActive = True
+                If Me.SelectType > 0 Then RectActive = True
                 Me.SelStartX = mouse.x
                 Me.SelStartY = mouse.Y
 
@@ -454,7 +457,7 @@ Public Sub MouseUp()
 
         End If
 
-        If Me.Mode = Me.PanActive Then
+        If Me.Mode = PanActive Then
             ' C.1.3 ActionActive = ActionPanActive -> nada
         End If
 
@@ -467,192 +470,54 @@ Public Sub MouseUp()
         Return ' este return es para evitar clicks simultaneos
     End If
 
+    ' A.2 Derecho
     If Mouse.Right Then
 
-        ' A.2 Derecho
         If Not gcd.toolactive Then
             ' A.2.1 ToolActive = False?
-            If gcd.Drawing.Sheet.EntitiesSelected.Count = 0 Then
-                ' A.2.1.1 No tengo ninguna seleccion previa-> Repito el ultimo comando, independientemente de si estoy sobre una entidad o no
-                If gcd.clsJobPrevious Then
-
-                    If gcd.clsJobPrevious.gender = cadEntityBuilder.gender Then
-                        If cadEntityBuilder.LastEntity Then
-
-                            gcd.clsJob = gcd.clsJobPrevious
-                            gcd.clsJob.Start()
-
-                        Endif
-
-                    Else
-
-                        If gcd.Drawing.Sheet.EntitiesSelected.Count = 0 Then              'Sin entidades seleccionadas podria significar cancelar
-
-                            gcd.clsJob = gcd.clsJobPrevious
-                            gcd.clsJob.Cancel
-                        Else If gcd.Drawing.Sheet.EntitiesSelected.Count = 1 Then
-                            gcd.clsJob = gcd.clsJobPrevious
-                            gcd.clsJob.Start()
-
-                        Else ' tenemos varias entidades
-                            gcd.clsJob = gcd.clsJobPrevious
-                            gcd.clsJob.Start()
-
-                        End If
-                    End If
-                End If
-            Else
-                ' A.2.1.2 Tengo una seleccion previa -> Menu: Cortar, Copiar, Agrupar, Desagrupar, Llevar al layer actual, etc
-                ' Esto salta solo, pero debo configurarlo en algun lado
-                gcd.clsJob = gcd.clsJobPrevious
-                gcd.clsJob.run()
-
-            End If
-
-        Else
-            ' A.2.2 ToolActive = True? -> Finalizo la seleccion y vuelvo a la Tool
+            ' If gcd.Drawing.Sheet.EntitiesSelected.Count = 0 Then
+            '     ' A.2.1.1 No tengo ninguna seleccion previa-> Repito el ultimo comando, independientemente de si estoy sobre una entidad o no
+            '     If gcd.clsJobPrevious Then
+            '
+            '         If gcd.clsJobPrevious.gender = cadEntityBuilder.gender Then
+            '             If cadEntityBuilder.LastEntity Then
+            '
+            '                 gcd.clsJob = gcd.clsJobPrevious
+            '                 gcd.clsJob.Start()
+            '
+            '             Endif
+            '
+            '         Else
+            '
+            '             If gcd.Drawing.Sheet.EntitiesSelected.Count = 0 Then              'Sin entidades seleccionadas podria significar cancelar
+            '
+            '                 gcd.clsJob = gcd.clsJobPrevious
+            '                 gcd.clsJob.Cancel
+            '             Else If gcd.Drawing.Sheet.EntitiesSelected.Count = 1 Then
+            '                 gcd.clsJob = gcd.clsJobPrevious
+            '                 gcd.clsJob.Start()
+            '
+            '             Else ' tenemos varias entidades
             gcd.clsJob = gcd.clsJobPrevious
             gcd.clsJob.Start()
 
-        End If
-        Return ' este return es para evitar clicks simultaneos
-    End If
+            '             End If
+            '         End If
+            '     End If
+            ' Else
+            '     ' A.2.1.2 Tengo una seleccion previa -> Menu: Cortar, Copiar, Agrupar, Desagrupar, Llevar al layer actual, etc
+            '     ' Esto salta solo, pero debo configurarlo en algun lado
+            '     gcd.clsJob = gcd.clsJobCallBack
+            '     gcd.clsJob.run()
+            '
+            ' End If
 
-    If Mouse.MIddle Then
-
-        ' C.3 Medio -> ActionActive = ActionPanActive -> finalizo el paneo
-        Return ' este return es para evitar clicks simultaneos
-    End If
-
-    gcd.Redraw
-
-End
-
-Public Sub MouseUp2()
-
-    Dim Crossing As Boolean = False
-    Dim s, tipo As String
-    Dim t As Float = Timer
-    Dim e As Entity
-
-    Me.SelEndX = mouse.x
-    Me.SelEndy = mouse.Y
-
-    ' Paso a coordenadas reales
-    Me.StartXr = gcd.Xreal(Me.SelStartX)
-    Me.StartYr = gcd.Yreal(Me.SelStartY)
-    Me.EndXr = gcd.Xreal(Me.SelEndX)
-    Me.Endyr = gcd.Yreal(Me.SelEndy)
-
-    ' If gcd.Drawing.Sheet.Viewport Then
-    '     '
-    '     gcd.Drawing.GLAreaInUse.Mouse = Mouse.Cross
-    '     gcd.flgNewPosition = True
-    '     Me.active = False
-    '     Return
-    ' End If
-    '
-
-    If Mouse.Left Then
-        ' C.1 Izquierdo
-
-        Me.PoiChecking = True
-        If Me.RectActive Then
-            ' C.1.1 ActionActive = ActionRectActive -> Finalizo la seleccion por recuadro
-            Me.RectActive = False
-
-            ' corrijo para start<end
-            If Me.SelStartX > Me.SelEndX Then
-                crossing = True
-                Swap Me.SelStartX, Me.SelEndX
-            Else
-                crossing = False
-            End If
-            If Me.SelStartY < Me.SelEndy Then Swap Me.SelStartY, Me.SelEndy                     ' this is FLIPPED
-
-            tipo = "nueva"
-            If Mouse.Shift Then tipo = "resta" ' estos elementos de la seleccion anterior
-            If Mouse.Control Then tipo = "suma" ' elementos a la seleccion anterior
-
-            ' Paso a coordenadas reales
-            Me.SelStartXr = gcd.Xreal(Me.SelStartX)
-            Me.SelStartYr = gcd.Yreal(Me.SelStartY)
-            Me.SelEndXr = gcd.Xreal(Me.SelEndX)
-            Me.SelEndyr = gcd.Yreal(Me.SelEndy)
-
-            ' veo si el rectangulo es suficientemente grande como para representar una seleccion por rectangulo
-            If (Me.SelEndX - Me.SelStartX + (-Me.SelEndy + Me.SelStartY)) > 10 Then
-
-                Me.selectionCount = clsEntities.SelectionSquare(Me.SelStartXr, Me.SelStartYr, Me.SelEndXr, Me.SelEndyr, tipo, crossing)
-                Debug "Select parsing time ", Timer - t
-
-            Else
-                clsEntities.DeSelection()
-
-            End If
-            e = gcd.Drawing.Sheet.EntitiesSelected[gcd.Drawing.Sheet.EntitiesSelected.Last]
-            If e Then
-                'gcd.Drawing.Sheet.Grips.Clear
-                gcd.CCC[e.Gender].generategrips(e)
-            Endif
-            fProps.FillProperties(gcd.Drawing.Sheet.EntitiesSelected)
-            clsEntities.GLGenDrawListSel()
-
-            Me.Prompt = ("Selected") & " " & Str$(Me.selectionCount) & " " & ("elements")
-
-            If gcd.clsJobCallBack Then
-                Try gcd.clsJobCallBack.run()
-                Return
-            Else
-
-                ' vamos a darle mas funcionalidad
-                If gcd.Drawing.Sheet.EntitiesSelected.Count = 0 Then
-
-                Else If gcd.Drawing.Sheet.EntitiesSelected.Count = 1 Then
-
-                    gcd.Drawing.Sheet.GlSheet.PopupMenu = "mColors"
-
-                Else ' tenemos varias entidades
-
-                    gcd.Drawing.Sheet.GlSheet.PopupMenu = "mEntities"
-
-                End If
-            Endif
-        End If
-
-        If GripPoint Then
-
-            ' C.1.2 ActionActive = ActionGripActive -> Finalizo la edicion por grips
-            ' guardo todo
-            s = GripPoint.ToolTip & (" in ") & GripPoint.AsociatedEntity.Gender
-            gcd.Drawing.uUndo.OpenUndoStage(s, Undo.TypeModify)
-            gcd.Drawing.uUndo.AddUndoItem(Me.OriginalEntityForEdit)
-            Me.OriginalEntityForEdit = Null
-            clsEntities.glGenDrawList(Me.EntityForEdit)
-            clsEntities.glGenDrawListLAyers(Me.EntityForEdit.pLayer)
-            Me.EntityForEdit = Null
-            e = GripPoint.AsociatedEntity
-            gcd.Drawing.Sheet.Grips.Clear
-            gcd.CCC[e.Gender].generategrips(e)
-            GripPoint = Null
+        Else
+            ' A.2.2 ToolActive = True? -> Finalizo la seleccion y vuelvo a la Tool
+            gcd.clsJob = gcd.clsJobCallBack
+            gcd.clsJob.run()
 
         End If
-
-        If Me.Mode = Me.PanActive Then
-            ' C.1.3 ActionActive = ActionPanActive -> nada
-        End If
-
-        If Me.Mode = False Then
-            ' C.1.4.1 Estoy sobre una entidad
-
-        Endif
-        ' C.1.4 ActionActive = 0
-
-        Return ' este return es para evitar clicks simultaneos
-    End If
-
-    If Mouse.Right Then
-        ' C.2 Derecho -> nada
         Return ' este return es para evitar clicks simultaneos
     End If
 
@@ -697,7 +562,7 @@ Public Sub MouseMove()
             Me.SelEndYr = gcd.Near(Me.SelEndYr)
         End If
     End If
-    If Me.Active And Me.ModeRectSelection Then
+    If Me.Active And Me.SelectType <> Me.SelectTypeSingle Then
         ' B.1 ActionActive = ActionRectActive: actualizo coordenadas del punto final del Rect
         ' (se hace mas arriba)
     Else If GripPoint Then
@@ -710,7 +575,7 @@ Public Sub MouseMove()
         Endif
         DrawingAids.txtFrom = GripPoint.ToolTip
 
-    Else If Me.Active And Me.PanActive Then
+    Else If Me.Active And PanActive Then
         ' B.3 ActionActive = ActionPanActive: mando la coordenada a cadPan
         ' (ni siquiera deberiamos estar aca, deberiamos estar en cadPan.class)
     Else
@@ -785,7 +650,7 @@ Public Sub Draw()
 
     Dim flxPoly As New Float[]
 
-    If Me.RectActive Then
+    If RectActive Then
 
         ' si estamos dentro un viewport no hay nada que dibujar, porque no estamos seleccionando nada
         If gcd.Drawing.Sheet.Viewport Then Return
