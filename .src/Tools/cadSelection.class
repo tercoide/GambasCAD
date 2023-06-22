@@ -64,8 +64,8 @@ Public Const SelectModeAdd As Integer = 1
 Public Const SelectModeRem As Integer = 2
 
 Public SelectStyle As Integer = 0
-Public Const SelectStyleNormal As Integer = 0
-Public Const SelectStyleCrossing As Integer = 1
+Public Const SelectStyleFull As Integer = 0             ' las entidades tienen que estar todas dentro del contorno
+Public Const SelectStyleCrossing As Integer = 1         ' las entidades puedn estar parcialmente dentro del contorno
 
 Public SelectionPoly As New Float[]
 
@@ -187,6 +187,7 @@ Public Function MouseDown()
     Dim i As Integer, e As Entity
 
     'Return
+    If RectActive Then Return
 
     'GripPoint = -1
     Me.SelStartX = mouse.X
@@ -327,13 +328,16 @@ Public Sub MouseUp()
             ' C.1.1 ActionActive = ActionRectActive -> Finalizo la seleccion por recuadro
             RectActive = False
 
-            ' corrijo para start<end
-            If Me.SelStartX > Me.SelEndX Then
-                crossing = True
-                Swap Me.SelStartX, Me.SelEndX
-            Else
-                crossing = False
-            End If
+            ' corrijo para start<end  <- DEPRE
+            ' If Me.SelStartX > Me.SelEndX Then
+            '     crossing = True <- DEPRE
+            '     Swap Me.SelStartX, Me.SelEndX
+            ' Else
+            '     crossing = False  <- DEPRE
+            ' End If
+
+            If Me.SelStartX > Me.SelEndX Then Swap Me.SelStartX, Me.SelEndX
+
             If Me.SelStartY < Me.SelEndy Then Swap Me.SelStartY, Me.SelEndy                     ' this is FLIPPED
 
             tipo = "new"
@@ -343,7 +347,7 @@ Public Sub MouseUp()
             ' veo si el rectangulo es suficientemente grande como para representar una seleccion por rectangulo
             If (Me.SelEndX - Me.SelStartX + (-Me.SelEndy + Me.SelStartY)) > 10 Then
 
-                cSel = clsEntities.SelectionSquare(Me.SelStartXr, Me.SelStartYr, Me.SelEndXr, Me.SelEndyr, crossing)
+                cSel = clsEntities.SelectionSquare(Me.SelStartXr, Me.SelStartYr, Me.SelEndXr, Me.SelEndyr, Me.SelectStyle = Me.SelectStyleCrossing)
                 Debug "Select parsing time ", Timer - t
 
                 ' Else ' TODO: ver si tengo que desseleccionar
@@ -368,26 +372,26 @@ Public Sub MouseUp()
             fProps.FillProperties(gcd.Drawing.Sheet.EntitiesSelected)
             clsEntities.GLGenDrawListSel()
 
-            Me.Prompt = ("Selected") & " " & Str$(Me.selectionCount) & " " & ("elements")
+            Me.Prompt = ("Selected") & " " & Str$(gcd.Drawing.Sheet.EntitiesSelected.Count) & " " & ("elements")
 
-            If gcd.clsJobCallBack Then
-                Try gcd.clsJobCallBack.run()
-                Return
-            Else
-
-                ' vamos a darle mas funcionalidad
-                If gcd.Drawing.Sheet.EntitiesSelected.Count = 0 Then
-
-                Else If gcd.Drawing.Sheet.EntitiesSelected.Count = 1 Then
-
-                    'gcd.Drawing.Sheet.GlSheet.PopupMenu = "mColors"
-
-                Else ' tenemos varias entidades
-
-                    'gcd.Drawing.Sheet.GlSheet.PopupMenu = "mEntities"
-
-                End If
-            Endif
+            ' If gcd.clsJobCallBack Then
+            '     Try gcd.clsJobCallBack.run()
+            '     Return
+            ' Else
+            '
+            '     ' vamos a darle mas funcionalidad
+            '     If gcd.Drawing.Sheet.EntitiesSelected.Count = 0 Then
+            '
+            '     Else If gcd.Drawing.Sheet.EntitiesSelected.Count = 1 Then
+            '
+            '         'gcd.Drawing.Sheet.GlSheet.PopupMenu = "mColors"
+            '
+            '     Else ' tenemos varias entidades
+            '
+            '         'gcd.Drawing.Sheet.GlSheet.PopupMenu = "mEntities"
+            '
+            '     End If
+            ' Endif
 
         Else If RectActive = False And Not GripPoint Then
 
@@ -428,7 +432,6 @@ Public Sub MouseUp()
                 If Me.SelectType > 0 Then RectActive = True
                 Me.SelStartX = mouse.x
                 Me.SelStartY = mouse.Y
-
                 ' Paso a coordenadas reales
                 Me.selStartXr = gcd.Xreal(Me.SelStartX)
                 Me.selStartYr = gcd.Yreal(Me.SelStartY)
@@ -540,7 +543,7 @@ Public Sub MouseMove()
     Me.SelEndXr = gcd.Xreal(Me.SelEndX)
     Me.SelEndyr = gcd.Yreal(Me.SelEndy)
 
-    GripHovered = FindGrip(Me.SelStartXr, Me.SelStartYr)
+    GripHovered = FindGrip(Me.SelEndXr, Me.SelEndYr)
 
     ' yo soy el responsable de chequear POI
     If Not gcd.flgSearchingPOI Then
@@ -649,24 +652,27 @@ End
 Public Sub Draw()
 
     Dim flxPoly As New Float[]
+    Dim iColor As Integer
 
+    gl.CallList(gcd.Drawing.GlListEntitiesSelected)
+
+    If Me.SelectStyle = Me.SelectStyleCrossing Then iColor = Color.red Else iColor = Color.Green
     If RectActive Then
 
         ' si estamos dentro un viewport no hay nada que dibujar, porque no estamos seleccionando nada
         If gcd.Drawing.Sheet.Viewport Then Return
         If Me.SelectType = Me.SelectTypeRect Or Me.SelectType = Me.SelectTypeSingleAndRect Then
+            Me.SelectionPoly.Clear  ' aprovecho
 
-            If Me.SelStartX > Me.SelEndX Then                               ' Seleccion crossing, o sea que si cualquier arista del rectangulo cruza el bounding poligon, queda seleccionado
+            glx.Rectangle2D(Me.SelStartXr, Me.SelStartYr, Me.SelEndXr - Me.SelStartXr, Me.SelEndyr - Me.SelStartYr, Color.RGB(224, 220, 207, 215),,,, iColor, 1, gcd.stiDashedSmall, 2)
 
-                glx.Rectangle2D(Me.SelStartXr, Me.SelStartYr, Me.SelEndXr - Me.SelStartXr, Me.SelEndyr - Me.SelStartYr, Color.RGB(224, 220, 207, 215),,,, Color.red, 1, gcd.stiDashedSmall, 2)
-
-            Else                                                            ' seleccion full, todos los puntos deben estar adentro
-
-                glx.Rectangle2D(Me.SelStartXr, Me.SelStartYr, Me.SelEndXr - Me.SelStartXr, Me.SelEndyr - Me.SelStartYr, Color.RGB(224, 220, 207, 215),,,, Color.Green, 1, gcd.stiDashedSmall, 2)
-
-            End If
             Return
         Else If Me.SelectType = Me.SelectTypePoly Then
+            ' como pude habver cambiado en este momento el modo de seleccion, chequeo
+            If Me.SelectionPoly.Count = 0 Then
+                Me.SelectionPoly.Add(Me.SelStartXr)
+                Me.SelectionPoly.Add(Me.SelStartYr)
+            Endif
             flxPoly.Clear
             flxPoly.Insert(Me.SelectionPoly.Copy())
             flxPoly.Add(Me.SelEndXr)
@@ -674,6 +680,8 @@ Public Sub Draw()
             flxPoly.Add(Me.SelectionPoly[0])
             flxPoly.Add(Me.SelectionPoly[1])
             glx.PolyLines(flxPoly, Color.red, 1, gcd.stiDashedSmall)
+        Else
+            Me.SelectionPoly.Clear
 
         End If
 
