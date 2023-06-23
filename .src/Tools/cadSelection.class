@@ -63,9 +63,7 @@ Public Const SelectModeNew As Integer = 0
 Public Const SelectModeAdd As Integer = 1
 Public Const SelectModeRem As Integer = 2
 
-Public SelectStyle As Integer = 0
-Public Const SelectStyleFull As Integer = 0             ' las entidades tienen que estar todas dentro del contorno
-Public Const SelectStyleCrossing As Integer = 1         ' las entidades puedn estar parcialmente dentro del contorno
+Public SelectCrossing As Boolean = False                ' las entidades puedn estar parcialmente dentro del contorno
 
 Public SelectionPoly As New Float[]
 
@@ -299,7 +297,6 @@ End
 
 Public Sub MouseUp()
 
-    Dim Crossing As Boolean = False
     Dim s, tipo As String
     Dim t As Float = Timer
     Dim e As Entity
@@ -337,8 +334,10 @@ Public Sub MouseUp()
             ' End If
 
             If Me.SelStartX > Me.SelEndX Then Swap Me.SelStartX, Me.SelEndX
-
             If Me.SelStartY < Me.SelEndy Then Swap Me.SelStartY, Me.SelEndy                     ' this is FLIPPED
+
+            If Me.SelStartXr > Me.SelEndXr Then Swap Me.SelStartXr, Me.SelEndXr
+            If Me.SelStartYr > Me.SelEndyr Then Swap Me.SelStartYr, Me.SelEndyr                     ' this is FLIPPED
 
             tipo = "new"
             If Mouse.Shift Or Me.SelectMode = Me.SelectModeRem Then tipo = "rem" ' estos elementos de la seleccion anterior
@@ -347,7 +346,7 @@ Public Sub MouseUp()
             ' veo si el rectangulo es suficientemente grande como para representar una seleccion por rectangulo
             If (Me.SelEndX - Me.SelStartX + (-Me.SelEndy + Me.SelStartY)) > 10 Then
 
-                cSel = clsEntities.SelectionSquare(Me.SelStartXr, Me.SelStartYr, Me.SelEndXr, Me.SelEndyr, Me.SelectStyle = Me.SelectStyleCrossing)
+                cSel = clsEntities.SelectionSquare(Me.SelStartXr, Me.SelStartYr, Me.SelEndXr, Me.SelEndyr, Me.SelectCrossing)
                 Debug "Select parsing time ", Timer - t
 
                 ' Else ' TODO: ver si tengo que desseleccionar
@@ -359,7 +358,7 @@ Public Sub MouseUp()
             e = gcd.Drawing.Sheet.EntitiesSelected[gcd.Drawing.Sheet.EntitiesSelected.Last]
 
             ' determino que hacer con la seleccion
-            If gcd.toolactive And Me.ReturnOnFirstSelection Then
+            If gcd.clsJobCallBack And Me.ReturnOnFirstSelection Then
                 gcd.clsJob = gcd.clsJobCallBack
                 gcd.clsJobCallBack = Null
                 gcd.clsJob.run
@@ -403,7 +402,7 @@ Public Sub MouseUp()
                     ' A.1.2.1 No esta seleccionada -> seleccionar
                     If Not gcd.Drawing.Sheet.EntitiesSelected.Exist(gcd.Drawing.HoveredEntity.Id) Then gcd.Drawing.Sheet.EntitiesSelected.add(gcd.Drawing.HoveredEntity, gcd.Drawing.HoveredEntity.Id)
 
-                    If gcd.toolactive And Me.ReturnOnFirstSelection Then
+                    If gcd.clsJobCallBack And Me.ReturnOnFirstSelection Then
                         gcd.clsJob = gcd.clsJobCallBack
                         gcd.clsJobCallBack = Null
                         gcd.clsJob.run
@@ -476,7 +475,38 @@ Public Sub MouseUp()
     ' A.2 Derecho
     If Mouse.Right Then
 
-        If Not gcd.toolactive Then
+        If RectActive And Me.SelectType = Me.SelectTypePoly Then
+
+            ' C.1.1 Finalizo la seleccion por POLY
+            RectActive = False
+
+            tipo = "new"
+            If Mouse.Shift Or Me.SelectMode = Me.SelectModeRem Then tipo = "rem" ' estos elementos de la seleccion anterior
+            If Mouse.Control Or Me.SelectMode = Me.SelectModeAdd Then tipo = "add" ' elementos a la seleccion anterior
+
+            cSel = clsEntities.SelectionPoly(Me.SelectionPoly, Me.SelectCrossing)
+            Me.SelectionPoly.Clear
+            gcd.Drawing.Sheet.EntitiesSelected = clsEntities.SelectionCombine(gcd.Drawing.Sheet.EntitiesSelected, cSel, tipo)
+
+            ' determino que hacer con la seleccion
+            If gcd.clsJobCallBack And Me.ReturnOnFirstSelection Then
+                gcd.clsJob = gcd.clsJobCallBack
+                gcd.clsJobCallBack = Null
+                gcd.clsJob.run
+                Return
+            Endif
+
+            e = gcd.Drawing.Sheet.EntitiesSelected[gcd.Drawing.Sheet.EntitiesSelected.Last]
+            If e Then
+                'gcd.Drawing.Sheet.Grips.Clear
+                gcd.CCC[e.Gender].generategrips(e)
+            Endif
+            fProps.FillProperties(gcd.Drawing.Sheet.EntitiesSelected)
+            clsEntities.GLGenDrawListSel()
+
+            Me.Prompt = ("Selected") & " " & Str$(gcd.Drawing.Sheet.EntitiesSelected.Count) & " " & ("elements")
+
+        Else If Not gcd.toolactive Then
             ' A.2.1 ToolActive = False?
             ' If gcd.Drawing.Sheet.EntitiesSelected.Count = 0 Then
             '     ' A.2.1.1 No tengo ninguna seleccion previa-> Repito el ultimo comando, independientemente de si estoy sobre una entidad o no
@@ -654,9 +684,9 @@ Public Sub Draw()
     Dim flxPoly As New Float[]
     Dim iColor As Integer
 
-    gl.CallList(gcd.Drawing.GlListEntitiesSelected)
+    Super.Draw()
 
-    If Me.SelectStyle = Me.SelectStyleCrossing Then iColor = Color.red Else iColor = Color.Green
+    If Me.SelectCrossing Then iColor = Color.red Else iColor = Color.Green
     If RectActive Then
 
         ' si estamos dentro un viewport no hay nada que dibujar, porque no estamos seleccionando nada
@@ -668,6 +698,9 @@ Public Sub Draw()
 
             Return
         Else If Me.SelectType = Me.SelectTypePoly Then
+
+            fMain.PopupMenu = ""                    ' no hay menu contextual
+
             ' como pude habver cambiado en este momento el modo de seleccion, chequeo
             If Me.SelectionPoly.Count = 0 Then
                 Me.SelectionPoly.Add(Me.SelStartXr)

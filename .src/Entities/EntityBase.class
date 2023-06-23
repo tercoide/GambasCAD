@@ -466,4 +466,97 @@ End
 '' by default, if ALL points are selected, it can.
 Public Function SelFullPoly(eTesting As Entity, Poly As Float[]) As Boolean
 
+    Dim ii As Integer, puedo As Boolean
+    Dim TestX, TestY As Float
+    Dim i As Integer
+
+    Select Case eTesting.Gender
+
+        Case Else
+
+            ' Si tengo un bounding poligon, entonces verifico que todos los puntos esten dentro
+            If eTesting.Polygon.Count > 0 Then
+
+                Return puntos.isInsIdePolygons(eTesting.Polygon, POLY)
+
+            Else If eTesting.PolyLine.Count > 0 Then
+                Return puntos.isInsIdePolygons(eTesting.PolyLine, pOLY)
+
+            Else
+
+                Return puntos.isInsIdePolygons(eTesting.P, POLY)
+
+            End If
+
+    End Select
+
+End
+
+'' Determines if the entity
+'' by default, if ANY point is selected, it can.
+Public Function SelPartialPoly(eTesting As Entity, Poly As Float[]) As Boolean
+
+    Dim ii As Integer, puedo As Boolean = False
+    Dim oLoop As Hatch, flxPoly As Float[]
+    Dim TestX, TestY As Float
+    Dim i As Integer
+
+    Select Case eTesting.Gender
+
+        Case "Hatch"
+
+            'For Each oLoop In eTesting.pBlock
+
+            For Each flxPoly In eTesting.pBlock.Polylines
+
+                puedo = puntos.isInsIdePolygons(flxPoly.Polygon, POLY)
+                If puedo Then Break
+
+            Next
+            'Next
+
+        Case Else
+
+            ' Si tengo un bounding poligon, entonces verifico que todos los puntos esten dentro
+            If eTesting.Polygon.Count > 0 Then
+
+                ' Si tengo un bounding poligon, entonces verifico que alguna linea lo cruce
+                For i = 0 To eTesting.Polygon.max Step 2
+                    If puntos.isInsIde(poly, eTesting.Polygon[i], eTesting.PolyLine[i + 1]) Then
+                        Return True
+                    Endif
+                Next
+
+            Else If eTesting.PolyLine.Count > 0 Then
+
+                For i = 0 To eTesting.PolyLine.max Step 2
+                    If puntos.isInsIde(poly, eTesting.PolyLine[i], eTesting.PolyLine[i + 1]) Then
+                        Return True
+                    Endif
+                Next
+
+            Else
+                ' si cualquier linea cruza alguna linea de la eentiidad, esta queda seleccionada
+
+                For i = 0 To eTesting.p.max Step 2
+                    If i + 1 > eTesting.p.max Then Break
+                    If i / 2 > eTesting.Psel.Max Then Break
+                    If puntos.isInsIde(poly, eTesting.P[i], eTesting.P[i + 1]) Then
+                        eTesting.PSel[i / 2] = True
+                        puedo = True
+                    End If
+
+                Next
+
+            End If
+
+    End Select
+
+    If puedo Then
+
+        Return True
+    Else
+        Return False
+    End If
+
 End
