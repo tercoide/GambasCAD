@@ -25,7 +25,7 @@ Create Static
 Public Const Gender As String = "BREAK"
 
 Public Offset As Float
-Public iEntitySelected As Integer
+Private EntitySelected As Entity
 ' Workflow
 '   1 Select entity
 '   2 If entity is valid to offset, select point to split it
@@ -44,22 +44,23 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
 
     If gcd.Drawing.Sheet.EntitiesSelected.Count <> 1 Then
         clsEntities.DeSelection()
-        DrawingAIds.Helper.texto = Me.Prompt & ": " & ("Select only one entity")
-        gcd.clsJobPrevious = Me
+        Me.Prompt &= ": " & ("Select only one entity")
+        gcd.clsJobCallBack = Me
         gcd.clsJob = cadSelection
+        cadSelection.Prompt = Me.Prompt
+        cadSelection.ReturnOnFirstSelection = True
         gcd.clsJob.start()
 
     Else
         ' verificamos si la entidad puede ser partida
-        Me.iEntitySelected = gcd.Drawing.arrSelecIndex[0]
 
-        Select Case gcd.Drawing.Sheet.Entities[Me.iEntitySelected].Gender
+        EntitySelected = gcd.Drawing.Sheet.EntitiesSelected[gcd.Drawing.Sheet.EntitiesSelected.First]
+        Select Case EntitySelected.Gender
             Case "LINE", "LWPOLYLINE", "CIRCLE", "ARC", "ELLIPSE", "SPLINE"
-                clsEntities.SelectElem(Me.iEntitySelected)
-                DrawingAIds.Helper.texto = ("Breakpoint of entity")
+                Me.Prompt = ("Break") & " " & ("Breakpoint of entity")
                 Me.PointsDone = 1
             Case Else
-                Me.iEntitySelected = -1
+                EntitySelected = Null
                 DrawingAIds.ErrorMessage = ("Can't break that entity")
         End Select
 
@@ -79,14 +80,14 @@ Public Function MouseUp()
     ' si llegue aca es porque ya tengo una entidad seleccionada
 
     ' verifico que este sobre la entidad a romper
-    If Me.PointsDone = 1 Then ' estoy intentando seleccionar una entidad
+    If Me.PointsDone = 1 Then
 
-        If gcd.Drawing.HoveredEntity <> Me.iEntitySelected Then ' el mouse se fue de la entidad a romper
+        If gcd.Drawing.HoveredEntity <> EntitySelected Then ' el mouse se fue de la entidad a romper
             DrawingAIds.ErrorMessage = ("InvalId breakpoint")
             Return
         End If
         ' FIXME error
-        'gcd.Drawing.oEntities[Me.iEntitySelected]       ' esto lo hago para reducir el largo del codigo
+        e = EntitySelected       ' esto lo hago para reducir el largo del codigo
         Select Case e.Gender
             Case "LINE"
                 flxIntersec = clsMouseTracking.GetNearestPoint(e, Me.SelStartXr, Me.SelStartYr)
@@ -110,8 +111,8 @@ Public Function MouseUp()
                 gcd.CCC[e.gender].finish(e)                ' para regenerar los POI
 
                 ' regenro las listas openGL de ambas entidades
-                clsEntities.glGenDrawList(Me.iEntitySelected)
-                clsEntities.glGenDrawList(gcd.Drawing.Sheet.Entities)
+                clsEntities.glGenDrawList(e)
+                clsEntities.glGenDrawList(e2)
 
                 Me.Finish
 

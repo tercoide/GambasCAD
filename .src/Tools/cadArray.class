@@ -41,6 +41,10 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _mode As Integer
 
     ' Aprovechamos para establecer los helpers (comentarios de ayuda en pantalla)
     Me.PointsDone = 0
+    ' 0 = elegir entidades
+    ' 1 = elegir tipo de array, Ortogonal o Polar
+    ' 2 = elegir
+
     Me.PointsTotal = 2                 ' orto: Punto base + Nx + Dx + Ny + Dy   , polar = Punto base + N + angulo
 
     ny = 1
@@ -56,40 +60,59 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _mode As Integer
     ' chequeamos si hubo seleccion previa
     If gcd.Drawing.Sheet.EntitiesSelected.Count = 0 Then                                     ' we have no elements in the selection
 
-        DrawingAIds.Helper.texto = Me.Prompt & ": " & ("Select entities")
+        Me.Prompt &= ": " & ("Select entities")
 
-        gcd.clsJobPrevious = Me
+        gcd.clsJobCallBack = Me
         gcd.clsJob = cadSelection
+        cadSelection.Prompt = Me.Prompt
+        cadSelection.ReturnOnFirstSelection = False
         gcd.clsJob.start()
 
     Else
         '    DrawingAids.Helper.texto = DrawingAids.CmdLineHelper & ": " & ("Base point")
-        DrawingAIds.Helper.texto = Me.Prompt & ": " & ("Orthogonal or polar") & " [o]"
+        Me.Prompt &= ": " & ("Orthogonal or polar") & " [o]"
         Inc Me.PointsDone
-        Me.Prompt = Me.Prompt & Str(gcd.Drawing.Sheet.EntitiesSelected.count) & ("elements")
+        Me.Prompt &= Str(gcd.Drawing.Sheet.EntitiesSelected.count) & ("elements")
 
     Endif
+    gcd.Drawing.Sheet.GlSheet.PopupMenu = ""
+    fmain.PopupMenu = ""
 
     Me.Active = True
     gcd.ToolActive = True
 
 End
 
-Public Function MouseUp()
+'' cadSelection o algun otro proceso nos devuelve el control
+Public Sub Run()
 
-    If Me.PointsDone = 0 Then
-        ' punto real base
-        Me.SelStartXr = gcd.Near(gcd.Xreal(mouse.x))
-        Me.SelStartYr = gcd.Near(gcd.Yreal(mouse.y))
-        Inc Me.PointsDone
+    Dim e As Entity
 
-        DrawingAIds.Helper.texto = Me.Prompt & ": " & ("Orthogonal or polar") & " [o]"
+    Me.SelEndXr = cadSelection.SelEndXr ' gcd.Xreal(mouse.x)
+    Me.SelEndyr = cadSelection.SelEndyr 'gcd.Yreal(mouse.y)
+    Select Case Me.PointsDone
+        Case 0  ' estamos recolectando entidades
 
-    End If
+            ' recolecto las tijeras
+            If gcd.Drawing.Sheet.EntitiesSelected.Count = 0 Then ' insisto
+                gcd.clsJobCallBack = Me
+                gcd.clsJob = cadSelection
+                cadSelection.Prompt = Me.Prompt
+                cadSelection.ReturnOnFirstSelection = False
+            Else
+                '    DrawingAids.Helper.texto = DrawingAids.CmdLineHelper & ": " & ("Base point")
+                Me.Prompt &= ": " & ("Orthogonal or polar") & " [o] "
+                Inc Me.PointsDone
+                Me.Prompt &= Str(gcd.Drawing.Sheet.EntitiesSelected.count) & ("elements") & " " & ("selected")
+
+            End If
+        Case 1
+
+    End Select
 
 End
 
-Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD en el evento FCAD_KeyPress cuando recibe una texto + <Enter>
+Public Function KeyText(EnteredText As String)
 
     If Me.PointsDone = 1 Then                     ' estamos esperando que nos responda si quere Ortogonal o Polar
 
@@ -97,11 +120,11 @@ Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD
 
             Me.mode = 1
             Inc Me.PointsDone
-            DrawingAIds.Helper.texto = Me.Prompt & ": " & ("Columns") & " [1]"
+            Me.Prompt &= ": " & ("Columns") & " [1]"
         Else If Left$(UCase$(EnteredText), 1) = "P" Then
             Me.mode = 2
             Inc Me.PointsDone
-            DrawingAIds.Helper.texto = Me.Prompt & ": " & ("Repetitions") & " [1]"
+            Me.Prompt &= ": " & ("Repetitions") & " [1]"
         Else
 
             DrawingAIds.ErrorMessage = ("Bad input")
@@ -113,12 +136,18 @@ Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD
             Try Nx = CInt(EnteredText)
             If Nx = 0 Then nx = 1
             Inc Me.PointsDone
-            DrawingAIds.Helper.texto = Me.Prompt & ": " & ("Distance") & " X=[0]"
+            If nx > 1 Then
+                Me.Prompt &= ": " & ("Distance") & " X=[0]"
+            Else
+                Me.Prompt &= ": " & ("Rows") & " [1]"
+                Inc Me.PointsDone
+            End If
+
         Else                                         ' polar -> N
             Try Np = CInt(EnteredText)
             If np = 0 Then np = 1
             Inc Me.PointsDone
-            DrawingAIds.Helper.texto = Me.Prompt & ": " & ("Angle") & " [45]"
+            Me.Prompt &= ": " & ("Angle") & " [45]"
         End If
 
     Else If Me.PointsDone = 3 Then
@@ -126,9 +155,10 @@ Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD
         If Me.mode = 1 Then                             ' ortog->Dx
             Try Dx = CFloat(EnteredText)
             Inc Me.PointsDone
-            DrawingAIds.Helper.texto = Me.Prompt & ": " & ("Rows") & " [1]"
+            Me.Prompt &= ": " & ("Rows") & " [1]"
         Else                                         ' polar -> N
             Try Dp = Rad(CFloat(EnteredText))
+            If dp = 0 Then dp = Rad(45)
             Me.Finish
 
         End If
@@ -138,7 +168,12 @@ Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD
         Try Ny = CInt(EnteredText)
         If Ny = 0 Then ny = 1
         Inc Me.PointsDone
-        DrawingAIds.Helper.texto = Me.Prompt & ": " & ("Distance") & " Y=[0]"
+        If ny > 1 Then
+            Me.Prompt &= ": " & ("Distance") & " Y=[0]"
+        Else
+            Inc Me.PointsDone
+            Me.Finish
+        End If
 
     Else If Me.PointsDone = 5 Then
 
@@ -186,7 +221,7 @@ Public Sub Finish()
 
         For rY = 2 To Np
 
-            For Each o In gcd.Drawing.Sheet.Entities
+            For Each o In gcd.Drawing.Sheet.EntitiesSelected
                 newO = clsEntities.ClonEntity(o)               ' devuelve una entidad en exactamente la misma posicion
                 Gcd.CCC[newO.gender].translate(newO, -Me.SelStartXr, -Me.SelStartYr)
                 Gcd.CCC[newO.gender].rotate(newO, dp * (ry - 1))
@@ -205,6 +240,7 @@ Public Sub Finish()
     'clsEntities.FillLayersWithEntities()
 
     gcd.clsJobPrevious = Me
+
     gcd.clsJob = cadSelection
     DrawingAIds.CleanTexts
     clsEntities.DeSelection()
