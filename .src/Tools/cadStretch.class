@@ -32,32 +32,51 @@ Public dY As Float
 ' estirarlas y dibujarlas individualemnte. Dificilmente haya muchas entidades a estirar.
 
 Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer = 0) As Boolean
-    ' Llamada por FCAD al inicio de la aplicacion de esta herramienta
 
-    ' Aprovechamos para establecer los helpers (comentarios de ayuda en pantalla)
     Me.PointsDone = 0
     Me.PointsTotal = 2
-
-    Me.Prompt = ("Stretch") & " "
-
-    If gcd.Drawing.Sheet.EntitiesSelected.Count = 0 Then                                     ' we have no elements in the selection
-
-        DrawingAIds.Helper.texto = Me.Prompt & ": " & ("Select entities")
-
-        gcd.clsJobPrevious = Me
-        gcd.clsJob = cadSelection
-        gcd.clsJob.Start(1) ' Stretch mode
-
-    Else                                                                    ' need the first point
-        Me.NextParamType = "P"
-        DrawingAIds.Helper.texto = Me.Prompt & ": " & ("Base point")
-        Me.Prompt = Me.Prompt & Str(gcd.Drawing.Sheet.EntitiesSelected.count) & " " & ("elements") & ": " & ("Base point")
-
-    Endif
+    Run
     Me.Active = True
+    gcd.Drawing.Sheet.GlSheet.PopupMenu = ""
+    fmain.PopupMenu = ""
 
 End
 
+'' cadSelection o algun otro proceso nos devuelve el control
+Public Sub Run()
+
+    If gcd.Drawing.Sheet.EntitiesSelected.Count = 0 Then                                     ' we have no elements in the selection
+
+        Me.Prompt = ("Stretch") & ": " & ("Select entities")
+
+        gcd.clsJobCallBack = Me
+        gcd.clsJob = cadSelection
+        cadSelection.Prompt = Me.Prompt
+        cadSelection.ReturnOnFirstSelection = False
+
+    Else                                                                    ' need the first point
+
+        'DrawingAids.CmdLineHelper = DrawingAids.CmdLineHelper & ": " & ("Base point")
+        Me.Prompt = ("Stretch") & " " & Str(gcd.Drawing.Sheet.EntitiesSelected.Count) & " " & ("elements") & "-> " & ("Base point") & ":"
+
+        Me.NextParamType = "P"
+
+        Me.PointsDone = 1
+
+        gcd.SnapMode = Config.SnapModeSaved                 ' vuelvo al Snap Guardado
+
+        clsEntities.GLGenDrawListSel(0)                     ' genero drawing lists
+        clsEntities.GLGenDrawListAll(True)
+
+        ' gcd.Drawing.uUndo.OpenUndoStage("Move entities", Undo.TypeModify)
+        ' For Each E In gcd.Drawing.EntitiesSelected
+        '     gcd.Drawing.uUndo.AddUndoItem(clsEntities.ClonEntity(E, False))
+        ' Next
+        gcd.Redraw
+
+    Endif
+
+End
 ' Public Function NewParameter(vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
 '
 '     If vParam[0] = "point" Then
@@ -104,8 +123,6 @@ End
 
 Public Function MouseUp()
 
-    Inc Me.PointsDone
-
     If Me.PointsDone = 1 Then ' acabo de marcar el punto base
 
         ' ya tengo cosas seleccionadas
@@ -120,6 +137,7 @@ Public Function MouseUp()
         dY = Me.SelStartYr
         ' prevenir acciones tontas como hacer click en otro elemento antes de terminar con el actual
         ' TODO: reparar -> gcd.CurrDrawing.DesHabilitarBotones
+        Inc Me.PointsDone
     Else If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
         ' permitir otros trabajos
         ' TODO: reparar -> gcd.CurrDrawing.HabilitarBotones
@@ -221,7 +239,7 @@ Public Sub Finish()
         ' and now we move
         'clsEntities.Move(Me.SelEndXr - Me.SelStartXr, Me.SelEndyr - Me.SelStartYr, True, True)
 
-        clsEntities.Finish
+        'clsEntities.Finish
 
     Endif
 

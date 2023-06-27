@@ -59,6 +59,40 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
 
 End
 
+'' cadSelection o algun otro proceso nos devuelve el control
+Public Sub Run()
+
+    Dim e As Entity
+
+    If gcd.Drawing.Sheet.EntitiesSelected.Count = 0 Then                                     ' we have no elements in the selection
+
+        Me.Prompt = "Offset: " & ("select an entity") & "/<Esc>"
+
+        gcd.clsJobCallBack = Me
+        gcd.clsJob = cadSelection
+        cadSelection.Prompt = Me.Prompt
+        cadSelection.ReturnOnFirstSelection = True
+
+    Else
+
+        For Each e In gcd.Drawing.Sheet.EntitiesSelected
+            Select Case e.Gender
+                Case "LINE", "LWPOLYLINE", "CIRCLE", "ARC", "ELLIPSE", "SPLINE"
+                    Me.Prompt = "Offset: " & ("Side to offset")
+                    Me.PointsDone = 2
+                    Break
+                Case Else
+                    clsEntities.DeSelection()
+                    DrawingAIds.ErrorMessage = ("Can't offset those entities")
+
+            End Select
+
+        Next
+
+    Endif
+
+End
+
 Public Function CheckValidEntities() As Boolean
 
     Dim e As Entity
@@ -83,33 +117,14 @@ Public Function MouseUp()
     Dim e, eNew, e2 As Entity
     Dim flxItersec As Float[]
 
-    If Me.PointsDone = 1 Then ' estoy intentando seleccionar una entidad
-
-        If gcd.Drawing.Sheet.EntitiesSelected.Count > 0 Then
-            For Each e In gcd.Drawing.Sheet.EntitiesSelected
-
-                Select Case e.Gender
-                    Case "LINE", "LWPOLYLINE", "CIRCLE", "ARC", "ELLIPSE", "SPLINE"
-                        Me.Prompt = "Offset: " & ("Side to offset")
-                        Me.PointsDone = 2
-                    Case Else
-                        DrawingAIds.ErrorMessage = ("Can't offset those entities")
-                        Break
-                End Select
-            Next
-
-            ' punto real base
-            Me.SelStartXr = gcd.Xreal(mouse.x)
-            Me.SelStartYr = gcd.Yreal(mouse.y)
-        End If
-
-    Else If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
+    If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
         Me.SelEndXr = gcd.Xreal(mouse.x)
         Me.SelEndYr = gcd.Yreal(mouse.y)
         For Each e2 In gcd.Drawing.Sheet.EntitiesSelected
 
             ' creo una nueva entidad en el mismo lugar
             e = clsEntities.ClonEntity(e2)
+            gcd.Drawing.Sheet.Entities.Add(e, e.id)
             gcd.CCC[e.gender].Finish(e)
 
             Select Case e.Gender
@@ -168,9 +183,9 @@ Public Function MouseUp()
             End Select
         Next
         clsEntities.glGenDrawList()
-        'clsEntities.glGenDrawListAll
+        clsEntities.DeSelection()
         gcd.Redraw
-        Me.Prompt = "Offset: " & ("select an entity") & "/<Esc>"
+        Run
 
         Me.PointsDone = 1
 
@@ -268,9 +283,10 @@ Public Sub KeyText(EnteredText As String)
                 Offset = CFloat(EnteredText)
 
             Endif
-            Me.Prompt = "Offset: " & ("select an entity")
+            'Me.Prompt = "Offset: " & ("select an entity")
 
             Inc Me.PointsDone
+            Run
 
         Case "C"                                ' color
             ' If Dialog.SelectColor() Then

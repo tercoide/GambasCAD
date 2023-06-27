@@ -34,23 +34,46 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
     ' Aprovechamos para establecer los helpers (comentarios de ayuda en pantalla)
     Me.PointsDone = 0
     Me.PointsTotal = 2
+    Run
+    Me.Active = True
+    gcd.Drawing.Sheet.GlSheet.PopupMenu = ""
+    fmain.PopupMenu = ""
 
-    Me.Prompt = ("Scale") & " "
+End
+
+'' cadSelection o algun otro proceso nos devuelve el control
+Public Sub Run()
 
     If gcd.Drawing.Sheet.EntitiesSelected.Count = 0 Then                                     ' we have no elements in the selection
 
-        DrawingAIds.Helper.texto = Me.Prompt & ": " & ("Select entities")
+        Me.Prompt = ("Scale") & ": " & ("Select entities")
 
-        gcd.clsJobPrevious = Me
+        gcd.clsJobCallBack = Me
         gcd.clsJob = cadSelection
+        cadSelection.Prompt = Me.Prompt
+        cadSelection.ReturnOnFirstSelection = False
 
     Else                                                                    ' need the first point
 
-        DrawingAIds.Helper.texto = Me.Prompt & ": " & ("Base point")
-        Me.Prompt = Me.Prompt & Str(gcd.Drawing.Sheet.EntitiesSelected.count) & " " & ("elements") & ": " & ("Base point")
+        'DrawingAids.CmdLineHelper = DrawingAids.CmdLineHelper & ": " & ("Base point")
+        Me.Prompt = ("Scale") & " " & Str(gcd.Drawing.Sheet.EntitiesSelected.Count) & " " & ("elements") & "-> " & ("Base point") & ":"
+
+        Me.NextParamType = "P"
+
+        Me.PointsDone = 1
+
+        gcd.SnapMode = Config.SnapModeSaved                 ' vuelvo al Snap Guardado
+
+        clsEntities.GLGenDrawListSel(0)                     ' genero drawing lists
+        clsEntities.GLGenDrawListAll(True)
+
+        ' gcd.Drawing.uUndo.OpenUndoStage("Move entities", Undo.TypeModify)
+        ' For Each E In gcd.Drawing.EntitiesSelected
+        '     gcd.Drawing.uUndo.AddUndoItem(clsEntities.ClonEntity(E, False))
+        ' Next
+        gcd.Redraw
 
     Endif
-    Me.Active = True
 
 End
 
@@ -58,12 +81,10 @@ Public Function MouseUp()
 
     Dim i As Integer, E As Entity
 
-    Inc Me.PointsDone
-
     If Me.PointsDone = 1 Then ' acabo de marcar el punto base
 
         ' ya tengo cosas seleccionadas
-        DrawingAIds.Helper.texto = ("Final point")
+        Me.Prompt = ("Scale") & " " & Str(gcd.Drawing.Sheet.EntitiesSelected.Count) & " " & ("elements") & "-> " & ("Final point")
 
         ' ' punto real base
         ' Me.SelStartXr = gcd.Near(gcd.Xreal(mouse.x))
@@ -85,7 +106,7 @@ Public Function MouseUp()
         Next
         gl.EndList
         gl.PopMatrix
-
+        Inc Me.PointsDone
         ' prevenir acciones tontas como hacer click en otro elemento antes de terminar con el actual
         ' TODO: reparar -> gcd.CurrDrawing.DesHabilitarBotones
     Else If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
@@ -125,11 +146,11 @@ Public Function MouseMove()
             Y = gcd.Drawing.iEntity[1]
         End If
     End If
-    If Me.PointsDone = 0 Then
+    If Me.PointsDone = 1 Then
         Me.SelStartXr = X
         Me.SelStartYr = Y
 
-    Else If Me.PointsDone = 1 Then
+    Else If Me.PointsDone = 2 Then
         ' we compare Real values from the starting point to the location
         ' represente by the mouse now, taking account that the drawing
         ' could have being moved by the mouse wheel

@@ -37,35 +37,52 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
     Me.PointsDone = 0
     Me.PointsTotal = 2
 
-    Me.Prompt = ("Rotate") & " "
+    run
+    Me.Active = True
+    gcd.Drawing.Sheet.GlSheet.PopupMenu = ""
+    fmain.PopupMenu = ""
+
+End
+
+'' cadSelection o algun otro proceso nos devuelve el control
+Public Sub Run()
 
     If gcd.Drawing.Sheet.EntitiesSelected.Count = 0 Then                                     ' we have no elements in the selection
 
-        Me.Prompt = ("Select entities to ROTATE")
+        Me.Prompt = ("Rotate") & ": " & ("Select entities")
 
-        DrawingAIds.Helper.texto = Me.Prompt & ": " & ("Select entities")
-
-        gcd.clsJobPrevious = Me
+        gcd.clsJobCallBack = Me
         gcd.clsJob = cadSelection
+        cadSelection.Prompt = Me.Prompt
+        cadSelection.ReturnOnFirstSelection = False
 
-    Else
-        Me.Prompt = CStr(gcd.Drawing.Sheet.EntitiesSelected.Count) & ("selected entities to ROTATE, mark base point") & ("or _ADD/_REM to modify selection")
-        ' need the first point
-        DrawingAIds.Helper.texto = ("ROTATE") & ":" & ("mark Base point")
-        'DrawingAids.CmdLineHelper = DrawingAids.CmdLineHelper & Str(gcd.Drawing.SelectedEntities.count) & " " & ("elements")
+    Else                                                                    ' need the first point
 
+        'DrawingAids.CmdLineHelper = DrawingAids.CmdLineHelper & ": " & ("Base point")
+        Me.Prompt = ("Rotate") & " " & Str(gcd.Drawing.Sheet.EntitiesSelected.Count) & " " & ("elements") & "-> " & ("Base point") & ":"
+
+        Me.NextParamType = "P"
+
+        Me.PointsDone = 1
+
+        gcd.SnapMode = Config.SnapModeSaved                 ' vuelvo al Snap Guardado
+
+        clsEntities.GLGenDrawListSel(0)                     ' genero drawing lists
+        clsEntities.GLGenDrawListAll(True)
+
+        ' gcd.Drawing.uUndo.OpenUndoStage("Move entities", Undo.TypeModify)
+        ' For Each E In gcd.Drawing.EntitiesSelected
+        '     gcd.Drawing.uUndo.AddUndoItem(clsEntities.ClonEntity(E, False))
+        ' Next
         gcd.Redraw
 
     Endif
-    Me.Active = True
 
 End
 
 Public Function MouseUp()
 
     Dim i As Integer, E As Entity
-
-    Inc Me.PointsDone
 
     If Me.PointsDone = 1 Then ' acabo de marcar el punto base
 
@@ -89,6 +106,7 @@ Public Function MouseUp()
         gl.EndList
         gl.PopMatrix
 
+        Inc Me.PointsDone
         ' prevenir acciones tontas como hacer click en otro elemento antes de terminar con el actual
         ' TODO: reparar -> gcd.CurrDrawing.DesHabilitarBotones
     Else If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
@@ -109,7 +127,7 @@ Public Function MouseMove() ' called by FCAD-> DrawingArea_MouseMove
 
     Super.MouseMove()
 
-    If Me.PointsDone = 1 Then
+    If Me.PointsDone = 2 Then
         '     ' we compare Real values from the starting point to the location
         '     ' represente by the mouse now, taking account that the drawing
         '     ' could have being moved by the mouse wheel
@@ -122,7 +140,7 @@ Public Function MouseMove() ' called by FCAD-> DrawingArea_MouseMove
 
         Me.glAngle = Deg(Radianes)
 
-        DrawingAIds.Helper.texto = Me.Prompt & ": " & ("Angle") & " [90]" & Format$(Me.glAngle, "0.0")
+        Me.Prompt = ("Rotate") & ": " & ("Angle") & " [" & Format$(Me.glAngle, "0.0") & "]"
 
     End If
 
@@ -133,6 +151,7 @@ End
 Public Sub Draw()
 
     gl.PushMatrix
+    gl.Translatef(gcd.Drawing.Sheet.PanBaseRealX, gcd.Drawing.Sheet.PanBaseRealY, 0)
     gl.Translatef(Me.glTranslate[0], Me.glTranslate[1], Me.glTranslate[2])
     gl.Rotatef(Me.glAngle, Me.glRotate[0], Me.glRotate[1], Me.glRotate[2])
     gl.CallList(gcd.Drawing.GlListEntitiesSelected)
