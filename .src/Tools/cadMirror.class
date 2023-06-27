@@ -39,28 +39,37 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
     Me.PointsDone = 0
     Me.PointsTotal = 3
 
-    Me.Prompt = ("Mirror") & " "
-
     ' chequeamos si hubo seleccion previa
+
+    Run
+
+    Me.Active = True
+
+    gcd.Drawing.Sheet.GlSheet.PopupMenu = ""
+    fmain.PopupMenu = ""
+    DrawingAIds.Helper.texto = Me.Prompt
+
+End
+
+'' cadSelection o algun otro proceso nos devuelve el control
+Public Sub Run()
 
     If gcd.Drawing.Sheet.EntitiesSelected.Count = 0 Then                                     ' we have no elements in the selection
 
-        DrawingAIds.Helper.texto = Me.Prompt & ": " & ("Select entities")
+        Me.Prompt = ("Mirror") & ": " & ("Select entities")
 
-        gcd.clsJobPrevious = Me
+        gcd.clsJobCallBack = Me
         gcd.clsJob = cadSelection
+        cadSelection.Prompt = Me.Prompt
+        cadSelection.ReturnOnFirstSelection = False
 
     Else                                                                    ' need the first point
 
         Me.inxSelected.Clear
-        DrawingAIds.Helper.texto = Me.Prompt & ": " & ("Base point")
-        Me.Prompt = Me.Prompt & Str(gcd.Drawing.Sheet.EntitiesSelected.Count) & " " & ("elements")
 
-        gcd.Redraw
+        Me.Prompt = ("Mirror") & " " & Str(gcd.Drawing.Sheet.EntitiesSelected.Count) & " " & (" elements ") & ": " & (" Base point ")
 
     Endif
-    Me.Active = True
-    gcd.ToolActive = True
 
 End
 
@@ -73,7 +82,7 @@ Public Function MouseUp()
     If Me.PointsDone = 1 Then ' acabo de marcar el punto base
 
         ' ya tengo cosas seleccionadas
-        DrawingAIds.Helper.texto = Me.Prompt & ": " & ("Angle") & " [90]"
+        Me.Prompt = ("Mirror") & ": " & ("Angle") & " [90]"
 
         ' punto real base
         Me.SelStartXr = gcd.Near(gcd.Xreal(mouse.x))
@@ -99,7 +108,7 @@ Public Function MouseUp()
         '     ' TODO: reparar -> gcd.CurrDrawing.HabilitarBotones
         'Me.SelEndXr = puntos.Near(gcd.xreal(mouse.x)
         'Me.SelEndyr = puntos.Near(gcd.Yreal(mouse.y))
-        DrawingAIds.Helper.texto = Me.Prompt & ": " & ("Keep originals") & " (Y/N)[Y]"
+        Me.Prompt = ("Mirror") & ": " & ("Keep originals") & " (Y/N)[Y]"
         'Radianes = Ang(Me.SelEndXr - Me.SelStartXr, Me.SelEndYr - Me.SelStartYr)
         '
         'Me.Finish()
@@ -140,12 +149,12 @@ Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD
             Radianes = 90 / 180 * Pi
             Inc Me.PointsDone
 
-            DrawingAIds.Helper.texto = Me.Prompt & ": " & ("Keep originals") & " (Y/N)[Y]"
+            Me.Prompt = ("Mirror") & ": " & ("Keep originals") & " (Y/N)[Y]"
 
         Else
             Radianes = CFloat(EnteredText) / 180 * Pi
             Inc Me.PointsDone
-            DrawingAIds.Helper.texto = Me.Prompt & ": " & ("Keep originals") & " (Y/N)[Y]"
+            Me.Prompt = ("Mirror") & ": " & ("Keep originals") & " (Y/N)[Y]"
         End If
 
     Else If Me.PointsDone = 2 Then
@@ -170,18 +179,24 @@ End
 Public Sub Finish()
 
     Dim i As Integer, ip As Integer, Prot As New Float[]
+    Dim e As Entity
 
     Dim cContainer As Collection
 
     If Me.PointsDone = Me.PointsTotal Then
 
         If KeepOriginal Then
-            cContainer = clsEntities.ClonElements(, False) ' let make a copy of them
-            ' en todos los casos, roto los puntos
-            clsEntities.Move(-Me.SelStartXr, -Me.SelStartYr)
-            clsEntities.Scale(1, -1, True)
-            clsEntities.Rotate(Radianes, True)
-            clsEntities.Move(Me.SelStartXr, Me.SelStartYr)
+            cContainer = clsEntities.ClonElements() ' let make a copy of them
+            For Each e In cContainer
+                gcd.Drawing.Sheet.Entities.Add(e, e.id)
+            Next
+            For Each e In gcd.Drawing.Sheet.EntitiesSelected
+                ' en todos los casos, roto los puntos
+                clsEntities.Translate(e, -Me.SelStartXr, -Me.SelStartYr)
+                clsEntities.Scale(e, 1, -1)
+                clsEntities.Rotate(e, Radianes)
+                clsEntities.Translate(e, Me.SelStartXr, Me.SelStartYr)
+            Next
 
         End If
 
@@ -193,6 +208,5 @@ Public Sub Finish()
     clsEntities.DeSelection()
     gcd.regen
     Me.Active = False
-    gcd.ToolActive = False
 
 End

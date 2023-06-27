@@ -28,58 +28,81 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
 
     ' Aprovechamos para establecer los helpers (comentarios de ayuda en pantalla)
 
-    Dim i As Integer
-    Dim e, e2 As Entity
-
-    Me.Prompt = ("Explode") & " "
-
     If gcd.Drawing.Sheet.EntitiesSelected.Count = 0 Then                                     ' we have no elements in the selection
 
-        DrawingAIds.Helper.texto = Me.Prompt & ": " & ("Select blocks")
+        Me.Prompt = ("Explode") & ": " & ("Select an entity")
 
-        gcd.clsJobPrevious = Me
+        gcd.clsJobCallBack = Me
         gcd.clsJob = cadSelection
+
+        cadSelection.Prompt = Me.Prompt
+        cadSelection.ReturnOnFirstSelection = True
 
     Else                                                                    ' EXPLOTA !!!
 
-        For Each e In gcd.Drawing.Sheet.EntitiesSelected
-
-            Select e.Gender
-                Case "INSERT", "Dimension"
-                    ' tengo q crear todas lass entidades del bloque que lo conforma
-                    ' y eliminar el Insert o Dimension
-                    ' para ello debo seguir el mismo metodo con que los dibujo
-
-                    Me.Explode_List(e.pBlock.entities, e, gcd.Drawing.Sheet.Entities)
-
-                    e = Null
-                Case "LWPOLYLINE"
-
-                    For i = 0 To e.P.max - 3 Step 2
-
-                        e2 = cadLine.NewEntity([e.P[i], e.P[i + 1], e.P[i + 2], e.P[i + 3]], True)
-                        e.Container.entities.Add(e2, e2.id)
-
-                    Next
-
-                    e.Container.entities.Remove(e.id)       ' obsoleto porque lo borro mas abajo
-
-                Case Else
-
-            End Select
-
-        Next
-        clsEntities.DeleteSelected()
-
-        Me.Finish
+        EXPLODE
 
     Endif
 
-    gcd.ToolActive = True
+    gcd.Drawing.Sheet.GlSheet.PopupMenu = ""
+    fmain.PopupMenu = ""
 
 End
 
-Public Sub Explode_List(eList As Collection, eParent As Entity, cDestination As Collection, Optional InsertionPlace As Integer = 0, ExplodeInserts As Boolean = False)
+'' cadSelection o algun otro proceso nos devuelve el control
+Public Sub Run()
+
+    If gcd.Drawing.Sheet.EntitiesSelected.Count = 0 Then                                     ' we have no elements in the selection
+
+        Me.Finish
+
+    Else                                                                    ' need the first point
+
+        EXPLODE
+
+    Endif
+
+End
+
+Private Sub Explode()
+
+    Dim i As Integer
+    Dim e, e2 As Entity
+
+    For Each e In gcd.Drawing.Sheet.EntitiesSelected
+
+        Select e.Gender
+            Case "INSERT", "Dimension"
+                ' tengo q crear todas lass entidades del bloque que lo conforma
+                ' y eliminar el Insert o Dimension
+                ' para ello debo seguir el mismo metodo con que los dibujo
+
+                Explode_List(e.pBlock.entities, e, gcd.Drawing.Sheet.Entities)
+
+                e = Null
+            Case "LWPOLYLINE"
+
+                For i = 0 To e.P.max - 3 Step 2
+
+                    e2 = cadLine.NewEntity([e.P[i], e.P[i + 1], e.P[i + 2], e.P[i + 3]], True)
+                    e.Container.entities.Add(e2, e2.id)
+
+                Next
+
+                e.Container.entities.Remove(e.id)       ' obsoleto porque lo borro mas abajo
+
+            Case Else
+
+        End Select
+
+    Next
+    clsEntities.DeleteSelected()
+
+    Me.Finish
+
+End
+
+Private Sub Explode_List(eList As Collection, eParent As Entity, cDestination As Collection, Optional InsertionPlace As Integer = 0, ExplodeInserts As Boolean = False)
     'insertion place:
     ' 0 = entity.P[0],[1]
     ' 1 = entity.pBlock.entities.P[0],[1]
