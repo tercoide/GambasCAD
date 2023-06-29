@@ -29,7 +29,6 @@ Public Const Gender As String = "DEFAULT"
 
 Private EntityType As String[]
 
-Private iEntityForEdit As Integer = -1
 Private GripPoint As Grip
 Private GripHovered As Grip
 Private GripCopying As Boolean = False
@@ -218,8 +217,9 @@ Public Function MouseDown()
         If GripPoint Then
 
             ' creo una entidad al vuelo, clonada de la engripada
-            Me.OriginalEntityForEdit = clsEntities.ClonEntity(GripPoint.AsociatedEntity, False)
-            Me.EntityForEdit = GripPoint.AsociatedEntity
+            Me.OriginalEntityForEdit = GripPoint.AsociatedEntity
+            Me.EntityForEdit = clsEntities.ClonEntity(GripPoint.AsociatedEntity)
+            GripPoint.AsociatedEntity = Me.EntityForEdit
             gcd.Drawing.Sheet.SkipSearch = GripPoint.AsociatedEntity
 
             ' rectifico la posicion del punto
@@ -441,6 +441,7 @@ Public Sub MouseUp()
                     Me.SelectionPoly.Add(Me.SelStartXr)
                     Me.SelectionPoly.Add(Me.SelStartYr)
                 Endif
+                gcd.Drawing.Sheet.Grips.Clear
 
             End If
 
@@ -448,17 +449,30 @@ Public Sub MouseUp()
 
             ' C.1.2 ActionActive = ActionGripActive -> Finalizo la edicion por grips
             ' guardo todo
-            s = GripPoint.ToolTip & (" in ") & GripPoint.AsociatedEntity.Gender
-            gcd.Drawing.uUndo.OpenUndoStage(s, Undo.TypeModify)
-            gcd.Drawing.uUndo.AddUndoItem(Me.OriginalEntityForEdit)
-            Me.OriginalEntityForEdit = Null
-            clsEntities.glGenDrawList(Me.EntityForEdit)
+            's = GripPoint.ToolTip & (" in ") & GripPoint.AsociatedEntity.Gender
+            'gcd.Drawing.uUndo.OpenUndoStage(s, Undo.TypeModify)
+            'gcd.Drawing.uUndo.AddUndoItem(Me.OriginalEntityForEdit)
+            gcd.Drawing.Sheet.Grips.Clear
+            gcd.Drawing.Sheet.entities.Add(Me.EntityForEdit, Me.EntityForEdit.id)
+            gcd.Drawing.Sheet.EntitiesVisibles.Add(Me.EntityForEdit, Me.EntityForEdit.id)
+            gcd.Drawing.Sheet.EntitiesSelected.Add(Me.EntityForEdit, Me.EntityForEdit.id)
+            e = Me.EntityForEdit
+            gcd.CCC[e.Gender].finish(e)
+            gcd.CCC[e.Gender].generategrips(e)
+
+            If Not GripCopying Then
+                gcd.Drawing.Sheet.Entities.Remove(Me.OriginalEntityForEdit.id)
+                gcd.Drawing.Sheet.EntitiesVisibles.Remove(Me.OriginalEntityForEdit.id)
+                gcd.Drawing.Sheet.EntitiesSelected.Remove(Me.OriginalEntityForEdit.id)
+            Endif
+
+            clsEntities.glGenDrawList(e)
+            'clsEntities.glGenDrawList(e)
             clsEntities.glGenDrawListLAyers(Me.EntityForEdit.pLayer)
             Me.EntityForEdit = Null
-            e = GripPoint.AsociatedEntity
-            gcd.Drawing.Sheet.Grips.Clear
-            gcd.CCC[e.Gender].generategrips(e)
+            Me.OriginalEntityForEdit = Null
             GripPoint = Null
+            'GripCopying = False
 
         End If
 
@@ -577,59 +591,62 @@ Public Sub MouseMove()
     Me.SelEndy = mouse.Y
     Me.SelEndXr = gcd.Xreal(Me.SelEndX)
     Me.SelEndyr = gcd.Yreal(Me.SelEndy)
+    Me.SelEndXr = gcd.Near(Me.SelEndXr)
+    Me.SelEndYr = gcd.Near(Me.SelEndYr)
 
-    GripHovered = FindGrip(Me.SelEndXr, Me.SelEndYr)
+    ' ' yo soy el responsable de chequear POI
+    ' If Not gcd.flgSearchingPOI Thenntity
 
-    ' yo soy el responsable de chequear POI
-    If Not gcd.flgSearchingPOI Then
-        If GripPoint Then
-            'e = GripPoint.AsociatedEntity
+    'End If
 
-            gcd.Drawing.iEntity = clsMouseTracking.CheckBestPOI(Me.SelEndXr, Me.SelEndYr)
-
-            If (gcd.Drawing.iEntity[2] > 0) Then
-
-                Me.SelEndXr = gcd.Drawing.iEntity[0]
-                Me.SelEndYr = gcd.Drawing.iEntity[1]
-
-                ' Else
-            Else                                     ' puedo hacer ortogonal
-                If gcd.Orthogonal Then          ' hablame de operadores logicos
-
-                    If Abs(Me.SelEndX - Me.SelStartX) > Abs(Me.SelEndY - Me.SelStartY) Then ' prevalece X
-                        Me.SelEndYr = Me.SelStartYr
-
-                    Else
-                        Me.SelEndXr = Me.SelStartXr
-                    Endif
-
-                End If
-
-            End If        '
-
-        End If
-        Me.SelEndXr = gcd.Near(Me.SelEndXr)
-        Me.SelEndYr = gcd.Near(Me.SelEndYr)
-
-    End If
+    'end If
     If Me.Active And Me.SelectType <> Me.SelectTypeSingle Then
         ' B.1 ActionActive = ActionRectActive: actualizo coordenadas del punto final del Rect
         ' (se hace mas arriba)
     Else If GripPoint Then
         ' B.2 ActionActive = ActionGripActive: modifico la entidad con la nueva posicion del punto
+        gcd.Drawing.iEntity = clsMouseTracking.CheckBestPOI(Me.SelEndXr, Me.SelEndYr)
+
+        If (gcd.Drawing.iEntity[2] > 0) Then
+
+            Me.SelEndXr = gcd.Drawing.iEntity[0]
+            Me.SelEndYr = gcd.Drawing.iEntity[1]
+
+            ' Else
+        Else                                     ' puedo hacer ortogonal
+            If gcd.Orthogonal Then          ' hablame de operadores logicos
+
+                If Abs(Me.SelEndX - Me.SelStartX) > Abs(Me.SelEndY - Me.SelStartY) Then ' prevalece X
+                    Me.SelEndYr = Me.SelStartYr
+
+                Else
+                    Me.SelEndXr = Me.SelStartXr
+                Endif
+
+            End If
+
+        End If        '
         If GripCopying Then
 
         Else
 
-            GripEdit
         Endif
+        GripEdit
         DrawingAids.txtFrom = GripPoint.ToolTip
 
     Else If Me.Active And PanActive Then
         ' B.3 ActionActive = ActionPanActive: mando la coordenada a cadPan
         ' (ni siquiera deberiamos estar aca, deberiamos estar en cadPan.class)
     Else
+        ' busco algun grip
+        GripHovered = FindGrip(Me.SelEndXr, Me.SelEndYr)
         ' B.4 ActionActive = 0: nada
+
+        If gcd.Drawing.HoveredEntity Then
+            If Config.ShowEntityInspector Then FInspector.Run(gcd.Drawing.HoveredEntity)
+        Else
+            FInspector.Close()
+        Endif
     End If
 
     ' Else
@@ -767,15 +784,6 @@ Public Sub Draw()
 
     Endif
 
-    'EntityForEdit.Gcd.CCC[e.gender].drawremark(EntityForEdit)
-    'gl.CallList(gcd.Drawing.GlListEntitiesSelected)
-    'clsEntities.DrawPoiSymbols(EntityForEdit)
-
-    ' Else
-    '
-    '     gl.CallList(gcd.Drawing.GlListEntitiesSelected)
-    ' End If
-
 End
 
 Public Sub GripEdit()
@@ -786,12 +794,11 @@ Public Sub GripEdit()
             ' GripPoint.Y = Me.SelEndYr
             ' gcd.CCC[GripPoint.AsociatedEntity.Gender].translate(GripPoint.AsociatedEntity, Me.SelEndXr - Me.SelStartXr, Me.SelEndYr - Me.SelStartYr)
 
-        Else
-
-            GripPoint.X = Me.SelEndXr
-            GripPoint.Y = Me.SelEndYr
-            gcd.CCC[GripPoint.AsociatedEntity.Gender].GripEdit(GripPoint)
         Endif
+
+        GripPoint.X = Me.SelEndXr
+        GripPoint.Y = Me.SelEndYr
+        gcd.CCC[GripPoint.AsociatedEntity.Gender].GripEdit(GripPoint)
         gcd.redraw
 
     Endif
@@ -816,6 +823,12 @@ End
 
 Public Sub KeyDown(iCode As Integer)
 
-    If iCode = Key.ControlKey Then GripCopying = True Else GripCopying = False
+    If iCode = Key.ControlKey Then GripCopying = True
+
+End
+
+Public Sub KeyUp(iCode As Integer)
+
+    If iCode = Key.ControlKey Then GripCopying = False
 
 End
