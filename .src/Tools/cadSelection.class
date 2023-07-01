@@ -229,24 +229,24 @@ Public Function MouseDown()
             Return
         Else If gcd.Drawing.HoveredEntity Then 'Or Me.ModeRectSelection Then
 
-            ' A.1.2 Estoy sobre una entidad
-
-            If Not gcd.Drawing.Sheet.EntitiesSelected.Exist(gcd.Drawing.HoveredEntity.Id) Then
-                ' A.1.2.1 No esta seleccionada -> seleccionar
-                gcd.Drawing.Sheet.EntitiesSelected.add(gcd.Drawing.HoveredEntity, gcd.Drawing.HoveredEntity.Id)
-                gcd.Drawing.Sheet.Grips.Clear
-                gcd.CCC[gcd.Drawing.HoveredEntity.Gender].generategrips(gcd.Drawing.HoveredEntity)
-                clsEntities.glGenDrawListSel
-                fProps.FillProperties(gcd.Drawing.Sheet.EntitiesSelected)
-                gcd.Redraw
-            Else
-                ' A.1.2.2 Esta seleccionada previamente
-                ' A.1.2.2.2 No estoy sobre un grip -> deseleccionar
-                gcd.Drawing.Sheet.EntitiesSelected.Remove(gcd.Drawing.HoveredEntity.Id)
-                fprops.FillProperties(gcd.Drawing.Sheet.EntitiesSelected)
-                clsEntities.glGenDrawListSel
-                gcd.Redraw
-            End If
+            ' ' A.1.2 Estoy sobre una entidad
+            '
+            ' If Not gcd.Drawing.Sheet.EntitiesSelected.Exist(gcd.Drawing.HoveredEntity.Id) Then
+            '     ' A.1.2.1 No esta seleccionada -> seleccionar
+            '     gcd.Drawing.Sheet.EntitiesSelected.add(gcd.Drawing.HoveredEntity, gcd.Drawing.HoveredEntity.Id)
+            '     gcd.Drawing.Sheet.Grips.Clear
+            '     gcd.CCC[gcd.Drawing.HoveredEntity.Gender].generategrips(gcd.Drawing.HoveredEntity)
+            '     clsEntities.glGenDrawListSel
+            '     fProps.FillProperties(gcd.Drawing.Sheet.EntitiesSelected)
+            '     gcd.Redraw
+            ' Else
+            '     ' A.1.2.2 Esta seleccionada previamente
+            '     ' A.1.2.2.2 No estoy sobre un grip -> deseleccionar
+            '     gcd.Drawing.Sheet.EntitiesSelected.Remove(gcd.Drawing.HoveredEntity.Id)
+            '     fprops.FillProperties(gcd.Drawing.Sheet.EntitiesSelected)
+            '     clsEntities.glGenDrawListSel
+            '     gcd.Redraw
+            ' End If
 
         Endif
 
@@ -306,7 +306,7 @@ Public Sub MouseUp()
     Dim cSel As New Collection
 
     gcd.Drawing.iEntity.Clear
-
+    gcd.Drawing.Sheet.SkipSearch = Null
     gcd.Drawing.LastPoint.Clear
     ' If gcd.Drawing.Sheet.Viewport Then
     '     '
@@ -361,7 +361,7 @@ Public Sub MouseUp()
             End If
             gcd.Drawing.Sheet.EntitiesSelected = clsEntities.SelectionCombine(gcd.Drawing.Sheet.EntitiesSelected, cSel, tipo)
 
-            e = gcd.Drawing.Sheet.EntitiesSelected[gcd.Drawing.Sheet.EntitiesSelected.Last]
+           
 
             ' determino que hacer con la seleccion
             If gcd.clsJobCallBack And Me.ReturnOnFirstSelection Then
@@ -370,10 +370,11 @@ Public Sub MouseUp()
                 gcd.clsJob.run
                 Return
             Endif
-            If e Then
-                'gcd.Drawing.Sheet.Grips.Clear
-                gcd.CCC[e.Gender].generategrips(e)
-            Endif
+            ' e = gcd.Drawing.Sheet.EntitiesSelected[gcd.Drawing.Sheet.EntitiesSelected.Last]
+            ' If e Then
+            '     'gcd.Drawing.Sheet.Grips.Clear
+            '     gcd.CCC[e.Gender].generategrips(e)
+            ' Endif
             fProps.FillProperties(gcd.Drawing.Sheet.EntitiesSelected)
             clsEntities.GLGenDrawListSel()
 
@@ -402,26 +403,31 @@ Public Sub MouseUp()
 
             ' A.1.2 Estoy sobre una entidad
             If gcd.Drawing.HoveredEntity Then
-
+                If SelectMode = SelectModeNew Then gcd.Drawing.Sheet.EntitiesSelected.Clear
                 If AllowSingleSelection Then
 
                     ' A.1.2.1 No esta seleccionada -> seleccionar
-                    If Not gcd.Drawing.Sheet.EntitiesSelected.Exist(gcd.Drawing.HoveredEntity.Id) Then gcd.Drawing.Sheet.EntitiesSelected.add(gcd.Drawing.HoveredEntity, gcd.Drawing.HoveredEntity.Id)
-
+                    If Not gcd.Drawing.Sheet.EntitiesSelected.Exist(gcd.Drawing.HoveredEntity.Id) Then
+                        ' excepto que estos removiendo
+                        If SelectMode <> SelectModeRem Then
+                            gcd.Drawing.Sheet.EntitiesSelected.add(gcd.Drawing.HoveredEntity, gcd.Drawing.HoveredEntity.Id)
+                        End If
+                    Else ' esta en la seleccion
+                        If SelectMode = SelectModeRem Then
+                            gcd.Drawing.Sheet.EntitiesSelected.Remove(gcd.Drawing.HoveredEntity.Id)
+                        End If
+                    End If
                     If gcd.clsJobCallBack And Me.ReturnOnFirstSelection Then
                         gcd.clsJob = gcd.clsJobCallBack
                         gcd.clsJobCallBack = Null
                         gcd.clsJob.run
                         Return
                     End If
-
-                Else If AllowGripEdit Then
+                End If
+                If AllowGripEdit Then
 
                     gcd.Drawing.Sheet.Grips.Clear
                     clsEntities.GenGrips(gcd.Drawing.HoveredEntity)
-                    clsEntities.glGenDrawListSel
-                    fProps.FillProperties(gcd.Drawing.Sheet.EntitiesSelected)
-                    gcd.Redraw
 
                     ' Else  ' TODO: ver que pasa con esto
 
@@ -432,6 +438,11 @@ Public Sub MouseUp()
                     '     clsEntities.glGenDrawListSel
                     '     gcd.Redraw
                 End If
+                fProps.FillProperties(gcd.Drawing.Sheet.EntitiesSelected)
+                clsEntities.GLGenDrawListSel()
+                gcd.Redraw
+                Me.Prompt = ("Selected") & " " & Str$(gcd.Drawing.Sheet.EntitiesSelected.Count) & " " & ("elements")
+
             Else    ' inicio la seleccion por recuadro
 
                 If Me.SelectType > 0 Then RectActive = True

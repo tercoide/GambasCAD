@@ -355,3 +355,367 @@ Public Sub AddFilesOpen(sFilename As String)
     Config.FilesLastOpen1 = sFilename
 
 End
+
+Public Sub ActionActivate(sAction As String)
+
+    ' Acciones de los botones y los menús (para no repetir código)
+    ' El string de la acción es una propiedad de cada botón o menú
+    ' El código que se ejecuta lo hace dentro de la rutina llamada, nunca dentro de este mismo evento.
+
+    Dim r As Float
+    Dim NewDrawing As Drawing
+    Dim f, fDxf, fBak As String
+    'Dim fMinimal As String = "./minimal/minimal-2010.dxf"
+    Dim fMinimal As String = "./minimal/minimal.dxf"
+    Dim fx As String[]
+    Dim fbas As String
+    Dim sWName As String
+    Dim t As String
+    Dim iColor, i As Integer
+    Dim imgCirculito As Image
+    Dim clsJob As String
+    Dim d As Drawing
+    Dim sActionParams As String[]
+
+    Try gcd.debuginfo(Last.name)
+
+    Select Case LCase(sAction)
+
+        Case "applyprops"   ' FIXME: pasa al nuevo formulario flotante
+            ' For i = 0 To tblProperties.Rows.Max
+            '     If tblProperties[i, 1].Tag Then ' esta propiedad cambio
+            '         clsEntities.EditEntities(LCase(tblProperties[i, 0].text), tblProperties[i, 1].Text)
+            '     End If
+            ' Next
+        Case "savesvg"
+            Dim hsvg As New SvgImage
+            Dim sFile As String
+            sFile = gcd.Drawing.FileName & ".svg"
+            If Left(sFile, 1) = "<" Then sFile = User.Home &/ "0-sin nombre.svg"
+            hsvg.Resize(420, 297)
+
+            gcd.FitEntitiesToImage(gcd.Drawing.Model.Entities, hsvg, -1, 0, Config.ModelBackgroundColor)
+            If Exist(sFile) Then Kill sFile
+            hsvg.Save(sFile)
+
+        Case "new_sheet"
+
+            fSheet.ShowModal()
+            fmain.GLArea1.Refresh
+
+        Case Like "_*"
+            ' todo lo que empiece con _ lo envio al job
+            gcd.clsJob.KeyText(sAction)
+        Case "mentities-copy"
+            Dim sToCopy As String
+            For Each e As Entity In gcd.Drawing.Sheet.EntitiesSelected
+                sToCopy &= clsEntities.EntityToJsonString(e)
+
+            Next
+
+            Clipboard.Clear
+            Clipboard.Copy(sToCopy)
+
+        Case "undo"
+
+            gcd.Drawing.uUndo.DoUndo()
+            gcd.Regen
+
+        Case "redo"
+
+            gcd.Drawing.uUndo.DoRedo()
+            gcd.Regen
+
+        Case "config"
+            'fOptions.ShowModal
+            FConfig.ShowModal()
+            Me.tabDrawings[0].Visible = True 'Config.ShowConsoleTab
+            glx.ClearColor(Config.ModelBackgroundColor)
+
+        Case "center"
+
+            gcd.PanTo(0, 0)
+            gcd.Redraw
+
+        Case "exit"
+
+            fmain.form_Close
+
+        Case "regen"
+
+            gcd.Regen
+
+            ' Case "pdf_export"
+            '
+            '     If Printer1.Configure() Then Return
+            '     Printer1.Print
+        Case "print"
+
+            If Not gcd.Drawing.CurrPrintStyle Then gcd.Drawing.CurrPrintStyle = New PrintStyle
+            fPrint.Show '.run()
+            ' If i = 1 Then
+            '
+            '     Printer1.Print
+            ' Else If i = 0 Then
+            '     gcd.debugInfo("Print cancelled")
+            '
+            ' Else If i = 2 Then
+            '     gcd.debugInfo("Selecting what to print")
+            '
+            ' End If
+
+            ' vemos si hay q imprimir algo
+
+        Case "undo"
+            gcd.Drawing.uUndo.DoUndo()
+            gcd.Regen
+
+        Case "about"
+            i = fAbout.ShowModal()
+
+            ' Case "redo"
+            '     gcd.Drawing.uUndo.DoRedo()
+            '     gcd.Regen
+        Case "window_close"
+
+            gcd.Drawings.Remove(gcd.Drawing.Headers.FINGERPRINTGUID)
+            If gcd.Drawings.Count > 0 Then
+                gcd.Drawing = gcd.Drawings[gcd.Drawings.First]
+                fmain.Redraw
+            Else
+
+                ActionActivate("file_new")
+            Endif
+
+        Case "window_closeall"
+            gcd.Drawings.Clear
+            ActionActivate("file_new")
+
+        Case Like "windowchange_*"
+
+            sWName = Mid(sAction, 14)
+
+            For Each d In gcd.Drawings
+                If sWName = d.FileName Then
+                    gcd.Drawing = d
+                    gcd.UpdateLayersCombo
+                    gcd.UpdateLineWtCombo
+                    gcd.UpdateLineTypeCombo
+                    gcd.UpdatDimTypeTypeCombo
+                    Me.redraw
+                    Me.Text = f
+
+                    'FillWindowMenu
+                    Break
+                Endif
+            Next
+
+        Case "file_quit"
+
+            Me.Close
+            Quit
+
+        Case "file_new"
+
+            actions.FileNew
+
+        Case "file_open"
+
+            actions.FileOpen
+
+        Case Like "file_open_*"
+
+            sWName = Mid(sAction, 11)
+
+            actions.FileOpen(sWName)
+
+        Case "file_save"
+
+            f = gcd.Drawing.FileName
+            fbas = File.Dir(f) &/ File.BaseName(f)
+            fBak = "'" & fbas & ".bak'"
+            If gcd.Drawing.RequiresFileRename Then
+                Me.Action_Activate("file_saveas")
+                Return
+            Else
+                If Exist(f) Then
+                    If Exist(fBak) Then Shell "rm " & fBak Wait
+                    Shell "mv '" & f & "' '" & fbas & ".bak'" Wait
+                End If
+
+                If File.Ext(f) = "dxf" Then
+                    Dxf.SaveFile(f, gcd.Drawing)
+                Else If File.Ext(f) = "dwg" Then
+                    ' guardamos la version DXF en el dir adecuado, con el nombre elegido
+                    't = main.dirDxfOut &/ Utils.FileWithoutExtension(Utils.FileFromPath(f)) & ".dxf"
+                    t = Temp & ".dxf"
+                    Dxf.SaveFile(t, gcd.Drawing)
+                    t = gcd.oda_dxftodwg(t)
+                    ' como el proceso de grabado pudo resultar en error, chequeo la existencia primero
+
+                    If Exist(t) Then Move t To f
+
+                End If
+
+            Endif
+
+        Case "file_saveas"
+
+            f = gcd.Drawing.FileName
+            fbas = File.Dir(f) &/ File.BaseName(f)
+            fBak = "'" & fbas & ".bak'"
+
+            Dialog.AutoExt = True
+            Dialog.Filter = ["*.dxf", "DXF Drawing exchange 2010", "*.dwg", "DWG AutoCAD Drawing file 2010"]
+            If Dialog.SaveFile() Then Return ' cancel saving
+
+            f = Dialog.Path
+
+            If File.Ext(f) = "" Then f = File.SetExt(f, "dxf")
+
+            If Exist(f) Then
+                If Message.Question(("The file exist"), ("Replace"), ("Cancel")) = 2 Then
+                    f = ""
+                Endif
+            Endif
+
+            If f = "" Then
+                Print "Cancel"
+            Else
+
+                If Exist(f) Then
+                    If Exist(fBak) Then Shell "rm " & fBak Wait
+                    Shell "mv '" & f & "' '" & fbas & ".bak'" Wait
+                End If
+
+                gcd.Drawing.FileName = f
+                gcd.Drawing.RequiresFileRename = False
+                ActionActivate("file_save")
+
+                Me.Text = f
+
+            Endif
+
+        Case Like "cad*"
+
+            ' actions, with & for additional parameters
+            ' cadDimension_Linear&horizontal
+
+            Dim o As Object, sRunWith As String, iParam As Integer, c As Class
+
+            sActionParams = Split(sAction, "&")
+            sRunWith = UCase(Mid(sActionParams[0], 4))
+            Try iParam = CInt(sActionParams[1])
+
+            o = gcd.CCC[sRunWith]
+            If Not o Then Return
+            gcd.clsJobPrevious = gcd.clsJob
+            ' check if the class needs to be run trough other class
+            If o.usewith = "" Then                        ' its a tool
+                gcd.clsJob = o
+                gcd.clsJob.start(iParam)
+
+            Else                                           ' its propably an eentity
+
+                gcd.clsJob = gcd.CCC[o.usewith]
+                gcd.clsJob.start(o, iParam)
+
+            End If
+
+        Case Like "layer_change_*"
+
+            Dim sLayerName As String
+
+            sLayerName = Mid(sAction, 14)
+
+            ' mbtLayers.Text = sLayerName
+            ' iColor = gcd.Drawing.cLayers[sLayerName][dxf.codColor]
+            ' mbtLayers.Picture = paintPlus.picCirculito(8, gcd.gColor[iColor], Color.ButtonForeground)
+
+            ' informamos
+            gcd.Drawing.CurrLayer = gcd.GetLayer(sLayerName)
+
+            ' si tengo algo seleccionado, debo cambiar su color a este
+            clsEntities.EditEntities("layer", gcd.Drawing.CurrLayer.name)
+
+            clsEntities.DeSelection()
+
+        Case Like "color_*"
+
+            iColor = CInt(Mid(sAction, 7))
+            fmain.btColors.Text = "Color " & CStr(iColor) 'Me.mbtColors.Children[iColor].Text
+            If iColor = 256 Then fmain.mbtColors.Text = "ByLayer"
+            If iColor = 257 Then fmain.mbtColors.Text = "ByBlock"
+
+            fmain.mbtColors.Picture = paintPlus.picCirculito(8, gcd.gColor[iColor], Color.ButtonForeground)
+
+            gcd.Drawing.CurrColor = iColor
+
+            ' si tengo algo seleccionado, debo cambiar su color a este
+            clsEntities.EditEntities("color", iColor)
+            clsEntities.DeSelection()
+
+        Case "more_colors"
+
+            iColor = fColors.ShowModal()
+            If iColor < 0 Then Return
+
+            Me.Action_Activate("color_" & CStr(iColor))
+
+        Case Like "linewt_change_*"
+
+            gcd.Drawing.CurrLineWt = CInt(Mid(sAction, 15)) / 100
+
+            clsEntities.EditEntities("linewt", gcd.Drawing.CurrLineWt)
+            clsEntities.DeSelection()
+
+        Case Like "ltype_change_*"
+
+            gcd.Drawing.CurrLineType = gcd.FindLType(Mid(sAction, 14))
+
+            clsEntities.EditEntities("linetype", gcd.Drawing.CurrLineType)
+            clsEntities.DeSelection()
+
+        Case "grId"
+            gcd.Drawing.GrIdActive = Not gcd.Drawing.GrIdActive
+            If gcd.Drawing.GrIdActive Then DrawingAIds.RebuildGrId
+
+        Case "ortho"
+            gcd.Orthogonal = Not gcd.Orthogonal
+        Case "snap"
+            If gcd.SnapMode <> 0 Then gcd.SnapMode = 0 Else gcd.SnapMode = Config.SnapModeSaved
+        Case "debugwindow"
+            fDebug.Show()'If gcd.SnapMode <> 0 Then gcd.SnapMode = 0 Else gcd.SnapMode = Config.SnapModeSaved
+
+        Case "selectadd"
+            cadSelection.SelectMode = cadSelection.SelectModeAdd
+
+        Case "selectrem"
+            cadSelection.SelectMode = cadSelection.SelectModeRem
+
+        Case "selectnew"
+            cadSelection.SelectMode = cadSelection.SelectModeNew
+
+        Case "selectsingle"
+            cadSelection.SelectType = cadSelection.SelectTypeSingle
+
+            ' pnlToolBarRigth.tbnSelectionRect.Value = False
+            ' pnlToolBarRigth.tbnSelectionPoly.Value = False
+
+        Case "selectrect"
+            cadSelection.SelectType = cadSelection.SelectTypeRect
+            ' pnlToolBarRigth.tbnSelectionSingle.Value = False
+            '
+            ' pnlToolBarRigth.tbnSelectionPoly.Value = False
+
+        Case "selectpoly"
+            cadSelection.SelectType = cadSelection.SelectTypePoly
+            ' pnlToolBarRigth.tbnSelectionSingle.Value = False
+            ' pnlToolBarRigth.tbnSelectionRect.Value = False
+
+        Case "selectcross"
+            cadSelection.SelectCrossing = Not cadSelection.SelectCrossing
+
+    End Select
+
+End
