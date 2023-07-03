@@ -21,8 +21,8 @@
 ' Boston, MA  02110-1301  USA
 Create Static
 ' Fast
-Inherits EntityBase
 
+Inherits CadmText
 Public Const Gender As String = "TEXT"
 Public Const DrawingOrder As Integer = 100 ' 1 a 32.724 esto debe Drawse primero y ser sobreescrito por el resto
 Public Const PointsToDraw As Integer = 1             ' minimal point requered for drawing something usefull
@@ -30,32 +30,6 @@ Public Const CmdLineHelper As String = ("Inserts a text")
 Public Const ParamType As String = "PAFT"
 Public Const ParamHelper As String = "Start point;Angle;Heigth;"      ' a little text that is shown at the prompt waiting for user input during build
 Public Const ParamDefault As String = " ; 0 ; 10 ; "
-
-' fParam helpers
-Public Const TotalParams As Integer = 13
-Public Const ipaTextHeight As Integer = 0
-Public Const ipaTextAngle As Integer = 1
-Public Const ipaGenerationFlags As Integer = 2
-Public Const ipaHorizJustif As Integer = 3
-Public Const ipaVertJustif As Integer = 4
-Public Const ipaRelativeFactor As Integer = 5
-Public Const ipaHorizAngle As Integer = 6
-Public Const ipaTextVisibility As Integer = 7
-Public Const ipaAttchmPoint As Integer = 8
-Public Const ipaRectangleWIdth As Integer = 9
-Public Const ipaDrawingDirec As Integer = 10
-Public Const ipaBackFillType As Integer = 11
-Public Const ipaBackColor As Integer = 12
-
-' stringdata helpers
-Public Const sdaTotalParams As Integer = 2
-Public Const sdaText As Integer = 0
-Public Const sdaStyle As Integer = 1
-Public Const TotalPoints As Integer = 1 ' 2021 cambie esto
-
-Public PrintingType As Integer
-
-Public MyPolygon As New Float[]
 
 ' The entity handler receives a user action, and returns the number of expected parameter
 ' If definitive = true, means the parameter is set
@@ -105,60 +79,6 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
 
 End
 
-Public Sub Translate(e As Entity, dX As Float, dY As Float, Optional OnlySelected As Boolean = False)
-
-    Dim i As Integer
-
-    If OnlySelected Then
-
-        For i = 0 To e.Psel.Max
-            If e.Psel[i] Then
-
-                e.P[i * 2] += dx
-                e.P[i * 2 + 1] += dy
-
-            Endif
-        Next
-
-    Else
-
-        puntos.Translate(e.p, dx, dy)
-    Endif
-
-    'CreatePolygon(e)
-    'depre BuildPOI(e)
-
-End
-
-Public Sub Rotate(e As Entity, radians As Float)
-
-    puntos.Rotate(e.P, radians)
-
-    ' el parametro lo tengo que pasar a grados porque la rutina que dibuja el texto usa eso
-    E.fParam[Me.ipaTextAngle] += Deg(radians)
-
-    'CreatePolygon(e)
-    'depre BuildPOI(e)
-
-End
-
-Public Sub Scale(e As Entity, sX As Float, sY As Float)
-
-    Dim i As Integer
-
-    E.fParam[Me.ipaTextHeight] *= sY
-    For i = 0 To e.p.max Step 2
-
-        e.P[i] = e.P[i] * sX
-        e.P[i + 1] = e.P[i + 1] * sY
-
-    Next
-
-    'CreatePolygon(e)
-    'depre BuildPOI(e)
-
-End
-
 Public Sub Draw(oE As Entity)
 
     If Not oE.Visible Then Return
@@ -171,9 +91,7 @@ Public Sub Draw(oE As Entity)
     ' gl.End
     '
 
-    SetMtextVars(oe)
-    cadMText.PrintingType = 0
-    cadMText.ProcessText3(oE.sParam[Me.sdaText])
+    glx.DrawLines(oe.PolyLine, cadMText.CurrentTextColor)
 
     'If InStr(oE.sParam[Me.sdaText], "COMPUTADORA") > 0 Then Stop
 
@@ -198,11 +116,6 @@ End
 Public Function Draw2(oE As Entity)
 
     If Not oE.Visible Then Return
-
-    SetMtextVars(oe)
-    cadMText.PrintingType = 1
-    cadMText.ProcessText3(oE.sParam[Me.sdaText])
-    cadMText.PrintingType = 0
 
 End
 
@@ -287,23 +200,6 @@ Public Sub SetMtextVars(oe As Entity)
     End If
 
 End
-
-' '' Creo los puntos de interes
-' '' Build point of interest
-'
-' Public Function BuildPOI(oE As Entity) As Integer
-'
-'     ' si este valor no es provisto , estos POI son de la ultima entidad
-'
-'     oe.PoiPoints.Clear
-'     oe.PoiType.Clear
-'
-'     ' points
-'     oe.poiPoints.insert([oE.p[0], oE.p[1]])
-'     oe.poiType.Add(gcd.poiBasePoint)
-'     'oe.poiEntities.Add(arrIndex)
-'
-' End
 
 Public Sub ExportDXFCol(e As Entity, ByRef stxExport As String[]) As Boolean
 
@@ -394,27 +290,12 @@ End
 
 Public Sub CreatePolygon(oE As Entity)
 
-    Dim tRect As New Float[]
+End
 
-    oE.Polygon.Clear
+'' Builds the geometry of the entity wthout drwing it
+Public Function BuildGeometry(oE As Entity, Optional density As Float)
 
-    ' tRect = glx.MTextExtends(oE.stringdata[Me.sdaText], oE.p[0], oE.p[1], oE.fParam[Me.ipaTextHeight])
-    If Me.MyPolygon.Count = 0 Then
-        Me.MyPolygon.Clear
-        Me.MyPolygon.insert([1e10, 1e10, -1e10, -1e10])
-
-    Endif
-
-    Me.PrintingType = 2
-    Draw(oe)
-    Me.PrintingType = 0
-
-    ' armo el poligono , que ya tiene la escala
-    If Abs(Me.MyPolygon[0]) > 1e9 Then Return
-    oE.Polygon.Insert([Me.MyPolygon[0], Me.MyPolygon[1]])
-    oE.Polygon.Insert([Me.MyPolygon[0], Me.MyPolygon[3]])
-    oE.Polygon.Insert([Me.MyPolygon[2], Me.MyPolygon[3]])
-    oE.Polygon.Insert([Me.MyPolygon[2], Me.MyPolygon[1]])
-    oE.Polygon.Insert([Me.MyPolygon[0], Me.MyPolygon[1]])
+    SetMtextVars(oe)
+    cadMText.ProcessText3(oE)
 
 End

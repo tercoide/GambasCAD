@@ -21,7 +21,7 @@
 ' Boston, MA  02110-1301  USA
 Create Static
 ' Fast
-Inherits CadText
+Inherits EntityBase
 Public Const USEWITH As String = "MTEXTBUILDER"
 Public Const Gender As String = "MTEXT"
 Public Const DrawingOrder As Integer = 100 ' 1 a 32.724 esto debe Drawse primero y ser sobreescrito por el resto
@@ -81,6 +81,32 @@ Public TxtStyles As New TextStyle[] ' creados a partir de {}
 Public TxtStyle As TextStyle ' el que estoy usando
 
 Public esperar As Boolean
+
+' fParam helpers
+Public Const TotalParams As Integer = 13
+Public Const ipaTextHeight As Integer = 0
+Public Const ipaTextAngle As Integer = 1
+Public Const ipaGenerationFlags As Integer = 2
+Public Const ipaHorizJustif As Integer = 3
+Public Const ipaVertJustif As Integer = 4
+Public Const ipaRelativeFactor As Integer = 5
+Public Const ipaHorizAngle As Integer = 6
+Public Const ipaTextVisibility As Integer = 7
+Public Const ipaAttchmPoint As Integer = 8
+Public Const ipaRectangleWIdth As Integer = 9
+Public Const ipaDrawingDirec As Integer = 10
+Public Const ipaBackFillType As Integer = 11
+Public Const ipaBackColor As Integer = 12
+
+' stringdata helpers
+Public Const sdaTotalParams As Integer = 2
+Public Const sdaText As Integer = 0
+Public Const sdaStyle As Integer = 1
+Public Const TotalPoints As Integer = 1 ' 2021 cambie esto
+
+Public PrintingType As Integer
+
+Public MyPolygon As New Float[]
 
 ' The entity handler receives a user action, and returns the number of expected parameter
 ' If definitive = true, means the parameter is set
@@ -149,7 +175,7 @@ Public Sub Translate(e As Entity, dX As Float, dY As Float, Optional OnlySelecte
 
         puntos.Translate(e.p, dx, dy)
     Endif
-
+    puntos.Translate(e.PolyLine, dx, dy)
     puntos.Translate(e.Polygon, dx, dy)
     'depre BuildPOI(e)
 
@@ -161,9 +187,8 @@ Public Sub Rotate(e As Entity, radians As Float)
 
     ' el parametro lo tengo que pasar a grados porque la rutina que dibuja el texto usa eso
     E.fParam[Me.ipaTextAngle] += radians
-
+    puntos.Rotate(e.PolyLine, radians)
     puntos.Rotate(e.Polygon, radians)
-    'depre BuildPOI(e)
 
 End
 
@@ -178,16 +203,15 @@ Public Sub Scale(e As Entity, sX As Float, sY As Float)
         e.P[i + 1] = e.P[i + 1] * sY
 
     Next
-
+    puntos.Scale(e.PolyLine, sx, sy)
     puntos.Scale(e.Polygon, sx, sy)
-    'depre BuildPOI(e)
 
 End
 
 '' A fat version of the line
 Public Sub DrawSelected(oE As Entity)
 
-    glx.PolyLines(oE.Polygon, Color.Gradient(gcd.GetGBColor(oE.Colour, oe.pLayer), Config.ModelBackgroundColor), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), gcd.stiDashed)
+    glx.DrawLines(oE.PolyLine, Color.Gradient(gcd.GetGBColor(oE.Colour, oe.pLayer), Config.ModelBackgroundColor), gcd.GetLineWt(oE.LineWIdth, oe.pLayer))
 
 End
 
@@ -196,15 +220,13 @@ Public Sub DrawRemark(oE As Entity)
 
     If Not oE.Visible Then Return
 
-    glx.PolyLines(oE.Polygon, Color.Gradient(gcd.GetGBColor(oE.Colour, oe.pLayer), Config.WhiteAndBlack), gcd.GetLineWt(oE.LineWIdth, oe.pLayer))
+    glx.DrawLines(oE.PolyLine, Color.Gradient(gcd.GetGBColor(oE.Colour, oe.pLayer), Config.WhiteAndBlack), gcd.GetLineWt(oE.LineWIdth, oe.pLayer))
 
 End
 
 Public Function Draw2(oE As Entity)
 
-    Me.PrintingType = 1
-    Draw(oe)
-    Me.PrintingType = 0
+    paintPlus.Lines(oe.PolyLine)
 
 End
 
@@ -227,6 +249,27 @@ End
 Public Sub Draw(oE As Entity)
 
     If Not oE.Visible Then Return
+
+    glx.DrawLines(oe.PolyLine, CurrentTextColor)
+    'glx.DrawMultilineText(oE.stringdata[0], oE.p[0], oE.p[1], oE.fParam[0], oE.fParam[1], gcd.GetGBColor(oE.Colour, oe.pLayer))
+
+End
+
+Public Sub CreatePolygon(oE As Entity)
+
+    Dim tRect As New Float[]
+
+    oE.Polygon.Clear
+
+    cadMText.ProcessText3(oE)
+
+End
+
+'' Builds the geometry of the entity wthout drwing it
+Public Function BuildGeometry(oE As Entity, Optional density As Float)
+
+    flxText.Clear ' limpio los glyphs
+
     'If oe.id = "1B4571" Then Stop
     TextAngle = oe.fParam[Me.ipaTextAngle]
     ' voy a procesar texto
@@ -305,27 +348,21 @@ Public Sub Draw(oE As Entity)
 
     CurrentTextFont = Utils.FileWithoutExtension(oe.pStyle.sFont_3)
     'If oe.id = "1B45BD" Then esperar = True Else esperar = False
-    ProcessText3(oE.sParam[Me.sdaText])
-
-    'glx.DrawMultilineText(oE.stringdata[0], oE.p[0], oE.p[1], oE.fParam[0], oE.fParam[1], gcd.GetGBColor(oE.Colour, oe.pLayer))
 
 End
 
-Public Sub ProcessText3(RTF As String)
+Public Sub ProcessText3(oe As Entity)
 
     ' voy a hacer una gran division
     ' separo el texto a imprimir en lineas \P
     ' busco lo que esta entre {}
     Dim p1, p2, p3 As Integer
     Dim sLines As New String[]
-    Dim sRemains, sToProcess As String
+    Dim rtf, sRemains, sToProcess As String
     Dim fRect As New Float[]
     Dim px, py, dx, dy, dy2 As Float
 
-    flxText.Clear ' limpio los glyphs
-
-    Me.MyPolygon.Clear
-    Me.MyPolygon.insert([1e10, 1e10, -1e10, -1e10])
+    rtf = oE.sParam[Me.sdaText]
 
     Trimmed = False
 
@@ -369,26 +406,23 @@ Public Sub ProcessText3(RTF As String)
 
     puntos.Translate(flxText, px, py)
 
+    fRect = puntos.Limits(flxText)
+
+    oE.Polygon.Insert([fRect[0], fRect[1]])
+    oE.Polygon.Insert([fRect[0], fRect[3]])
+    oE.Polygon.Insert([fRect[2], fRect[3]])
+    oE.Polygon.Insert([fRect[2], fRect[1]])
+    oE.Polygon.Insert([fRect[0], fRect[1]])
+
     puntos.RotatePointsFromBase(OriginalTextPosX, OriginalTextPosY, Rad(CurrentTextAngle), flxText)
 
+    puntos.RotatePointsFromBase(OriginalTextPosX, OriginalTextPosY, Rad(CurrentTextAngle), oE.Polygon)
+
     ' FIXME:  esto falla porque la entidad esta translated al momento de dibujar
-    fRect = puntos.Limits(flxText)
-    ' esto es un workaround
-    puntos.Translate(fRect, gcd.Drawing.Sheet.PanBaseRealX, gcd.Drawing.Sheet.PanBaseRealY)
-    Me.MyPolygon[0] = fRect[0]
-    Me.MyPolygon[1] = fRect[1]
-    Me.MyPolygon[2] = fRect[2]
-    Me.MyPolygon[3] = fRect[3]
+    oe.PolyLine.Clear
+    oe.PolyLine.Insert(flxText.Copy())
+    flxText.Clear
 
-    If Me.PrintingType = 1 Then
-        paintPlus.Lines(flxText)
-    Else If Me.PrintingType = 0 Then
-        glx.DrawLines(flxText, CurrentTextColor)
-
-    Else If Me.PrintingType = 2 Then
-        ' nada es para crear el poligono
-
-    End If
     ' Code   Description
     ' \L   Start underline
     ' \l   Stop underline
