@@ -102,7 +102,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     Try e.pBlock.InsertionPlace = 1
 
     ' y poner esto
-    'e.pBlock = Me.ReBuildBlock2(e)
+    e.pBlock = Me.ReBuildBlock(e, e.iParam[Me.iiiMode])
 
     Return True
 
@@ -486,5 +486,71 @@ Public Sub RebuildBlock(E As Entity, Optional iMode As Integer = 0, fAngle As Fl
     e.fParam[Me.ipaHorizAngle] = Me.DefAngle
 
     Return newBlock
+
+End
+
+'' Genera un conjunto de grips para ser usados por cadSelection
+Public Function GenerateGrips(e As Entity) As Integer
+
+    Dim i As Integer
+    Dim g As Grip
+    Dim iCount As Integer
+    Dim flxGrip As New Float[]
+
+    g = New Grip
+    g.Shape = 0
+    g.X = e.P[0]
+    g.Y = e.P[1]
+    g.Action = 0 ' mover
+    g.AsociatedEntity = e
+    g.AsociatedPoint = 0
+    gcd.Drawing.Sheet.Grips.Add(g)
+    g.ToolTip = ("Move def point")
+
+    g = New Grip
+    g.Shape = 0
+    g.X = e.P[2]
+    g.Y = e.P[3]
+    g.Xr = g.X
+    g.Yr = g.Y
+    ' flxGrip.Add(g.X)
+    ' flxGrip.Add(g.y)
+    ' puntos.Rotate(flxGrip, Rad(e.fParam[Me.ipaRotacion]))
+    ' g.X = e.P[0] + flxGrip[0]
+    ' g.y = e.P[1] + flxGrip[1]
+    ' g.Xr = g.X
+    ' g.Yr = g.Y
+    g.Action = 1 ' este dato es propio de la clase
+    g.AsociatedEntity = e
+    g.AsociatedPoint = 1
+    g.AsociatedGrip = 0
+    'g.iFillColor = Color.Red
+    'g.DrawLineToAsociatedGrip = True
+    g.ToolTip = ("Move def point")
+    'g.ToolTip = ("Rotate insert")
+    gcd.Drawing.Sheet.Grips.Add(g)
+
+    g = New Grip
+    g.Shape = 0
+    g.X = e.P[4]
+    g.Y = e.P[5]
+    g.Action = 0 ' mover
+    g.AsociatedEntity = e
+    g.AsociatedPoint = 2
+    gcd.Drawing.Sheet.Grips.Add(g)
+    g.ToolTip = ("Move text position")
+
+End
+
+Public Function GripEdit(g As Grip) As Boolean
+
+    Dim e As Entity
+    Dim Xr, Yr, xs, ys As Float
+
+    e = g.AsociatedEntity
+    e.P[g.AsociatedPoint * 2] = g.X
+    e.P[g.AsociatedPoint * 2 + 1] = g.Y
+
+    e.pBlock = RebuildBlock(e, e.iParam[Me.iiiMode])
 
 End
