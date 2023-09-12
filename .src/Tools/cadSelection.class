@@ -212,7 +212,7 @@ Public Function MouseDown()
         ' veo si esta en un grip(solo si ToolActive = False)
 
         ' chequeo si estoy sobre un grip
-        GripPoint = FindGrip(Me.SelStartXr, Me.SelStartYr)
+        If AllowGripEdit Then GripPoint = FindGrip(Me.SelStartXr, Me.SelStartYr) Else GripPoint = Null
 
         If GripPoint Then
 
@@ -315,6 +315,10 @@ Public Sub MouseUp()
     '     Me.active = False
     '     Return
     ' End If
+
+    tipo = "new"
+    If Mouse.Shift Or Me.SelectMode = Me.SelectModeRem Then tipo = "rem" ' estos elementos de la seleccion anterior
+    If Mouse.Control Or Me.SelectMode = Me.SelectModeAdd Then tipo = "add" ' elementos a la seleccion anterior
     '
 
     If Mouse.Left Then
@@ -344,10 +348,6 @@ Public Sub MouseUp()
 
             If Me.SelStartXr > Me.SelEndXr Then Swap Me.SelStartXr, Me.SelEndXr
             If Me.SelStartYr > Me.SelEndyr Then Swap Me.SelStartYr, Me.SelEndyr
-
-            tipo = "new"
-            If Mouse.Shift Or Me.SelectMode = Me.SelectModeRem Then tipo = "rem" ' estos elementos de la seleccion anterior
-            If Mouse.Control Or Me.SelectMode = Me.SelectModeAdd Then tipo = "add" ' elementos a la seleccion anterior
 
             ' veo si el rectangulo es suficientemente grande como para representar una seleccion por rectangulo
             If (Me.SelEndX - Me.SelStartX + (-Me.SelEndy + Me.SelStartY)) > 10 Then
@@ -400,18 +400,18 @@ Public Sub MouseUp()
         Else If RectActive = False And Not GripPoint Then
 
             ' A.1.2 Estoy sobre una entidad
-            If gcd.Drawing.HoveredEntity Then
-                If SelectMode = SelectModeNew Then gcd.Drawing.Sheet.EntitiesSelected.Clear
+            If gcd.Drawing.HoveredEntity And AllowSingleSelection Then
+                If tipo = "new" Then gcd.Drawing.Sheet.EntitiesSelected.Clear
                 If AllowSingleSelection Then
 
                     ' A.1.2.1 No esta seleccionada -> seleccionar
                     If Not gcd.Drawing.Sheet.EntitiesSelected.Exist(gcd.Drawing.HoveredEntity.Id) Then
                         ' excepto que estos removiendo
-                        If SelectMode <> SelectModeRem Then
+                        If tipo <> "rem" Then
                             gcd.Drawing.Sheet.EntitiesSelected.add(gcd.Drawing.HoveredEntity, gcd.Drawing.HoveredEntity.Id)
                         End If
                     Else ' esta en la seleccion
-                        If SelectMode = SelectModeRem Then
+                        If tipo = "rem" Then
                             gcd.Drawing.Sheet.EntitiesSelected.Remove(gcd.Drawing.HoveredEntity.Id)
                         End If
                     End If
@@ -511,10 +511,6 @@ Public Sub MouseUp()
             RectActive = False
             Me.SelectionPoly.Add(gcd.Xreal(Mouse.x))
             Me.SelectionPoly.Add(gcd.Yreal(Mouse.y))
-
-            tipo = "new"
-            If Mouse.Shift Or Me.SelectMode = Me.SelectModeRem Then tipo = "rem" ' estos elementos de la seleccion anterior
-            If Mouse.Control Or Me.SelectMode = Me.SelectModeAdd Then tipo = "add" ' elementos a la seleccion anterior
 
             cSel = clsEntities.SelectionPoly(Me.SelectionPoly, Me.SelectCrossing)
             Me.SelectionPoly.Clear

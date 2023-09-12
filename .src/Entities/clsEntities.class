@@ -630,51 +630,51 @@ Public Function DeSelection(Optional elementos As String = "todo", Accion As Str
     '   primero vacio la seleccion anterior
     gcd.Drawing.Sheet.EntitiesSelected.Clear
     gcd.Drawing.Sheet.Grips.Clear
-    For Each eTesting As Entity In gcd.Drawing.Sheet.Entities
-
-        clase = eTesting.Gender
-
-        Select Case accion
-
-            Case "mover", "copiar", "borrar", "escalar" ' necesito que todos los puntos esten seleccionados
-
-                If SelFull() And (elementos = "todo" Or elementos = clase) Then
-
-                    gcd.Drawing.Sheet.EntitiesSelected.Add(eTesting, eTesting.id)
-                    SelectElem(eTesting)
-                    Inc i
-
-                Else
-
-                    DeSelectElem(eTesting)
-
-                End If
-
-            Case "estirar" ' necesito que dos puntos contiguos esten seleccionados
-
-                If SelPArtial() And (elementos = "todo" Or elementos = clase) Then
-                    gcd.Drawing.Sheet.EntitiesSelected.Add(eTesting, eTesting.id)
-                    SelectElem(eTesting, False) ' dont touch the points
-                    Inc i
-
-                Else
-
-                    DeSelectElem(eTesting)
-
-                End If
-
-            Case "deseleccionar" ' todas las acciones
-
-                If (elementos = "todo" Or elementos = clase) Then
-
-                    Inc i
-                    DeSelectElem(eTesting)
-
-                End If
-
-        End Select
-
-    Next
+    ' For Each eTesting As Entity In gcd.Drawing.Sheet.Entities
+    '
+    '     clase = eTesting.Gender
+    '
+    '     Select Case accion
+    '
+    '         Case "mover", "copiar", "borrar", "escalar" ' necesito que todos los puntos esten seleccionados
+    '
+    '             If SelFull() And (elementos = "todo" Or elementos = clase) Then
+    '
+    '                 gcd.Drawing.Sheet.EntitiesSelected.Add(eTesting, eTesting.id)
+    '                 SelectElem(eTesting)
+    '                 Inc i
+    '
+    '             Else
+    '
+    '                 DeSelectElem(eTesting)
+    '
+    '             End If
+    '
+    '         Case "estirar" ' necesito que dos puntos contiguos esten seleccionados
+    '
+    '             If SelPArtial() And (elementos = "todo" Or elementos = clase) Then
+    '                 gcd.Drawing.Sheet.EntitiesSelected.Add(eTesting, eTesting.id)
+    '                 SelectElem(eTesting, False) ' dont touch the points
+    '                 Inc i
+    '
+    '             Else
+    '
+    '                 DeSelectElem(eTesting)
+    '
+    '             End If
+    '
+    '         Case "deseleccionar" ' todas las acciones
+    '
+    '             If (elementos = "todo" Or elementos = clase) Then
+    '
+    '                 Inc i
+    '                 DeSelectElem(eTesting)
+    '
+    '             End If
+    '
+    '     End Select
+    '
+    ' Next
 
     Return i
 
@@ -700,6 +700,8 @@ Public Function DeleteSelected() As Integer
     Dim E As Entity, c As Integer
     Dim lay As Layer
 
+    Dim t As Float = Timer
+
     '  Purgue will also delete those with .ForDeletion = true
 
     gcd.debugInfo("Borrando entidades",, True)
@@ -711,17 +713,25 @@ Public Function DeleteSelected() As Integer
 
         gcd.Drawing.uUndo.AddUndoItem(e)
         gcd.Drawing.Sheet.Entities.Remove(gcd.Drawing.Sheet.EntitiesSelected.Key)
+        gcd.Drawing.Sheet.EntitiesVisibles.Remove(gcd.Drawing.Sheet.EntitiesSelected.Key)
 
+        e.pLayer.flgForRegen = True
     Next
 
     gcd.Drawing.uUndo.CloseUndoStage()
+    Debug Timer - t
+    t = Timer
     gcd.debugInfo("Regenerando graficos",, True)
     Debug "Regenrando", Now
     '   we also need to regenerate the drawing list
     For Each lay In gcd.Drawing.Layers
-        If lay.Visible Then glGenDrawListLayers(lay)
+        If lay.Visible And lay.flgForRegen Then
+            glGenDrawListLayers(lay)
+            lay.flgForRegen = False
+        End If
 
     Next
+    Debug Timer - t
 
     gcd.debugInfo("Listo",, True)
     Debug "Listo", Now
