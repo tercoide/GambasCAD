@@ -175,8 +175,8 @@ Public Sub Finish(e As Entity) As Boolean
     ' tareas finales de armado del objeto
     'Me.BuildPOI(e)
 
-    Me.BuildGeometry(e)
-    Me.createpolygon(e)
+    'Me.BuildGeometry(e)
+    'Me.createpolygon(e)
 
     e.psel.resize(e.p.count / 2)
 
@@ -207,11 +207,6 @@ Public Function OverMe(e As Entity, Xr As Float, Yr As Float, tolerance As Float
     End If
 
     Return False
-
-End
-
-'' Builds the geometry of the entity wthout drwing it
-Public Function createpolygon(E As Entity)
 
 End
 
@@ -337,8 +332,16 @@ Public Function SelFull(eTesting As Entity, X1real As Float, Y1real As Float, X2
 
     Dim ii As Integer, puedo As Boolean
     Dim ePart As Entity
+    Dim h As Hatch
+    Dim flxBounds As Float[]
 
     Select Case eTesting.Gender
+        Case "HATCH"
+
+            h = eTesting.pBlock
+            For Each flxBounds In h.Polylines
+                If Not puntos.IsPoligonInsideRect(eTesting.PolyLine, X1real, Y1real, X2real, Y2real) Then Return False
+            Next
 
         Case Like "DIM*", "INSERT"
             For Each ePart In eTesting.pBlock.entities
@@ -456,6 +459,57 @@ Public Function SelPartial(eTesting As Entity, X1real As Float, Y1real As Float,
     Else
         Return False
     End If
+
+End
+
+Public Function Limits(e As Entity) As Float[]
+
+    Dim e2 As Entity
+    Dim flxPoly, flxLimits As Float[]
+    Dim flxLimitsMax As Float[]
+
+    flxLimitsMax = [1e100, 1e100, -1e100, -1e100]
+    Select Case e.Gender
+        Case "HATCH"
+            Dim h As Hatch
+            h = e.pBlock
+            For Each flxPoly In h.Polylines
+                flxLimits = puntos.Limits(flxPoly)
+                puntos.LimitsMax(flxLimitsMax, flxLimits)
+
+            Next
+
+        Case "INSERT"
+            For Each e2 In e.pBlock.entities
+                flxLimits = Limits(e2)
+                flxLimits[0] += e.P[0]
+                flxLimits[2] += e.P[0]
+
+                flxLimits[1] += e.P[1]
+                flxLimits[2] += e.P[1]
+
+                puntos.LimitsMax(flxLimitsMax, flxLimits)
+            Next
+        Case Like "DIM*"
+            For Each e2 In e.pBlock.entities
+                flxLimits = Limits(e2)
+                puntos.LimitsMax(flxLimitsMax, flxLimits)
+            Next
+        Case Else
+            If e.Polygon.Count > 0 Then
+                flxLimits = puntos.Limits(e.Polygon)
+            Else If e.PolyLine.Count > 0 Then
+                flxLimits = puntos.Limits(e.PolyLine)
+            Else If e.P.Count > 0 Then
+                flxLimits = puntos.Limits(e.P)
+            Else
+                flxLimits = flxLimitsMax
+
+            Endif
+            flxLimitsMax = flxLimits
+
+    End Select
+    Return flxLimitsMax
 
 End
 

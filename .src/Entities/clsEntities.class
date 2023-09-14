@@ -1000,9 +1000,24 @@ Public Function CollectVisibleEntities(Optional sSheet As Sheet)
 
 End
 
-Public Sub BuildGeometry(e As Entity, Optional s As Sheet = gcd.drawing.Sheet)
+Public Sub BuildGeometry(Optional e As Entity = Null, s As Sheet = gcd.drawing.Sheet)
 
-    gcd.CCC[e.gender].Buildgeometry(e)
+    Dim b As Block
+
+    If e Then
+        gcd.CCC[e.gender].Buildgeometry(e)
+    Else
+        For Each b In gcd.Drawing.Blocks
+            For Each e In b.entities
+                gcd.CCC[e.gender].Buildgeometry(e)
+            Next
+        Next
+        ' For Each s In gcd.Drawing.Sheets
+        '     For Each e In s.Entities
+        '         gcd.CCC[e.gender].Buildgeometry(e)
+        '     Next
+        ' Next
+    End If
 
 End
 
@@ -1012,10 +1027,12 @@ Public Function ComputeLimits(Optional entities As Collection, OnlyVisibles As B
 
     Dim e As Entity, i As Integer
     Dim entGroup As Collection
-    Dim Xmenor As Float = 1e10, Ymenor As Float = 1e10, Xmayor As Float = -1e10, Ymayor As Float = -1e10
+
     Dim newLimits As New Float[]
     Dim IsVisible As Boolean
     ' Dim a As Integer
+
+    newLimits = [1e100, 1e100, -1e100, -1e100]
 
     If Not entities Then entGroup = gcd.Drawing.Sheet.Entities Else entGroup = Entities
 
@@ -1034,116 +1051,13 @@ Public Function ComputeLimits(Optional entities As Collection, OnlyVisibles As B
 
         If IsVisible Then
 
-            ' If e.Gender = "INSERT" Then
-            '     If IsNull(e.pBlock) Then Continue
-            '     newLimits = ComputeLimits(e.pBlock.entities)
-            '     If IsNull(newLimits) Then Continue
-            '     puntos.Scale(newLimits, e.fParam[cadInsert.ipaEscX], e.fParam[cadInsert.ipaEscY])
-            '     puntos.Rotate(newLimits, e.fParam[cadInsert.ipaRotacion]) ' TODO: verificar orden de esta y la siguiente linea
-            '     puntos.Translate(newLimits, e.P[0], e.P[1])
-            '     If Xmenor > newLimits[0] Then Xmenor = newLimits[0]
-            '     If ymenor > newLimits[1] Then ymenor = newLimits[1]
-            '     If Xmayor < newLimits[2] Then Xmayor = newLimits[2]
-            '     If Ymayor < newLimits[3] Then Ymayor = newLimits[3]
-            '
-            '     'If (ymayor > 3000) And gcd.SnapMode Then Stop
-            '     'End If
-            '
-            ' Else
-            'If e.Gender = cadViewport.Gender Then Stop
-            If e.Gender Like "DIM*" Then
+            puntos.LimitsMax(newLimits, gcd.CCC[e.Gender].limits(e))
 
-                If IsNull(e.pBlock) Then Continue
-                If IsNull(e.pBlock.entities) Then Continue
-                newLimits = ComputeLimits(e.pBlock.entities)
-                If IsNull(newLimits) Then Continue
-                'puntos.Translate(newLimits, e.P[0], e.P[1])
-                'puntos.Rotate(newLimits, e.fParam[cadInsert.ipaRotacion]) ' TODO: verificar orden de esta y la siguiente linea
-                'puntos.Scale(newLimits, e.fParam[cadInsert.ipaEscX], e.fParam[cadInsert.ipaEscY])
-                If Xmenor > newLimits[0] Then Xmenor = newLimits[0]
-                If ymenor > newLimits[1] Then ymenor = newLimits[1]
-                If Xmayor < newLimits[2] Then Xmayor = newLimits[2]
-                If Ymayor < newLimits[3] Then Ymayor = newLimits[3]
-
-                'If (Xmenor < 0) And gcd.SnapMode Then Stop
-                ' End If
-
-            Else If e.Polygon.Count > 0 Then
-
-                For i = 0 To e.Polygon.max Step 2
-                    'If e.p[i] > 0 Then Debug e.gender
-
-                    If e.Polygon[i] < Xmenor Then Xmenor = e.Polygon[i]
-
-                    If e.Polygon[i + 1] < Ymenor Then Ymenor = e.Polygon[i + 1]
-
-                    If e.Polygon[i] > Xmayor Then Xmayor = e.Polygon[i]
-
-                    If e.Polygon[i + 1] > Ymayor Then Ymayor = e.Polygon[i + 1]
-
-                    'If (Xmenor < 0) And gcd.SnapMode Then Stop
-
-                Next
-            Else If e.PolyLine.Count > 0 Then
-
-                For i = 0 To e.PolyLine.max Step 2
-                    'If e.p[i] > 0 Then Debug e.gender
-
-                    If e.PolyLine[i] < Xmenor Then Xmenor = e.PolyLine[i]
-
-                    If e.PolyLine[i + 1] < Ymenor Then Ymenor = e.PolyLine[i + 1]
-
-                    If e.PolyLine[i] > Xmayor Then Xmayor = e.PolyLine[i]
-
-                    If e.PolyLine[i + 1] > Ymayor Then Ymayor = e.PolyLine[i + 1]
-
-                    'If (Xmenor < 0) And gcd.SnapMode Then Stop
-
-                Next
-            Else If e.Gender = "POINT" Then
-
-                If IgnorePoints Then Continue
-                i = 0
-                If e.p[i] < Xmenor Then Xmenor = e.p[i]
-
-                If e.p[i + 1] < Ymenor Then Ymenor = e.p[i + 1]
-
-                If e.p[i] > Xmayor Then Xmayor = e.p[i]
-
-                If e.p[i + 1] > Ymayor Then Ymayor = e.p[i + 1]
-
-            Else
-
-                For i = 0 To e.p.max Step 2
-
-                    If i > e.P.Max - 1 Then Break
-                    'If e.p[i] > 0 Then Debug e.gender
-
-                    If e.p[i] < Xmenor Then Xmenor = e.p[i]
-
-                    If e.p[i + 1] < Ymenor Then Ymenor = e.p[i + 1]
-
-                    If e.p[i] > Xmayor Then Xmayor = e.p[i]
-
-                    If e.p[i + 1] > Ymayor Then Ymayor = e.p[i + 1]
-
-                    'If (Xmenor < 0) And gcd.SnapMode Then Stop
-
-                Next
-            End If
-        End If
-        ' If Xmenor < 10 Then
-        '     If e.Gender = "INSERT" Then
-        '
-        '         a = 1
-        '     End If
-        '
-        ' End If
-        ' If Xmayor > 425 Then Stop
+        Endif
 
     Next
 
-    Return [Xmenor, Ymenor, Xmayor, Ymayor]
+    Return newLimits
 
 End
 
