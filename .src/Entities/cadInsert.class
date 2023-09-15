@@ -116,7 +116,7 @@ Public Sub Scale(e As Entity, sX As Float, sY As Float)
     E.fParam[Me.ipaEscX] *= sX
     E.fParam[Me.ipaEscY] *= sY
 
-    puntos.Scale(e.P, sx, sy)
+    'puntos.Scale(e.P, sx, sy)
     puntos.Scale(e.Polygon, sx, sy)
 
     Dim eBlock As Entity
@@ -445,37 +445,49 @@ Public Function GripEdit(g As Grip) As Boolean
 
     Dim e As Entity
     Dim Xr, Yr, xs, ys As Float
+    Dim l, d, x, l0, fAngle As Float
 
     e = g.AsociatedEntity
-    If g.Action = 0 Then
+    If g.Action = 0 Then                        ' mover
         translate(e, g.X - e.P[0], g.Y - e.P[1])
 
-    Else If g.Action = 2 Then
+    Else If g.Action = 2 Then                   ' escalar
+
+        ' acomodo
 
         xr = e.P[0]
         yr = e.P[1]
 
-        xs = g.X / g.Xr
-        ys = g.Y / g.Yr
+        l = (g.X - xr) ^ 2 + (g.Y - yr) ^ 2
+        d = puntos.PointToLineDistance([g.x, g.y], [xr, yr, g.xr, g.yr]) ^ 2
+        l0 = ((g.Xr - xr) ^ 2 + (g.Yr - yr) ^ 2) ^ 0.5
+        x = (l - d) ^ 0.5
 
-        translate(e, -e.P[0], -e.P[1])
-        scale(e, xs * e.fParam[Me.ipaEscX], ys * e.fParam[Me.ipaEscY])
-        translate(e, xr, yr)
+        xs = x / l0
+        'ys = g.Y / g.Yr
+
+        'translate(e, -e.P[0], -e.P[1])
+        scale(e, xs, xs)
+        'translate(e, xr, yr)
+        g.X = xr + (g.Xr - xr) * xs
+
+        g.Y = yr + (g.yr - yr) * xs
+
         g.Xr = g.X
         g.Yr = g.Y
 
-    Else If g.Action = 1 Then ' rotate
+    Else If g.Action = 1 Then                           ' rotate
 
         xr = e.P[0]
         yr = e.P[1]
-        translate(e, -e.P[0], -e.P[1])
-        rotate(e, Ang(g.X - xr, g.Y - yr) - Rad(e.fParam[Me.ipaRotacion]))
+        fAngle = Ang(g.X - xr, g.Y - yr) '- Ang(g.xr - xr, g.yr - yr)
+        translate(e, -xr, -yr)
+        rotate(e, fAngle - Rad(e.fParam[Me.ipaRotacion]))
         translate(e, xr, yr)
 
-        ' vamos a corregir la posicion del grip
-
     End If
-
+    gcd.Drawing.Sheet.Grips.Clear
+    GenerateGrips(g.AsociatedEntity)
     ' g.Xr = g.X
     ' g.Yr = g.Y
 
