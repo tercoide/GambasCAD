@@ -72,8 +72,8 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     ' TODO: cuando este terminada la entidad, sacar eso
     'e.pBlock.InsertionPlace = 1
     ' y dejar esto
-    If e.fParam[Me.ipaStyleTextHeigth] > 0 Then Me.DimTextHeight = e.fParam[Me.ipaStyleTextHeigth]
-    Debug "cadDimension.DimTextHeight", cadDimension.DimTextHeight
+    If e.fParam[Me.ipaStyleTextHeigth] > 0 Then e.pDimStyle.DIMTXT = e.fParam[Me.ipaStyleTextHeigth]
+    'Debug "cadDimension.DimTextHeight", cadDimension.DimTextHeight
     ' TODO: cuando este terminada la entidad, sacar eso
     ' tengo q presuponer que las escalas son = 1
     e.fParam[Me.ipaEscX] = 1    ' esc X
@@ -188,15 +188,8 @@ Public Sub RebuildBlock(E As Entity, Optional iMode As Integer = 0, fAngle As Fl
     Dim eText As Entity
     Dim ePoint1 As Entity
     Dim ePoint2 As Entity
-    Dim MyStyle As DimStyle
-    Dim IsNegative As Boolean
 
-    ' vemos los estilos
-    MyStyle = gcd.Drawing.CurrDimStyle
-    If E.fParam[Me.ipaStyleTextHeigth] > 0 Then Me.DimTextHeight = E.fParam[Me.ipaStyleTextHeigth] Else Me.DimTextHeight = MyStyle.DIMTXT
-    If E.fParam[Me.ipaStyleArrowSize] > 0 Then Me.DimArrowSize = E.fParam[Me.ipaStyleArrowSize] Else Me.DimArrowSize = MyStyle.DIMASZ
-    Me.DimArrowWIdth = Me.DimArrowSize / 3
-    Me.DimExtension = Me.DimArrowSize
+    Dim IsNegative As Boolean
 
     newBlock.name = "*D" ' luego se agregara la handle, en entitybuilder
     newBlock.entities = New Collection
@@ -218,7 +211,7 @@ Public Sub RebuildBlock(E As Entity, Optional iMode As Integer = 0, fAngle As Fl
     If fAngle90 > Pi / 2 Then fAngle90 -= Pi
 
     ' el siguiente valor depende de la posicion del texto
-    Me.DefDeltaT = Me.DimTextHeight * 3 / 4
+    Me.DefDeltaT = e.pDimStyle.DIMTXT * 3 / 4
 
     ' verifico el armado, siempre el P1 debe estar a la izq del P2
 
@@ -240,7 +233,7 @@ Public Sub RebuildBlock(E As Entity, Optional iMode As Integer = 0, fAngle As Fl
     eText = cadMText.NewEntity([0, 0], True)  ' si leo un archivo, esta es la posicion final
     eText.fParam[cadMText.ipaAttchmPoint] = 8
     eText.fParam[cadMText.ipaTextAngle] = Me.DefAngle
-    eText.fParam[cadMText.ipaTextHeight] = Me.DimTextHeight
+    eText.fParam[cadMText.ipaTextHeight] = e.pDimStyle.DIMTXT
 
     If Me.DefAngle = 0 Then
         d = Me.DefPoint2b.x - Me.DefBaselinePoint.x
@@ -255,13 +248,13 @@ Public Sub RebuildBlock(E As Entity, Optional iMode As Integer = 0, fAngle As Fl
     If E.sParam[Me.sdaTextOverrIde] <> "" Then
         sDim = E.sParam[Me.sdaTextOverrIde]
     Else
-        sDim = Format(Abs(d), Me.DimFormat)
+        sDim = Format(Abs(d), e.pDimStyle.FormatLong)
     Endif
     ' el texto
     eText.sParam[cadMText.sdaText] = "\\A1;" & sDim
 
     ' veo si entra el texto
-    flxTextExt = glx.TextExtends(sDim, Me.DimTextHeight)
+    flxTextExt = glx.TextExtends(sDim, e.pDimStyle.DIMTXT)
 
     ' linea principal
     eLineaPpal.P.Clear
@@ -295,11 +288,11 @@ Public Sub RebuildBlock(E As Entity, Optional iMode As Integer = 0, fAngle As Fl
     End If
 
     ' parametros para la linea de extension
-    Me.DefPointAux1.x = Me.DefPoint2.x - Me.DimExtension * Sgn(Me.DefPoint2.x - Me.DefPoint2b.x)
-    Me.DefPointAux1.y = Me.DefPoint2.y - Me.DimExtension * Sgn(Me.DefPoint2.y - Me.DefPoint2b.y)
+    Me.DefPointAux1.x = Me.DefPoint2.x - e.pDimStyle.DIMDLE * Sgn(Me.DefPoint2.x - Me.DefPoint2b.x)
+    Me.DefPointAux1.y = Me.DefPoint2.y - e.pDimStyle.DIMDLE * Sgn(Me.DefPoint2.y - Me.DefPoint2b.y)
 
-    Me.DefPointAux2.x = Me.DefPoint2.x + Me.DimExtension * Sgn(Me.DefPoint2.x - Me.DefPoint2b.x)
-    Me.DefPointAux2.y = Me.DefPoint2.y + Me.DimExtension * Sgn(Me.DefPoint2.y - Me.DefPoint2b.y)
+    Me.DefPointAux2.x = Me.DefPoint2.x + e.pDimStyle.DIMDLE * Sgn(Me.DefPoint2.x - Me.DefPoint2b.x)
+    Me.DefPointAux2.y = Me.DefPoint2.y + e.pDimStyle.DIMDLE * Sgn(Me.DefPoint2.y - Me.DefPoint2b.y)
 
     eText.P.Insert([Me.DefTextMIdPoint.x, Me.DefTextMIdPoint.y])
     eExtension2.P.Insert([Me.DefPointAux1.x, Me.DefPointAux1.y, Me.DefPointAux2.x, Me.DefPointAux2.y])
@@ -307,8 +300,8 @@ Public Sub RebuildBlock(E As Entity, Optional iMode As Integer = 0, fAngle As Fl
 
     eOblique2 = cadInsert.NewEntity([Me.DefPoint2.x, Me.DefPoint2.y], True)
     eOblique2.pBlock = New Block
-    If gcd.Drawing.Blocks.Exist(MyStyle.Thick2) Then
-        eOblique2.pBlock.name = MyStyle.Thick2
+    If gcd.Drawing.Blocks.Exist(e.pDimStyle.Thick2) Then
+        eOblique2.pBlock.name = e.pDimStyle.Thick2
     Else
         eOblique2.pBlock.name = "_thick2_arrow"
     End If

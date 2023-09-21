@@ -248,14 +248,9 @@ Public Sub RebuildBlock(E As Entity, Optional iMode As Integer = 0, fAngle As Fl
     Dim eText As Entity
     Dim ePoint1 As Entity
     Dim ePoint2 As Entity
-    Dim MyStyle As DimStyle
     Dim IsNegative As Boolean
 
     ' vemos los estilos
-    MyStyle = gcd.Drawing.CurrDimStyle
-    If E.fParam[Me.ipaStyleTextHeigth] > 0 Then Me.DimTextHeight = E.fParam[Me.ipaStyleTextHeigth] Else Me.DimTextHeight = MyStyle.DIMTXT
-    If E.fParam[Me.ipaStyleArrowSize] > 0 Then Me.DimArrowSize = E.fParam[Me.ipaStyleArrowSize] Else Me.DimArrowSize = MyStyle.DIMASZ
-    Me.DimArrowWIdth = Me.DimArrowSize / 3
 
     newBlock.name = "*D" ' luego se agregara la handle, en entitybuilder
     newBlock.entities = New Collection
@@ -303,7 +298,7 @@ Public Sub RebuildBlock(E As Entity, Optional iMode As Integer = 0, fAngle As Fl
     If fAngle90 > Pi / 2 Then fAngle90 -= Pi
 
     ' el siguiente valor depende de la posicion del texto
-    Me.DefDeltaT = Me.DimTextHeight * 3 / 4 / e.pDimStyle.DIMSCALE
+    Me.DefDeltaT = e.pDimStyle.DIMTXT * 3 / 4 / e.pDimStyle.DIMSCALE
 
     ' el centro de la linea principal
     Me.DefPointCentral.x = Me.DefTextMIdPoint.x - Sin(Me.DefAngle) * Me.DefDeltaT
@@ -387,13 +382,13 @@ Public Sub RebuildBlock(E As Entity, Optional iMode As Integer = 0, fAngle As Fl
     ePoint2 = cadPoint.NewEntity([Me.DefPoint2.x, Me.DefPoint2.y], True)
 
     ' flechas
-    eOblique1 = clsEntities.FindInsertByName(e.pBlock.entities, "_thick1_arrow")
+    eOblique1 = gcd.Drawing.Blocks[e.pDimStyle.DIMBLK1]
     If Not eOblique1 Then
         eOblique1 = cadInsert.NewEntity([Me.DefPoint1b.x, Me.DefPoint1b.y], True)
         eOblique1.pBlock = New Block
 
-        If gcd.Drawing.Blocks.Exist(MyStyle.Thick1) Then
-            eOblique1.pBlock.name = MyStyle.Thick1
+        If gcd.Drawing.Blocks.Exist(e.pdimstyle.Thick1) Then
+            eOblique1.pBlock.name = e.pdimstyle.Thick1
         Else
             eOblique1.pBlock.name = "_thick1_arrow"
         End If
@@ -404,12 +399,12 @@ Public Sub RebuildBlock(E As Entity, Optional iMode As Integer = 0, fAngle As Fl
         cadInsert.Finish(eOblique1)
     End If
 
-    eOblique2 = clsEntities.FindInsertByName(e.pBlock.entities, "_thick2_arrow")
+    eOblique2 = gcd.Drawing.Blocks[e.pDimStyle.DIMBLK2]
     If Not eOblique2 Then
         eOblique2 = cadInsert.NewEntity([Me.DefPoint2b.x, Me.DefPoint2b.y], True)
         eOblique2.pBlock = New Block
-        If gcd.Drawing.Blocks.Exist(MyStyle.Thick2) Then
-            eOblique2.pBlock.name = MyStyle.Thick2
+        If gcd.Drawing.Blocks.Exist(e.pdimstyle.Thick2) Then
+            eOblique2.pBlock.name = e.pdimstyle.Thick2
         Else
             eOblique2.pBlock.name = "_thick2_arrow"
         End If
@@ -453,7 +448,7 @@ Public Sub RebuildBlock(E As Entity, Optional iMode As Integer = 0, fAngle As Fl
     If E.sParam[Me.sdaTextOverrIde] <> "" Then
         sDim = E.sParam[Me.sdaTextOverrIde]
     Else
-        sDim = Format(Abs(d), Me.DimFormat)
+        sDim = Format(Abs(d), e.pDimStyle.FormatLong)
     Endif
     ' el texto
     eText.sParam[cadMText.sdaText] = "\\A1;" & sDim
@@ -461,7 +456,7 @@ Public Sub RebuildBlock(E As Entity, Optional iMode As Integer = 0, fAngle As Fl
     cadMText.BuildGeometry(eText)
 
     ' veo si entra el texto
-    flxTextExt = glx.TextExtends(sDim, Me.DimTextHeight)
+    flxTextExt = glx.TextExtends(sDim, e.pDimStyle.DIMTXT)
     If flxTextExt[0] * 1.2 > d Then ' no entra
         eOblique1.fParam[cadInsert.ipaRotacion] += 180
         eOblique2.fParam[cadInsert.ipaRotacion] += 180

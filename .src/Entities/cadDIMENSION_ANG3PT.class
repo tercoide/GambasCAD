@@ -180,12 +180,8 @@ Public Sub RebuildBlock(E As Entity) As Block
     Dim ePoint2 As Entity
     Dim ePoint3 As Entity
     Dim ePoint4 As Entity
-    Dim MyStyle As DimStyle
+
     ' vemos los estilos
-    MyStyle = gcd.Drawing.CurrDimStyle
-    If E.fParam[Me.ipaStyleTextHeigth] > 0 Then Me.DimTextHeight = E.fParam[Me.ipaStyleTextHeigth] Else Me.DimTextHeight = MyStyle.DIMTXT
-    If E.fParam[Me.ipaStyleArrowSize] > 0 Then Me.DimArrowSize = E.fParam[Me.ipaStyleArrowSize] Else Me.DimArrowSize = MyStyle.DIMASZ
-    Me.DimArrowWIdth = Me.DimArrowSize / 3
 
     newBlock.name = "*D" ' luego se agregara la handle, en entitybuilder
     newBlock.entities = New Collection
@@ -223,7 +219,7 @@ Public Sub RebuildBlock(E As Entity) As Block
     If fAngle90 > Pi / 2 Then fAngle90 -= Pi
 
     ' el siguiente valor depende de la posicion del texto
-    Me.DefDeltaT = Me.DimTextHeight * 3 / 4
+    Me.DefDeltaT = e.pDimStyle.DIMTXT * 3 / 4
 
     ' ' los puntos auxiliares, donde van la extension y las flechas, vienen dados por la posicion del texto
     ' d = puntos.distancia(Me.DefCenter.x, Me.DefCenter.y, Me.DefPoint1.x, Me.DefPoint1.y)
@@ -276,8 +272,8 @@ Public Sub RebuildBlock(E As Entity) As Block
     If (eLineaPpal.fParam[2] - eLineaPpal.fParam[1]) < 0 Then eLineaPpal.fParam[2] += 360
 
     ' lineas de demarcacion
-    eExtension1 = cadLine.NewEntity([-Me.DimExtension, 0, Me.DimExtension, 0], True)
-    eExtension2 = cadLine.NewEntity([-Me.DimExtension, 0, Me.DimExtension, 0], True)
+    eExtension1 = cadLine.NewEntity([-e.pDimStyle.DIMDLE, 0, e.pDimStyle.DIMDLE, 0], True)
+    eExtension2 = cadLine.NewEntity([-e.pDimStyle.DIMDLE, 0, e.pDimStyle.DIMDLE, 0], True)
     clsEntities.Rotate(eExtension1, Deg(eLineaPpal.fParam[1]))
     clsEntities.Rotate(eExtension2, Deg(eLineaPpal.fParam[2]))
 
@@ -291,8 +287,8 @@ Public Sub RebuildBlock(E As Entity) As Block
     ' flechas
     eOblique1 = cadInsert.NewEntity([Me.DefPoint1b.x, Me.DefPoint1b.y], True)
     eOblique1.pBlock = New Block
-    If gcd.Drawing.Blocks.Exist(MyStyle.Thick1) Then
-        eOblique1.pBlock.name = MyStyle.Thick1
+    If gcd.Drawing.Blocks.Exist(e.pDimStyle.Thick1) Then
+        eOblique1.pBlock.name = e.pDimStyle.Thick1
     Else
         eOblique1.pBlock.name = "_thick1_arrow"
     End If
@@ -304,8 +300,8 @@ Public Sub RebuildBlock(E As Entity) As Block
 
     eOblique2 = cadInsert.NewEntity([Me.DefPoint2b.x, Me.DefPoint2b.y], True)
     eOblique2.pBlock = New Block
-    If gcd.Drawing.Blocks.Exist(MyStyle.Thick2) Then
-        eOblique2.pBlock.name = MyStyle.Thick2
+    If gcd.Drawing.Blocks.Exist(e.pDimStyle.Thick2) Then
+        eOblique2.pBlock.name = e.pDimStyle.Thick2
     Else
         eOblique2.pBlock.name = "_thick2_arrow"
     End If
@@ -319,7 +315,7 @@ Public Sub RebuildBlock(E As Entity) As Block
     eText = cadMText.NewEntity([Me.DefTextMIdPoint.x, Me.DefTextMIdPoint.y], True)  ' si leo un archivo, esta es la posicion final
     eText.fParam[cadMText.ipaAttchmPoint] = 8
     eText.fParam[cadMText.ipaTextAngle] = ((eLineaPpal.fParam[2] + eLineaPpal.fParam[1]) / 2 - 90) / 180 * Pi
-    eText.fParam[cadMText.ipaTextHeight] = Me.DimTextHeight
+    eText.fParam[cadMText.ipaTextHeight] = e.pDimStyle.DIMTXT
 
     If (eLineaPpal.fParam[2] - eLineaPpal.fParam[1]) < 0 Then eLineaPpal.fParam[2] += 360
 
@@ -350,7 +346,7 @@ Public Sub RebuildBlock(E As Entity) As Block
     If E.sParam[Me.sdaTextOverrIde] <> "" Then
         sDim = E.sParam[Me.sdaTextOverrIde]
     Else
-        sDim = Format(e.fParam[Me.ipaRealMeasure], Me.DimFormat)
+        sDim = Format(e.fParam[Me.ipaRealMeasure], e.pDimStyle.FormatAng)
     Endif
     ' el texto
     If e.Gender = "DIMENSION_ANG3PT" Then
