@@ -107,7 +107,7 @@ Public Function NewEntity(Optional fPoints As Float[], bNewHandle As Boolean = F
     Try e.colour = gcd.Drawing.CurrColor
     Try e.LineType = gcd.Drawing.CurrLineType
     Try e.LineWidth = gcd.Drawing.CurrLineWt
-    e.pDimStyle = gcd.Drawing.CurrDimStyle
+    e.pDimStyle = Utils.CloneObject(gcd.Drawing.CurrDimStyle)
     Me.DimContinued = False
     Me.DimBaseline = False
     Return e
@@ -124,7 +124,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     Dim ReadingStyle As Boolean = False
     Dim NextCode As Integer
 
-    If e.id = "14980" Then Stop
+    'If e.id = "14AA24" Then Stop
     DimTypeSet = False
     For i = 0 To sClaves.Max
 
@@ -141,7 +141,12 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
         If sClaves[i] = "11" Then e.p[2] = CFloat(sValues[i])         ' X1  midpoint of text
         If sClaves[i] = "21" Then e.P[3] = CFloat(sValues[i])         ' Y1
 
-        If sClaves[i] = "3" Then e.pDimStyle = gcd.Drawing.DimStyles[sValues[i]]
+        If sClaves[i] = "3" Then
+            e.pDimStyle = Utils.CloneObject(gcd.Drawing.DimStyles[sValues[i]])
+            If Not e.pdimStyle Then
+                e.pdimStyle = Utils.CloneObject(gcd.Drawing.DimStyles[gcd.Drawing.DimStyles.First])
+            End If
+        End If
 
         ' ' For DEbug
         ' If sClaves[i] = "42" Then
@@ -193,7 +198,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
         If sClaves[i] = "1000" And sValues[i] = "DSTYLE" Then ' empiezo la lectura del estilo
             ReadingStyle = True
-            StyleOverride = New DimStyle
+
         End If
 
         If ReadingStyle Then
@@ -202,8 +207,8 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
                 NextCode = CInt(sValues[i])
             Else If NextCode <> 0 Then
                 ' leemos algunos
-                If NextCode = "140" And sValues[i] <> 0 Then e.fParam[Me.ipaStyleTextHeigth] = CFloat(sValues[i])
-                If NextCode = "41" And sValues[i] <> 0 Then e.fParam[Me.ipaStyleArrowSize] = CFloat(sValues[i])
+                If NextCode = "140" And sValues[i] <> 0 Then e.pDimStyle.DIMTXT = CFloat(sValues[i])
+                If NextCode = "41" And sValues[i] <> 0 Then e.pDimStyle.DIMASZ = CFloat(sValues[i])
                 NextCode = 0
             End If
 
@@ -220,10 +225,6 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     e.fParam[Me.ipaEscX] = 1    ' esc X
     e.fParam[Me.ipaEscY] = 1    ' esc Y
     e.fParam[Me.ipaEscZ] = 1    ' esc Z
-
-    If Not e.pdimStyle Then
-        e.pdimStyle = gcd.Drawing.DimStyles[gcd.Drawing.DimStyles.First]
-    End If
 
     ' pero puede haber un Style Override que anula el estilo y propone nuevos valores
 
