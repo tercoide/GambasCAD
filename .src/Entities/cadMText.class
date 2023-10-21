@@ -945,6 +945,7 @@ Public Function GenerateGrips(e As Entity) As Integer
     Dim g As Grip
     Dim iCount As Integer
     Dim OffsetWidth, OffsetHeigth, h As Float
+    Dim flxGrip As New Float[]
 
     g = New Grip
     g.Shape = 0
@@ -968,8 +969,13 @@ Public Function GenerateGrips(e As Entity) As Integer
     End Select
     g = New Grip
     g.Shape = 1
-    g.X = e.P[0] + OffsetWidth
-    g.Y = e.P[1]
+    flxGrip.Clear
+    flxGrip.Insert([OffsetWidth, 0])
+    puntos.Rotate(flxGrip, e.fParam[Me.ipaTextAngle])
+    g.X = e.P[0] + flxGrip[0]
+    g.y = e.P[1] + flxGrip[1]
+    g.Xr = g.X
+    g.Yr = g.Y
     g.Action = 1 ' este dato es propio de la clase
     g.AsociatedEntity = e
     g.AsociatedPoint = 0
@@ -980,8 +986,11 @@ Public Function GenerateGrips(e As Entity) As Integer
     ' GRIP PARA CAMBIAR LA ALTURA DEL TEXTO
     g = New Grip
     g.Shape = 1
-    g.X = e.P[0]
-    g.Y = e.P[1] + e.fParam[Me.ipaTextHeight]
+    flxGrip.Clear
+    flxGrip.Insert([0, e.fParam[Me.ipaTextHeight]])
+    puntos.Rotate(flxGrip, e.fParam[Me.ipaTextAngle])
+    g.X = e.P[0] + flxGrip[0]
+    g.y = e.P[1] + flxGrip[1]
     g.Xr = g.X
     g.Yr = g.Y
     g.Value = e.fParam[Me.ipaTextHeight]
@@ -990,6 +999,24 @@ Public Function GenerateGrips(e As Entity) As Integer
     g.AsociatedPoint = 0
     g.DrawLineToAsociatedGrip = True
     g.ToolTip = ("Text height")
+    gcd.Drawing.Sheet.Grips.Add(g)
+
+    g = New Grip
+    g.Shape = 2
+    flxGrip.Clear
+    flxGrip.Insert([-e.fParam[Me.ipaTextHeight], 0])
+    puntos.Rotate(flxGrip, e.fParam[Me.ipaTextAngle])
+    g.X = e.P[0] + flxGrip[0]
+    g.y = e.P[1] + flxGrip[1]
+    g.Xr = g.X
+    g.Yr = g.Y
+    g.Action = 3
+    g.AsociatedEntity = e
+    g.AsociatedPoint = 0
+    g.AsociatedGrip = 0
+    g.iFillColor = Color.Red
+    g.DrawLineToAsociatedGrip = True
+    g.ToolTip = ("Rotate text")
     gcd.Drawing.Sheet.Grips.Add(g)
     '
     ' g = New Grip
@@ -1020,6 +1047,8 @@ Public Function GripEdit(g As Grip) As Boolean
 
     Dim e As Entity
     Dim r, r1, r2 As Float
+    Dim Xr, Yr, xs, ys As Float
+    Dim l, d, x, l0, fAngle As Float
 
     e = g.AsociatedEntity
     Select Case g.Action
@@ -1027,16 +1056,32 @@ Public Function GripEdit(g As Grip) As Boolean
             e.P[0] = g.X
             e.P[1] = g.Y
         Case 1 ' cambiar el ancho
-            r1 = Abs(e.P[0] - g.X)
-            r2 = Abs(e.P[1] - g.y)
-            If r1 > r2 Then r = r1 Else r = r2
-            e.fParam[Me.ipaRectangleWIdth] = Abs(r2)
+            ' Angulo entre la posicion del grip original y la nueva
+            fAngle = Ang((g.x - e.p[0]), (g.y - e.p[1])) - Ang((g.xr - e.p[0]), (g.yr - e.p[1]))
+            ' la nueva altura del texto sera
+            r1 = puntos.distancia(e.P[0], e.P[1], g.x, g.Y)
+
+            e.fParam[Me.ipaRectangleWIdth] = r1 * Cos(fAngle)
 
         Case 2 ' cambiar la altura
-            r = puntos.distancia(e.P[0], e.P[1], g.x, g.Y)
-            r = (g.Y - e.P[1]) / (g.Y - g.yr)
-            e.fParam[Me.ipaTextHeight] = Abs(r * g.Value)
+            ' Angulo entre la posicion del grip original y la nueva
+            fAngle = Ang((g.x - e.p[0]), (g.y - e.p[1])) - Ang((g.xr - e.p[0]), (g.yr - e.p[1]))
+            ' la nueva altura del texto sera
+            r1 = puntos.distancia(e.P[0], e.P[1], g.x, g.Y)
+
+            e.fParam[Me.ipaTextHeight] = r1 * Cos(fAngle)
+
+        Case 3 ' rotar
+            fAngle = Ang((g.x - e.p[0]), (g.y - e.p[1])) - Ang((g.xr - e.p[0]), (g.yr - e.p[1]))
+
+            fAngle = Ang((g.x - e.p[0]), (g.y - e.p[1]))
+
+            'rotate(e, fAngle - e.fParam[Me.ipaTextAngle])
+            e.fParam[Me.ipaTextAngle] = fAngle - Pi'- e.fParam[Me.ipaTextAngle]
 
     End Select
+    BuildGeometry(e)
+    gcd.Drawing.Sheet.Grips.Clear
+    GenerateGrips(e)
 
 End
