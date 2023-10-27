@@ -2070,6 +2070,23 @@ Public Function ReadCodePlus(iExpectedCode As Integer, stxClaves As String[], st
 End
 
 '' Lee el codigo de la coleccion que se importa del DXF, puede ignorar lo que esta entre llaves {} que es info de ACAD privativa y puede empezar desde el ultimo leido antes
+Public Function GoToCodeFromCol(cDxfEntityData As Collection, iCode As Integer, sValue As String) As Integer
+
+    Dim s, sKey As String, i, p As Integer, valid, OpenedSection As Boolean
+
+    For Each s In cDxfEntityData
+        Inc i
+
+        If s = sValue Then
+            LastCodeReadIndex = i
+            Return i
+        End If
+    Next
+    Return 0
+
+End
+
+'' Lee el codigo de la coleccion que se importa del DXF, puede ignorar lo que esta entre llaves {} que es info de ACAD privativa y puede empezar desde el ultimo leido antes
 Public Function ReadCodeFromCol(cDxfEntityData As Collection, iCode As Integer, Optional ReadNext As Boolean = False, IgnoreAcadData As Boolean = True, vDefaultValue As Variant = "") As String
 
     Dim s, sKey As String, i, p As Integer, valid, OpenedSection As Boolean
@@ -2467,7 +2484,7 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
     End If
 
     ' voy a hacer un chequeo final, porque algunos DXF vienen sin el bloque Model
-    If Drw.Sheets.Count = 0 Then
+    If Not Drw.Sheets.Exist("Model") Then
         ' creo la Sheet
         S = New Sheet
         s.Name = "Model"
@@ -2711,6 +2728,8 @@ Public Function ReadObjectsFromDXF(cData As Collection, drw As Drawing)
             Me.DigestColeccion(cObject, ByRef sClaves, ByRef sValues)
             s = New Sheet
             objLayout.importDXF(s, cObject)
+            If s.name = "" Then s.name = s.pPrintStyle.ViewName
+            If S.Name = "" Then s.name = "Sheet " & Str(drw.Sheets.Count)
             drw.Sheets.Add(s, s.name)
             'Handle_Layout.Add(s.Name, s.id)
             'hContainers.Add(s.Entities, s.id)
