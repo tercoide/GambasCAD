@@ -122,6 +122,7 @@ Public Sub KeyUp(iCode As Integer)
 
 End
 
+' esto viene despues de un <enter>
 Public Function KeyText(EnteredText As String)
     ' Lets see what are we expecting
 
@@ -169,79 +170,83 @@ Public Function KeyText(EnteredText As String)
             gcd.SnapMode = gcd.poiQuadrant
     End Select
 
-    Select Case NextParamType
+    if gcd.IsPoint(EnteredText) Then
+        errtxt = ", expected a valId point like 12.4,9.5  or @12.34,10.5"
+        ' lets filter
+        EnteredText = Trim$(UCase$(EnteredText))
+        ' So we expect a position x,y , but in some cases it can be
+        ' C = close
+        ' U = undo, delete last segment
+        ' and others
 
-        Case "P", "+"
-            errtxt = ", expected a valId point like 12.4,9.5  or @12.34,10.5"
-            ' lets filter
-            EnteredText = Trim$(UCase$(EnteredText))
-            ' So we expect a position x,y , but in some cases it can be
-            ' C = close
-            ' U = undo, delete last segment
-            ' and others
+        ' an X,Y or @X,Y
 
-            ' an X,Y or @X,Y
+        If InStr(EnteredText, "@") > 0 Then    ' may be a point
+            Relative = True
+            EnteredText = Replace(EnteredText, "@", "")
+        Endif
+        Xt = CFloat(Split(EnteredText, ",")[0])
+        yt = CFloat(Split(EnteredText, ",")[1])
 
-            If InStr(EnteredText, "@") > 0 Then    ' may be a point
-                Relative = True
-                EnteredText = Replace(EnteredText, "@", "")
-            Endif
-            Xt = CFloat(Split(EnteredText, ",")[0])
-            yt = CFloat(Split(EnteredText, ",")[1])
+        If Relative Then
+            xt += Me.LastX
+            yt += Me.LastY
 
-            If Relative Then
-                xt += Me.LastX
-                yt += Me.LastY
+        Endif
+        Me.LastX = xt
+        Me.LastY = yt
 
-            Endif
-            Me.LastX = xt
-            Me.LastY = yt
+        ' last point
+        gcd.Drawing.LastPoint.Clear
+        gcd.Drawing.LastPoint.Insert([xt, yt])
 
-            ' last point
-            gcd.Drawing.LastPoint.Clear
-            gcd.Drawing.LastPoint.Insert([xt, yt])
-
-            ' Case "T"
-            '     errtxt = ", expected text, not a point"
-            '     ' its a valid input?
-            '     If EnteredText = "" Then
-            '
-            '         sText = ParamDefault[clsjob.StepsDone]
-            '
-            '     Else
-            '
-            '         sText = EnteredText
-            '
-            '     End If
-            '
-            '     If elem.Gcd.CCC[e.gender].NewParameter(elem, ["text", sText], True) Then AdvanceStep
-            '
-            ' Case "F", "M", "A", "L", "R"                ' Float, Mixed, Angle, Longitud
-            '     errtxt = "enter a valid text size"
-            '
-            '     If EnteredText = "" Then
-            '         Try bResult = elem.Gcd.CCC[e.gender].NewParameter(elem, ["float", ParamDefault[elem.Gcd.CCC[e.gender].StepsDone]], True)
-            '
-            '     Else
-            '
-            '         bResult = elem.Gcd.CCC[e.gender].NewParameter(elem, ["float", CFloat(EnteredText)], True)
-            '
-            '     Endif
-            '
-            '     If bResult Then AdvanceStep
-            '
-            ' Case "C"                                ' color
-            '     If Dialog.SelectColor() Then
-            '         elem.fParam[iFloat] = CFloat(Dialog.Color)
-            '         Inc iFloat
-            '         AdvanceStep
-            '
-            '     Endif
-            '     Key.Cod
-
-    End Select
+        me.NewParameter("point",gcd.Drawing.LastPoint )
+    else
+        me.NewParameter("text",EnteredText)
+    end if
+    ' Case "T"
+    '     errtxt = ", expected text, not a point"
+    '     ' its a valid input?
+    '     If EnteredText = "" Then
+    '
+    '         sText = ParamDefault[clsjob.StepsDone]
+    '
+    '     Else
+    '
+    '         sText = EnteredText
+    '
+    '     End If
+    '
+    '     If elem.Gcd.CCC[e.gender].NewParameter(elem, ["text", sText], True) Then AdvanceStep
+    '
+    ' Case "F", "M", "A", "L", "R"                ' Float, Mixed, Angle, Longitud
+    '     errtxt = "enter a valid text size"
+    '
+    '     If EnteredText = "" Then
+    '         Try bResult = elem.Gcd.CCC[e.gender].NewParameter(elem, ["float", ParamDefault[elem.Gcd.CCC[e.gender].StepsDone]], True)
+    '
+    '     Else
+    '
+    '         bResult = elem.Gcd.CCC[e.gender].NewParameter(elem, ["float", CFloat(EnteredText)], True)
+    '
+    '     Endif
+    '
+    '     If bResult Then AdvanceStep
+    '
+    ' Case "C"                                ' color
+    '     If Dialog.SelectColor() Then
+    '         elem.fParam[iFloat] = CFloat(Dialog.Color)
+    '         Inc iFloat
+    '         AdvanceStep
+    '
+    '     Endif
+    '     Key.Cod
 
 End
+
+Public Sub NewParameter(tipo as string, vValor as Variant, Optional Definitive as Boolean=False)
+
+end
 
 Public Sub DblClick()
     ' veo si encuentro una entidad debao del mouse
@@ -274,29 +279,89 @@ End
 
 Public Sub MouseUp()
 
+    dim x,y as Float
+
+    X = gcd.Xreal(Mouse.X)
+    Y = gcd.Yreal(Mouse.Y)
+
+    ' yo soy el responsable de chequear POI
+    If Not gcd.flgSearchingPOI Then
+        gcd.Drawing.iEntity = clsMouseTracking.CheckBestPOI(x,Y)
+        If (gcd.Drawing.iEntity[2] > 0) Then
+
+            ' esto re enganchado
+
+            X = gcd.Drawing.iEntity[0]
+            Y = gcd.Drawing.iEntity[1]
+
+        End If
+    End If
+
+    X = gcd.Near(X)
+    Y = gcd.Near(Y)
+
+    if me.PointsDone>0 then ' puedo buscar un ortogonal
+        If gcd.Orthogonal Then
+
+            If Abs(x-LastX) > Abs(Y-LastY) Then ' X prevails
+
+                y = LastY
+
+            Else
+
+                X = LastX
+
+            Endif
+
+        End If
+    end if
+
+    LastX=X
+    LastY=y
+    NewParameter("point",[LastX,LastY],True)
+
 End
 '
 
 Public Sub MouseMove()
 
-    LastX = gcd.Xreal(Mouse.X)
-    LastY = gcd.Yreal(Mouse.Y)
+    dim x,y as Float
+
+    X = gcd.Xreal(Mouse.X)
+    Y = gcd.Yreal(Mouse.Y)
 
     ' yo soy el responsable de chequear POI
     If Not gcd.flgSearchingPOI Then
-        gcd.Drawing.iEntity = clsMouseTracking.CheckBestPOI(Lastx, LastY)
+        gcd.Drawing.iEntity = clsMouseTracking.CheckBestPOI(x,Y)
         If (gcd.Drawing.iEntity[2] > 0) Then
 
             ' esto re enganchado
 
-            lastX = gcd.Drawing.iEntity[0]
-            lastY = gcd.Drawing.iEntity[1]
+            X = gcd.Drawing.iEntity[0]
+            Y = gcd.Drawing.iEntity[1]
 
         End If
     End If
 
-    LastX = gcd.Near(LastX)
-    LastY = gcd.Near(LastY)
+    X = gcd.Near(X)
+    Y = gcd.Near(Y)
+
+    if me.PointsDone>0 then ' puedo buscar un ortogonal
+        If gcd.Orthogonal Then
+
+            If Abs(x-LastX) > Abs(Y-LastY) Then ' X prevails
+
+                y = LastY
+
+            Else
+
+                X = LastX
+
+            Endif
+
+        End If
+    end if
+    NewParameter("point",[X,Y])
 
 End
 

@@ -25,6 +25,7 @@ Inherits ToolsBase
 Create Static
 Public Const Gender As String = "COPY"
 ' Add more if needed
+public Multiple as Boolean=False
 
 Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer = 0) As Boolean
     ' Llamada por FCAD al inicio de la aplicacion de esta herramienta
@@ -34,6 +35,7 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
 
     Me.PointsDone = 0
     Me.PointsTotal = 2
+    Multiple=False
 
     If gcd.Drawing.Sheet.EntitiesSelected.Count = 0 Then                                     ' we have no elements in the selection
 
@@ -101,6 +103,39 @@ Public Function MouseUp()
     Endif
 
 End
+
+Public Sub NewParameter(tipo as string, vValor as Variant, Optional definitive as Boolean=False)
+
+    select case lcase(tipo)
+        case "point"
+            Me.SelStartXr = vValor[0]
+            Me.SelStartYr = vValor[1]
+
+            Inc Me.PointsDone
+
+            If Me.PointsDone = 1 Then ' acabo de marcar el punto base
+                gcd.DrawOriginals = True
+
+                ' ya tengo cosas seleccionadas
+                Me.Prompt = ("Copy") & " " & Str(gcd.Drawing.Sheet.EntitiesSelected.count) & " " & ("elements") & ": " & ("Final point")
+
+                ' volvemos el Snap al original
+                gcd.SnapMode = Config.SnapModeSaved
+
+                ' prevenir acciones tontas como hacer click en otro elemento antes de terminar con el actual
+                ' TODO: reparar -> gcd.CurrDrawing.DesHabilitarBotones
+            Else If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
+                ' permitir otros trabajos
+
+                Me.Finish
+
+            Endif
+        case else
+            if trim(lcase(vvalor)) = "m" then multiple= True
+
+    end Select
+
+end
 
 Public Function MouseMove()
 
@@ -178,15 +213,22 @@ Public Sub Finish()
 
     clsEntities.glGenDrawListLAyers()
 
-    clsEntities.DeSelection()
-    gcd.Drawing.RequiresSaving = True
-    gcd.Drawing.iEntity.Clear
-    gcd.clsJobPrevious = Me
-    gcd.clsJob = cadSelection
-    gcd.clsJob.start()
-    DrawingAIds.CleanTexts
-    gcd.StepsDone = 0
-    gcd.DrawOriginals = False
-    Me.Active = False
+    if Multiple then
+
+        Run
+
+    Else
+
+        clsEntities.DeSelection()
+        gcd.Drawing.RequiresSaving = True
+        gcd.Drawing.iEntity.Clear
+        gcd.clsJobPrevious = Me
+        gcd.clsJob = cadSelection
+        gcd.clsJob.start()
+        DrawingAIds.CleanTexts
+        gcd.StepsDone = 0
+        gcd.DrawOriginals = False
+        Me.Active = False
+    end if
 
 End

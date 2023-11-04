@@ -124,30 +124,10 @@ End
 
 Public Function MouseUp()
 
-    If Me.PointsDone = 1 Then ' acabo de marcar el punto base
+    Me.SelStartXr = gcd.Near(gcd.Xreal(mouse.x))
+    Me.SelStartYr = gcd.Near(gcd.Yreal(mouse.y))
 
-        ' ya tengo cosas seleccionadas
-        DrawingAIds.Helper.texto = ("Final point")
-
-        ' punto real base
-        Me.SelStartXr = gcd.Near(gcd.Xreal(mouse.x))
-        Me.SelStartYr = gcd.Near(gcd.Yreal(mouse.y))
-        Me.LastX = Me.SelStartXr
-        Me.LastY = Me.SelStartYr
-        dX = Me.SelStartXr
-        dY = Me.SelStartYr
-        ' prevenir acciones tontas como hacer click en otro elemento antes de terminar con el actual
-        ' TODO: reparar -> gcd.CurrDrawing.DesHabilitarBotones
-        Inc Me.PointsDone
-    Else If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
-        ' permitir otros trabajos
-        ' TODO: reparar -> gcd.CurrDrawing.HabilitarBotones
-
-        ' we have the point set from MouseMove
-
-        Me.Finish()
-
-    Endif
+    NewParameter("point",[me.SelStartXr,me.SelStartYr])
 
 End
 
@@ -208,6 +188,42 @@ Public Function MouseMove()
 
 End
 
+Public Sub NewParameter(tipo as string, vValor as Variant, Optional definitive as Boolean=False)
+
+    select case lcase(tipo)
+        case "point"
+
+            If Me.PointsDone = 1 Then ' acabo de marcar el punto base
+                Me.SelStartXr = vValor[0]
+                Me.SelStartYr = vValor[1]
+
+                ' ya tengo cosas seleccionadas
+                DrawingAIds.Helper.texto = ("Final point")
+
+                ' punto real base
+
+                Me.LastX = Me.SelStartXr
+                Me.LastY = Me.SelStartYr
+                dX = Me.SelStartXr
+                dY = Me.SelStartYr
+                ' prevenir acciones tontas como hacer click en otro elemento antes de terminar con el actual
+                ' TODO: reparar -> gcd.CurrDrawing.DesHabilitarBotones
+                Inc Me.PointsDone
+            Else If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
+                Me.SelEndXr = vValor[0]
+                Me.SelEndYr = vValor[1]
+
+                ' we have the point set from MouseMove
+                clsEntities.Move(Me.SelEndXr - me.SelStartXr, Me.SelEndyr - me.SelStartYr,, True)
+
+                Me.Finish()
+
+            Endif
+
+    End Select
+
+End
+
 Private Sub StretchTo(dX As Float, dY As Float)
 
 End
@@ -222,13 +238,6 @@ Public Sub Draw()               ' called by gcd.CurrDrawing.drwArea_Draw
 
     Next
     Super.Draw()
-
-    ' gl.PushMatrix
-    ' gl.Translatef(Me.glTranslate[0], Me.glTranslate[1], Me.glTranslate[2])
-    ' gl.Rotatef(Me.glAngle, Me.glRotate[0], Me.glRotate[1], Me.glRotate[2])
-    ' gl.Scalef(Me.glScale[0], Me.glScale[1], Me.glScale[2])
-    ' gl.CallList(gcd.Drawing.GlListEntitiesSelected)
-    ' gl.PopMatrix
 
 End
 
