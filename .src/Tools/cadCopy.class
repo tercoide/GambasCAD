@@ -49,7 +49,15 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
     Else                                                                    ' need the first point
 
         Me.Prompt = ("Copy") & " " & Str(gcd.Drawing.Sheet.EntitiesSelected.count) & " " & ("elements") & ": " & ("Base point")
+        Me.NextParamType = "P"
+        ' armamos el menu contextual y lo asignamos a la GL area
+        gcd.Drawing.Sheet.GlSheet.PopupMenu = Me.Gender
 
+        Me.PointsDone = 0
+
+        gcd.SnapMode = Config.SnapModeSaved                 ' vuelvo al Snap Guardado
+
+        clsEntities.GLGenDrawListSel(0 )                     ' genero drawing lists
     Endif
 
     Me.Active = True
@@ -80,119 +88,55 @@ Public Sub Run()
 
 End
 
-Public Function MouseUp()
-
-    Inc Me.PointsDone
-
-    If Me.PointsDone = 1 Then ' acabo de marcar el punto base
-        gcd.DrawOriginals = True
-
-        ' ya tengo cosas seleccionadas
-        Me.Prompt = ("Copy") & " " & Str(gcd.Drawing.Sheet.EntitiesSelected.count) & " " & ("elements") & ": " & ("Final point")
-
-        ' volvemos el Snap al original
-        gcd.SnapMode = Config.SnapModeSaved
-
-        ' prevenir acciones tontas como hacer click en otro elemento antes de terminar con el actual
-        ' TODO: reparar -> gcd.CurrDrawing.DesHabilitarBotones
-    Else If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
-        ' permitir otros trabajos
-
-        Me.Finish
-
-    Endif
-
-End
-
 Public Sub NewParameter(tipo as string, vValor as Variant, Optional definitive as Boolean=False)
 
     select case lcase(tipo)
         case "point"
-            Me.SelStartXr = vValor[0]
-            Me.SelStartYr = vValor[1]
 
-            Inc Me.PointsDone
+            if definitive then
 
-            If Me.PointsDone = 1 Then ' acabo de marcar el punto base
-                gcd.DrawOriginals = True
+                Inc Me.PointsDone
 
-                ' ya tengo cosas seleccionadas
-                Me.Prompt = ("Copy") & " " & Str(gcd.Drawing.Sheet.EntitiesSelected.count) & " " & ("elements") & ": " & ("Final point")
+                If Me.PointsDone = 1 Then ' acabo de marcar el punto base
+                    Me.SelStartXr = vValor[0]
+                    Me.SelStartYr = vValor[1]
 
-                ' volvemos el Snap al original
-                gcd.SnapMode = Config.SnapModeSaved
+                    gcd.DrawOriginals = True
 
-                ' prevenir acciones tontas como hacer click en otro elemento antes de terminar con el actual
-                ' TODO: reparar -> gcd.CurrDrawing.DesHabilitarBotones
-            Else If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
-                ' permitir otros trabajos
+                    ' ya tengo cosas seleccionadas
+                    Me.Prompt = ("Copy") & " " & Str(gcd.Drawing.Sheet.EntitiesSelected.count) & " " & ("elements") & ": " & ("Final point")
 
-                Me.Finish
+                    ' volvemos el Snap al original
+                    gcd.SnapMode = Config.SnapModeSaved
 
-            Endif
+                    ' prevenir acciones tontas como hacer click en otro elemento antes de terminar con el actual
+                    ' TODO: reparar -> gcd.CurrDrawing.DesHabilitarBotones
+                Else If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
+                    ' permitir otros trabajos
+                    Me.SelEndXr = vValor[0]
+                    Me.SelEndYr = vValor[1]
+                    Me.Finish
+
+                Endif
+            else
+
+                If Me.PointsDone = 1 Then ' puedo redibujar
+                    Me.SelEndXr = vValor[0]
+                    Me.SelEndYr = vValor[1]
+
+                    Me.glTranslate[0] = Me.SelEndXr - Me.SelStartXr
+                    Me.glTranslate[1] = Me.SelEndyr - Me.SelStartYr
+                    Me.glTranslate[2] = 0
+
+                    gcd.redraw
+                end if
+            end if
         case else
             if trim(lcase(vvalor)) = "m" then multiple= True
-
+            if trim(lcase(vvalor)) = "_cancel" then me.Cancel
     end Select
 
 end
-
-Public Function MouseMove()
-
-    Dim X, Y As Float
-    ' we are waiting for a point
-
-    X = gcd.Near(gcd.Xreal(mouse.x))
-    Y = gcd.Near(gcd.Yreal(mouse.y))
-
-    ' yo soy el responsable de chequear POI
-    If Not gcd.flgSearchingPOI Then
-        gcd.Drawing.iEntity = clsMouseTracking.CheckBestPOI(X, Y)
-
-        If (gcd.Drawing.iEntity[2] > 0) Then
-
-            ' esto re enganchado
-
-            X = gcd.Drawing.iEntity[0]
-            Y = gcd.Drawing.iEntity[1]
-        End If
-    End If
-
-    If Me.PointsDone = 0 Then
-        Me.SelStartXr = X
-        Me.SelStartYr = Y
-
-    Else If Me.PointsDone = 1 Then
-        ' we compare Real values from the starting point to the location
-        ' represente by the mouse now, taking account that the drawing
-        ' could have being moved by the mouse wheel
-
-        ' new Real position is
-        Me.SelEndXr = X
-        Me.SelEndyr = Y
-
-        If gcd.Orthogonal Then
-
-            If Abs(Me.SelEndXr - Me.SelStartXr) > Abs(Me.SelEndyr - Me.SelStartYr) Then ' X prevails
-
-                Me.SelEndyr = Me.SelStartYr
-
-            Else
-
-                Me.SelEndXr = Me.SelStartXr
-
-            Endif
-
-        End If
-
-        Me.glTranslate[0] = Me.SelEndXr - Me.SelStartXr
-        Me.glTranslate[1] = Me.SelEndyr - Me.SelStartYr
-        Me.glTranslate[2] = 0
-
-    End If
-    gcd.Redraw
-
-End
 
 Public Sub Finish()
 
@@ -212,9 +156,9 @@ Public Sub Finish()
     gcd.Drawing.uUndo.CloseUndoStage()
 
     clsEntities.glGenDrawListLAyers()
-
+    gcd.redraw
     if Multiple then
-
+        Me.PointsDone = 1
         Run
 
     Else

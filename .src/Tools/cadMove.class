@@ -82,19 +82,6 @@ Public Sub Run()
 
 End
 
-Public Function KeyText(EnteredText As String)
-
-    Super.KeyText(EnteredText)
-    If Me.PointsDone = 1 Then ' acabo de marcar el punto base
-        PuntoBase
-    Else If Me.PointsDone = 2 Then ' acabo de marcar el punto final
-
-        PuntoFinal
-
-    End If
-
-End
-
 Public Sub PuntoBase()
 
     ' punto real base
@@ -111,67 +98,62 @@ Public Sub PuntoBase()
 
 End
 
-Public Sub PuntoFinal()
+Public Sub NewParameter(tipo as string, vValor as Variant, Optional definitive as Boolean=False)
 
-    Me.SelEndXr = Me.LastX
-    Me.SelEndYr = Me.LastY
+    select case lcase(tipo)
+        case "point"
 
-    clsEntities.Move(Me.SelEndXr - Me.SelStartXr, Me.SelEndyr - Me.SelStartYr)
+            if definitive then
 
-    gcd.Drawing.uUndo.CloseUndoStage()
+                If Me.PointsDone = 1 Then ' acabo de marcar el punto base
+                    Inc Me.PointsDone
 
-    Dim e As Entity
+                    Me.SelStartXr = vValor[0]
+                    Me.SelStartYr = vValor[1]
 
-    For Each E In gcd.Drawing.Sheet.EntitiesSelected
-        clsEntities.glGenDrawList(e)
-    Next
+                    gcd.DrawOriginals = True
 
-    clsEntities.glGenDrawListLAyers()
+                    ' ya tengo cosas seleccionadas
+                    Me.Prompt = ("Move:") & " " & Str(gcd.Drawing.Sheet.EntitiesSelected.count) & " " & ("elements") & ": " & ("Final point")
 
-    Me.Finish
+                    ' volvemos el Snap al original
+                    gcd.SnapMode = Config.SnapModeSaved
 
-End
+                    ' prevenir acciones tontas como hacer click en otro elemento antes de terminar con el actual
+                    ' TODO: reparar -> gcd.CurrDrawing.DesHabilitarBotones
+                Else If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
+                    ' permitir otros trabajos
+                    Me.SelEndXr = vValor[0]
+                    Me.SelEndYr = vValor[1]
+                    clsEntities.Move(Me.SelEndXr - Me.SelStartXr, Me.SelEndyr - Me.SelStartYr)
 
-Public Function MouseUp()
+                    gcd.Drawing.uUndo.CloseUndoStage()
 
-    If Mouse.Right Then
-        Me.Cancel()
+                    Dim e As Entity
 
-    Else If Mouse.Left Then
+                    For Each E In gcd.Drawing.Sheet.EntitiesSelected
+                        clsEntities.glGenDrawList(e)
+                    Next
 
-        If Me.PointsDone = 1 Then ' acabo de marcar el punto base
+                    clsEntities.glGenDrawListLAyers()
+                    Me.Finish
 
-            PuntoBase
-            ' prevenir acciones tontas como hacer click en otro elemento antes de terminar con el actual
-            ' TODO: reparar -> gcd.CurrDrawing.DesHabilitarBotones
-        Else If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
-            ' permitir otros trabajos
-            ' TODO: reparar -> gcd.CurrDrawing.HabilitarBotones
+                Endif
+            else
 
-            ' job finished correctly
+                If Me.PointsDone = 2 Then ' puedo redibujar
+                    Me.SelEndXr = vValor[0]
+                    Me.SelEndYr = vValor[1]
 
-            ' and now we move
-            PuntoFinal
-        Endif
-    End If
+                    Me.glTranslate[0] = Me.SelEndXr - Me.SelStartXr
+                    Me.glTranslate[1] = Me.SelEndyr - Me.SelStartYr
+                    Me.glTranslate[2] = 0
 
-End
+                    gcd.redraw
+                end if
+            end if
+        case else
 
-Public Function MouseMove()
+    end Select
 
-    Super.MouseMove()
-
-    If Me.PointsDone = 2 Then
-        ' we compare Real values from the starting point to the location
-        ' represente by the mouse now, taking account that the drawing
-        ' could have being moved by the mouse wheel
-        Me.SelEndXr = Me.LastX
-        Me.SelEndYr = Me.LastY
-
-        Me.glTranslate[0] = Me.SelEndXr - Me.SelStartXr
-        Me.glTranslate[1] = Me.SelEndyr - Me.SelStartYr
-
-    End If
-    gcd.Redraw
-
-End
+end
