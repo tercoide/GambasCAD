@@ -78,147 +78,140 @@ Public Sub Run()
     Endif
 
 End
-' Public Function NewParameter(vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
+
+' Public Function MouseMove()
 '
-'     If vParam[0] = "point" Then
+'     Dim X, Y As Float
+'     ' we are waiting for a point
 '
-'         ' enganio al evento mouse
-'         ' MouseMove(gcd.Xpix(vParam[1]), gcd.Ypix(vParam[2]))
-'         ' MouseUp(gcd.Xpix(vParam[1]), gcd.Ypix(vParam[2]))
+'     X = gcd.Near(gcd.Xreal(mouse.x))
+'     Y = gcd.Near(gcd.Yreal(mouse.y))
 '
-'         Inc Me.PointsDone
+'     ' yo soy el responsable de chequear POI
+'     If Not gcd.flgSearchingPOI Then
+'         gcd.Drawing.iEntity = clsMouseTracking.CheckBestPOI(X, Y)
 '
-'         If Me.PointsDone = 1 Then ' acabo de marcar el punto base
+'         If (gcd.Drawing.iEntity[2] > 0) Then
 '
-'             ' ya tengo cosas seleccionadas
-'             DrawingAids.Helper.texto = ("Final point")
+'             ' esto re enganchado
 '
-'             ' punto real base
-'             Me.SelStartXr = vParam[1] 'gcd.Near(gcd.Xreal(mouse.x))
-'             Me.SelStartYr = vParam[2] 'gcd.Near(gcd.Yreal(mouse.y))
-'             Me.LastX = Me.SelStartXr
-'             Me.LastY = Me.SelStartYr
-'             dX = Me.SelStartXr
-'             dY = Me.SelStartYr
-'             ' prevenir acciones tontas como hacer click en otro elemento antes de terminar con el actual
-'             ' TODO: reparar -> gcd.CurrDrawing.DesHabilitarBotones
-'         Else If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
-'             ' permitir otros trabajos
-'             ' TODO: reparar -> gcd.CurrDrawing.HabilitarBotones
+'             X = gcd.Drawing.iEntity[0]
+'             Y = gcd.Drawing.iEntity[1]
+'         End If
+'     End If
 '
-'             ' we have the point set from MouseMove
-'             ' new Real position is
-'             Me.SelEndXr = vParam[1]
-'             Me.SelEndyr = vParam[2]
-'             clsEntities.Move(Me.SelEndXr - dX, Me.SelEndyr - dY,, True)
-'             dX = Me.SelEndXr
-'             dY = Me.SelEndYr
+'     If Me.PointsDone = 1 Then
+'         Me.SelStartXr = X
+'         Me.SelStartYr = Y
 '
-'             Me.Finish()
+'     Else If Me.PointsDone = 2 Then
+'         ' we compare Real values from the starting point to the location
+'         ' represente by the mouse now, taking account that the drawing
+'         ' could have being moved by the mouse wheel
 '
-'         Endif
+'         ' new Real position is
+'         Me.SelEndXr = x
+'         Me.SelEndyr = y
 '
-'     Endif
+'         If gcd.Orthogonal Then
+'
+'             If Abs(Me.SelEndXr - Me.SelStartXr) > Abs(Me.SelEndyr - Me.SelStartYr) Then ' X prevails
+'
+'                 Me.SelEndyr = Me.SelStartYr
+'
+'             Else
+'
+'                 Me.SelEndXr = Me.SelStartXr
+'
+'             Endif
+'
+'         End If
+'
+'         clsEntities.Move(Me.SelEndXr - dX, Me.SelEndyr - dY,, True)
+'         dX = Me.SelEndXr
+'         dY = Me.SelEndYr
+'
+'     End If
+'     gcd.Redraw
 '
 ' End
-
-Public Function MouseUp()
-
-    Me.SelStartXr = gcd.Near(gcd.Xreal(mouse.x))
-    Me.SelStartYr = gcd.Near(gcd.Yreal(mouse.y))
-
-    NewParameter("point",[me.SelStartXr,me.SelStartYr])
-
-End
-
-Public Function MouseMove()
-
-    Dim X, Y As Float
-    ' we are waiting for a point
-
-    X = gcd.Near(gcd.Xreal(mouse.x))
-    Y = gcd.Near(gcd.Yreal(mouse.y))
-
-    ' yo soy el responsable de chequear POI
-    If Not gcd.flgSearchingPOI Then
-        gcd.Drawing.iEntity = clsMouseTracking.CheckBestPOI(X, Y)
-
-        If (gcd.Drawing.iEntity[2] > 0) Then
-
-            ' esto re enganchado
-
-            X = gcd.Drawing.iEntity[0]
-            Y = gcd.Drawing.iEntity[1]
-        End If
-    End If
-
-    If Me.PointsDone = 1 Then
-        Me.SelStartXr = X
-        Me.SelStartYr = Y
-
-    Else If Me.PointsDone = 2 Then
-        ' we compare Real values from the starting point to the location
-        ' represente by the mouse now, taking account that the drawing
-        ' could have being moved by the mouse wheel
-
-        ' new Real position is
-        Me.SelEndXr = x
-        Me.SelEndyr = y
-
-        If gcd.Orthogonal Then
-
-            If Abs(Me.SelEndXr - Me.SelStartXr) > Abs(Me.SelEndyr - Me.SelStartYr) Then ' X prevails
-
-                Me.SelEndyr = Me.SelStartYr
-
-            Else
-
-                Me.SelEndXr = Me.SelStartXr
-
-            Endif
-
-        End If
-
-        clsEntities.Move(Me.SelEndXr - dX, Me.SelEndyr - dY,, True)
-        dX = Me.SelEndXr
-        dY = Me.SelEndYr
-
-    End If
-    gcd.Redraw
-
-End
 
 Public Sub NewParameter(tipo as string, vValor as Variant, Optional definitive as Boolean=False)
 
     select case lcase(tipo)
         case "point"
+            if definitive then
 
-            If Me.PointsDone = 1 Then ' acabo de marcar el punto base
-                Me.SelStartXr = vValor[0]
-                Me.SelStartYr = vValor[1]
+                If Me.PointsDone = 1 Then ' acabo de marcar el punto base
+                    Inc Me.PointsDone
+                    Me.SelStartXr = vValor[0]
+                    Me.SelStartYr = vValor[1]
 
-                ' ya tengo cosas seleccionadas
-                DrawingAIds.Helper.texto = ("Final point")
+                    Dx = vValor[0]
+                    Dy = vValor[1]
 
-                ' punto real base
+                    gcd.DrawOriginals = True
 
-                Me.LastX = Me.SelStartXr
-                Me.LastY = Me.SelStartYr
-                dX = Me.SelStartXr
-                dY = Me.SelStartYr
-                ' prevenir acciones tontas como hacer click en otro elemento antes de terminar con el actual
-                ' TODO: reparar -> gcd.CurrDrawing.DesHabilitarBotones
-                Inc Me.PointsDone
-            Else If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
-                Me.SelEndXr = vValor[0]
-                Me.SelEndYr = vValor[1]
+                    ' ya tengo cosas seleccionadas
+                    Me.Prompt = ("Stretch") & " " & Str(gcd.Drawing.Sheet.EntitiesSelected.count) & " " & ("elements") & ": " & ("Final point")
 
-                ' we have the point set from MouseMove
-                clsEntities.Move(Me.SelEndXr - me.SelStartXr, Me.SelEndyr - me.SelStartYr,, True)
+                    ' volvemos el Snap al original
+                    gcd.SnapMode = Config.SnapModeSaved
 
-                Me.Finish()
+                    ' prevenir acciones tontas como hacer click en otro elemento antes de terminar con el actual
+                    ' TODO: reparar -> gcd.CurrDrawing.DesHabilitarBotones
+                Else If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
+                    ' permitir otros trabajos
+                    Me.SelEndXr = vValor[0]
+                    Me.SelEndYr = vValor[1]
+                    ' we have the point set from MouseMove
+                    clsEntities.Move(Me.SelEndXr - Dx, Me.SelEndyr - Dy,, True)
+                    'clsEntities.Move(Me.SelEndXr - me.SelStartXr, Me.SelEndyr - me.SelStartYr,, True)
 
-            Endif
+                    Me.Finish
+
+                Endif
+
+            else    ' viene de mmousemoe
+
+                If Me.PointsDone = 2 Then ' puedo redibujar
+                    Dx = vValor[0]- Dx
+                    Dy = vValor[1] - Dy
+                    ' we have the point set from MouseMove
+                    clsEntities.Move(Dx, Dy,, True)
+                    Dx = vValor[0]
+                    Dy = vValor[1]
+
+                    gcd.redraw
+                end if
+            end if
+
+            ' If Me.PointsDone = 1 Then ' acabo de marcar el punto base
+            '     Me.SelStartXr = vValor[0]
+            '     Me.SelStartYr = vValor[1]
+            '
+            '     ' ya tengo cosas seleccionadas
+            '     DrawingAIds.Helper.texto = ("Final point")
+            '
+            '     ' punto real base
+            '
+            '     Me.LastX = Me.SelStartXr
+            '     Me.LastY = Me.SelStartYr
+            '     dX = Me.SelStartXr
+            '     dY = Me.SelStartYr
+            '     ' prevenir acciones tontas como hacer click en otro elemento antes de terminar con el actual
+            '     ' TODO: reparar -> gcd.CurrDrawing.DesHabilitarBotones
+            '     Inc Me.PointsDone
+            ' Else If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
+            '     Me.SelEndXr = vValor[0]
+            '     Me.SelEndYr = vValor[1]
+            '
+            '     ' we have the point set from MouseMove
+            '     clsEntities.Move(Me.SelEndXr - me.SelStartXr, Me.SelEndyr - me.SelStartYr,, True)
+            '
+            '     Me.Finish()
+            '
+            ' Endif
 
     End Select
 
