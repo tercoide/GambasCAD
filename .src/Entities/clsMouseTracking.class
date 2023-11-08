@@ -109,7 +109,7 @@ Public LastPointToCursorDistance As Float
 ' End
 
 '' Veo si estoy sobre una entidad y la devuelvo
-Public Function CheckAboveEntities(xr As Float, Yr As Float, Optional iTolerance As Integer = 16) As Entity[]
+Public Function CheckAboveEntities(xr As Float, Yr As Float, Optional iTolerance As Integer = 12) As Entity[]
 
     Dim fEntities As New Entity[]
     Dim e As Entity
@@ -145,6 +145,11 @@ Public Function CheckBestPOI(xr As Float, Yr As Float, Optional eExclude As Enti
         If e = eExclude Then Continue
         If e = gcd.Drawing.Sheet.SkipSearch Then Continue
         CurrentPoint = CheckPOI(xr, yr, e)
+
+        ' veo si el punto cae dentro de la pantalla
+        if gcd.XPix(CurrentPoint[0])<=0 or gcd.XPix(CurrentPoint[0])>=gcd.Drawing.Sheet.GlSheet.w Then Continue
+        if gcd.YPix(CurrentPoint[1])<=0 or gcd.YPix(CurrentPoint[1])>=gcd.Drawing.Sheet.GlSheet.h Then Continue
+
         If CurrentPoint[2] > 0 Then
             d = puntos.distancia(xr, yr, CurrentPoint[0], CurrentPoint[1])
 
@@ -163,7 +168,7 @@ Public Function CheckBestPOI(xr As Float, Yr As Float, Optional eExclude As Enti
 End
 
 '' Veo si estoy sobre una entidad y la devuelvo
-Public Function CheckAboveEntity(xr As Float, Yr As Float, Optional iTolerance As Integer = 16, SkipEntiy As Entity) As Entity
+Public Function CheckAboveEntity(xr As Float, Yr As Float, Optional iTolerance As Integer = 12, SkipEntiy As Entity) As Entity
 
     Dim iVisible As Integer
     Dim Found As Boolean = True
@@ -238,6 +243,7 @@ Public Sub CheckPOI(xr As Float, Yr As Float, Optional e As Entity) As Float[]
     Dim pend1, base1, pend2, base2 As Float ' vars para las ecuacionesde las rectas
     Dim puntoB, puntoA, pInter As New Float[]
     Dim end1X, end1Y, end2X, end2Y As Float
+    Dim x0,y0,x1,y1 As Float
     ' distancias  los enganches, para determinar cual es el mas cercano al puntero
     Dim DistPer As Float = 1e6
     Dim DistEnd1 As Float = 1e6
@@ -492,21 +498,71 @@ Public Sub CheckPOI(xr As Float, Yr As Float, Optional e As Entity) As Float[]
 
             For i = 0 To e.P.count - 4 Step 2
 
+                x0=e.P[i + 0]
+                y0=e.P[i + 1]
+                x1=e.P[i + 2]
+                y1=e.P[i + 3]
                 ' busco en que tramo estoy
-                If puntos.doIntersect(xr - tolerance, Yr, Xr + tolerance, Yr, e.P[i + 0], e.P[i + 1], e.P[i + 2], e.P[i + 3]) Or puntos.doIntersect(xr, Yr - tolerance, Xr, Yr + tolerance, e.P[i + 0], e.P[i + 1], e.P[i + 2], e.P[i + 3]) Then
+                If puntos.doIntersect(xr - tolerance, Yr, Xr + tolerance, Yr, x0, y0, x1, y1) Or puntos.doIntersect(xr, Yr - tolerance, Xr, Yr + tolerance, x0, y0, x1, y1) Then
 
-                    DistEnd1 = puntos.distancia(e.P[i + 0], e.P[i + 1], xr, yr)
+                    DistEnd1 = puntos.distancia(x0, y0, xr, yr)
                     'If DistEnd1 > DistEnd1B Then DistEnd1 = DistEnd1B
                     end1X = e.P[i]
-                    end1Y = e.P[i + 1]
+                    end1Y = y0
 
-                    DistEnd2 = puntos.distancia(e.P[i + 2], e.P[i + 3], xr, yr)
+                    DistEnd2 = puntos.distancia(x1, y1, xr, yr)
                     'If DistEnd2 > DistEnd2B Then DistEnd2 = DistEnd2B
-                    end2X = e.P[i + 2]
-                    end2Y = e.P[i + 3]
+                    end2X = x1
+                    end2Y = y1
 
-                    DistMId = puntos.distancia((e.P[i + 2] + e.P[i + 0]) / 2, (e.P[i + 3] + e.P[i + 1]) / 2, xr, yr)
+                    DistMId = puntos.distancia((x1 + x0) / 2, (y1 + y0) / 2, xr, yr)
                     'If DistMid > DistMidB Then DistMid = DistMidB
+
+                    ' perpendicular
+                    If gcd.Drawing.LastPoint.max > 0 Then                     ' tengo un punto anterior
+
+                        If x1 - x0 <> 0 Then
+                            pend1 = (y1 - y0) / (x1 - x0)
+                            base1 = y1 - pend1 * x0                 ' Y = pend1 X + base1
+
+                            ' ecuacion de la recta perpendicular que pasa por el punto anterior
+                            If pend1 <> 0 Then
+                                pend2 = -1 / pend1
+                                base2 = gcd.Drawing.LastPoint[1] - pend2 * gcd.Drawing.LastPoint[0]
+
+                                ' necesito otro punto
+                                If gcd.Drawing.LastPoint[0] <> 0 Then
+                                    puntoA.Add(0)
+                                    puntoA.Add(base2)
+                                Else
+                                    puntoA.Add(1)
+                                    puntoA.Add(pend2 + base2)
+
+                                End If
+
+                                ' determino la interseccion de ambas
+                                puntoB = puntos.lineLineIntersection(gcd.Drawing.LastPoint, puntoA, [x0, y0], [x1, y1])
+                            Else ' la recta es horizontal
+
+                                puntoB.Add(gcd.Drawing.LastPoint[0])
+                                puntoB.Add(y0)
+
+                            End If
+                        Else        ' la recta es vertical
+
+                            puntoB.Add(x0)
+                            puntoB.Add(gcd.Drawing.LastPoint[1])
+
+                        End If
+
+                        ' veo si el punto b esta entre los extremos de la linea , aunque deberia estarlo!!!
+                        If puntos.onSegment(x0, y0, puntoB[0], puntoB[1], x1,y1) Then
+
+                            ' determino la distancia al puntero para ofrecerlo como opcion de enganche
+                            DistPer = puntos.distancia(puntoB[0], puntoB[1], xr, yr)
+
+                        Endif
+                    End If
 
                     Break
                 End If
