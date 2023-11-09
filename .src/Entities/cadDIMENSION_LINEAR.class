@@ -373,31 +373,45 @@ Public Sub RebuildBlock(E As Entity, Optional iMode As Integer = 0, fAngle As Fl
     ' lineas de demarcacion
     'eExtension1 = cadLine.NewEntity([Me.DefPoint1b.x, Me.DefPoint1b.y - Me.DimExtension, Me.DefPoint1b.x, Me.DefPoint1b.y + Me.DimExtension])
 
-    eExtension1 = cadLine.NewEntity([Me.DefPoint1.x, Me.DefPoint1.y, Me.DefPoint1b.x, Me.DefPoint1b.y], True)
-    eExtension2 = cadLine.NewEntity([Me.DefPoint2.x, Me.DefPoint2.y, Me.DefPoint2b.x, Me.DefPoint2b.y], True)
-
     ' puntos base, ya en las ubicaciones finales (coinciden con los clicks)
     ePoint1 = cadPoint.NewEntity([Me.DefPoint1.x, Me.DefPoint1.y], True)
     ePoint2 = cadPoint.NewEntity([Me.DefPoint2.x, Me.DefPoint2.y], True)
+
+    ' el largo de la ext line viene controlado por DIMEXE y el offset desde el punto de demarcacion por DIMEXO
+    'Me.DefPointExtLineOffset1.x
+
+    ' determino el largo actual de las lineas de extension
+    Dim l1, l2 As Float
+    l1 = puntos.distancia(Me.DefPoint1.x, Me.DefPoint1.y, Me.DefPoint1b.x, Me.DefPoint1b.y)
+    ' le sumo la linea de extension y le resto el offset
+    l1 += e.pDimStyle.DIMEXE - e.pDimStyle.DIMEXO
+
+    ' como minimo debe ser > 2xDIMEXE
+    If l1 < e.pDimStyle.DIMEXE * 2 Then
+
+    Endif
+    eExtension1 = cadLine.NewEntity([Me.DefPoint1.x, Me.DefPoint1.y, Me.DefPoint1b.x, Me.DefPoint1b.y], True)
+    eExtension2 = cadLine.NewEntity([Me.DefPoint2.x, Me.DefPoint2.y, Me.DefPoint2b.x, Me.DefPoint2b.y], True)
 
     ' flechas
 
     eOblique1 = cadInsert.NewEntity([Me.DefPoint1b.x, Me.DefPoint1b.y], True)
     eOblique1.pBlock = New Block
+    eOblique1.fParam[cadInsert.ipaEscX] = e.pDimStyle.DIMASZ
+    eOblique1.fParam[cadInsert.ipaEscY] = e.pDimStyle.DIMASZ
+    eOblique1.fParam[cadInsert.ipaEscZ] = e.pDimStyle.DIMASZ
+    eOblique1.fParam[cadInsert.ipaRotacion] = Deg(Me.DefAngle)
     If gcd.Drawing.Blocks.Exist(e.pDimStyle.DIMBLK1) Then
         eOblique1.pBlock.name = e.pDimStyle.DIMBLK1
     Else If gcd.Drawing.Blocks.Exist(e.pDimStyle.DIMBLK) Then
         eOblique1.pBlock.name = e.pDimStyle.DIMBLK
-
+        eOblique1.fParam[cadInsert.ipaRotacion] = Deg(Me.DefAngle) + 180
     Else If gcd.Drawing.Blocks.Exist(e.pdimstyle.Thick1) Then
         eOblique1.pBlock.name = e.pdimstyle.Thick1
     Else
         eOblique1.pBlock.name = "_thick1_arrow"
     End If
-    eOblique1.fParam[cadInsert.ipaEscX] = e.pDimStyle.DIMASZ
-    eOblique1.fParam[cadInsert.ipaEscY] = e.pDimStyle.DIMASZ
-    eOblique1.fParam[cadInsert.ipaEscZ] = e.pDimStyle.DIMASZ
-    eOblique1.fParam[cadInsert.ipaRotacion] = Deg(Me.DefAngle)
+
     cadInsert.Finish(eOblique1)
 
     eOblique2 = cadInsert.NewEntity([Me.DefPoint2b.x, Me.DefPoint2b.y], True)
@@ -428,12 +442,12 @@ Public Sub RebuildBlock(E As Entity, Optional iMode As Integer = 0, fAngle As Fl
     ' MODIFICO PARA ORDINATE
     newBlock.entities.Add(eLineaPpal, eLineaPpal.Id)
     ' agrego todo al bloque
+    If e.pDimStyle.DIMSE2 = 0 Then newBlock.entities.Add(eExtension2, eExtension2.Id)
 
-    newBlock.entities.Add(eExtension2, eExtension2.Id)
     newBlock.entities.Add(ePoint2, ePoint2.Id)
     newBlock.entities.Add(eOblique2, eOblique2.Id)
 
-    newBlock.entities.Add(eExtension1, eExtension1.Id)
+    If e.pDimStyle.DIMSE1 = 0 Then newBlock.entities.Add(eExtension1, eExtension1.Id)
     newBlock.entities.Add(ePoint1, ePoint1.Id)
     newBlock.entities.Add(eOblique1, eOblique1.Id)
 
