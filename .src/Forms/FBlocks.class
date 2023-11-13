@@ -17,8 +17,8 @@ Public Sub Form_Open()
     OldH = Me.H
     Dim sDirName As String
 
-    For Each sDirName In Dir(Config.BlocksLibraryPath)
-        If IsDir(Config.BlocksLibraryPath &/ sDirName) Then ComboBox1.Add(sDirName)
+    For Each sDirName In Dir(Config.dirBlocks)
+        If IsDir(Config.dirBlocks &/ sDirName) Then ComboBox1.Add(sDirName)
     Next
     If ComboBox1.Count > 0 Then ComboBox1.Index = 0
 
@@ -80,7 +80,8 @@ Public Sub Parameters_Click()
         Done
     Else If Last.name = "btnInsertionPoint" Then
         lblHelp.Text = ("Set the insertion point")
-        cadSelection.Mode = cadSelection.ModePointSelection
+        cadSelection.SelectType = cadSelection.SelectTypePoint
+        cadSelection.ReturnOnFirstSelection = True
         gcd.clsJobCallBack = Me
         gcd.clsJob = cadSelection
         gcd.clsJob.start()
@@ -89,7 +90,7 @@ Public Sub Parameters_Click()
 
     Else If Last.name = "btnEntities" Then
         lblHelp.Text = ("Select entities for the new block")
-        cadSelection.Mode = cadSelection.SelectModeEntities
+        cadSelection.SelectMode = cadSelection.SelectModeNew
         gcd.clsJobCallBack = Null
         gcd.clsJob = cadSelection
         gcd.clsJob.start()
@@ -129,7 +130,7 @@ Public Sub CreateBlock()
 
     ' si lo voy a exportar, verifico que el archivo no exista
     If chkExportToDatabase.Value = True Then
-        sPath = Config.BlocksLibraryPath
+        sPath = Config.dirBlocks
         If cmbFamily.Text <> "" Then sPath &/= cmbFamily.Text
         If cmbSubFamily.Text <> "" Then sPath &/= cmbSubFamily.Text
         sPath &/= sBlockName & ".dxf"
@@ -178,19 +179,19 @@ Public Sub CreateBlock()
         Gcd.CCC[tmpEnty.gender].translate(tmpEnty, -dx, -dy)
     Next
 
-    tmpBlock.handle = gcd.NewId()
+    tmpBlock.id = gcd.NewId()
 
     ' ahora agrego el Block al dibujo actual
-    gcd.Drawing.Blocks.Add(tmpBlock, tmpBlock.handle)
+    gcd.Drawing.Blocks.Add(tmpBlock, tmpBlock.id)
 
     ' si lo voy a exportar, verifico que el archivo no exista
     If chkExportToDatabase.Value = True Then
-
+        tmpDrawing = gcd.NewDrawing(sBlockName)
         tmpDrawing.Sheet.Entities = cEntitiesBlock
         If Not chkExplode.Value Then ' tengo que grabar los bloques tambien
             For Each tmpEnty In cEntitiesBlock
                 If (tmpEnty.Gender = "INSERT") Or (tmpEnty.Gender Like "DIM*") Then
-                    tmpDrawing.Blocks.Add(gcd.Drawing.Blocks[tmpEnty.pBlock.name], tmpEnty.pBlock.handle)
+                    tmpDrawing.Blocks.Add(gcd.Drawing.Blocks[tmpEnty.pBlock.name], tmpEnty.pBlock.id)
                 Endif
             Next
 
@@ -209,14 +210,14 @@ Public Sub ComboBox1_Click()
 
     icvLibrary.Clear
     ComboBox2.Clear
-    For Each sFilename In Dir(Config.BlocksLibraryPath &/ ComboBox1.Current.Text)
-        If IsDir(Config.BlocksLibraryPath &/ ComboBox1.Current.Text &/ sFilename) Then
+    For Each sFilename In Dir(Config.dirBlocks &/ ComboBox1.Current.Text)
+        If IsDir(Config.dirBlocks &/ ComboBox1.Current.Text &/ sFilename) Then
             ComboBox2.Add(sFilename)
         Else
             If LCase(File.Ext(sFilename)) <> "dxf" Then Continue
             imgPreview = New Image(80, 80, Color.Black)
 
-            gcd.FitDxfToImage(Config.BlocksLibraryPath &/ ComboBox1.current.Text &/ sFilename, imgPreview, Config.WhiteAndBlack, 0)
+            gcd.FitDxfToImage(Config.dirBlocks &/ ComboBox1.current.Text &/ sFilename, imgPreview, Config.WhiteAndBlack, 0)
 
             icvLibrary.Add(Left$(sFilename, -4), Left$(sFilename, -4), imgPreview.Picture)
         End If
@@ -230,13 +231,13 @@ Public Sub ComboBox2_Click()
     icvLibrary.Clear
     Dim sFilename, sPath As String
     Dim imgPreview As Image
-    For Each sFilename In Dir(Config.BlocksLibraryPath &/ ComboBox1.Current.Text &/ ComboBox2.Current.Text, "*.dxf")
-        If IsDir(Config.BlocksLibraryPath &/ ComboBox1.Current.Text &/ ComboBox2.Current.Text &/ sFilename) Then Continue
+    For Each sFilename In Dir(Config.dirBlocks &/ ComboBox1.Current.Text &/ ComboBox2.Current.Text, "*.dxf")
+        If IsDir(Config.dirBlocks &/ ComboBox1.Current.Text &/ ComboBox2.Current.Text &/ sFilename) Then Continue
         If LCase(File.Ext(sFilename)) <> "dxf" Then Continue
         '     ComboBox2.Add(sFilename)
         ' Else
         imgPreview = New Image(80, 80, Color.Black)
-        sPath = Config.BlocksLibraryPath &/ ComboBox1.current.Text &/ ComboBox2.Current.Text &/ sFilename
+        sPath = Config.dirBlocks &/ ComboBox1.current.Text &/ ComboBox2.Current.Text &/ sFilename
         gcd.FitDxfToImage(sPath, imgPreview, Config.WhiteAndBlack, 0)
 
         icvLibrary.Add(Left$(sFilename, -4), Left$(sFilename, -4), imgPreview.Picture)
@@ -308,7 +309,7 @@ Public Sub btnAddToDrawing_Click()
         icvItem = icvLibrary.Item
         If Not icvItem Then Break
         If icvItem.Selected Then
-            sPath = Config.BlocksLibraryPath &/ ComboBox1.current.Text &/ ComboBox2.Current.Text &/ icvItem.Text & ".dxf"
+            sPath = Config.dirBlocks &/ ComboBox1.current.Text &/ ComboBox2.Current.Text &/ icvItem.Text & ".dxf"
             ' busco que no exista
             sNewName = icvItem.Text
             For Each blkTemp In gcd.Drawing.Blocks
@@ -485,5 +486,9 @@ End
 Public Sub icvBlocksInUse_DblClick()
 
     btnInsertToDrawing_Click
+
+End
+
+Public Sub btnImportFiles_Click()
 
 End
