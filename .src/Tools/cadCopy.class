@@ -25,7 +25,7 @@ Inherits ToolsBase
 Create Static
 Public Const Gender As String = "COPY"
 ' Add more if needed
-public Multiple as Boolean=False
+Public Multiple As Boolean = False
 
 Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer = 0) As Boolean
     ' Llamada por FCAD al inicio de la aplicacion de esta herramienta
@@ -35,20 +35,20 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
 
     Me.PointsDone = 0
     Me.PointsTotal = 2
-    Multiple=False
+    Multiple = False
 
     If gcd.Drawing.Sheet.EntitiesSelected.Count = 0 Then                                     ' we have no elements in the selection
 
-        Me.Prompt = ("Copy") & ": " & ("Select entities")
+        Me.Prompt = ("Select entities")
 
         gcd.clsJobCallBack = Me
         gcd.clsJob = cadSelection
-        cadSelection.Prompt = Me.Prompt
+
         cadSelection.ReturnOnFirstSelection = False
 
     Else                                                                    ' need the first point
 
-        Me.Prompt = ("Copy") & " " & Str(gcd.Drawing.Sheet.EntitiesSelected.count) & " " & ("elements") & ": " & ("Base point")
+        Me.Prompt = Str(gcd.Drawing.Sheet.EntitiesSelected.count) & " " & ("elements") & ": " & ("Base point")
         Me.NextParamType = "P"
         ' armamos el menu contextual y lo asignamos a la GL area
         gcd.Drawing.Sheet.GlSheet.PopupMenu = Me.Gender
@@ -57,7 +57,7 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
 
         gcd.SnapMode = Config.SnapModeSaved                 ' vuelvo al Snap Guardado
 
-        clsEntities.GLGenDrawListSel(0 )                     ' genero drawing lists
+        clsEntities.GLGenDrawListSel(0)                     ' genero drawing lists
     Endif
 
     Me.Active = True
@@ -73,27 +73,27 @@ Public Sub Run()
 
     If gcd.Drawing.Sheet.EntitiesSelected.Count = 0 Then                                     ' we have no elements in the selection
 
-        Me.Prompt = ("Copy") & ": " & ("Select entities")
+        Me.Prompt = ("Select entities")
 
         gcd.clsJobCallBack = Me
         gcd.clsJob = cadSelection
-        cadSelection.Prompt = Me.Prompt
+
         cadSelection.ReturnOnFirstSelection = False
 
     Else                                                                    ' need the first point
 
-        Me.Prompt = ("Copy") & " " & Str(gcd.Drawing.Sheet.EntitiesSelected.count) & " " & ("elements") & ": " & ("Base point")
+        Me.Prompt = Str(gcd.Drawing.Sheet.EntitiesSelected.count) & " " & ("elements") & ": " & ("Base point")
 
     Endif
 
 End
 
-Public Sub NewParameter(tipo as string, vValor as Variant, Optional definitive as Boolean=False)
+Public Sub NewParameter(tipo As String, vValor As Variant, Optional definitive As Boolean = False)
 
-    select case lcase(tipo)
-        case "point"
+    Select Case LCase(tipo)
+        Case "point"
 
-            if definitive then
+            If definitive Then
 
                 Inc Me.PointsDone
 
@@ -104,7 +104,7 @@ Public Sub NewParameter(tipo as string, vValor as Variant, Optional definitive a
                     gcd.DrawOriginals = True
 
                     ' ya tengo cosas seleccionadas
-                    Me.Prompt = ("Copy") & " " & Str(gcd.Drawing.Sheet.EntitiesSelected.count) & " " & ("elements") & ": " & ("Final point")
+                    Me.Prompt = Str(gcd.Drawing.Sheet.EntitiesSelected.count) & " " & ("elements") & ": " & ("Final point")
 
                     ' volvemos el Snap al original
                     gcd.SnapMode = Config.SnapModeSaved
@@ -118,7 +118,7 @@ Public Sub NewParameter(tipo as string, vValor as Variant, Optional definitive a
                     Me.Finish
 
                 Endif
-            else
+            Else
 
                 If Me.PointsDone = 1 Then ' puedo redibujar
                     Me.SelEndXr = vValor[0]
@@ -129,14 +129,14 @@ Public Sub NewParameter(tipo as string, vValor as Variant, Optional definitive a
                     Me.glTranslate[2] = 0
 
                     gcd.redraw
-                end if
-            end if
-        case else
-            if trim(lcase(vvalor)) = "m" then multiple= True
-            if trim(lcase(vvalor)) = "_cancel" then me.Cancel
-    end Select
+                End If
+            End If
+        Case Else
+            If Trim(LCase(vvalor)) = "m" Then multiple = True
+            If Trim(LCase(vvalor)) = "_cancel" Then Me.Cancel
+    End Select
 
-end
+End
 
 Public Sub Finish()
 
@@ -157,22 +157,14 @@ Public Sub Finish()
 
     clsEntities.glGenDrawListLAyers()
     gcd.redraw
-    if Multiple then
+    If Multiple Then
         Me.PointsDone = 1
         Run
 
     Else
 
-        clsEntities.DeSelection()
-        gcd.Drawing.RequiresSaving = True
-        gcd.Drawing.iEntity.Clear
-        gcd.clsJobPrevious = Me
-        gcd.clsJob = cadSelection
-        gcd.clsJob.start()
-        DrawingAIds.CleanTexts
-        gcd.StepsDone = 0
-        gcd.DrawOriginals = False
-        Me.Active = False
-    end if
+        Super.Finish()
+
+    End If
 
 End
