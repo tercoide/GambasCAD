@@ -4,11 +4,96 @@
 
 Public Function TextWidth(str As String, sFont As String, zSize As Integer) As Integer
 
-  Dim fnt As New Font
+    Dim fnt As New Font
 
-  fnt.Name = sFont
-  fnt.Size = zSize
+    fnt.Name = sFont
+    fnt.Size = zSize
 
-  Return fnt.TextWidth(str)
+    Return fnt.TextWidth(str)
+
+End
+
+Public Sub Update(obj As Object, Optional aThemes As String[])
+
+    Dim ch As Object
+    Dim myclass As Class
+
+    myclass = Object.Class(obj)
+
+    If myclass.Symbols.Exist("Arrangement") Then
+        For Each ch In obj.Children
+            If Object.Type(ch) = "ToolButton" Then
+                If ch.Tag Then
+                    If aThemes Then
+                        ch.Picture = TagPic(ch.Tag, ch.W - 7,, IIf(aThemes.Count > 0, aThemes, []))
+                    Else
+                        ch.Picture = TagPic(ch.Tag, ch.W - 7)
+                    Endif
+                Endif
+            Else
+                If aThemes Then
+                    Update(ch, IIf(aThemes.Count > 0, aThemes, []))
+                Else
+                    Update(ch)
+                Endif
+
+            Endif
+        Next
+    Endif
+
+End
+
+Public Function TagPic(sTag As String, iSize As Integer, Optional iFill As Integer, Optional aThemes As String[]) As Picture
+
+    Dim sVector As String
+    Dim pic As Picture
+    Dim sPic As String
+
+    sPic = "./svg/Gray/" & sTag & ".svg"
+
+    If Exist(sPic) Then
+        sVector = Contrary(sPic, "#0066b3", -1)
+        pic = Image.FromString(sVector).Stretch(iSize, iSize).Picture
+    Else
+        pic = Stock["16/error"]
+    Endif
+
+    Return pic
+
+End
+
+'' Replace a color in an svg file with one that contrasts with the background of the desktop theme
+Public Function Contrary(sFile As String, sColor As String, iBackground As Integer, Optional iAltern As Integer) As String
+
+    Dim sVector As String
+    Dim iContrast As Integer
+    Dim sReplace As String
+    Dim sAltern As String
+
+    sAltern = "#" & CStr(Hex(iAltern, 6))
+
+    If iBackground = -1 Then
+        If Application.DarkTheme Then
+            If iAltern > 0 Then
+                sAltern = sAltern
+            Else
+                sReplace = "#eeeeee"
+            Endif
+            sVector = Replace(File.Load(sFile), sColor, sReplace)
+        Else
+            If iAltern > 0 Then
+                sAltern = sAltern
+            Else
+                sReplace = "#000000"
+            Endif
+            sVector = Replace(File.Load(sFile), sColor, sReplace)
+        Endif
+    Else
+        iContrast = Color.Invert(iBackground)
+        sReplace = "#" & CStr(Hex(iContrast, 6))
+        sVector = Replace(File.Load(sFile), sColor, sReplace)
+    Endif
+
+    Return sVector
 
 End
