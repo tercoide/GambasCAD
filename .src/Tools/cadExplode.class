@@ -35,7 +35,6 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
         gcd.clsJobCallBack = Me
         gcd.clsJob = cadSelection
 
-        
         cadSelection.ReturnOnFirstSelection = True
 
     Else                                                                    ' EXPLOTA !!!
@@ -72,7 +71,7 @@ Private Sub Explode()
     For Each e In gcd.Drawing.Sheet.EntitiesSelected
 
         Select e.Gender
-            Case "INSERT", "Dimension"
+            Case Like "DIM*", "INSERT"
                 ' tengo q crear todas lass entidades del bloque que lo conforma
                 ' y eliminar el Insert o Dimension
                 ' para ello debo seguir el mismo metodo con que los dibujo
@@ -80,12 +79,14 @@ Private Sub Explode()
                 Explode_List(e.pBlock.entities, e, gcd.Drawing.Sheet.Entities)
 
                 e = Null
+
             Case "LWPOLYLINE"
 
                 For i = 0 To e.P.max - 3 Step 2
 
                     e2 = cadLine.NewEntity([e.P[i], e.P[i + 1], e.P[i + 2], e.P[i + 3]], True)
                     cadLine.Finish(e2)
+                    clsEntities.glGenDrawList(e2)
                     e.Container.entities.Add(e2, e2.id)
 
                 Next
@@ -114,33 +115,35 @@ Private Sub Explode_List(eList As Collection, eParent As Entity, cDestination As
     Dim et, etnew As Entity
 
     For Each ET In eList
+        cDestination.Add(et, et.Id)
+        clsEntities.glGenDrawList(et)
 
-        If (et.Gender = "INSERT") And ExplodeInserts Then
-
-            If et.pBlock Then Explode_List(et.pBlock.entities, et, cDestination,, ExplodeInserts)
-
-        Else
-
-            If et.Gender <> "ENDBLK" Then
-
-                ' creo una entidad nueva
-                etnew = clsEntities.ClonEntity(et)
-                etnew.visible = True
-                etnew.LineType = eParent.LineType
-                etnew.colour = eParent.colour
-                etnew.LineWIdth = eParent.LineWIdth
-
-                Gcd.CCC[etnew.gender].Scale(etnew, eParent.fParam[cadInsert.ipaEscX], eParent.fParam[cadInsert.ipaEscY])
-                Gcd.CCC[etnew.gender].Rotate(etnew, eParent.fParam[cadInsert.ipaRotacion])
-                If InsertionPlace = 0 Then
-                    Gcd.CCC[etnew.gender].translate(etnew, eParent.p[0], eParent.p[1])
-                End If
-
-                Gcd.CCC[etnew.gender].Finish(etnew)
-
-                cDestination.Add(etnew, etnew.Id)
-            End If
-        End If
+        ' If (et.Gender = "INSERT") And ExplodeInserts Then
+        '
+        '     If et.pBlock Then Explode_List(et.pBlock.entities, et, cDestination,, ExplodeInserts)
+        '
+        ' Else
+        '
+        '     If et.Gender <> "ENDBLK" Then
+        '
+        '         ' creo una entidad nueva
+        '         etnew = clsEntities.ClonEntity(et)
+        '         etnew.visible = True
+        '         etnew.LineType = eParent.LineType
+        '         etnew.colour = eParent.colour
+        '         etnew.LineWIdth = eParent.LineWIdth
+        '
+        '         ' Gcd.CCC[etnew.gender].Scale(etnew, eParent.fParam[cadInsert.ipaEscX], eParent.fParam[cadInsert.ipaEscY])
+        '         ' Gcd.CCC[etnew.gender].Rotate(etnew, eParent.fParam[cadInsert.ipaRotacion])
+        '         ' If InsertionPlace = 0 Then
+        '         '     Gcd.CCC[etnew.gender].translate(etnew, eParent.p[0], eParent.p[1])
+        '         ' End If
+        '
+        '         Gcd.CCC[etnew.gender].Finish(etnew)
+        '
+        '         cDestination.Add(etnew, etnew.Id)
+        '     End If
+        ' End If
 
     Next
     cDestination.Remove(eParent.Id)
