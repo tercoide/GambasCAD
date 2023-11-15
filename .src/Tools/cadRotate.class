@@ -79,126 +79,79 @@ Public Sub Run()
 
 End
 
-' Public Sub NewParameter(tipo As String, vValor As Variant, Optional definitive As Boolean = False)
-'
-'     Select Case LCase(tipo)
-'         Case "point"
-'
-'             If definitive Then
-'
-'                 Inc Me.PointsDone
-'
-'                 If Me.PointsDone = 1 Then ' acabo de marcar el punto base
-'                     Me.SelStartXr = vValor[0]
-'                     Me.SelStartYr = vValor[1]
-'
-'                     gcd.DrawOriginals = True
-'
-'                     ' ya tengo cosas seleccionadas
-'                     Me.Prompt = Str(gcd.Drawing.Sheet.EntitiesSelected.count) & " " & ("elements") & ": " & ("Final point")
-'
-'                     ' volvemos el Snap al original
-'                     gcd.SnapMode = Config.SnapModeSaved
-'
-'                     ' prevenir acciones tontas como hacer click en otro elemento antes de terminar con el actual
-'                     ' TODO: reparar -> gcd.CurrDrawing.DesHabilitarBotones
-'                     If Me.PointsDone = 1 Then ' acabo de marcar el punto base
-'
-'                         ' ya tengo cosas seleccionadas
-'                         DrawingAIds.Helper.texto = Me.Prompt & ": " & ("Angle") & " [90]"
-'
-'                         ' punto real base
-'                         Me.SelStartXr = Me.LastX
-'                         Me.SelStartYr = Me.LastY
-'
-'                         Me.glTranslate[0] = Me.SelStartXr
-'                         Me.glTranslate[1] = Me.SelStartYr
-'                         Me.glTranslate[2] = 0
-'                     Else If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
-'                         ' permitir otros trabajos
-'                         Me.SelEndXr = vValor[0]
-'                         Me.SelEndYr = vValor[1]
-'                         Me.Finish
-'
-'                     Endif
-'                 Else
-'
-'                     If Me.PointsDone = 1 Then ' puedo redibujar
-'                         Me.SelEndXr = vValor[0]
-'                         Me.SelEndYr = vValor[1]
-'
-'                         Me.glTranslate[0] = Me.SelEndXr - Me.SelStartXr
-'                         Me.glTranslate[1] = Me.SelEndyr - Me.SelStartYr
-'                         Me.glTranslate[2] = 0
-'
-'                         gcd.redraw
-'                     End If
-'
-'                     If Me.PointsDone = 2 Then
-'                         '     ' we compare Real values from the starting point to the location
-'                         '     ' represente by the mouse now, taking account that the drawing
-'                         '     ' could have being moved by the mouse wheel
-'                         '
-'                         '     ' new Real position is
-'                         Me.SelEndXr = Me.LastX
-'                         Me.SelEndyr = Me.LastY
-'
-'                         Radianes = Ang(Me.SelEndXr - Me.SelStartXr, Me.SelEndYr - Me.SelStartYr)
-'
-'                         Me.glAngle = Deg(Radianes)
-'
-'                         Me.Prompt = ("Angle") & " [" & Format$(Me.glAngle, "0.0") & "]"
-'
-'                     End If
-'                 End If
-'             Case Else
-'                 If Trim(LCase(vvalor)) = "m" Then multiple = True
-'                 If Trim(LCase(vvalor)) = "_cancel" Then Me.Cancel
-'         End Select
-'
-' End
+Public Sub NewParameter(tipo As String, vValor As Variant, Optional definitive As Boolean = False)
 
-Public Function MouseUp()
+    Select Case LCase(tipo)
+        Case "point"
 
-    Dim i As Integer, E As Entity
+            If definitive Then
 
-    If Me.PointsDone = 1 Then ' acabo de marcar el punto base
+                If Me.PointsDone = 1 Then ' acabo de marcar el punto base
+                    Dim e As Entity
+                    ' ya tengo cosas seleccionadas
+                    DrawingAIds.Helper.texto = Me.Prompt & ": " & ("Angle") & " [90]"
 
-        ' ya tengo cosas seleccionadas
-        DrawingAIds.Helper.texto = Me.Prompt & ": " & ("Angle") & " [90]"
+                    ' punto real base
+                    Me.SelStartXr = vValor[0]
+                    Me.SelStartYr = vValor[1]
 
-        ' punto real base
-        Me.SelStartXr = Me.LastX
-        Me.SelStartYr = Me.LastY
+                    Me.glTranslate[0] = Me.SelStartXr
+                    Me.glTranslate[1] = Me.SelStartYr
+                    Me.glTranslate[2] = 0
 
-        Me.glTranslate[0] = Me.SelStartXr
-        Me.glTranslate[1] = Me.SelStartYr
-        Me.glTranslate[2] = 0
+                    gl.PushMatrix
+                    gl.NewList(gcd.Drawing.GlListEntitiesSelected, gl.COMPILE)                      ' genero los graficos dentro de la lista
+                    gl.Translatef(-Me.SelStartXr, -Me.SelStartYr, 0)
+                    gl.Translatef(gcd.Drawing.Sheet.PanBaseRealX, gcd.Drawing.Sheet.PanBaseRealY, 0)
+                    For Each E In gcd.Drawing.Sheet.EntitiesSelected
+                        gl.CallList(E.glDrwList)
+                    Next
+                    gl.EndList
+                    gl.PopMatrix
 
-        gl.PushMatrix
-        gl.NewList(gcd.Drawing.GlListEntitiesSelected, gl.COMPILE)                      ' genero los graficos dentro de la lista
-        gl.Translatef(-Me.SelStartXr, -Me.SelStartYr, 0)
-        gl.Translatef(gcd.Drawing.Sheet.PanBaseRealX, gcd.Drawing.Sheet.PanBaseRealY, 0)
-        For Each E In gcd.Drawing.Sheet.EntitiesSelected
-            gl.CallList(E.glDrwList)
-        Next
-        gl.EndList
-        gl.PopMatrix
+                    Inc Me.PointsDone
 
-        Inc Me.PointsDone
-        ' prevenir acciones tontas como hacer click en otro elemento antes de terminar con el actual
-        ' TODO: reparar -> gcd.CurrDrawing.DesHabilitarBotones
-    Else If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
-        '     ' permitir otros trabajos
-        '     ' TODO: reparar -> gcd.CurrDrawing.HabilitarBotones
-        'Me.SelEndXr = puntos.Near(gcd.xreal(mouse.x)
-        'Me.SelEndyr = puntos.Near(gcd.Yreal(mouse.y))
+                Else If Me.PointsDone = 2 Then
+                    '     ' we compare Real values from the starting point to the location
+                    '     ' represente by the mouse now, taking account that the drawing
+                    '     ' could have being moved by the mouse wheel
+                    '
+                    '     ' new Real position is
+                    Me.SelEndXr = vValor[0]
+                    Me.SelEndYr = vValor[1]
+                    Radianes = Ang(Me.SelEndXr - Me.SelStartXr, Me.SelEndYr - Me.SelStartYr)
 
-        'Radianes = Ang(Me.SelEndXr - Me.SelStartXr, Me.SelEndYr - Me.SelStartYr)
-        '
-        Me.Finish()
+                    Me.Finish
 
-    Endif
+                End If
+
+            Else ' mousemove
+                If Me.PointsDone = 2 Then
+                    '     ' we compare Real values from the starting point to the location
+                    '     ' represente by the mouse now, taking account that the drawing
+                    '     ' could have being moved by the mouse wheel
+                    '
+                    '     ' new Real position is
+                    Me.SelEndXr = vValor[0]
+                    Me.SelEndYr = vValor[1]
+
+                    Radianes = Ang(Me.SelEndXr - Me.SelStartXr, Me.SelEndYr - Me.SelStartYr)
+
+                    Me.glAngle = Deg(Radianes)
+
+                    Me.Prompt = ("Angle") & " [" & Format$(Me.glAngle, "0.0") & "]"
+                    gcd.redraw
+                End If
+
+            End If
+        Case Else
+            If Me.PointsDone = 2 Then
+                Try radianes = Rad(CFloat(vvalor))
+                Me.Finish
+            Endif
+
+            If Trim(LCase(vvalor)) = "_cancel" Then Me.Cancel
+    End Select
 
 End
 
@@ -212,45 +165,19 @@ Public Sub Draw()
 
 End
 
-Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD en el evento FCAD_KeyPress cuando recibe una texto + <Enter>
-
-    If Me.PointsDone = 1 Then
-
-        If EnteredText = "" Then                        ' enter es Ortogonal
-            Radianes = 90 / 180 * Pi
-            Inc Me.PointsDone
-            Me.Finish
-
-        Else
-            Radianes = CFloat(EnteredText) / 180 * Pi
-            Inc Me.PointsDone
-            Me.Finish
-        End If
-
-    End If
-
-    ' catch
-
-    DrawingAIds.ErrorMessage = ("Bad input")
-
-End
-
 Public Sub Finish()
 
     Dim E As Entity, ip As Integer, Prot As New Float[]
 
-    If Me.PointsDone = Me.PointsTotal Then
+    For Each E In gcd.Drawing.Sheet.EntitiesSelected
 
-        For Each E In gcd.Drawing.Sheet.EntitiesSelected
+        gcd.CCC[e.gender].Translate(E, -Me.glTranslate[0], -Me.glTranslate[1])
 
-            gcd.CCC[e.gender].Translate(E, -Me.glTranslate[0], -Me.glTranslate[1])
+        gcd.CCC[e.gender].Rotate(E, radianes)
+        gcd.CCC[e.gender].Translate(E, Me.glTranslate[0], Me.glTranslate[1])
+    Next
 
-            gcd.CCC[e.gender].Rotate(E, radianes)
-            gcd.CCC[e.gender].Translate(E, Me.glTranslate[0], Me.glTranslate[1])
-
-        Next
-
-    Endif
+    clsEntities.glGenDrawListSel(0, True)
 
     Super.Finish()
 
