@@ -11,7 +11,7 @@
 
 Create Static
 Create Private
-Fast Unsafe
+'Fast Unsafe
 
 Public LastFound As Entity              ' ultima entidad encontrada
 Public LastPointToCursorDistance As Float
@@ -238,9 +238,9 @@ End
 Public Sub CheckPOI(xr As Float, Yr As Float, Optional e As Entity) As Float[]
 
     Dim rData, CurrentPoint As New Float[], e2, ePart As Entity
-    Dim indexEntity, i, i2, iPoligon, iLine, iPoint As Integer
+    Dim indexEntity, i, iInter, i2, iPoligon, iLine, iPoint As Integer
     Dim pend1, base1, pend2, base2 As Float ' vars para las ecuacionesde las rectas
-    Dim puntoB, puntoA, pInter As New Float[]
+    Dim puntoB, puntoA, pIntersection, pInter, pInterPoly, pInterPoly2 As New Float[]
     Dim end1X, end1Y, end2X, end2Y As Float
     Dim x0, y0, x1, y1 As Float
     ' distancias  los enganches, para determinar cual es el mas cercano al puntero
@@ -381,18 +381,27 @@ Public Sub CheckPOI(xr As Float, Yr As Float, Optional e As Entity) As Float[]
                     Case "LINE"
                         If puntos.doIntersect(e.P[0], e.P[1], e.P[2], e.P[3], e2.P[0], e2.P[1], e2.P[2], e2.P[3]) Then
                             pInter = puntos.lineLineIntersection([e.P[0], e.P[1]], [e.P[2], e.P[3]], [e2.P[0], e2.P[1]], [e2.P[2], e2.P[3]])
-                            If pInter.Count > 0 Then ' puede no haber intersaeccion
-                                DistInter = puntos.distancia(xr, yr, pInter[0], pInter[1])
-                            Else
-                                DistInter = 10e10
-                            End If
+
+                            pIntersection.Insert(pInter)
 
                         Endif
 
-                    Case "LWPOLYLINE"
+                    Case "LWPOLYLINE", "SOLID"
 
+                        pInterPoly = puntos.LinePolyIntersection3(e.p, e2.p)
+                        pIntersection.Insert(pInterPoly)
+                    Case "CIRCLE", "ARC", "SPLINE"
+                        pInterPoly2 = puntos.LinePolyIntersection3(e.p, e2.PolyLine)
+                        pIntersection.Insert(pInterPoly2)
                 End Select
             Next
+
+            If pIntersection.Count > 0 Then ' puede no haber intersaeccion
+                iInter = puntos.FindNearest(xr, yr, pIntersection)
+                DistInter = puntos.distancia(xr, yr, pIntersection[iInter], pIntersection[iInter + 1])
+            Else
+                DistInter = 10e10
+            End If
 
         Case "CIRCLE"
             If gcd.Drawing.LastPoint.max > 0 Then                     ' tengo un punto anterior
@@ -645,8 +654,8 @@ Public Sub CheckPOI(xr As Float, Yr As Float, Optional e As Entity) As Float[]
 
     ' ofrezco ese punto
     If dist = DistInter Then
-        rData[0] = pInter[0]
-        rData[1] = pInter[1]
+        rData[0] = pIntersection[iInter]
+        rData[1] = pIntersection[iInter + 1]
         rData[2] = gcd.poiIntersection
         DrawingAIds.txtSnapTo = "Intersection"
     End If

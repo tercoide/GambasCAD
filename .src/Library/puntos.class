@@ -251,6 +251,24 @@ Public Function FindPOILines(xreal As Float, Yreal As Float, arr As Float[], tol
 
 End
 
+'' Devuelve el indice del punto que esta mas cercano al provisto
+Public Function FindNearest(xreal As Float, Yreal As Float, arr As Float[]) As Integer
+
+    Dim i, iCloser As Integer = -1
+    Dim d As Float
+    Dim dCloser As Float = 1e100
+
+    For i = 0 To arr.count - 2 Step 2
+        d = puntos.distancia(xreal, Yreal, arr[i + 0], arr[i + 1])
+        If d < dCloser Then
+            iCloser = i
+            dCloser = d
+        Endif
+    Next
+    Return iCloser
+
+End
+
 '' Returns the index in the array of pairs that is near the given point using HookSize parameter
 Public Function FindPOIPoligon(xr As Float, yr As Float, arr As Float[], arrIndexes As Integer[], arrNElements As Integer[]) As Integer
 
@@ -385,9 +403,7 @@ Public Function orientation(px As Float, py As Float, qx As Float, qy As Float, 
 
 End
 
-' Given three colinear points p, q, r,
-' the function checks If point q lies
-' On LINE segment 'pr'
+'' Given three colinear points p, q, r, the function checks If point q lies  On LINE segment 'pr'
 Public Function onSegment(px As Float, py As Float, qx As Float, qy As Float, rx As Float, ry As Float) As Boolean
 
     If (qx <= Max(px, rx) And
@@ -703,6 +719,49 @@ Public Function LinePolyIntersection2(flxLine As Float[], flxPoly As Float[]) As
     If puntos.doIntersect(flxLine[0], flxLine[1], flxLine[2], flxLine[3], flxPoly[flxPoly.Max - 1], flxPoly[flxPoly.Max], flxPoly[0], flxPoly[1]) Then
         flxIntersections.Insert(puntos.lineLineIntersection2(flxLine[0], flxLine[1], flxLine[2], flxLine[3], flxPoly[flxPoly.Max - 1], flxPoly[flxPoly.Max], flxPoly[0], flxPoly[1]))
     Endif
+
+    ' si el primer punto esta adentro, pero no se da el caso particular que coincide con parte de la polilinea, lo agrego
+
+    Return flxIntersections
+
+End
+
+' Devuelve los puntos de interseccion de una linea con una polilinea
+Public Function LinePolyIntersection3(flxLine As Float[], flxPoly As Float[]) As Float[]
+
+    ' la polylinea se considera cerrada y de mas de 3 puntos, caso contrario se devuelve la linea sin cambios
+    ' la linea es de dos puntos , si esta afuera de la polilinea, se devuelve un array vacio
+    ' Chequeos previos:
+
+    Dim i As Integer
+
+    If flxLine.Count <> 4 Then Return []
+
+    ' fuera de los casos triviales, entonces armo el array de intersecciones
+    Dim flxIntersections, flxTest As New Float[]
+
+    ' busco todas las intersecciones de la linea con la polilinea
+    For i = 0 To flxPoly.count - 4 Step 2
+
+        flxTest = puntos.lineLineIntersection2(flxLine[0], flxLine[1], flxLine[2], flxLine[3], flxPoly[i + 0], flxPoly[i + 1], flxPoly[i + 2], flxPoly[i + 3])
+        If flxTest.Count > 0 Then
+            If onSegment(flxPoly[i + 0], flxPoly[i + 1], flxTest[0], flxTest[1], flxPoly[i + 2], flxPoly[i + 3]) Then
+                flxIntersections.Insert(flxTest)
+            Endif
+        Endif
+
+    Next
+
+    ' ' verifico que ningun punto coincida
+    ' If (flxLine[0] = flxPoly[flxPoly.Max - 1]) And (flxLine[1] = flxPoly[flxPoly.Max]) Then Return []
+    ' If (flxLine[0] = flxPoly[0]) And (flxLine[1] = flxPoly[1]) Then Return []
+    ' If (flxLine[2] = flxPoly[flxPoly.Max - 1]) And (flxLine[3] = flxPoly[flxPoly.Max]) Then Return []
+    ' If (flxLine[2] = flxPoly[0]) And (flxLine[3] = flxPoly[1]) Then Return []
+    '
+    ' ' y el cierre de la poly
+    ' If puntos.doIntersect(flxLine[0], flxLine[1], flxLine[2], flxLine[3], flxPoly[flxPoly.Max - 1], flxPoly[flxPoly.Max], flxPoly[0], flxPoly[1]) Then
+    '     flxIntersections.Insert(puntos.lineLineIntersection2(flxLine[0], flxLine[1], flxLine[2], flxLine[3], flxPoly[flxPoly.Max - 1], flxPoly[flxPoly.Max], flxPoly[0], flxPoly[1]))
+    ' Endif
 
     ' si el primer punto esta adentro, pero no se da el caso particular que coincide con parte de la polilinea, lo agrego
 
