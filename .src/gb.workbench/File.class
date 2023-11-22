@@ -1,0 +1,614 @@
+' Gambas class file
+
+Export
+
+''' This class extends the class File.
+
+Library "libc:6"
+
+Public Struct stat_
+    st_dev As Long
+    st_ino As Long
+    st_nlink As Long
+    st_mode As Integer
+    st_uid As Integer
+    st_gid As Integer
+    __pad0 As Integer
+    st_rdev As Long
+    st_size As Long
+    st_blksize As Long
+    st_blocks As Long
+    st_atime As Long
+    st_atimensec As Long
+    st_mtime As Long
+    st_mtimensec As Long
+    st_ctime As Long
+    st_ctimensec As Long
+    __glibc_reserved[3] As Long
+End Struct
+
+Private Const _STAT_VER_LINUX As Integer = 1
+Private Extern __xstat(_STAT_VER As Integer, __path As String, __statbuf As Stat_) As Integer
+
+'' <b>RAD Extension.</b><br>
+'' Create a file parameters list using the GNU coreutils program stat. Note: the tags for access to the information are:<br>
+'' Dev, Ino, Path, Link, Mode, SetUID, SetGID, Rdev, Size, BlkSize, Blocks, LastAccess, LastModified, LastChange<br>
+'' Original <https://www.gambas-it.org/wiki/index.php?title=Stat_()>
+
+Static Public Sub Stat2(f As String) As Collection
+
+    Dim i As Integer
+    Dim st As New Stat_
+    Dim inf As New Collection
+
+    i = __xstat(_STAT_VER_LINUX, f, st)
+    If i < 0 Then Error.Raise("Function error '__xstat()' !")
+
+    With st
+        inf.Add(.st_dev, "dev")
+        inf.Add(.st_ino, "ino")
+        inf.Add(f, "path")
+        inf.Add(.st_nlink, "link")
+        inf.Add(.st_mode, "mode")
+        inf.Add(.st_uid, "setuid")
+        inf.Add(.st_gid, "setgid")
+        inf.Add(.st_rdev, "rdev")
+        inf.Add(.st_size, "size")
+        inf.Add(.st_blksize, "blksze")
+        inf.Add(.st_blocks, "blocks")
+        inf.Add(.st_atime, "lastaccess")
+        inf.Add(.st_mtime, "lastmodified")
+        inf.Add(.st_ctime, "lastchange")
+    End With
+
+    Return inf
+
+End
+
+'' <b>RAD Extension.</b><br>
+'' Compresses all the files in a directory into a single zip file. At the moment it works properly only with the zip option
+
+Static Public Function DirZip(sDir As String) As String
+
+    Dim sFile As String
+    Dim cmd As String
+    Dim uDir As String
+    Dim cDir As String
+
+    uDir = File.ParentDir(sDir)
+    cDir = Split(sDir, "/")[Split(sDir, "/").Max]
+
+    sFile = sDir & ".zip"
+    cmd = "cd '" & sDir & "';zip -jr '" & sFile & "' *.*"
+
+    If cmd <> "" Then
+        Shell cmd Wait
+    Endif
+    If Exist(sFile) Then
+        Return sFile
+    Else
+        Return ""
+    Endif
+
+End
+
+'' <b>RAD Extension.</b><br>
+'' Obtaining a file SHA256. As parameter require the complete path.
+
+Static Public Function SHA256(sFile As String) As String
+
+    Dim bb As Byte[]
+    Dim fl As File
+    Dim sHash As String
+
+    fl = Open sFile For Read
+    ' Impostiamo il numero degli elementi che costituiranno la variabile vettoriale di tipo Byte[] mediante la funzione "Lof()", affinché nel vettore siano contenuti tutti i dati del file:
+    bb = New Byte[](Lof(fl))
+
+    bb.Read(fl)   ' ...o anche: bb.Read(fl, 0, bb.Count)
+
+    fl.Close
+
+    sHash = "" 'Hash.ProcessHC256(bb, 1024, 8 * bb.Count, )
+
+    Return sHash
+
+End
+
+'' <b>RAD Extension.</b><br>
+'' Obtaining a file crc32. As parameter require the complete path then as an optional U or L that will convert everything to Ucase or Lcase.
+
+Static Public Function CRC32(Path As String, Optional bUpper As Boolean) As String
+
+    Dim crc As String
+
+    Shell "crc32 '" & Path & "'" To crc
+
+    crc = String.Mid(crc, 1, 8) ' 8 character cut to remove the \n and other characters if they occur
+
+    If bUpper Then
+        crc = String.UCase(crc)
+    Endif
+
+    Return crc
+
+End
+
+'' <b>RAD Extension.</b><br>
+'' Returns a list of files in a directory that is passed as a parameter. Optionally, a list of existing files can be passed as a parameter, which will be omitted from the output list if they are found, and a file extension filter in the mp3 style:ods:txt
+
+Public Function FilesNew(sDirectory As String, Optional aFilesOpt As String[], Optional sFilterOpt As String) As String[]
+
+    Dim aFiles As New String[]
+    Dim intFile As Integer
+    Dim aFilesNew As New String[] ' Directory files that exist in DB
+
+    aFiles = File.ScanFiles(sDirectory, sFilterOpt)
+
+    If aFilesOpt.Count > 0 Then
+        For intFile = 0 To aFiles.Max
+            If aFilesOpt.Find(aFiles[intFile]) = -1 Then
+                aFilesNew.Add(aFiles[intFile])
+            Endif
+        Next
+    Else ' All files found will be new
+        aFilesNew = aFiles
+    Endif
+
+    Return aFilesNew
+
+End
+
+'' <b>RAD Extension.</b> Returns a text with the version of the file that is passed as a path. Use the
+'' command file from terminal.
+'' If Mode = True then the Short name is returned.
+
+Static Public Function Version(sPath As String) As String
+
+    Dim sVersion As String
+
+    If InStr(sPath, "'") Then
+        sPath = Replace(sPath, "'", "'\\''")
+    Endif
+
+    Shell "file '" & sPath & "'" To sVersion
+
+    If InStr(sVersion, ":") > 0 Then
+        sVersion = Replace(sVersion, ": ", ":")
+        sVersion = Split(sVersion, ":")[1]
+        sVersion = PathArrange(sVersion)
+    Endif
+    If InStr(sVersion, ",") > 0 Then
+        sVersion = Split(sVersion, ",")[0]
+    Endif
+
+    Return sVersion
+
+End
+
+' '' Usual file versions
+'
+' Private Function VersionShort(s As String) As String
+'
+'   Dim fvn As New Collection
+'
+'   fvn.Add("DWG13", "DWG AutoDesk AutoCAD Release 13")
+'   fvn.Add("DWG14", "DWG AutoDesk AutoCAD Release 14")
+'   fvn.Add("DWG2000", "DWG AutoDesk AutoCAD 2000/2002")
+'   fvn.Add("DWG2004", "DWG AutoDesk AutoCAD 2004/2005/2006")
+'   fvn.Add("DWG2007", "DWG AutoDesk AutoCAD 2007/2008/2009")
+'   fvn.Add("DWG2010", "DWG AutoDesk AutoCAD 2010/2011/2012")
+'   fvn.Add("DWG2013", "DWG AutoDesk AutoCAD 2013/2014")
+'   fvn.Add("DWG2018", "DWG AutoDesk AutoCAD 2018/2019/2020/2021")
+'
+'   If fvn.Exist(s) Then
+'     Return fvn[s]
+'   Else
+'     Return s
+'   Endif
+'
+' End
+
+'' <b>RAD Extension.</b><br>
+'' Move a file to the trash. Requires the file path to be passed and if
+'' manages to move to the trash, returns True and if it fails, it returns FALSE.
+
+Static Public Function Trash(sInputPath As String) As Boolean
+
+    Dim out As Boolean
+
+    out = False
+
+    If Exist(sInputPath) Then
+        If Stat(sInputPath).Type = gb.File Then
+            Shell "gio trash '" & sInputPath & "'" Wait
+            If Exist(sInputPath) = False Then
+                out = True
+            Endif
+        Endif
+    Endif
+
+    Return out
+
+End
+
+'' <b>RAD Extension.</b><br>
+'' Return a directories list nested in a parent directory
+
+Static Public Function ScanDirs(sPath As String, Optional maxdepth As Integer = 1, Optional sFilter As String) As String[]
+
+    Dim t As String
+    Dim aTmp As String[]
+    Dim sTmp As String
+    Dim aOut As New String[]
+
+    If Exist(sPath) Then
+        Shell "find '" & sPath & "' -maxdepth " & CStr(maxdepth) & " -type d -printf '%p\n' 2>&1" To t
+    Endif
+
+    aTmp = Split(t, "\n")
+
+    For Each sTmp In aTmp
+        If sTmp <> sPath And sTmp <> "" Then
+            If sFilter <> "" Then
+                If InStr(sTmp, sFilter) > 0 Then
+                    aOut.Add(sTmp)
+                Endif
+            Else
+                aOut.Add(sTmp)
+            Endif
+        Endif
+    Next
+
+    Return aOut
+
+End
+
+'' <b>RAD Extension.</b><br>
+'' Return a files list nested in a directory using a find command
+
+Static Public Function ScanFiles(sPath As String, ext As String[], Optional maxdepth As Integer, Optional sFilter As String) As String[]
+
+    Dim out As New String[]
+    Dim t As String
+    Dim ex As String
+    Dim sTmp As String
+    Dim aOut As New String[]
+
+    If maxdepth = Null Or maxdepth < 1 Then
+        maxdepth = 1
+    Endif
+
+    If Exist(sPath) Then
+        Select ext.Count
+            Case 0
+                Shell "find '" & sPath & "' -maxdepth " & CStr(maxdepth) & " -type f -printf '%p\n' 2>&1" To t
+            Case 1
+                Shell "find '" & sPath & "' -maxdepth " & CStr(maxdepth) & " -type f -name '*.'" & ext[0] & " -printf '%p\n' 2>&1" To t
+            Case Else
+                ex = "\\( -name \"*."
+                ex &= ext.Join("\" -o -name \"*.")
+                ex &= "\" \\)"
+                Shell "find '" & sPath & "' -maxdepth " & CStr(maxdepth) & " -type f " & ex & " -printf '%p\n' 2>&1" To t
+        End Select
+
+        out = Split(t, "\n")
+
+        If out.Count > 0 Then
+            If out[out.Max] = "" Then
+                out.Remove(out.Max, 1)
+            Endif
+        Endif
+
+    Endif
+
+    If sFilter <> "" Then
+        For Each sTmp In out
+            If InStr(sTmp, sFilter) > 0 Then
+                aOut.Add(sTmp)
+            Endif
+        Next
+    Else
+        aOut = out.Copy()
+    Endif
+
+    Return aOut
+
+End
+
+' ######################## Reading and writing files
+
+'' <b>RAD Extension.</b><br>
+'' Read a text file inside a zip.
+'' strZip is the full path of the zip file
+'' strFile is the relative path of the txt file inside the zip
+
+Static Public Function ReadZip(sZip As String, sFile As String) As String
+
+    Dim sData As String
+
+    If Exist(sZip) = True Then
+        Shell "unzip -p '" & sZip & "' " & sFile & " 2>&1" To sData
+    Endif
+
+    Return sData
+
+End
+
+'' <b>RAD Extension.</b><br>
+'' Returns the text syntax.
+
+Static Public Function Doctype(sFirst As String) As String
+
+    Dim sSyntax As String
+    Dim oShebang As Collection = ["#!/bin/bash": "Bourne shell", "#!/bin/bash": "Bash shell", "#!/usr/bin/pwsh": "PowerShell", "#!/usr/bin/env python3": "Python", "' Gambas module file": "Gambas", "' Gambas class file": "Gambas"]
+    Dim oMarkup As Collection = ["<!DOCTYPE html>": "HTML5", "<?xml version=\"1.0\" encoding=\"UTF-8\"?>": "XHTML"]
+    Dim sTmp As String
+
+    If sFirst <> "" Then
+
+        If InStr(sFirst, "#!") > 0 Then
+            sSyntax = "Script"
+            For Each sTmp In oShebang
+                If sFirst = oShebang.Key Then
+                    sSyntax = Lower(sTmp)
+                    Break
+                Endif
+            Next
+        Else
+            If InStr(sFirst, "<") > 0 Then
+                For Each sTmp In oMarkup
+                    sSyntax = "HTML?"
+                    If sFirst = oMarkup.Key Then
+                        sSyntax = Lower(sTmp)
+                        Break
+                    Endif
+                Next
+            Else
+                If InStr(sFirst, "' Gambas ") > 0 Then
+                    For Each sTmp In oShebang
+                        If sFirst = oShebang.Key Then
+                            sSyntax = Lower(sTmp)
+                            Break
+                        Endif
+                    Next
+                Endif
+            Endif
+        Endif
+    Endif
+
+    Return sSyntax
+
+End
+
+'' <b>RAD Extension.</b><br>
+'' Returns a text array where each item is a line from the text file. If the line is empty in the text file, that is, it is an empty line, it is not passed to the martix, therefore the result is a return without blank lines.
+
+Static Public Function Load2(sPath As String, Optional emptyLines As Boolean) As String[]
+
+    Dim sList As String
+    Dim aListTmp As New String[]
+    Dim aList As New String[]
+    Dim intList As Integer
+
+    aList.Clear
+
+    If Exist(sPath) Then
+
+        sList = File.Load(sPath)
+
+        If InStr(sList, "\n") > -1 Then
+            aListTmp = Split(sList, "\n")
+        Else
+            If String.Len(sList) > 0 Then
+                aListTmp.Add(sList)
+            Endif
+        Endif
+
+        For intList = 0 To aListTmp.Max
+            Select emptyLines
+                Case False
+                    If aListTmp[intList] <> "" Then
+                        aList.Add(aListTmp[intList])
+                    Endif
+                Case Else
+                    aList.Add(aListTmp[intList])
+            End Select
+        Next
+    Endif
+
+    Return aList
+
+End
+
+'' <b>RAD Extension.</b><br>
+'' A simple log system, where a new line with date and text is added to a text file, the file and the text are neded as parameters.
+
+Static Public Function Log(sPath As String, sMsg As String) As String
+
+    Dim sText As String
+
+    If sMsg <> "" Then
+        If Exist(sPath) Then
+            sText = File.Load(sPath)
+        Else
+            sText = ""
+        End If
+        sText = String.Timestamp(Now()) & " " & sMsg & "\n" & sText
+        File.Save(sPath, sText)
+        Return sPath
+    Else
+        Return ""
+    Endif
+
+End
+
+' ######################## Manejo de Directorios
+
+'' <b>RAD Extension.</b><br>
+'' Returns a path without line breaks or problematic characters
+
+Static Public Function PathArrange(sPathRaw As String) As String
+
+    Dim sPath As String
+
+    sPath = Replace(sPathRaw, "file://", "")
+    sPath = Replace(sPath, "\n", "")
+    sPath = Replace(sPath, "\r", "")
+    sPath = Replace(sPath, "\x00", "")
+
+    Return sPath
+
+End
+
+'' <b>RAD Extension.</b><br>
+'' Returns a path simplified
+
+Static Public Function PathSimple(sRaw As String, Optional iTimes As Integer = 1) As String
+
+    Dim sPath As String
+    Dim cRep As Collection = ["file://": "", "\n": "", "\r": "", "\x00": "", " ": "_", "_ª_": "_", "_ª_": "_", "'": "_", "_º_": "_", "_-_": "-", "_,_": "_", ",_": "_", ",_": "_", "_-": "_", "-_": "_", "(": "_", ")": "_", "_&_": "~", "__": "_", ".~": "~", "/": "_"]
+    Dim oRep As New JSONCollection
+    Dim s As String
+    Dim v As Variant
+    'Dim x As Variant
+    Dim i As Integer
+
+    '
+    For Each v In cRep
+        oRep.Add(v, cRep.Key)
+    Next
+    'oRep = ["file://": "", "\n": "", "\r": "", "\x00": "", " ": "_", "_ª_": "_", "_ª_": "_", "'": "-", "_º_": "_", "_-_": "-", "_,_": "_", ",_": "_", ",_": "_", "_-": "_", "-_": "_", "(": "_", ")": "_", "_&_": "~", "__": "_"]
+
+    sPath = String.Lower(sRaw)
+    sPath = String.RemoveDiacritics(sPath)
+    For i = 1 To iTimes
+        For Each s In oRep
+            'If oRep.Key = "_-" Then
+            '  x = "x"
+            'Endif
+            While InStr(sPath, oRep.Key) > 0
+                sPath = Replace(sPath, oRep.Key, s)
+            Wend
+        Next
+    Next
+
+    'sPath = Replace(, "file://", "")
+    'sPath = Replace(sPath, "\n", "")
+    'sPath = Replace(sPath, "\r", "")
+    'sPath = Replace(sPath, "\x00", "")
+    'sPath = Replace(sPath, " ", "_")
+    ' sPath = Replace(sPath, "_ª_", "_")
+    ' sPath = Replace(sPath, "'", "-")
+    ' sPath = Replace(sPath, "_º_", "_")
+    ' sPath = Replace(sPath, "_-_", "-")
+    ' sPath = Replace(sPath, "_,_", "_")
+    ' sPath = Replace(sPath, ",_", "_")
+    ' sPath = Replace(sPath, ",_", "_")
+    ' sPath = Replace(sPath, "_-", "_")
+    ' sPath = Replace(sPath, "-_", "_")
+    ' sPath = Replace(sPath, "(", "_")
+    ' sPath = Replace(sPath, ")", "_")
+    ' sPath = Replace(sPath, "_&_", "~")
+    ' sPath = Replace(sPath, "__", "_")
+
+    sPath = String.Flat2(sPath)
+
+    Return sPath
+
+End
+
+'' <b>RAD Extension.</b><br>
+'' Returns the directory without the path to it, that is, it returns the name of the directory. if you pass "/home/user/music" it will return "music"
+
+Static Public Function BaseDir(Path As String) As String
+
+    Dim sBase As String
+    Dim a As New String[]
+
+    If InStr(Path, "/") > 0 Then
+        a = Split(Path, "/")
+        sBase = a[a.Max]
+    Endif
+
+    Return sBase
+
+End
+
+'' <b>RAD Extension.</b><br>
+'' Returns the parent directory of another one that is passed as a parameter.
+
+Static Public Function ParentDir(Path As String) As String
+
+    Dim sParent As String
+    Dim intLast As Integer
+
+    If Path <> "" Then
+        intLast = String.RInStr(Path, "/")
+        sParent = String.Mid(Path, 1, intLast)
+        If String.Len(sParent) > 1 Then
+            If String.Right(sParent) = "/" Then
+                sParent = String.Mid(sParent, 1, String.Len(sParent) - 1)
+
+            Endif
+        Endif
+    Endif
+
+    If Exist(sParent) = False Then
+        sParent = "-1"
+    Else
+        If Stat(sParent).Type <> gb.Directory Then
+            sParent = "-1"
+        Endif
+    Endif
+
+    Return sParent
+
+End
+
+Static Public Function FrameExtract(sVideo As String, sImage As String) As Integer
+
+    'Shell "ffmpeg -ss 5 -i '" & sVideo & "' -vframes 1 '" & sImage & "'" Wait
+    Exec ["ffmpeg", "-ss", "5", "-i", sVideo, "-vframes", "1", sImage] Wait
+    'Shell "ffmpeg -ss 5 -i '" & sVideo & "' -vframes 1 '" & sImage & "'" 'Wait
+    'ffmpeg -ss 5 -i 'VID_20210115_082250.mp4' -vframes 1 sample.jpg;
+    If Exist(sImage) Then
+        Return 1
+    Else
+        Return 0
+    Endif
+
+End
+
+Static Public Function ExifVideo(strPath As String) As Collection ''Devuelve una matriz con los metadatos extraídos por el programa de la terminal ExifTool.
+
+    Dim strExifBruto As String
+    Dim stxExifBruto As New String[]
+    Dim intLin As Integer
+    Dim intCur As Integer
+    Dim intLen As Integer
+    Dim strTag As String ' Nombre de la etiqueta exif
+    Dim vrtVal As String ' Valor de la etiquieta
+    Dim ctnExif As New Collection
+
+    If InStr(strPath, "'") > 0 Then
+        strPath = "\"" & strPath & "\""
+    Else
+        strPath = "'" & strPath & "'"
+    Endif
+
+    Shell "exiftool -f -s -s " & strPath & " 2>&1" To strExifBruto ' Toma todos los tags del archivo
+
+    stxExifBruto = Split(strExifBruto, "\n")
+    For intLin = 0 To stxExifBruto.Max
+        If stxExifBruto[intLin] <> "" Then
+            intCur = InStr(stxExifBruto[intLin], ": ")
+            intLen = String.Len(stxExifBruto[intLin])
+            strTag = Lower(String.Mid(stxExifBruto[intLin], 1, intCur - 1))
+            vrtVal = String.Mid(stxExifBruto[intLin], intCur + 2, intLen - intCur - 1)
+            ctnExif.Add(vrtVal, strTag)
+        Endif
+    Next
+    Return ctnExif
+
+End

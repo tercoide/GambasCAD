@@ -37,6 +37,11 @@ Public GLArea1 As GLArea' = gcd.Drawing.Sheet.GlSheet
 
 Public tabViews As TabPanel
 
+' GUI  stuff
+Public oTags As New Collection
+Public aThemes As New String[]
+Public aLinux As Collection
+
 'Public Printer1 As New Printer
 
 Public Sub DrawTimer_Timer()
@@ -149,34 +154,34 @@ End
 
 '' Escanea el control Padre y busca en el Path SVGs cuyo nombre coincidan con los controles hijos
 '' excluidos las tres primeras letras, luego asigna la imagen Ej: tbnCopy <-- copy.svg
-Public Sub SetButtonPics(padre As Object, Optional sSvgPath As String = "")
-
-    Dim c As Control, o As Object
-    Dim sName As String, svgNames As String[]
-    Dim p As Picture
-    Dim i As Integer
-
-    If sSvgPath = "" Then sSvgPath = gcd.dirResources &/ "svg" &/ Config.IconFamily
-
-    For Each o In padre.Children
-        i = 0
-        Try i = o.Children.Count
-        If i > 0 Then               ' el control tiene hijos
-            SetButtonPics(o, sSvgPath)
-        Else                        ' busco si hay una imagen SVG
-            sName = Mid(o.name, 4)
-            svgNames = Dir(sSvgPath, sName & ".svg")
-
-            If svgNames.Count > 0 Then
-                o.w = Config.ButtonSize
-                o.h = Config.ButtonSize
-                o.Picture = Image.Load(sSvgPath &/ svgNames[0]).Stretch(Config.ButtonSize, Config.ButtonSize).Picture
-                o.text = ""
-            Endif
-        Endif
-    Next
-
-End
+' Public Sub SetButtonPics(padre As Object, Optional sSvgPath As String = "")
+'
+'     Dim c As Control, o As Object
+'     Dim sName As String, svgNames As String[]
+'     Dim p As Picture
+'     Dim i As Integer
+'
+'     If sSvgPath = "" Then sSvgPath = gcd.dirResources &/ "svg" &/ Config.IconFamily
+'
+'     For Each o In padre.Children
+'         i = 0
+'         Try i = o.Children.Count
+'         If i > 0 Then               ' el control tiene hijos
+'             SetButtonPics(o, sSvgPath)
+'         Else                        ' busco si hay una imagen SVG
+'             sName = Mid(o.name, 4)
+'             svgNames = Dir(sSvgPath, sName & ".svg")
+'
+'             If svgNames.Count > 0 Then
+'                 o.w = Config.ButtonSize
+'                 o.h = Config.ButtonSize
+'                 o.Picture = Image.Load(sSvgPath &/ svgNames[0]).Stretch(Config.ButtonSize, Config.ButtonSize).Picture
+'                 o.text = ""
+'             Endif
+'         Endif
+'     Next
+'
+' End
 
 Public Function Action_Activate(sAction As String) As Boolean
 
@@ -1539,6 +1544,7 @@ Public Sub LoadButtons(Optional iSize As Integer = 32, iColumns As Integer = 2)
 
     Dim tb As ToolButton
     Dim iBorder As Integer = 15
+    Dim lp As Integer[]
 
     panEntities.W = iSize * iColumns + iBorder
     panDimensions.W = iSize * iColumns + iBorder
@@ -1547,66 +1553,69 @@ Public Sub LoadButtons(Optional iSize As Integer = 32, iColumns As Integer = 2)
     panInquiry.W = iSize * iColumns + iBorder
 
     ' Entidades
-    Utils.TBNCreator(panEntities, "tbnLine", "cadLine")
-    Utils.TBNCreator(panEntities, "tbnRay", "cadRay")
-    Utils.TBNCreator(panEntities, "tbnCircle", "cadCircle")
-    Utils.TBNCreator(panEntities, "tbnArc", "cadArc")
-    Utils.TBNCreator(panEntities, "tbnlwpolyline", "cadLWPolyline")
-    Utils.TBNCreator(panEntities, "tbnEllipse", "cadEllipse")
-    Utils.TBNCreator(panEntities, "tbnText", "cadMText")
-    Utils.TBNCreator(panEntities, "tbnAttdef", "cadAttdef")
-    'Utils.TBNCreator(panEntities, "tbnMtext", "cadMtext")
-    Utils.TBNCreator(panEntities, "tbnLeader", "cadLeader")
-    Utils.TBNCreator(panEntities, "tbnSPLine", "cadSPline")
-    Utils.TBNCreator(panEntities, "tbnRectangle", "cadRectangle")
-    Utils.TBNCreator(panEntities, "tbnPolygon", "cadPolygon")
-    Utils.TBNCreator(panEntities, "tbnPoint", "cadPoint")
-    Utils.TBNCreator(panEntities, "tbnSolId", "cadSolId")
+    Utils.TBNCreator(panEntities, "cad/draw-line", "cadLine",,, ("Line"), True)
+    Utils.TBNCreator(panEntities, "cad/draw-ray", "cadRay",,, ("Ray"), True)
+    Utils.TBNCreator(panEntities, "cad/draw-circle", "cadCircle",,, ("Circle"), True)
+    Utils.TBNCreator(panEntities, "cad/draw-arc", "cadArc",,, ("Arc"), True)
+    Utils.TBNCreator(panEntities, "cad/draw-polyline", "cadLWPolyline",,, ("Polyline"), True)
+    Utils.TBNCreator(panEntities, "cad/draw-ellipse", "cadEllipse",,, ("Ellipse"), True)
+    Utils.TBNCreator(panEntities, "cad/draw-text", "cadMText",,, ("Text"), True)
+    Utils.TBNCreator(panEntities, "cad/alter-attdef", "cadAttdef",,, "Attdef", True)
+    Utils.TBNCreator(panEntities, "cad/draw-mtext", "cadMtext",,, "M-Text", True)
+    Utils.TBNCreator(panEntities, "cad/draw-leader", "cadLeader",,, ("Leader"), True)
+    Utils.TBNCreator(panEntities, "cad/draw-spline", "cadSPline",,, ("Spline"), True)
+    Utils.TBNCreator(panEntities, "cad/draw-rectangle", "cadRectangle",,, ("Rectangle"), True)
+    Utils.TBNCreator(panEntities, "cad/draw-polygon", "cadPolygon",,, ("Polygon"), True)
+    Utils.TBNCreator(panEntities, "cad/draw-point", "cadPoint",,, ("Point"), True)
+    Utils.TBNCreator(panEntities, "cad/draw-solid", "cadSolId",,, ("Solid"), True)
+    Utils.tbnCreator(panEntities, "cad/draw-pattern", "cadhatch",,, ("Pattern"), True)
 
     'Dimensiones
-    Utils.tbnCreator(panDimensions, "tbnDimension_linear", "cadDimension_Linear")
-    Utils.tbnCreator(panDimensions, "tbndimension_aligned", "caddimension_aligned")
-    Utils.tbnCreator(panDimensions, "tbndimension_ang3pt", "caddimension_ang3pt")
-    Utils.tbnCreator(panDimensions, "tbndimension_diameter", "caddimension_diameter")
-    Utils.tbnCreator(panDimensions, "tbndimension_radius", "caddimension_radius")
-    Utils.tbnCreator(panDimensions, "tbndimension_ordinate", "caddimension_ordinate")
-    Utils.tbnCreator(panDimensions, "tbnArc_dimension", "cadArc_dimension")
-    Utils.tbnCreator(panDimensions, "tbndimension_linear_horizontal", "cadDimension_Linear&1")
-    Utils.tbnCreator(panDimensions, "tbndimension_linear_vertical", "cadDimension_Linear&2")
-    Utils.tbnCreator(panDimensions, "tbndimension_baseline", "cadDimension_linear&20")
-    Utils.tbnCreator(panDimensions, "tbndimension_continue", "cadDimension_linear&10")
+    Utils.tbnCreator(panDimensions, "cad/dim-linear", "cadDimension_Linear",,, ("Linear dimmension"), True)
+    Utils.tbnCreator(panDimensions, "cad/dim-aligned", "caddimension_aligned",,, ("Aligned dimmension"), True)
+    Utils.tbnCreator(panDimensions, "cad/dim-ang3pt", "caddimension_ang3pt",,, ("Angle dimmension"), True)
+    Utils.tbnCreator(panDimensions, "cad/dim-diameter", "caddimension_diameter",,, ("Diameter dimmension"), True)
+    Utils.tbnCreator(panDimensions, "cad/dim-radius", "caddimension_radius",,, ("Radius dimmension"), True)
+    Utils.tbnCreator(panDimensions, "cad/dim-ordinate", "caddimension_ordinate",,, ("Ordinate dimmension"), True)
+    Utils.tbnCreator(panDimensions, "cad/dim-arc", "cadArc_dimension",,, ("Arc dimmension"), True)
+    Utils.tbnCreator(panDimensions, "cad/dim-linear_h", "cadDimension_Linear&1",,, ("Horizontal dimmension"), True)
+    Utils.tbnCreator(panDimensions, "cad/dim-linear_v", "cadDimension_Linear&2",,, ("Vertical dimmension"), True)
+    Utils.tbnCreator(panDimensions, "cad/dim-baseline", "cadDimension_linear&20",,, ("Baseline dimmension"), True)
+    Utils.tbnCreator(panDimensions, "cad/dim-continue", "cadDimension_linear&10",,, ("Continue dimmension"), True)
 
     ' Bloques
-    Utils.tbnCreator(panBlocks, "tbnBlocks", "cadblocks")
-    Utils.tbnCreator(panBlocks, "tbnHatch", "cadhatch")
-    Utils.tbnCreator(panBlocks, "tbnNewSheet", "new_sheet",, "icon:/32/page")
-    Utils.tbnCreator(panBlocks, "tbnViewport", "cadViewport",, "icon:/32/draw-rectangle")
+    Utils.tbnCreator(panBlocks, "cad/alter-complex", "cadblocks",,, ("Blocks"), False)
+    Utils.tbnCreator(panBlocks, "cad/draw-pattern", "cadhatch",,, ("Pattern"), False)
+    Utils.tbnCreator(panBlocks, "cad/set-sheet-add", "new_sheet",,, ("New sheet"), False)
+    Utils.tbnCreator(panBlocks, "cad/set-viewport", "cadViewport",,, ("Viewport"), False)
 
     'Tools
-    Utils.tbnCreator(panTools, "tbnCopy", "cadcopy")
-    Utils.tbnCreator(panTools, "tbnMove", "cadmove")
-    Utils.tbnCreator(panTools, "tbnErase", "caderase")
-    Utils.tbnCreator(panTools, "tbnRotate", "cadrotate")
-    Utils.tbnCreator(panTools, "tbnStretch", "cadstretch")
-    Utils.tbnCreator(panTools, "tbnScale", "cadscale")
-    Utils.tbnCreator(panTools, "tbnFillet", "cadfillet")
-    Utils.tbnCreator(panTools, "tbnChamfer", "cadchamfer")
-    Utils.tbnCreator(panTools, "tbnExplode", "cadExplode")
-    Utils.tbnCreator(panTools, "tbnTrim", "cadtrim")
-    Utils.tbnCreator(panTools, "tbnArray", "cadarray")
-    Utils.tbnCreator(panTools, "tbnBreak", "cadbreak")
-    Utils.tbnCreator(panTools, "tbnDivIde", "caddivIde")
-    Utils.tbnCreator(panTools, "tbnMirror", "cadMirror")
-    Utils.tbnCreator(panTools, "tbnOffset", "cadoffset")
+    Utils.tbnCreator(panTools, "cad/alter-copy", "cadcopy",,, ("Copy"), False)
+    Utils.tbnCreator(panTools, "cad/alter-move", "cadmove",,, ("Move"), False)
+    Utils.tbnCreator(panTools, "cad/alter-delete", "caderase",,, ("Delete"), False)
+    Utils.tbnCreator(panTools, "cad/alter-rotate", "cadrotate",,, ("Rotate"), False)
+    Utils.tbnCreator(panTools, "cad/alter-stretch", "cadstretch",,, ("Stretch"), False)
+    Utils.tbnCreator(panTools, "cad/alter-scale", "cadscale",,, ("Scale"), False)
+    Utils.tbnCreator(panTools, "cad/alter-fillet", "cadfillet",,, ("Fillet"), False)
+    Utils.tbnCreator(panTools, "cad/alter-chamfer", "cadchamfer",,, ("Chamfler"), False)
+    Utils.tbnCreator(panTools, "cad/alter-explode", "cadExplode",,, ("Explode"), False)
+    Utils.tbnCreator(panTools, "cad/alter-trim", "cadtrim",,, ("Trim"), False)
+    Utils.tbnCreator(panTools, "cad/alter-array", "cadarray",,, ("Array"), False)
+    'Utils.tbnCreator(panTools, "cad/alter-array_polar", "cadarray")
+    Utils.tbnCreator(panTools, "cad/alter-break", "cadbreak",,, ("Break"), False)
+    Utils.tbnCreator(panTools, "cad/alter-divide", "caddivIde",,, ("Divide"), False)
+    Utils.tbnCreator(panTools, "cad/alter-mirror", "cadMirror",,, ("Mirror"), False)
+    Utils.tbnCreator(panTools, "cad/alter-offset", "cadoffset",,, ("Offset"), False)
 
     ' Info
-    Utils.tbnCreator(panInquiry, "tbnRuler", "cadRuler")
-    Utils.tbnCreator(panInquiry, "tbnProtractor", "cadProtractor")
-    Utils.tbnCreator(panInquiry, "tbnArea", "cadArea")
-    Utils.tbnCreator(panInquiry, "tbnProperties", "properties")
+    Utils.tbnCreator(panInquiry, "cad/measure-ruler", "cadRuler",,, ("Distance measure"), False)
+    Utils.tbnCreator(panInquiry, "cad/measure-protractor", "cadProtractor",,, ("Angle measure"), False)
+    Utils.tbnCreator(panInquiry, "cad/measure-area", "cadArea",,, ("Area measure"), False)
+    Utils.tbnCreator(panInquiry, "cad/alter-properties", "properties",,, ("Alter properties"), False)
 
     ' rigth bar
-    Utils.tbnCreator(pnlToolBarRigth, "tbnNewSelection", "selectnew",,, ("New selection"))
+    ' Utils.tbnCreator(pnlToolBarRigth, "tbnNewSelection", "selectnew",,, ("New selection"))
+    Utils.tbnCreator(pnlToolBarRigth, "cad/select", "selectnew",,, ("New selection"), False)
 
     ' Estos botones estan al pedo, Ctrl agrega y Shift quita de la seleccion
     'Utils.tbnCreator(pnlToolBarRigth, "tbnselectadd", "selectadd",,, ("Add to selection"))
@@ -1615,20 +1624,29 @@ Public Sub LoadButtons(Optional iSize As Integer = 32, iColumns As Integer = 2)
     ' DEPRE: vuelvo a sentido de seleccion, izq crossing, derecha full
     ' Utils.tbnCreator(pnlToolBarRigth, "tbnselectcross", "selectcross",,, ("Select crossing entities"), True)
 
-    Utils.tbnCreator(pnlToolBarRigth, "tbnSelectionSingle", "selectsingle",,, ("Select single entities"), True)
-    Utils.tbnCreator(pnlToolBarRigth, "tbnSelectionRect", "selectrect",,, ("Select with rectangle"), True)
-    Utils.tbnCreator(pnlToolBarRigth, "tbnselectpoly", "selectpoly",,, ("Select with polyline"), True)
+    Utils.tbnCreator(pnlToolBarRigth, "cad/select-add", "selectsingle",,, ("Select single entities"), False)
+    Utils.tbnCreator(pnlToolBarRigth, "cad/select-cross", "selectrect",,, ("Select with rectangle"), False)
+    Utils.tbnCreator(pnlToolBarRigth, "cad/select-polyline", "selectpoly",,, ("Select with polyline"), False)
 
-    Utils.tbnCreator(pnlToolBarRigth, "tbnEnd_point", "snapend")
-    Utils.tbnCreator(pnlToolBarRigth, "tbnMid_point", "snapmid")
-    Utils.tbnCreator(pnlToolBarRigth, "tbnCenter_point", "snapcenter")
-    Utils.tbnCreator(pnlToolBarRigth, "tbnQuadrant", "snapquadrant")
-    Utils.tbnCreator(pnlToolBarRigth, "tbnTangent", "snaptangent")
-    Utils.tbnCreator(pnlToolBarRigth, "tbnbase_point", "snapbase")
-    Utils.tbnCreator(pnlToolBarRigth, "tbnIntersection", "snapintersection")
-    Utils.tbnCreator(pnlToolBarRigth, "tbnPerpendicular", "snapperpendicular")
-    Utils.tbnCreator(pnlToolBarRigth, "tbnAparentCenter", "snapaparentcenter")
-    Utils.tbnCreator(pnlToolBarRigth, "tbnNearest", "snapnearest")
+    ' Snap points
+
+    Utils.tbnCreator(pnlToolBarRigth, "cad/snap-apparent_intersection", "snapapparentintersection",,, ("Snap apparent intersection"), True)
+    Utils.tbnCreator(pnlToolBarRigth, "cad/snap-center_point", "snapcenter",,, ("Snap center"), True)
+    Utils.tbnCreator(pnlToolBarRigth, "cad/snap-end_point", "snapend",,, ("Snap end point"), True)
+    Utils.tbnCreator(pnlToolBarRigth, "cad/snap-geometric_center", "snapaparentcenter",,, ("Snap apparent center"), True)
+    Utils.tbnCreator(pnlToolBarRigth, "cad/snap-insert", "snapbase",,, ("Snap insert point"), True)
+    Utils.tbnCreator(pnlToolBarRigth, "cad/snap-intersection", "snapintersection",,, ("Snap intersection"), True)
+    Utils.tbnCreator(pnlToolBarRigth, "cad/snap-mid_point", "snapmid",,, ("Snap mid point"), True)
+    Utils.tbnCreator(pnlToolBarRigth, "cad/snap-nearest", "snapnearest",,, ("Snap nearest"), True)
+    Utils.tbnCreator(pnlToolBarRigth, "cad/snap-node", "snapnode",,, ("Snap node"), True)
+    Utils.tbnCreator(pnlToolBarRigth, "cad/snap-perpendicular", "snapperpendicular",,, ("Snap perpendicular"), True)
+    Utils.tbnCreator(pnlToolBarRigth, "cad/snap-quadrant", "snapquadrant",,, ("Snap quadrant"), True)
+    Utils.tbnCreator(pnlToolBarRigth, "cad/snap-tangent", "snaptangent",,, ("Snap tangent"), True)
+
+    ' Force the resize event
+    lp = splitterH.Layout.Copy()
+    splitterH.Layout = [2, 1]
+    splitterH.Layout = lp.Copy()
 
 End
 
@@ -1652,13 +1670,14 @@ Public Sub splitterH_Resize()
     Config.SplitterH = splitterH.Layout
 
     For Each obj In pnlToolbarLeft.Children
-        If Object.Type(obj) = "Panel" Then
+        If Object.Type(obj) = "Frame" Then
             q = obj.W / 32
+
             e = (obj.Children.count - 1) / q
             If e < 1 Then
                 e = 1
             Endif
-            obj.H = 23 + (e * 32)
+            obj.H = 23 + ((e + 1) * 32)
         Endif
     Next
 
@@ -1691,8 +1710,26 @@ End
 
 Public Sub Form_Open()
 
+    Dim x As Integer
+
     Layout.Fix(Me)
+    Me.Border = False
     'Layout.Shoot(Me)
+    aThemes.Add("default")
+    aLinux = GUI.Linux()
+    File.Save("/tmp/themes.json", JSON.Encode2(aLinux))
+    GUI.oThemes = aLinux
+    oTags = GUI.Tags2(Me)
+
+    GUI.Update(pnlToolbarLeft, "default", "es", oTags)
+    GUI.Update(pnlToolbarTop, "default", "es", oTags)
+    GUI.Update(pnlToolBarRigth, "default", "es", oTags)
+    GUI.Update(pnlCommand, "default", "es", oTags)
+
+    x = splitterH.W
+    splitterH.W = x - 10
+    splitterH.W = x
+    'Layout.Fix(Me, 75)
 
 End
 

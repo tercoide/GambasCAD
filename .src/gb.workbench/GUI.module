@@ -1,0 +1,866 @@
+' Gambas module file
+
+'
+' Basis for creating desktop software
+' Basis for creating desktop software
+'
+' Copyright (C) Belmotek
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 2 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+'
+
+Public oThemes As New Collection
+Public oTooltips As New Collection
+
+'' This method scans all the buttons on the form and assigns them (if any) an SVG icon in the ./var/svg directory.
+'' For example, if the tag of a button is "refresh" then an icon named ./var/svg/refresh.svg must exist.
+
+Public Sub Update(obj As Object, Optional sTheme As String = "default", Optional sLang As String = "en", Optional oTags As Collection)
+
+    Dim ch As Object
+    Dim myclass As Class
+
+    myclass = Object.Class(obj)
+
+    If myclass.Symbols.Exist("Children") Then
+        For Each ch In obj.Children
+            Select Object.Type(ch)
+                Case "ToolButton"
+                    If Not IsNull(ch.tag) Then
+                        ch.Picture = TagPic(ch.Tag, ch.W - 4,, sTheme) ' antes 14
+                        If oTags Then
+                            If oTags.Exist(sLang) Then
+                                If oTags[sLang].Exist(ch.Tag) Then
+                                    ch.Tooltip = oTags[sLang][ch.Tag]
+                                Endif
+                            Endif
+                        Endif
+                    Endif
+                Case "PictureBox"
+                    If Not IsNull(ch.Tag) Then
+                        ch.Picture = TagPic(ch.Tag, ch.W - 7,, sTheme)
+                    Endif
+                Case Else
+                    Update(ch, sTheme, sLang, oTags)
+            End Select
+        Next
+    Endif
+
+End
+
+'' This method scans all the buttons on the form and assigns them (if any) an SVG icon in the ./var/svg directory.
+'' For example, if the tag of a button is "refresh" then an icon named ./var/svg/refresh.svg must exist.
+'' Este método escanea todos los botones del formulario y les asigna (si corresponde) un icono SVG en el directorio ./var/svg.
+'' Por ejemplo, si la etiqueta de un botón es "actualizar", entonces debe existir un icono llamado ./var/svg/actualizar.svg.
+
+Public Sub Chiaroscuro(obj As Object, Optional sTheme As String = "default")
+
+    '  Dim ch As Object
+    Dim myclass As Class
+
+    Dim oLight As Collection = ["Background": Color.RGB(248, 248, 248), "ButtonBackground": Color.RGB(229, 229, 229), "ButtonForeground": Color.RGB(65, 77, 104), "Foreground": Color.RGB(65, 77, 104), "LightBackground": Color.RGB(127, 193, 255), "LightForeground": Color.RGB(0, 130, 250), "SelectedBackground": Color.RGB(0, 129, 255), "SelectedForeground": Color.RGB(255, 255, 255), "TextBackground": Color.RGB(255, 255, 255), "TextForeground": Color.RGB(65, 77, 104), "TooltipBackground": Color.RGB(255, 255, 255), "TooltipForeground": Color.RGB(0, 0, 0), "VisitedForeground": Color.RGB(173, 69, 121)]
+
+    Dim oDark As Collection = ["Background": Color.RGB(27, 34, 36), "ButtonBackground": Color.RGB(38, 48, 52), "ButtonForeground": Color.RGB(204, 215, 212), "Foreground": Color.RGB(204, 215, 212), "LightBackground": Color.RGB(97, 202, 179), "LightForeground": Color.RGB(73, 88, 90), "SelectedBackground": Color.RGB(46, 179, 152), "SelectedForeground": Color.RGB(255, 255, 255), "TextBackground": Color.RGB(34, 43, 46), "TextForeground": Color.RGB(171, 185, 182), "TooltipBackground": Color.RGB(34, 43, 46), "TooltipForeground": Color.RGB(171, 185, 182), "VisitedForeground": Color.RGB(173, 69, 121)]
+    Dim o As New Collection
+    'Dim cls As Class
+    Dim i As Integer
+
+    myclass = Object.Class(obj)
+
+    o.Clear
+
+    If InStr(Lower(sTheme), "dark") > 0 Then
+        o = oDark.Copy()
+    Else
+        o = oLight.Copy()
+    Endif
+
+    If myclass.Symbols.Exist("Children") Then
+        For Each i In o
+            If myclass.Symbols.Exist(o.Key) Then
+                'If o.Key = "Background" Then
+                '  If Object.GetProperty(obj, o.Key) = -1 Then
+                '    Object.SetProperty(obj, o.Key, i)
+                '  Else
+                '    Object.SetProperty(obj, o.Key, i)
+                '    'Chiaroscuro(obj, sTheme)
+                '  Endif
+                'Else
+                Object.SetProperty(obj, o.Key, i)
+                'Endif
+            Endif
+        Next
+        'For Each ch In obj.Children
+        '  Chiaroscuro(ch, sTheme)
+        'Next
+    Else
+        For Each i In o
+            If myclass.Symbols.Exist(o.Key) Then
+                If o.Key = "Background" Then
+                    If Object.GetProperty(obj, o.Key) = -1 Then 'Color.Transparent
+                        Object.SetProperty(obj, o.Key, i)
+                    Endif
+                Else
+                    Object.SetProperty(obj, o.Key, i)
+                Endif
+            Endif
+        Next
+    Endif
+
+End
+
+Public Function TagPic(sTag As String, Optional iSize As Integer = 24, Optional iFill As Integer, Optional sTheme As String = "default") As Picture
+
+    Dim sDir As String
+    Dim sFile As String
+    Dim sVector As String
+    Dim pic As Picture
+    Dim sTmp As String
+    Dim isDark As Boolean = False
+    Dim oCurr As Collection
+    Dim oAlt As Variant
+    Dim sAltern As String
+
+    pic = Stock[CStr(iSize) & "/error"]
+
+    If sTag = "apps/org.gnome.TextEditor" Then
+        Print sTag
+    Endif
+    ' ¿Es un tema dark?
+    If InStr(Lower(sTheme), "dark") > 0 Then
+        isDark = True
+        If Lower(sTheme) = "default-dark" Then
+            sTheme = "default"
+        Else
+            If sTheme = "" Then
+                sTheme = "default"
+            Endif
+        Endif
+    Endif
+    ' Existe el directorio
+
+    Select sTheme
+        Case "default"
+            sFile = "./var/svg/" & sTag & ".svg"
+            If Exist(sFile) Then
+                If isDark Then
+                    sVector = Contrary(sFile, "#0066b3", -1,, "dark")
+                Else
+                    sVector = Contrary(sFile, "#0066b3", -1,, "light")
+                Endif
+            Else
+                If oThemes.Exist("Adwaita") Then
+                    sFile = "/usr/share/icons/Adwaita/symbolic/" & sTag & "-symbolic.svg"
+                    If Exist(sFile) Then
+                        If isDark Then
+                            sVector = Contrary(sFile, "#000000", Color.White)
+                        Else
+                            sVector = File.Load(sFile)
+                        Endif
+                    Else
+                        For Each sTmp In oThemes.Keys
+                            If sTmp <> "Adwaita" And sTmp <> "default" Then
+                                sFile = "/usr/share/icons" &/ sTmp &/ "symbolic/" & sTag & "-symbolic.svg"
+                                If Exist(sFile) Then
+                                    If isDark Then
+                                        If InStr(Lower(sTmp), "dark") > 0 Then
+                                            sVector = File.Load(sFile)
+                                        Else
+                                            sVector = Contrary(sFile, "#000000", -1)
+                                        Endif
+                                    Else
+                                        If InStr(Lower(sTmp), "dark") = 0 Then
+                                            sVector = File.Load(sFile)
+                                        Else
+                                            sVector = Contrary(sFile, "#000000", -1)
+                                        Endif
+                                    Endif
+                                    Break
+                                Endif
+                            Endif
+                        Next
+                    Endif
+                Endif
+            Endif
+            If sVector <> "" Then
+                pic = Image.FromString(sVector).Stretch(iSize, iSize).Picture
+            Endif
+
+        Case "Adwaita"
+
+            sFile = "/usr/share/icons" &/ sTheme &/ "symbolic/" & sTag & "-symbolic.svg"
+
+            If Exist(sFile) Then
+                If isDark Then
+                    If InStr(Lower(sTmp), "dark") > 0 Then
+                        pic = Image.Load(sFile).Picture
+                    Else
+                        pic = Image.Load(sFile).Invert().Picture
+                    Endif
+                Else
+                    If InStr(Lower(sTmp), "dark") > 0 Then
+                        pic = Image.Load(sFile).Invert().Picture
+                    Else
+                        pic = Image.Load(sFile).Picture
+                    Endif
+                Endif
+            Endif
+
+        Case Else
+            If oThemes[sTheme].Keys.Exist(sTag) Then
+                oCurr = oThemes[sTheme].Copy()
+                If oCurr.Keys.Exist(sTag) Then
+                    sFile = oCurr[sTag]
+                    If Exist(sFile) Then
+                        If isDark Then
+                            pic = Image.Load(sFile).Picture
+                        Else
+                            pic = Image.Load(sFile).Picture
+                        Endif
+                    Endif
+                Endif
+            Else
+
+                If oThemes["default"].Keys.Exist(sTag) Then
+                    oCurr = oThemes["default"].Copy()
+                    If oCurr.Keys.Exist(sTag) Then
+                        sFile = oCurr[sTag]
+                        If Exist(sFile) Then
+                            If isDark Then
+                                sVector = Contrary(sFile, "#0066b3", -1,, "dark")
+                                pic = Image.FromString(sVector).Stretch(iSize, iSize).Picture
+                            Else
+                                sVector = Contrary(sFile, "#0066b3", -1,, "light")
+                                pic = Image.FromString(sVector).Stretch(iSize, iSize).Picture
+                            Endif
+                        Endif
+                    Endif
+                Endif
+            Endif
+    End Select
+
+    'si el tema se llama default-dark o default tomo los iconos default y los convierto si hae falta
+    ' Si no se llama default y es por ejemplo Papyrus, y el icono que busco no esta, lo primero que tengo que hacer es buscar el icono el el tema contrario  es decir papyrus-dark y si el icono existe ahi lo convierto y si no existe busco en default y si no esta busco en adwaita y si est alo convierto si hace falta y si no esta devuelvo el icono de error
+
+    If sTag = "apps/org.gnome.TextEditor" Then
+        Print sTag
+        Print sFile
+        Print sTheme
+        Print sTmp
+    Endif
+
+    Return pic
+
+End
+
+'' Resize the svg
+
+Public Function Resize(sFile As String, iZ As Integer)
+
+    Dim xf As New XmlDocument(sFile)
+    Dim ele As XmlElement
+    Dim sOriginalSize As String
+    Dim iOrig As Integer
+    Dim iScale As Integer
+    Dim nod As XmlNode
+
+    For Each ele In xf.GetElementsByTagName("svg")
+
+        sOriginalSize = ele.Attributes["height"]
+
+        For Each nod In ele.Attributes
+            If nod.Name = "height" Then
+                If InStr(nod["height"], "px") > 0 Then
+                    iOrig = CInt(Replace(nod["height"], "px", ""))
+                    If iOrig < iZ Then
+                        nod["height"] = CStr(iZ) & "px"
+                        nod["width"] = CStr(iZ) & "px"
+                        iScale = iZ / iOrig
+                        xf.CreateElement("g")
+                        xf["g"].Attributes["transform"] = "scale(" & CStr(iscale) & "," & CStr(iscale) & ")"
+                    Endif
+                Endif
+            Endif
+        Next
+    Next
+
+End
+
+'' Replace a color in an svg file with one that contrasts with the background of the desktop theme
+
+Public Function Contrary(sFile As String, sColor As String, iBackground As Integer, Optional iAltern As Integer, Optional Override As String = "light") As String
+
+    Dim sVector As String
+    Dim iContrast As Integer
+    Dim sReplace As String
+    Dim sAltern As String
+
+    sAltern = "#" & CStr(Hex(iAltern, 6))
+
+    If iBackground = -1 Then
+        'If Application.DarkTheme Then
+        If Override = "dark" Then
+            If iAltern > 0 Then
+                sAltern = sAltern
+            Else
+                sReplace = "#eeeeee"
+            Endif
+            sVector = Replace(File.Load(sFile), sColor, sReplace)
+        Else
+            If iAltern > 0 Then
+                sAltern = sAltern
+            Else
+                sReplace = "#000000"
+            Endif
+            sVector = Replace(File.Load(sFile), sColor, sReplace)
+        Endif
+    Else
+        iContrast = Color.Invert(iBackground)
+        sReplace = "#" & CStr(Hex(iContrast, 6))
+        sVector = Replace(File.Load(sFile), sColor, sReplace)
+    Endif
+
+    Return sVector
+
+End
+
+Public Function Sets() As String[]
+
+    Dim a As New String[]
+    Dim sTmp As String
+    Dim aThemes As New String[]
+    Dim sTheme As String
+
+    a = File.ScanDirs("/usr/share/icons", 3, "symbolic/actions")
+    a.Insert(File.ScanDirs("/usr/share/icons", 3, "actions/symbolic"))
+
+    If a.Count > 0 Then
+        For Each sTmp In a
+            If InStr(sTmp, "symbolic/actions") > 0 Then
+                sTheme = String.Between(sTmp, "/usr/share/icons/", "/symbolic/actions")
+            Else
+                If InStr(sTmp, "actions/symbolic") > 0 Then
+                    sTheme = String.Between(sTmp, "/usr/share/icons/", "/actions/symbolic")
+                Endif
+            Endif
+
+            If sTheme <> "" Then
+                aThemes.Add(sTheme)
+            Endif
+        Next
+    Endif
+    Return aThemes
+
+End
+
+Public Function Linux() As Collection
+
+    'Dim oNames As New Collection
+    '  Dim oThemes As New Collection
+    Dim a As String[]
+    Dim s As String
+    Dim aBase As New String[]
+    Dim sBase As String
+
+    Dim oSec As Collection = ["/symbolic/places/": "places", "/symbolic/apps/": "apps", "/symbolic/emotes/": "emotes", "/symbolic/actions/": "actions", "/symbolic/categories/": "categories", "/symbolic/status/": "status", "/symbolic/emblems/": "emblems", "/symbolic/devices/": "devices", "/symbolic/mimetypes/": "mimetypes", "/places/symbolic/": "places", "/apps/symbolic/": "apps", "/emotes/symbolic/": "emotes", "/actions/symbolic/": "actions", "/categories/symbolic/": "categories", "/status/symbolic/": "status", "/emblems/symbolic/": "emblems", "/devices/symbolic/": "devices", "/mimetypes/symbolic/": "mimetypes", "/scalable/places/": "places", "/scalable/apps/": "apps", "/scalable/emotes/": "emotes", "/scalable/actions/": "actions", "/scalable/categories/": "categories", "/scalable/status/": "status", "/scalable/emblems/": "emblems", "/scalable/devices/": "devices", "/scalable/mimetypes/": "mimetypes"]
+
+    Dim sSec As String
+    Dim sGroup As String
+    Dim sTheme As String
+    Dim d As New String[]
+    Dim df As String
+    Dim sDir As String
+    Dim sTmp As String
+
+    d = RDir("./var/svg", "*.svg", gb.File)
+    d.Sort(gb.Ascent)
+    sTheme = "default"
+    For Each df In d
+        sGroup = Split(df, "/")[0]
+        sBase = File.Dir(df) &/ File.BaseName(df)
+        If oThemes Then
+            If oThemes.Exist(sTheme) Then
+                oThemes[sTheme].Add("./var/svg/" & df, sBase)
+            Else
+                oThemes[sTheme] = [sBase: "./var/svg/" & df]
+            Endif
+        Else
+            oThemes[sTheme] = [sBase: "./var/svg/" & df]
+        Endif
+    Next
+
+    a = File.ScanFiles("/usr/share/icons", ["svg"], 5, "-symbolic.svg").Sort(gb.Ascent)
+
+    If Not a.Empty Then
+        For Each s In a
+            sGroup = ""
+            sTheme = ""
+            sBase = ""
+            sDir = Replace(File.Dir(s), "/usr/share/icons", "")
+            sSec = Split(sDir, "/")[1] &/ Split(sDir, "/")[2]
+            If oSec.Exist(sSec) Then
+                sGroup = oSec[sSec]
+                sTheme = Split(sDir, "/")[0]
+                sBase = sGroup &/ String.Between(s, sSec, "-symbolic.svg")
+                If oThemes.Exist(sTheme) Then
+                    If Not oThemes[sTheme].Exist(sBase) Then
+                        oThemes[sTheme].Add(s, sBase)
+                    Endif
+                Else
+                    oThemes[sTheme] = [sBase: s]
+                Endif
+            Endif
+        Next
+    Endif
+
+    Return oThemes
+
+End
+
+Public Sub Tags2(fo As Form) As Collection
+
+    Dim sForm As String
+    Dim a As String[]
+    Dim o As New Collection
+    Dim s As String
+    Dim aTokens As String[]
+    Dim v As New Collection
+    'Dim iTag As Integer
+    Dim iq As Integer
+    'Dim iToo As Integer
+    Dim i As Integer
+    Dim sKey As String
+    Dim sPro As String
+    'Dim oPro As Collection
+    'Dim oProject As String
+    Dim sLang As String
+
+    Dim po As String
+    Dim lan As String
+    Dim oPo As JSONCollection
+    Dim t As String
+    Dim oPro As Collection
+    Dim aFormsPaths As String[]
+    Dim sTmp As String
+
+    sPro = "./.project"
+    If Exist(sPro) Then
+        oPro = Code.ProjInfo(sPro)
+        If oPro.Exist("language") Then
+            If InStr(oPro["language"], "_") > 0 Then
+                sLang = Split(oPro["language"], "_")[0]
+            Else
+                sLang = oPro["language"]
+            Endif
+        Endif
+
+        aFormsPaths = RDir("./.src/", "*.form")
+
+        For Each sTmp In aFormsPaths
+            If File.BaseName(sTmp) = fo.Name Then
+                sForm = "./.src/" & sTmp
+                s = File.Load(sForm)
+                While InStr(s, "\n ") > 1
+                    s = Replace(s, "\n ", "\n")
+                Wend
+                s = Replace(s, "{", "\t")
+                s = Replace(s, "}", "\t")
+                a = Split(s, "\t")
+                For Each s In a
+                    v.Clear
+                    iq = 0
+                    If s <> "\n" Then
+                        aTokens = Split(s, "\n")
+                        If aTokens.Count > 1 Then
+                            If InStr(aTokens[0], " ToolButton") Then
+                                v["type"] = "ToolButton"
+                                For i = 1 To aTokens.Max
+                                    If InStr(aTokens[i], "Name = ") > 0 Then
+                                        v["name"] = UnQuote(Split(aTokens[i], " = ")[1])
+                                    Endif
+
+                                    If InStr(aTokens[i], "Tag = ") > 0 Then
+                                        sKey = Replace(aTokens[i], " = ", "&")
+                                        v["tag"] = UnQuote(Split(sKey, "&")[1])
+                                        Inc iq
+                                    Endif
+
+                                    If InStr(aTokens[i], "ToolTip = ") > 0 Then
+                                        sKey = Replace(aTokens[i], " = ", "&")
+                                        sKey = Replace(sKey, "(", "")
+                                        sKey = Replace(sKey, ")", "")
+                                        v["tooltip"] = UnQuote(Split(sKey, "&")[1])
+                                        Inc iq
+                                    Endif
+                                    If iq = 2 Then
+                                        If Not o.Exist(sLang) Then
+                                            o[sLang] = [v["tag"]: v["tooltip"]]
+                                        Else
+                                            o[sLang].Add(v["tooltip"], v["tag"])
+                                        Endif
+                                    Endif
+                                Next
+                            Endif
+                        Endif
+                    Endif
+                Next
+                'Endif
+                Break
+            Endif
+        Next
+    Endif
+
+    For Each po In RDir("./.lang", "*.po")
+        lan = File.BaseName(po)
+        o[lan] = o[sLang].Copy()
+        oPo = pot.PoRead2("./.lang" &/ po)
+        For Each t In o[lan]
+            If oPo.Exist(t) Then
+                o[lan][o[lan].Key] = oPo[t]
+            Endif
+        Next
+    Next
+
+    Return o
+
+End
+
+Public Sub LoadIcons(h As Container)
+
+    Dim obj As Object
+
+    For Each obj In h.Children
+        If Object.Type(obj) = "ToolButton" Then
+            obj.Picture = dsk.TagPic(obj.Action, 32)
+        Endif
+    Next
+
+End
+
+'' Este método recibe un objeto como parámetro de entrada y devuelve ,por la
+'' salida estándar, el tipo de objeto, el objeto padre y, si existen, los
+'' simbolos Text, Value y Tag. Es un método recursivo puesto que si el objeto
+'' tiene hijos se llama a si mismo y pasa el contenedor como parametro. Esta
+'' pensado para recorrer controles de un formulario que inicialmente se pasa
+'' como parametro, y luego recorrer hasta el último nivel de anidamiento en
+'' el que exista un control.
+'' *eng* This method takes an object as an input parameter and returns, via
+'' standard output, the type of the object, the parent object, and, if they
+'' exist, the symbols Text, Value, and Tag. It is a recursive method since if
+'' the object has children it calls itself and passes the container as a
+'' parameter. It is intended to loop through form controls, this form is
+'' initially passed as a parameter, and then loop through to the last nesting
+'' level in which a control exists.
+
+Public Function GetColorPalette(Optional bDark As Boolean) As Collection
+
+    Dim oLight As Collection = ["Background": Color.RGB(248, 248, 248), "ButtonBackground": Color.RGB(229, 229, 229), "ButtonForeground": Color.RGB(65, 77, 104), "Foreground": Color.RGB(65, 77, 104), "LightBackground": Color.RGB(127, 193, 255), "LightForeground": Color.RGB(0, 130, 250), "SelectedBackground": Color.RGB(0, 129, 255), "SelectedForeground": Color.RGB(255, 255, 255), "TextBackground": Color.RGB(255, 255, 255), "TextForeground": Color.RGB(65, 77, 104), "TooltipBackground": Color.RGB(255, 255, 255), "TooltipForeground": Color.RGB(0, 0, 0), "VisitedForeground": Color.RGB(173, 69, 121)]
+
+    Dim oDark As Collection = ["Background": Color.RGB(27, 34, 36), "ButtonBackground": Color.RGB(38, 48, 52), "ButtonForeground": Color.RGB(204, 215, 212), "Foreground": Color.RGB(204, 215, 212), "LightBackground": Color.RGB(97, 202, 179), "LightForeground": Color.RGB(73, 88, 90), "SelectedBackground": Color.RGB(46, 179, 152), "SelectedForeground": Color.RGB(255, 255, 255), "TextBackground": Color.RGB(34, 43, 46), "TextForeground": Color.RGB(171, 185, 182), "TooltipBackground": Color.RGB(34, 43, 46), "TooltipForeground": Color.RGB(171, 185, 182), "VisitedForeground": Color.RGB(173, 69, 121)]
+
+    If bDark Then
+        Return oDark
+    Else
+        Return oLight
+    Endif
+
+End
+
+Public Sub Looper(ob As Object)
+
+    Dim ch As Object
+    'Dim sTag, sVal As String
+    Dim cls As Class
+    Dim aSymbols As New String[]
+    Dim sMark As String
+
+    Select Object.Class(ob).Parent.Name
+        Case "Form", "Container", "UserContainer"
+            For Each ch In ob.Children
+                Looper(ch)
+            Next
+        Case "Control", "UserControl", "TextBox", "Label"
+            sMark = ""
+            cls = Classes[Object.Class(ob).Parent.Name]
+            If cls.Symbols.Exist("Tag") Then
+                If ob.Tag = "" Then
+                    aSymbols.Add("Symbol.Tag.Empty")
+                Else
+                    aSymbols.Add("Symbol.Tag." & ob.Tag)
+                Endif
+            Else
+                aSymbols.Add("Symbol.Tag.None")
+            Endif
+
+            If cls.Symbols.Exist("Text") Then
+                If ob.Text = "" Then
+                    aSymbols.Add("Symbol.Text.Empty")
+                Else
+                    aSymbols.Add("Symbol.Text." & ob.Text)
+                Endif
+            Else
+                aSymbols.Add("Symbol.Text.None")
+            Endif
+
+            If cls.Symbols.Exist("Value") Then
+                If ob.Value <> 0 Then
+                    aSymbols.Add("Symbol.Value." & CStr(ob.Value))
+                Else
+                    aSymbols.Add("Symbol.Value.Empty")
+                Endif
+            Else
+                aSymbols.Add("Symbol.Value.None")
+            Endif
+        Case Else
+            sMark = "#"
+    End Select
+
+    Print sMark & Object.Class(ob).Parent.Name & ":" & Object.Class(ob).Name & ":" & aSymbols.Join(":")
+
+End
+
+' Public Function Rosetta() As Collection
+'
+'   Dim cTmp As New Collection
+'
+'   cTmp.Add(("Phone"), "phone")
+'   cTmp.Add(("Camera"), "camera")
+'   cTmp.Add(("Photo album"), "album")
+'   cTmp.Add(("Bookmarks"), "bookmarks")
+'   cTmp.Add(("Hard disk drive"), "hdd")
+'   cTmp.Add(("USB devices"), "usb")
+'
+'   Return cTmp
+'
+' End
+
+'' This list all the program windows to control later which is open or closed
+
+Public Function Forms() As JSONCollection
+
+    Dim j As New JSONCollection
+    Dim sWindow As String
+
+    For Each sWindow In ["levels", "colors", "styles", "config", "wizard"]
+        j.Add(False, sWindow)
+    Next
+
+    Return j
+
+End
+
+Public Function IconsSet(sTag As String) As Collection
+
+    Dim oIcons As New Collection
+
+    Select sTag
+
+        Case "none" ' Todavia no hay ningun archivo activo
+            oIcons = ["filenew": ("New"),
+                "fileopen": ["actions/document-open", ("Open file")],
+                "filenew": ["actions/document-new", ("New file")],
+                "~1": "~",
+                "config": ["apps/utilities-tweak-tool", ("Config")],
+                "help": ["actions/help-contents", ("Help")],
+                "about": ["actions/help-about", ("About")],
+                "~2": "~",
+                "bounds": ["actions/window-maximize", ("Maximize window")],
+                "exit": ["actions/window-close", ("Exit")]
+            ]
+
+        Case "sketch" ' hay un sketch activo, entnces puedo hacer cosas en el.
+            oIcons = ["filenew": ["actions/document-new", ("New")],
+                "fileopen": ["actions/document-open", ("Open file")],
+                "filesave": ["actions/document-save", ("Save")],
+                "filesaveas": ["actions/document-save-as", ("Save as")],
+                "fileimport": ["actions/document-import", ("Import")],
+                "fileexport": ["actions/document-export", ("Export")],
+                "fileclose": ["actions/document-close", ("Close")],
+                "zoome": ["actions/zoom-fit-best", ("Zoom extents")],
+                "print": ["actions/document-print", ("Print")],
+                "levels": ["cad/levels", ("Levels")],
+                "colors": ["cad/colors", ("Colors")],
+                "~4": "~",
+                "undo": ["actions/edit-undo", ("Undo")],
+                "redo": ["actions/edit-redo", ("Redo")],
+                "config": ["apps/utilities-tweak-tool", ("Config")],
+                "help": ["actions/help-contents", ("Help")],
+                "about": ["actions/help-about", ("About")],
+                "~5": "~",
+                "bounds": ["actions/window-maximize", ("Maximize window")],
+                "exit": ["actions/window-close", ("Exit")]]
+
+        Case "tools"
+            oIcons = ["select": ("Select"),
+                "modify": ("Modify"),
+                "dimensions": ("Dimensions"),
+                "match": ("Match"),
+                "fence": ["cad/fence", ("Fence  ")],
+                "line": ["cad/line", ("Line")],
+                "polyline": ("Polyline"),
+                "circle": ("Circle"),
+                "ellipse": ("Ellipse"),
+                "arc": ("Circular arc"),
+                "arc_elliptical": ("Elliptical arc"),
+                "text": ("Text"),
+                "mtext": ("Multi text"),
+                "polygon": ("Polygon"),
+                "rectangle": ("Rectangle"),
+                "spline": ("Spline"),
+                "pattern": ("Pattern"),
+                "solid": ("Solid"),
+                "array": ("Array"),
+                "array_polar": ("Polar array")]
+
+        Case "modify"
+            oIcons = ["navigateback": ("Back"),
+                "textedit": ("Text edit"),
+                "erase": ("Erase"),
+                "copy": ("Copy"),
+                "move": ("Move"),
+                "rotate": ("Rotate"),
+                "mirror": ("Mirror"),
+                "scale": ("Scale"),
+                "stretch": ("Stretch"),
+                "divide": ("Divide"),
+                "extend": ("Extend"),
+                "trim": ("Trim"),
+                "break": ("Break"),
+                "fillet": ("Fillet"),
+                "chamfer": ("Chamfer"),
+                "explode": ("Explode"),
+                "~2": "~",
+                "3d": "3D"]
+
+        Case "dimensions"
+            oIcons = ["navigateback": ("Back"),
+                "dimension_linear": ("Dimension linear"),
+                "dimension_aligned": ("Dimension aligned"),
+                "arc_dimension": ("Arc dimension"),
+                "dimension_ang3pt": ("Dimension angle"),
+                "dimension_radius": ("Dimension radius"),
+                "dimension_diameter": ("Dimension diameter"),
+                "large_radial_dimension": ("Large radial dimension"),
+                "dimension_ordinate": ("Dimension ordinate")]
+
+        Case "locks"
+            oIcons = ["~1": "~",
+                "mouse": ["cad/mouse", ("Mouse")],
+                "grid": ["cad/grid", ("Grid")],
+                "ortho": ["cad/ortho", ("Ortho")],
+                "snap": ["cad/snap", ("Snap")],
+                "simbology": ["cad/simbology", ("Simbology")],
+                "nonstop": ["cad/nonstop", ("Nonstop")]]
+
+        Case "piping"
+            oIcons = ["navigateback": ("Back"),
+                "vessel": ("Vessel"),
+                "pipe": ("Pipe"),
+                "valve": ("Valve")]
+
+        Case "blocks"
+            oIcons = ["navigateback": ("Back"),
+                "block": ("Block"),
+                "pipe": ("Pipe"),
+                "valve": ("Valve")]
+
+    End Select
+
+    Return oIcons
+
+End
+
+'' Select the full path of a file, with the name and extensions. As optional you can pass a directory that is where the filechooser will go when it is opened. Also as optional you can pass a filter of file types separated by:, for example [txt","csv"]
+
+Public Function FileChooser(Optional strInputPath As String, Optional stxExt As String[]) As String[]
+
+    Dim strExt As String
+    Dim strFilterA As String
+    Dim strFilterB As String
+    Dim stxFilter As New String[]
+    Dim stxFilepaths As New String[] ' For the case of selection of multiple files
+
+    If strInputPath = "" Then
+        strInputPath = User.Home
+    Endif
+
+    Dialog.Title = ("Select File")
+    Dialog.Filter = Null
+
+    If stxExt Then
+        If stxExt.Count > 0 Then
+            For Each strExt In stxExt
+                stxFilter.Add("*." & String.LCase(strExt) & ";" & "*." & String.UCase(strExt))
+            Next
+            strFilterA = stxFilter.Join(";")
+            strFilterB = ("Filter") & ": " & stxExt.Join(",")
+            Dialog.Filter = [strFilterA, strFilterB]
+        Endif
+    Endif
+
+    If Not Dialog.OpenFile(True) Then
+        stxFilepaths = Dialog.Paths
+    Endif
+    Return stxFilepaths
+
+End
+
+'' Select the path of a directory using a dialog box.
+
+Public Function DirChooser(Optional stInputPath As String) As String
+
+    Dim stDirPath As String
+
+    If stInputPath = "" Then
+        Dialog.Path = User.Home
+    Else
+        Dialog.Path = stInputPath
+    Endif
+
+    Dialog.Title = ("Select directory")
+    Dialog.Filter = Null
+    Dialog.SelectDirectory
+
+    stDirPath = Dialog.Path
+
+    Return stDirPath
+
+End
+
+Public Function CanvasPic(sFile As String, iSize As Integer) As Picture
+
+    Dim pic As Picture
+    Dim img As Image
+    Dim sc As Float
+    Dim H, W As Integer
+
+    If Exist(sFile) Then
+        img = Image.Load(sFile)
+        If img.W >= img.H Then
+            sc = img.H / img.W
+            W = iSize
+            H = iSize * sc
+        Else
+            sc = img.W / img.H
+            W = iSize * sc
+            H = iSize
+        Endif
+        pic = img.Stretch(W, H).Picture
+    Endif
+
+    Return pic
+
+End

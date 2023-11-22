@@ -1,0 +1,3520 @@
+' Gambas class file
+
+Export
+
+Static Public Function Aleph(z As Integer) As String
+
+    Dim sWord As String
+    'Dim r1 As Integer
+    Dim r As Integer
+
+    'r1 = Rand(9, 15)
+
+    For r = 1 To z
+        sWord &= Chr(Rand(65, 90))
+    Next
+
+    Return sWord
+
+End
+
+Static Public Function GetTextFromUrl(url As String) As String
+
+    Dim client As New HttpClient As "client"
+
+    client.URL = url
+    client.async = False
+    client.Get()
+
+    ' an error occured
+    If client.Status < 0 Then
+        Return ""
+    Endif
+
+    ' no data available
+    If Not Lof(client) Then
+        Return ""
+    Endif
+
+    ' Reads the data from the server and returns it as a String
+    Return Read #client, Lof(client)
+
+End
+
+'' Password hardness level
+
+Static Public Function Hardness(sPass As String) As Integer
+
+    Dim r As Integer
+    Dim o As New JSONCollection
+    Dim i As Integer
+    Dim p As Integer
+    Dim q As Integer = 0
+    Dim rep As New JSONCollection
+    Dim aCUL As New String[] '' Consecutivas Upper and Lower
+    Dim cul As New JSONCollection
+
+    o["chars"] = String.Len(sPass) '' Número de Caracteres
+    o["length"] = 8
+    o["uppers"] = 0                '' Letras Mayúsculas
+    o["lowers"] = 0                '' Letras minúsculas
+    o["numbers"] = 0               '' Números
+    o["symbols"] = 0               '' Símbolos
+
+    cul.Add(0, "U")
+    cul.Add(0, "L")
+    cul.Add(0, "N")
+    cul.Add(0, "S")
+
+    For i = 1 To String.Len(sPass)
+        p = Asc(sPass, i)
+        If p > 32 And p < 48 Then  ' symbol
+            o["symbols"] = o["symbols"] + 1
+            aCUL.Add("S")
+        Else
+            If p > 57 And p < 65 Then
+                o["symbols"] = o["symbols"] + 1
+                aCUL.Add("S")
+            Else
+                If p > 64 And p < 91 Then  ' upper
+                    o["uppers"] = o["uppers"] + 1
+                    aCUL.Add("U")
+                Else
+                    If p > 96 And p < 123 Then  ' lower
+                        o["lowers"] = o["lowers"] + 1
+                        aCUL.Add("L")
+                    Else
+                        If p > 47 And p < 58 Then  ' number
+                            o["numbers"] = o["numbers"] + 1
+                            aCUL.Add("N")
+                        Endif
+                    Endif
+                Endif
+            Endif
+        Endif
+
+        If rep.Exist(CStr(p)) Then
+            rep[CStr(p)] = rep[CStr(p)] + 1
+        Else
+            rep[CStr(p)] = 1
+        Endif
+
+    Next
+
+    '' Adiciones
+    If o["chars"] > 0 Then
+        r = (o["chars"] * 4)
+
+        If o["uppers"] > 0 Then
+            r = r + ((o["chars"] - o["uppers"]) * 2)
+        Endif
+
+        If o["lowers"] > 0 Then
+            r = r + ((o["chars"] - o["lowers"]) * 2)
+        Endif
+
+        If o["numbers"] > 0 Then
+            r = r + (o["numbers"] * 4)
+        Endif
+
+        If o["symbols"] > 0 Then
+            r = r + (o["symbols"] * 4)
+        Endif
+
+        ' Mitad números o simbolos
+        If o["symbols"] + o["numbers"] = (o["chars"] / 2) Then
+            r = r + ((o["symbols"] + o["numbers"]) * 2)
+        Endif
+
+        ' Requerimientos
+        If o["chars"] >= o["length"] Then
+            Inc q
+        Endif
+        If o["uppers"] > 0 Then
+            Inc q
+        Endif
+        If o["lowers"] > 0 Then
+            Inc q
+        Endif
+        If o["numbers"] > 0 Then
+            Inc q
+        Endif
+        If o["symbols"] > 0 Then
+            Inc q
+        Endif
+        r = r + (q * 2)
+    Endif
+
+    '' Restas
+    'Solo letras
+    If o["numbers"] = 0 And o["symbols"] = 0 Then
+        r = r - o["chars"]
+    Endif
+    'Solo números
+    If o["lowers"] = 0 And o["symbols"] = 0 And o["uppers"] = 0 And o["numbers"] > 0 Then
+        r = r - o["numbers"]
+    Endif
+    'Caracteres repetidos (No sensible)
+    For Each i In rep
+        If i > 1 Then
+            r = r - (i * (i - 1))
+        Endif
+    Next
+
+    If aCUL.Count > 0 Then
+        For i = 0 To aCUL.Max - 1
+            If aCUL[i] = aCUL[i + 1] Then
+                cul[aCUL[i]] = cul[aCUL[i]] + 1
+            Endif
+        Next
+    Endif
+
+    'Letras mayúsuculas consecutivas
+    If cul["U"] > 0 Then
+        r = r - (cul["U"] * 2)
+        If cul["U"] > 3 Then
+            'Sencuencia de letras (3+)
+            r = r - (cul["U"] * 3)
+        Endif
+    Endif
+
+    'Letras minúsculas consecutivas
+    If cul["L"] > 0 Then
+        r = r - (cul["L"] * 2)
+        If cul["L"] > 3 Then
+            'Sencuencia de letras (3+)
+            r = r - (cul["L"] * 3)
+        Endif
+    Endif
+
+    'Números consecutivos
+    If cul["N"] > 0 Then
+        r = r - (cul["N"] * 2)
+        If cul["N"] > 3 Then
+            'Sencuencia de números (3+)
+            r = r - (cul["N"] * 3)
+        Endif
+    Endif
+
+    Return r
+
+    ' Dim i As Integer
+    '
+    ' i = Len(s)
+    '
+    ' ' Tiene un digito
+    ' If RegExp.Match(s, "[0-9]{2}") Then
+    '   Inc i
+    ' Else
+    '   Dec i
+    ' Endif
+    '
+    ' ' Tiene una mayúscula?
+    ' If RegExp.Match(s, "[A-Z]{2}") Then
+    '   Inc i
+    ' Else
+    '   Dec i
+    ' Endif
+    '
+    ' ' Tiene una minúscula?
+    ' If RegExp.Match(s, "[a-z]{2}") Then
+    '   Inc i
+    ' Else
+    '   Dec i
+    ' Endif
+    '
+    ' ' Tiene un símbolo?
+    ' If RegExp.Match(s, "/[\\W\\S_]/") Then
+    '   Inc i
+    ' Else
+    '   Dec i
+    ' Endif
+    '
+    ' Return i
+
+End
+
+'' Returns the text string between the two that are passed as a parameter<br>
+'' Original code by Juan Luis Lopez
+
+Static Public Function Between(s As String, s1 As String, Optional s2 As String) As String
+
+    Dim iL As Integer
+    Dim iU As Integer
+
+    Select s2
+        Case Null
+            iL = InStr(s, s1) + Len(s1)
+            iU = InStr(s, s2, iL)
+            Return Mid(s, iL, Len(s) - iL)
+        Case Else
+            iL = InStr(s, s1) + Len(s1)
+            iU = InStr(s, s2, iL)
+            Return Mid(s, iL, iU - iL)
+    End Select
+
+End
+
+Static Public Function EncodeURL(s As String, Optional ExcludeNullChar As Boolean = True) As String
+
+    Dim iPos As Integer
+    Dim sChr As String
+    Dim sOut As String
+
+    iPos = 1
+
+    Do While iPos <= Len(s)
+
+        sChr = String.Mid(s, iPos, 1)
+        If String.IsValid(sChr) Then
+            If Asc(sChr) < 65 Or Asc(sChr) > 122 Then
+                Select Asc(sChr)
+                    Case 0
+                        If ExcludeNullChar = True Then
+                            sOut &= "%" & Hex(Asc(sChr), 2)
+                        Endif
+                    Case 32
+                        sOut &= sChr
+                End Select
+            Else
+                sOut &= sChr
+            Endif
+            Inc iPos
+        Else
+            Print sChr
+        Endif
+
+    Loop
+
+    Return sOut
+
+End
+
+Static Public Function GetConvCodes() As String[]
+
+    Dim aCode As New String[]
+
+    aCode.Add("437")
+    aCode.Add("500")
+    aCode.Add("500V1")
+    aCode.Add("850")
+    aCode.Add("851")
+    aCode.Add("852")
+    aCode.Add("855")
+    aCode.Add("856")
+    aCode.Add("857")
+    aCode.Add("858")
+    aCode.Add("860")
+    aCode.Add("861")
+    aCode.Add("862")
+    aCode.Add("863")
+    aCode.Add("864")
+    aCode.Add("865")
+    aCode.Add("866")
+    aCode.Add("866NAV")
+    aCode.Add("869")
+    aCode.Add("874")
+    aCode.Add("904")
+    aCode.Add("1026")
+    aCode.Add("1046")
+    aCode.Add("1047")
+    aCode.Add("8859_1")
+    aCode.Add("8859_2")
+    aCode.Add("8859_3")
+    aCode.Add("8859_4")
+    aCode.Add("8859_5")
+    aCode.Add("8859_6")
+    aCode.Add("8859_7")
+    aCode.Add("8859_8")
+    aCode.Add("8859_9")
+    aCode.Add("10646-1:1993")
+    aCode.Add("10646-1:1993/UCS4")
+    aCode.Add("ANSI_X3.4-1968")
+    aCode.Add("ANSI_X3.4-1986")
+    aCode.Add("ANSI_X3.4")
+    aCode.Add("ANSI_X3.110-1983")
+    aCode.Add("ANSI_X3.110")
+    aCode.Add("ARABIC")
+    aCode.Add("ARABIC7")
+    aCode.Add("ARMSCII-8")
+    aCode.Add("ARMSCII8")
+    aCode.Add("ASCII")
+    aCode.Add("ASMO-708")
+    aCode.Add("ASMO_449")
+    aCode.Add("BALTIC")
+    aCode.Add("BIG-5")
+    aCode.Add("BIG-FIVE")
+    aCode.Add("BIG5-HKSCS")
+    aCode.Add("BIG5")
+    aCode.Add("BIG5HKSCS")
+    aCode.Add("BIGFIVE")
+    aCode.Add("BRF")
+    aCode.Add("BS_4730")
+    aCode.Add("CA")
+    aCode.Add("CN-BIG5")
+    aCode.Add("CN-GB")
+    aCode.Add("CN")
+    aCode.Add("CP-AR")
+    aCode.Add("CP-GR")
+    aCode.Add("CP-HU")
+    aCode.Add("CP037")
+    aCode.Add("CP038")
+    aCode.Add("CP273")
+    aCode.Add("CP274")
+    aCode.Add("CP275")
+    aCode.Add("CP278")
+    aCode.Add("CP280")
+    aCode.Add("CP281")
+    aCode.Add("CP282")
+    aCode.Add("CP284")
+    aCode.Add("CP285")
+    aCode.Add("CP290")
+    aCode.Add("CP297")
+    aCode.Add("CP367")
+    aCode.Add("CP420")
+    aCode.Add("CP423")
+    aCode.Add("CP424")
+    aCode.Add("CP437")
+    aCode.Add("CP500")
+    aCode.Add("CP737")
+    aCode.Add("CP770")
+    aCode.Add("CP771")
+    aCode.Add("CP772")
+    aCode.Add("CP773")
+    aCode.Add("CP774")
+    aCode.Add("CP775")
+    aCode.Add("CP803")
+    aCode.Add("CP813")
+    aCode.Add("CP819")
+    aCode.Add("CP850")
+    aCode.Add("CP851")
+    aCode.Add("CP852")
+    aCode.Add("CP855")
+    aCode.Add("CP856")
+    aCode.Add("CP857")
+    aCode.Add("CP858")
+    aCode.Add("CP860")
+    aCode.Add("CP861")
+    aCode.Add("CP862")
+    aCode.Add("CP863")
+    aCode.Add("CP864")
+    aCode.Add("CP865")
+    aCode.Add("CP866")
+    aCode.Add("CP866NAV")
+    aCode.Add("CP868")
+    aCode.Add("CP869")
+    aCode.Add("CP870")
+    aCode.Add("CP871")
+    aCode.Add("CP874")
+    aCode.Add("CP875")
+    aCode.Add("CP880")
+    aCode.Add("CP891")
+    aCode.Add("CP901")
+    aCode.Add("CP902")
+    aCode.Add("CP903")
+    aCode.Add("CP904")
+    aCode.Add("CP905")
+    aCode.Add("CP912")
+    aCode.Add("CP915")
+    aCode.Add("CP916")
+    aCode.Add("CP918")
+    aCode.Add("CP920")
+    aCode.Add("CP921")
+    aCode.Add("CP922")
+    aCode.Add("CP930")
+    aCode.Add("CP932")
+    aCode.Add("CP933")
+    aCode.Add("CP935")
+    aCode.Add("CP936")
+    aCode.Add("CP937")
+    aCode.Add("CP939")
+    aCode.Add("CP949")
+    aCode.Add("CP950")
+    aCode.Add("CP1004")
+    aCode.Add("CP1008")
+    aCode.Add("CP1025")
+    aCode.Add("CP1026")
+    aCode.Add("CP1046")
+    aCode.Add("CP1047")
+    aCode.Add("CP1070")
+    aCode.Add("CP1079")
+    aCode.Add("CP1081")
+    aCode.Add("CP1084")
+    aCode.Add("CP1089")
+    aCode.Add("CP1097")
+    aCode.Add("CP1112")
+    aCode.Add("CP1122")
+    aCode.Add("CP1123")
+    aCode.Add("CP1124")
+    aCode.Add("CP1125")
+    aCode.Add("CP1129")
+    aCode.Add("CP1130")
+    aCode.Add("CP1132")
+    aCode.Add("CP1133")
+    aCode.Add("CP1137")
+    aCode.Add("CP1140")
+    aCode.Add("CP1141")
+    aCode.Add("CP1142")
+    aCode.Add("CP1143")
+    aCode.Add("CP1144")
+    aCode.Add("CP1145")
+    aCode.Add("CP1146")
+    aCode.Add("CP1147")
+    aCode.Add("CP1148")
+    aCode.Add("CP1149")
+    aCode.Add("CP1153")
+    aCode.Add("CP1154")
+    aCode.Add("CP1155")
+    aCode.Add("CP1156")
+    aCode.Add("CP1157")
+    aCode.Add("CP1158")
+    aCode.Add("CP1160")
+    aCode.Add("CP1161")
+    aCode.Add("CP1162")
+    aCode.Add("CP1163")
+    aCode.Add("CP1164")
+    aCode.Add("CP1166")
+    aCode.Add("CP1167")
+    aCode.Add("CP1250")
+    aCode.Add("CP1251")
+    aCode.Add("CP1252")
+    aCode.Add("CP1253")
+    aCode.Add("CP1254")
+    aCode.Add("CP1255")
+    aCode.Add("CP1256")
+    aCode.Add("CP1257")
+    aCode.Add("CP1258")
+    aCode.Add("CP1282")
+    aCode.Add("CP1361")
+    aCode.Add("CP1364")
+    aCode.Add("CP1371")
+    aCode.Add("CP1388")
+    aCode.Add("CP1390")
+    aCode.Add("CP1399")
+    aCode.Add("CP4517")
+    aCode.Add("CP4899")
+    aCode.Add("CP4909")
+    aCode.Add("CP4971")
+    aCode.Add("CP5347")
+    aCode.Add("CP9030")
+    aCode.Add("CP9066")
+    aCode.Add("CP9448")
+    aCode.Add("CP10007")
+    aCode.Add("CP12712")
+    aCode.Add("CP16804")
+    aCode.Add("CPIBM861")
+    aCode.Add("CSA7-1")
+    aCode.Add("CSA7-2")
+    aCode.Add("CSASCII")
+    aCode.Add("CSA_T500-1983")
+    aCode.Add("CSA_T500")
+    aCode.Add("CSA_Z243.4-1985-1")
+    aCode.Add("CSA_Z243.4-1985-2")
+    aCode.Add("CSA_Z243.419851")
+    aCode.Add("CSA_Z243.419852")
+    aCode.Add("CSDECMCS")
+    aCode.Add("CSEBCDICATDE")
+    aCode.Add("CSEBCDICATDEA")
+    aCode.Add("CSEBCDICCAFR")
+    aCode.Add("CSEBCDICDKNO")
+    aCode.Add("CSEBCDICDKNOA")
+    aCode.Add("CSEBCDICES")
+    aCode.Add("CSEBCDICESA")
+    aCode.Add("CSEBCDICESS")
+    aCode.Add("CSEBCDICFISE")
+    aCode.Add("CSEBCDICFISEA")
+    aCode.Add("CSEBCDICFR")
+    aCode.Add("CSEBCDICIT")
+    aCode.Add("CSEBCDICPT")
+    aCode.Add("CSEBCDICUK")
+    aCode.Add("CSEBCDICUS")
+    aCode.Add("CSEUCKR")
+    aCode.Add("CSEUCPKDFMTJAPANESE")
+    aCode.Add("CSGB2312")
+    aCode.Add("CSHPROMAN8")
+    aCode.Add("CSIBM037")
+    aCode.Add("CSIBM038")
+    aCode.Add("CSIBM273")
+    aCode.Add("CSIBM274")
+    aCode.Add("CSIBM275")
+    aCode.Add("CSIBM277")
+    aCode.Add("CSIBM278")
+    aCode.Add("CSIBM280")
+    aCode.Add("CSIBM281")
+    aCode.Add("CSIBM284")
+    aCode.Add("CSIBM285")
+    aCode.Add("CSIBM290")
+    aCode.Add("CSIBM297")
+    aCode.Add("CSIBM420")
+    aCode.Add("CSIBM423")
+    aCode.Add("CSIBM424")
+    aCode.Add("CSIBM500")
+    aCode.Add("CSIBM803")
+    aCode.Add("CSIBM851")
+    aCode.Add("CSIBM855")
+    aCode.Add("CSIBM856")
+    aCode.Add("CSIBM857")
+    aCode.Add("CSIBM860")
+    aCode.Add("CSIBM863")
+    aCode.Add("CSIBM864")
+    aCode.Add("CSIBM865")
+    aCode.Add("CSIBM866")
+    aCode.Add("CSIBM868")
+    aCode.Add("CSIBM869")
+    aCode.Add("CSIBM870")
+    aCode.Add("CSIBM871")
+    aCode.Add("CSIBM880")
+    aCode.Add("CSIBM891")
+    aCode.Add("CSIBM901")
+    aCode.Add("CSIBM902")
+    aCode.Add("CSIBM903")
+    aCode.Add("CSIBM904")
+    aCode.Add("CSIBM905")
+    aCode.Add("CSIBM918")
+    aCode.Add("CSIBM921")
+    aCode.Add("CSIBM922")
+    aCode.Add("CSIBM930")
+    aCode.Add("CSIBM932")
+    aCode.Add("CSIBM933")
+    aCode.Add("CSIBM935")
+    aCode.Add("CSIBM937")
+    aCode.Add("CSIBM939")
+    aCode.Add("CSIBM943")
+    aCode.Add("CSIBM1008")
+    aCode.Add("CSIBM1025")
+    aCode.Add("CSIBM1026")
+    aCode.Add("CSIBM1097")
+    aCode.Add("CSIBM1112")
+    aCode.Add("CSIBM1122")
+    aCode.Add("CSIBM1123")
+    aCode.Add("CSIBM1124")
+    aCode.Add("CSIBM1129")
+    aCode.Add("CSIBM1130")
+    aCode.Add("CSIBM1132")
+    aCode.Add("CSIBM1133")
+    aCode.Add("CSIBM1137")
+    aCode.Add("CSIBM1140")
+    aCode.Add("CSIBM1141")
+    aCode.Add("CSIBM1142")
+    aCode.Add("CSIBM1143")
+    aCode.Add("CSIBM1144")
+    aCode.Add("CSIBM1145")
+    aCode.Add("CSIBM1146")
+    aCode.Add("CSIBM1147")
+    aCode.Add("CSIBM1148")
+    aCode.Add("CSIBM1149")
+    aCode.Add("CSIBM1153")
+    aCode.Add("CSIBM1154")
+    aCode.Add("CSIBM1155")
+    aCode.Add("CSIBM1156")
+    aCode.Add("CSIBM1157")
+    aCode.Add("CSIBM1158")
+    aCode.Add("CSIBM1160")
+    aCode.Add("CSIBM1161")
+    aCode.Add("CSIBM1163")
+    aCode.Add("CSIBM1164")
+    aCode.Add("CSIBM1166")
+    aCode.Add("CSIBM1167")
+    aCode.Add("CSIBM1364")
+    aCode.Add("CSIBM1371")
+    aCode.Add("CSIBM1388")
+    aCode.Add("CSIBM1390")
+    aCode.Add("CSIBM1399")
+    aCode.Add("CSIBM4517")
+    aCode.Add("CSIBM4899")
+    aCode.Add("CSIBM4909")
+    aCode.Add("CSIBM4971")
+    aCode.Add("CSIBM5347")
+    aCode.Add("CSIBM9030")
+    aCode.Add("CSIBM9066")
+    aCode.Add("CSIBM9448")
+    aCode.Add("CSIBM12712")
+    aCode.Add("CSIBM16804")
+    aCode.Add("CSIBM11621162")
+    aCode.Add("CSISO4UNITEDKINGDOM")
+    aCode.Add("CSISO10SWEDISH")
+    aCode.Add("CSISO11SWEDISHFORNAMES")
+    aCode.Add("CSISO14JISC6220RO")
+    aCode.Add("CSISO15ITALIAN")
+    aCode.Add("CSISO16PORTUGESE")
+    aCode.Add("CSISO17SPANISH")
+    aCode.Add("CSISO18GREEK7OLD")
+    aCode.Add("CSISO19LATINGREEK")
+    aCode.Add("CSISO21GERMAN")
+    aCode.Add("CSISO25FRENCH")
+    aCode.Add("CSISO27LATINGREEK1")
+    aCode.Add("CSISO49INIS")
+    aCode.Add("CSISO50INIS8")
+    aCode.Add("CSISO51INISCYRILLIC")
+    aCode.Add("CSISO58GB1988")
+    aCode.Add("CSISO60DANISHNORWEGIAN")
+    aCode.Add("CSISO60NORWEGIAN1")
+    aCode.Add("CSISO61NORWEGIAN2")
+    aCode.Add("CSISO69FRENCH")
+    aCode.Add("CSISO84PORTUGUESE2")
+    aCode.Add("CSISO85SPANISH2")
+    aCode.Add("CSISO86HUNGARIAN")
+    aCode.Add("CSISO88GREEK7")
+    aCode.Add("CSISO89ASMO449")
+    aCode.Add("CSISO90")
+    aCode.Add("CSISO92JISC62991984B")
+    aCode.Add("CSISO99NAPLPS")
+    aCode.Add("CSISO103T618BIT")
+    aCode.Add("CSISO111ECMACYRILLIC")
+    aCode.Add("CSISO121CANADIAN1")
+    aCode.Add("CSISO122CANADIAN2")
+    aCode.Add("CSISO139CSN369103")
+    aCode.Add("CSISO141JUSIB1002")
+    aCode.Add("CSISO143IECP271")
+    aCode.Add("CSISO150")
+    aCode.Add("CSISO150GREEKCCITT")
+    aCode.Add("CSISO151CUBA")
+    aCode.Add("CSISO153GOST1976874")
+    aCode.Add("CSISO646DANISH")
+    aCode.Add("CSISO2022CN")
+    aCode.Add("CSISO2022JP")
+    aCode.Add("CSISO2022JP2")
+    aCode.Add("CSISO2022KR")
+    aCode.Add("CSISO2033")
+    aCode.Add("CSISO5427CYRILLIC")
+    aCode.Add("CSISO5427CYRILLIC1981")
+    aCode.Add("CSISO5428GREEK")
+    aCode.Add("CSISO10367BOX")
+    aCode.Add("CSISOLATIN1")
+    aCode.Add("CSISOLATIN2")
+    aCode.Add("CSISOLATIN3")
+    aCode.Add("CSISOLATIN4")
+    aCode.Add("CSISOLATIN5")
+    aCode.Add("CSISOLATIN6")
+    aCode.Add("CSISOLATINARABIC")
+    aCode.Add("CSISOLATINCYRILLIC")
+    aCode.Add("CSISOLATINGREEK")
+    aCode.Add("CSISOLATINHEBREW")
+    aCode.Add("CSKOI8R")
+    aCode.Add("CSKSC5636")
+    aCode.Add("CSMACINTOSH")
+    aCode.Add("CSNATSDANO")
+    aCode.Add("CSNATSSEFI")
+    aCode.Add("CSN_369103")
+    aCode.Add("CSPC8CODEPAGE437")
+    aCode.Add("CSPC775BALTIC")
+    aCode.Add("CSPC850MULTILINGUAL")
+    aCode.Add("CSPC858MULTILINGUAL")
+    aCode.Add("CSPC862LATINHEBREW")
+    aCode.Add("CSPCP852")
+    aCode.Add("CSSHIFTJIS")
+    aCode.Add("CSUCS4")
+    aCode.Add("CSUNICODE")
+    aCode.Add("CSWINDOWS31J")
+    aCode.Add("CUBA")
+    aCode.Add("CWI-2")
+    aCode.Add("CWI")
+    aCode.Add("CYRILLIC")
+    aCode.Add("DE")
+    aCode.Add("DEC-MCS")
+    aCode.Add("DEC")
+    aCode.Add("DECMCS")
+    aCode.Add("DIN_66003")
+    aCode.Add("DK")
+    aCode.Add("DS2089")
+    aCode.Add("DS_2089")
+    aCode.Add("E13B")
+    aCode.Add("EBCDIC-AT-DE-A")
+    aCode.Add("EBCDIC-AT-DE")
+    aCode.Add("EBCDIC-BE")
+    aCode.Add("EBCDIC-BR")
+    aCode.Add("EBCDIC-CA-FR")
+    aCode.Add("EBCDIC-CP-AR1")
+    aCode.Add("EBCDIC-CP-AR2")
+    aCode.Add("EBCDIC-CP-BE")
+    aCode.Add("EBCDIC-CP-CA")
+    aCode.Add("EBCDIC-CP-CH")
+    aCode.Add("EBCDIC-CP-DK")
+    aCode.Add("EBCDIC-CP-ES")
+    aCode.Add("EBCDIC-CP-FI")
+    aCode.Add("EBCDIC-CP-FR")
+    aCode.Add("EBCDIC-CP-GB")
+    aCode.Add("EBCDIC-CP-GR")
+    aCode.Add("EBCDIC-CP-HE")
+    aCode.Add("EBCDIC-CP-IS")
+    aCode.Add("EBCDIC-CP-IT")
+    aCode.Add("EBCDIC-CP-NL")
+    aCode.Add("EBCDIC-CP-NO")
+    aCode.Add("EBCDIC-CP-ROECE")
+    aCode.Add("EBCDIC-CP-SE")
+    aCode.Add("EBCDIC-CP-TR")
+    aCode.Add("EBCDIC-CP-US")
+    aCode.Add("EBCDIC-CP-WT")
+    aCode.Add("EBCDIC-CP-YU")
+    aCode.Add("EBCDIC-CYRILLIC")
+    aCode.Add("EBCDIC-DK-NO-A")
+    aCode.Add("EBCDIC-DK-NO")
+    aCode.Add("EBCDIC-ES-A")
+    aCode.Add("EBCDIC-ES-S")
+    aCode.Add("EBCDIC-ES")
+    aCode.Add("EBCDIC-FI-SE-A")
+    aCode.Add("EBCDIC-FI-SE")
+    aCode.Add("EBCDIC-FR")
+    aCode.Add("EBCDIC-GREEK")
+    aCode.Add("EBCDIC-INT")
+    aCode.Add("EBCDIC-INT1")
+    aCode.Add("EBCDIC-IS-FRISS")
+    aCode.Add("EBCDIC-IT")
+    aCode.Add("EBCDIC-JP-E")
+    aCode.Add("EBCDIC-JP-KANA")
+    aCode.Add("EBCDIC-PT")
+    aCode.Add("EBCDIC-UK")
+    aCode.Add("EBCDIC-US")
+    aCode.Add("EBCDICATDE")
+    aCode.Add("EBCDICATDEA")
+    aCode.Add("EBCDICCAFR")
+    aCode.Add("EBCDICDKNO")
+    aCode.Add("EBCDICDKNOA")
+    aCode.Add("EBCDICES")
+    aCode.Add("EBCDICESA")
+    aCode.Add("EBCDICESS")
+    aCode.Add("EBCDICFISE")
+    aCode.Add("EBCDICFISEA")
+    aCode.Add("EBCDICFR")
+    aCode.Add("EBCDICISFRISS")
+    aCode.Add("EBCDICIT")
+    aCode.Add("EBCDICPT")
+    aCode.Add("EBCDICUK")
+    aCode.Add("EBCDICUS")
+    aCode.Add("ECMA-114")
+    aCode.Add("ECMA-118")
+    aCode.Add("ECMA-128")
+    aCode.Add("ECMA-CYRILLIC")
+    aCode.Add("ECMACYRILLIC")
+    aCode.Add("ELOT_928")
+    aCode.Add("ES")
+    aCode.Add("ES2")
+    aCode.Add("EUC-CN")
+    aCode.Add("EUC-JISX0213")
+    aCode.Add("EUC-JP-MS")
+    aCode.Add("EUC-JP")
+    aCode.Add("EUC-KR")
+    aCode.Add("EUC-TW")
+    aCode.Add("EUCCN")
+    aCode.Add("EUCJP-MS")
+    aCode.Add("EUCJP-OPEN")
+    aCode.Add("EUCJP-WIN")
+    aCode.Add("EUCJP")
+    aCode.Add("EUCKR")
+    aCode.Add("EUCTW")
+    aCode.Add("FI")
+    aCode.Add("FR")
+    aCode.Add("GB")
+    aCode.Add("GB2312")
+    aCode.Add("GB13000")
+    aCode.Add("GB18030")
+    aCode.Add("GBK")
+    aCode.Add("GB_1988-80")
+    aCode.Add("GB_198880")
+    aCode.Add("GEORGIAN-ACADEMY")
+    aCode.Add("GEORGIAN-PS")
+    aCode.Add("GOST_19768-74")
+    aCode.Add("GOST_19768")
+    aCode.Add("GOST_1976874")
+    aCode.Add("GREEK-CCITT")
+    aCode.Add("GREEK")
+    aCode.Add("GREEK7-OLD")
+    aCode.Add("GREEK7")
+    aCode.Add("GREEK7OLD")
+    aCode.Add("GREEK8")
+    aCode.Add("GREEKCCITT")
+    aCode.Add("HEBREW")
+    aCode.Add("HP-GREEK8")
+    aCode.Add("HP-ROMAN8")
+    aCode.Add("HP-ROMAN9")
+    aCode.Add("HP-THAI8")
+    aCode.Add("HP-TURKISH8")
+    aCode.Add("HPGREEK8")
+    aCode.Add("HPROMAN8")
+    aCode.Add("HPROMAN9")
+    aCode.Add("HPTHAI8")
+    aCode.Add("HPTURKISH8")
+    aCode.Add("HU")
+    aCode.Add("IBM-803")
+    aCode.Add("IBM-856")
+    aCode.Add("IBM-901")
+    aCode.Add("IBM-902")
+    aCode.Add("IBM-921")
+    aCode.Add("IBM-922")
+    aCode.Add("IBM-930")
+    aCode.Add("IBM-932")
+    aCode.Add("IBM-933")
+    aCode.Add("IBM-935")
+    aCode.Add("IBM-937")
+    aCode.Add("IBM-939")
+    aCode.Add("IBM-943")
+    aCode.Add("IBM-1008")
+    aCode.Add("IBM-1025")
+    aCode.Add("IBM-1046")
+    aCode.Add("IBM-1047")
+    aCode.Add("IBM-1097")
+    aCode.Add("IBM-1112")
+    aCode.Add("IBM-1122")
+    aCode.Add("IBM-1123")
+    aCode.Add("IBM-1124")
+    aCode.Add("IBM-1129")
+    aCode.Add("IBM-1130")
+    aCode.Add("IBM-1132")
+    aCode.Add("IBM-1133")
+    aCode.Add("IBM-1137")
+    aCode.Add("IBM-1140")
+    aCode.Add("IBM-1141")
+    aCode.Add("IBM-1142")
+    aCode.Add("IBM-1143")
+    aCode.Add("IBM-1144")
+    aCode.Add("IBM-1145")
+    aCode.Add("IBM-1146")
+    aCode.Add("IBM-1147")
+    aCode.Add("IBM-1148")
+    aCode.Add("IBM-1149")
+    aCode.Add("IBM-1153")
+    aCode.Add("IBM-1154")
+    aCode.Add("IBM-1155")
+    aCode.Add("IBM-1156")
+    aCode.Add("IBM-1157")
+    aCode.Add("IBM-1158")
+    aCode.Add("IBM-1160")
+    aCode.Add("IBM-1161")
+    aCode.Add("IBM-1162")
+    aCode.Add("IBM-1163")
+    aCode.Add("IBM-1164")
+    aCode.Add("IBM-1166")
+    aCode.Add("IBM-1167")
+    aCode.Add("IBM-1364")
+    aCode.Add("IBM-1371")
+    aCode.Add("IBM-1388")
+    aCode.Add("IBM-1390")
+    aCode.Add("IBM-1399")
+    aCode.Add("IBM-4517")
+    aCode.Add("IBM-4899")
+    aCode.Add("IBM-4909")
+    aCode.Add("IBM-4971")
+    aCode.Add("IBM-5347")
+    aCode.Add("IBM-9030")
+    aCode.Add("IBM-9066")
+    aCode.Add("IBM-9448")
+    aCode.Add("IBM-12712")
+    aCode.Add("IBM-16804")
+    aCode.Add("IBM037")
+    aCode.Add("IBM038")
+    aCode.Add("IBM256")
+    aCode.Add("IBM273")
+    aCode.Add("IBM274")
+    aCode.Add("IBM275")
+    aCode.Add("IBM277")
+    aCode.Add("IBM278")
+    aCode.Add("IBM280")
+    aCode.Add("IBM281")
+    aCode.Add("IBM284")
+    aCode.Add("IBM285")
+    aCode.Add("IBM290")
+    aCode.Add("IBM297")
+    aCode.Add("IBM367")
+    aCode.Add("IBM420")
+    aCode.Add("IBM423")
+    aCode.Add("IBM424")
+    aCode.Add("IBM437")
+    aCode.Add("IBM500")
+    aCode.Add("IBM775")
+    aCode.Add("IBM803")
+    aCode.Add("IBM813")
+    aCode.Add("IBM819")
+    aCode.Add("IBM848")
+    aCode.Add("IBM850")
+    aCode.Add("IBM851")
+    aCode.Add("IBM852")
+    aCode.Add("IBM855")
+    aCode.Add("IBM856")
+    aCode.Add("IBM857")
+    aCode.Add("IBM858")
+    aCode.Add("IBM860")
+    aCode.Add("IBM861")
+    aCode.Add("IBM862")
+    aCode.Add("IBM863")
+    aCode.Add("IBM864")
+    aCode.Add("IBM865")
+    aCode.Add("IBM866")
+    aCode.Add("IBM866NAV")
+    aCode.Add("IBM868")
+    aCode.Add("IBM869")
+    aCode.Add("IBM870")
+    aCode.Add("IBM871")
+    aCode.Add("IBM874")
+    aCode.Add("IBM875")
+    aCode.Add("IBM880")
+    aCode.Add("IBM891")
+    aCode.Add("IBM901")
+    aCode.Add("IBM902")
+    aCode.Add("IBM903")
+    aCode.Add("IBM904")
+    aCode.Add("IBM905")
+    aCode.Add("IBM912")
+    aCode.Add("IBM915")
+    aCode.Add("IBM916")
+    aCode.Add("IBM918")
+    aCode.Add("IBM920")
+    aCode.Add("IBM921")
+    aCode.Add("IBM922")
+    aCode.Add("IBM930")
+    aCode.Add("IBM932")
+    aCode.Add("IBM933")
+    aCode.Add("IBM935")
+    aCode.Add("IBM937")
+    aCode.Add("IBM939")
+    aCode.Add("IBM943")
+    aCode.Add("IBM1004")
+    aCode.Add("IBM1008")
+    aCode.Add("IBM1025")
+    aCode.Add("IBM1026")
+    aCode.Add("IBM1046")
+    aCode.Add("IBM1047")
+    aCode.Add("IBM1089")
+    aCode.Add("IBM1097")
+    aCode.Add("IBM1112")
+    aCode.Add("IBM1122")
+    aCode.Add("IBM1123")
+    aCode.Add("IBM1124")
+    aCode.Add("IBM1129")
+    aCode.Add("IBM1130")
+    aCode.Add("IBM1132")
+    aCode.Add("IBM1133")
+    aCode.Add("IBM1137")
+    aCode.Add("IBM1140")
+    aCode.Add("IBM1141")
+    aCode.Add("IBM1142")
+    aCode.Add("IBM1143")
+    aCode.Add("IBM1144")
+    aCode.Add("IBM1145")
+    aCode.Add("IBM1146")
+    aCode.Add("IBM1147")
+    aCode.Add("IBM1148")
+    aCode.Add("IBM1149")
+    aCode.Add("IBM1153")
+    aCode.Add("IBM1154")
+    aCode.Add("IBM1155")
+    aCode.Add("IBM1156")
+    aCode.Add("IBM1157")
+    aCode.Add("IBM1158")
+    aCode.Add("IBM1160")
+    aCode.Add("IBM1161")
+    aCode.Add("IBM1162")
+    aCode.Add("IBM1163")
+    aCode.Add("IBM1164")
+    aCode.Add("IBM1166")
+    aCode.Add("IBM1167")
+    aCode.Add("IBM1364")
+    aCode.Add("IBM1371")
+    aCode.Add("IBM1388")
+    aCode.Add("IBM1390")
+    aCode.Add("IBM1399")
+    aCode.Add("IBM4517")
+    aCode.Add("IBM4899")
+    aCode.Add("IBM4909")
+    aCode.Add("IBM4971")
+    aCode.Add("IBM5347")
+    aCode.Add("IBM9030")
+    aCode.Add("IBM9066")
+    aCode.Add("IBM9448")
+    aCode.Add("IBM12712")
+    aCode.Add("IBM16804")
+    aCode.Add("IEC_P27-1")
+    aCode.Add("IEC_P271")
+    aCode.Add("INIS-8")
+    aCode.Add("INIS-CYRILLIC")
+    aCode.Add("INIS")
+    aCode.Add("INIS8")
+    aCode.Add("INISCYRILLIC")
+    aCode.Add("ISIRI-3342")
+    aCode.Add("ISIRI3342")
+    aCode.Add("ISO-2022-CN-EXT")
+    aCode.Add("ISO-2022-CN")
+    aCode.Add("ISO-2022-JP-2")
+    aCode.Add("ISO-2022-JP-3")
+    aCode.Add("ISO-2022-JP")
+    aCode.Add("ISO-2022-KR")
+    aCode.Add("ISO-8859-1")
+    aCode.Add("ISO-8859-2")
+    aCode.Add("ISO-8859-3")
+    aCode.Add("ISO-8859-4")
+    aCode.Add("ISO-8859-5")
+    aCode.Add("ISO-8859-6")
+    aCode.Add("ISO-8859-7")
+    aCode.Add("ISO-8859-8")
+    aCode.Add("ISO-8859-9")
+    aCode.Add("ISO-8859-9E")
+    aCode.Add("ISO-8859-10")
+    aCode.Add("ISO-8859-11")
+    aCode.Add("ISO-8859-13")
+    aCode.Add("ISO-8859-14")
+    aCode.Add("ISO-8859-15")
+    aCode.Add("ISO-8859-16")
+    aCode.Add("ISO-10646")
+    aCode.Add("ISO-10646/UCS2")
+    aCode.Add("ISO-10646/UCS4")
+    aCode.Add("ISO-10646/UTF-8")
+    aCode.Add("ISO-10646/UTF8")
+    aCode.Add("ISO-CELTIC")
+    aCode.Add("ISO-IR-4")
+    aCode.Add("ISO-IR-6")
+    aCode.Add("ISO-IR-8-1")
+    aCode.Add("ISO-IR-9-1")
+    aCode.Add("ISO-IR-10")
+    aCode.Add("ISO-IR-11")
+    aCode.Add("ISO-IR-14")
+    aCode.Add("ISO-IR-15")
+    aCode.Add("ISO-IR-16")
+    aCode.Add("ISO-IR-17")
+    aCode.Add("ISO-IR-18")
+    aCode.Add("ISO-IR-19")
+    aCode.Add("ISO-IR-21")
+    aCode.Add("ISO-IR-25")
+    aCode.Add("ISO-IR-27")
+    aCode.Add("ISO-IR-37")
+    aCode.Add("ISO-IR-49")
+    aCode.Add("ISO-IR-50")
+    aCode.Add("ISO-IR-51")
+    aCode.Add("ISO-IR-54")
+    aCode.Add("ISO-IR-55")
+    aCode.Add("ISO-IR-57")
+    aCode.Add("ISO-IR-60")
+    aCode.Add("ISO-IR-61")
+    aCode.Add("ISO-IR-69")
+    aCode.Add("ISO-IR-84")
+    aCode.Add("ISO-IR-85")
+    aCode.Add("ISO-IR-86")
+    aCode.Add("ISO-IR-88")
+    aCode.Add("ISO-IR-89")
+    aCode.Add("ISO-IR-90")
+    aCode.Add("ISO-IR-92")
+    aCode.Add("ISO-IR-98")
+    aCode.Add("ISO-IR-99")
+    aCode.Add("ISO-IR-100")
+    aCode.Add("ISO-IR-101")
+    aCode.Add("ISO-IR-103")
+    aCode.Add("ISO-IR-109")
+    aCode.Add("ISO-IR-110")
+    aCode.Add("ISO-IR-111")
+    aCode.Add("ISO-IR-121")
+    aCode.Add("ISO-IR-122")
+    aCode.Add("ISO-IR-126")
+    aCode.Add("ISO-IR-127")
+    aCode.Add("ISO-IR-138")
+    aCode.Add("ISO-IR-139")
+    aCode.Add("ISO-IR-141")
+    aCode.Add("ISO-IR-143")
+    aCode.Add("ISO-IR-144")
+    aCode.Add("ISO-IR-148")
+    aCode.Add("ISO-IR-150")
+    aCode.Add("ISO-IR-151")
+    aCode.Add("ISO-IR-153")
+    aCode.Add("ISO-IR-155")
+    aCode.Add("ISO-IR-156")
+    aCode.Add("ISO-IR-157")
+    aCode.Add("ISO-IR-166")
+    aCode.Add("ISO-IR-179")
+    aCode.Add("ISO-IR-193")
+    aCode.Add("ISO-IR-197")
+    aCode.Add("ISO-IR-199")
+    aCode.Add("ISO-IR-203")
+    aCode.Add("ISO-IR-209")
+    aCode.Add("ISO-IR-226")
+    aCode.Add("ISO/TR_11548-1")
+    aCode.Add("ISO646-CA")
+    aCode.Add("ISO646-CA2")
+    aCode.Add("ISO646-CN")
+    aCode.Add("ISO646-CU")
+    aCode.Add("ISO646-DE")
+    aCode.Add("ISO646-DK")
+    aCode.Add("ISO646-ES")
+    aCode.Add("ISO646-ES2")
+    aCode.Add("ISO646-FI")
+    aCode.Add("ISO646-FR")
+    aCode.Add("ISO646-FR1")
+    aCode.Add("ISO646-GB")
+    aCode.Add("ISO646-HU")
+    aCode.Add("ISO646-IT")
+    aCode.Add("ISO646-JP-OCR-B")
+    aCode.Add("ISO646-JP")
+    aCode.Add("ISO646-KR")
+    aCode.Add("ISO646-NO")
+    aCode.Add("ISO646-NO2")
+    aCode.Add("ISO646-PT")
+    aCode.Add("ISO646-PT2")
+    aCode.Add("ISO646-SE")
+    aCode.Add("ISO646-SE2")
+    aCode.Add("ISO646-US")
+    aCode.Add("ISO646-YU")
+    aCode.Add("ISO2022CN")
+    aCode.Add("ISO2022CNEXT")
+    aCode.Add("ISO2022JP")
+    aCode.Add("ISO2022JP2")
+    aCode.Add("ISO2022KR")
+    aCode.Add("ISO6937")
+    aCode.Add("ISO8859-1")
+    aCode.Add("ISO8859-2")
+    aCode.Add("ISO8859-3")
+    aCode.Add("ISO8859-4")
+    aCode.Add("ISO8859-5")
+    aCode.Add("ISO8859-6")
+    aCode.Add("ISO8859-7")
+    aCode.Add("ISO8859-8")
+    aCode.Add("ISO8859-9")
+    aCode.Add("ISO8859-9E")
+    aCode.Add("ISO8859-10")
+    aCode.Add("ISO8859-11")
+    aCode.Add("ISO8859-13")
+    aCode.Add("ISO8859-14")
+    aCode.Add("ISO8859-15")
+    aCode.Add("ISO8859-16")
+    aCode.Add("ISO11548-1")
+    aCode.Add("ISO88591")
+    aCode.Add("ISO88592")
+    aCode.Add("ISO88593")
+    aCode.Add("ISO88594")
+    aCode.Add("ISO88595")
+    aCode.Add("ISO88596")
+    aCode.Add("ISO88597")
+    aCode.Add("ISO88598")
+    aCode.Add("ISO88599")
+    aCode.Add("ISO88599E")
+    aCode.Add("ISO885910")
+    aCode.Add("ISO885911")
+    aCode.Add("ISO885913")
+    aCode.Add("ISO885914")
+    aCode.Add("ISO885915")
+    aCode.Add("ISO885916")
+    aCode.Add("ISO_646.IRV:1991")
+    aCode.Add("ISO_2033-1983")
+    aCode.Add("ISO_2033")
+    aCode.Add("ISO_5427-EXT")
+    aCode.Add("ISO_5427")
+    aCode.Add("ISO_5427:1981")
+    aCode.Add("ISO_5427EXT")
+    aCode.Add("ISO_5428")
+    aCode.Add("ISO_5428:1980")
+    aCode.Add("ISO_6937-2")
+    aCode.Add("ISO_6937-2:1983")
+    aCode.Add("ISO_6937")
+    aCode.Add("ISO_6937:1992")
+    aCode.Add("ISO_8859-1")
+    aCode.Add("ISO_8859-1:1987")
+    aCode.Add("ISO_8859-2")
+    aCode.Add("ISO_8859-2:1987")
+    aCode.Add("ISO_8859-3")
+    aCode.Add("ISO_8859-3:1988")
+    aCode.Add("ISO_8859-4")
+    aCode.Add("ISO_8859-4:1988")
+    aCode.Add("ISO_8859-5")
+    aCode.Add("ISO_8859-5:1988")
+    aCode.Add("ISO_8859-6")
+    aCode.Add("ISO_8859-6:1987")
+    aCode.Add("ISO_8859-7")
+    aCode.Add("ISO_8859-7:1987")
+    aCode.Add("ISO_8859-7:2003")
+    aCode.Add("ISO_8859-8")
+    aCode.Add("ISO_8859-8:1988")
+    aCode.Add("ISO_8859-9")
+    aCode.Add("ISO_8859-9:1989")
+    aCode.Add("ISO_8859-9E")
+    aCode.Add("ISO_8859-10")
+    aCode.Add("ISO_8859-10:1992")
+    aCode.Add("ISO_8859-14")
+    aCode.Add("ISO_8859-14:1998")
+    aCode.Add("ISO_8859-15")
+    aCode.Add("ISO_8859-15:1998")
+    aCode.Add("ISO_8859-16")
+    aCode.Add("ISO_8859-16:2001")
+    aCode.Add("ISO_9036")
+    aCode.Add("ISO_10367-BOX")
+    aCode.Add("ISO_10367BOX")
+    aCode.Add("ISO_11548-1")
+    aCode.Add("ISO_69372")
+    aCode.Add("IT")
+    aCode.Add("JIS_C6220-1969-RO")
+    aCode.Add("JIS_C6229-1984-B")
+    aCode.Add("JIS_C62201969RO")
+    aCode.Add("JIS_C62291984B")
+    aCode.Add("JOHAB")
+    aCode.Add("JP-OCR-B")
+    aCode.Add("JP")
+    aCode.Add("JS")
+    aCode.Add("JUS_I.B1.002")
+    aCode.Add("KOI-7")
+    aCode.Add("KOI-8")
+    aCode.Add("KOI8-R")
+    aCode.Add("KOI8-RU")
+    aCode.Add("KOI8-T")
+    aCode.Add("KOI8-U")
+    aCode.Add("KOI8")
+    aCode.Add("KOI8R")
+    aCode.Add("KOI8U")
+    aCode.Add("KSC5636")
+    aCode.Add("L1")
+    aCode.Add("L2")
+    aCode.Add("L3")
+    aCode.Add("L4")
+    aCode.Add("L5")
+    aCode.Add("L6")
+    aCode.Add("L7")
+    aCode.Add("L8")
+    aCode.Add("L10")
+    aCode.Add("LATIN-9")
+    aCode.Add("LATIN-GREEK-1")
+    aCode.Add("LATIN-GREEK")
+    aCode.Add("LATIN1")
+    aCode.Add("LATIN2")
+    aCode.Add("LATIN3")
+    aCode.Add("LATIN4")
+    aCode.Add("LATIN5")
+    aCode.Add("LATIN6")
+    aCode.Add("LATIN7")
+    aCode.Add("LATIN8")
+    aCode.Add("LATIN9")
+    aCode.Add("LATIN10")
+    aCode.Add("LATINGREEK")
+    aCode.Add("LATINGREEK1")
+    aCode.Add("MAC-CENTRALEUROPE")
+    aCode.Add("MAC-CYRILLIC")
+    aCode.Add("MAC-IS")
+    aCode.Add("MAC-SAMI")
+    aCode.Add("MAC-UK")
+    aCode.Add("MAC")
+    aCode.Add("MACCYRILLIC")
+    aCode.Add("MACINTOSH")
+    aCode.Add("MACIS")
+    aCode.Add("MACUK")
+    aCode.Add("MACUKRAINIAN")
+    aCode.Add("MIK")
+    aCode.Add("MS-ANSI")
+    aCode.Add("MS-ARAB")
+    aCode.Add("MS-CYRL")
+    aCode.Add("MS-EE")
+    aCode.Add("MS-GREEK")
+    aCode.Add("MS-HEBR")
+    aCode.Add("MS-MAC-CYRILLIC")
+    aCode.Add("MS-TURK")
+    aCode.Add("MS932")
+    aCode.Add("MS936")
+    aCode.Add("MSCP949")
+    aCode.Add("MSCP1361")
+    aCode.Add("MSMACCYRILLIC")
+    aCode.Add("MSZ_7795.3")
+    aCode.Add("MS_KANJI")
+    aCode.Add("NAPLPS")
+    aCode.Add("NATS-DANO")
+    aCode.Add("NATS-SEFI")
+    aCode.Add("NATSDANO")
+    aCode.Add("NATSSEFI")
+    aCode.Add("NC_NC0010")
+    aCode.Add("NC_NC00-10")
+    aCode.Add("NC_NC00-10:81")
+    aCode.Add("NF_Z_62-010")
+    aCode.Add("NF_Z_62-010_(1973)")
+    aCode.Add("NF_Z_62-010_1973")
+    aCode.Add("NF_Z_62010")
+    aCode.Add("NF_Z_62010_1973")
+    aCode.Add("NO")
+    aCode.Add("NO2")
+    aCode.Add("NS_4551-1")
+    aCode.Add("NS_4551-2")
+    aCode.Add("NS_45511")
+    aCode.Add("NS_45512")
+    aCode.Add("OS2LATIN1")
+    aCode.Add("OSF00010001")
+    aCode.Add("OSF00010002")
+    aCode.Add("OSF00010003")
+    aCode.Add("OSF00010004")
+    aCode.Add("OSF00010005")
+    aCode.Add("OSF00010006")
+    aCode.Add("OSF00010007")
+    aCode.Add("OSF00010008")
+    aCode.Add("OSF00010009")
+    aCode.Add("OSF0001000A")
+    aCode.Add("OSF00010020")
+    aCode.Add("OSF00010100")
+    aCode.Add("OSF00010101")
+    aCode.Add("OSF00010102")
+    aCode.Add("OSF00010104")
+    aCode.Add("OSF00010105")
+    aCode.Add("OSF00010106")
+    aCode.Add("OSF00030010")
+    aCode.Add("OSF0004000A")
+    aCode.Add("OSF0005000A")
+    aCode.Add("OSF05010001")
+    aCode.Add("OSF100201A4")
+    aCode.Add("OSF100201A8")
+    aCode.Add("OSF100201B5")
+    aCode.Add("OSF100201F4")
+    aCode.Add("OSF100203B5")
+    aCode.Add("OSF1002011C")
+    aCode.Add("OSF1002011D")
+    aCode.Add("OSF1002035D")
+    aCode.Add("OSF1002035E")
+    aCode.Add("OSF1002035F")
+    aCode.Add("OSF1002036B")
+    aCode.Add("OSF1002037B")
+    aCode.Add("OSF10010001")
+    aCode.Add("OSF10010004")
+    aCode.Add("OSF10010006")
+    aCode.Add("OSF10020025")
+    aCode.Add("OSF10020111")
+    aCode.Add("OSF10020115")
+    aCode.Add("OSF10020116")
+    aCode.Add("OSF10020118")
+    aCode.Add("OSF10020122")
+    aCode.Add("OSF10020129")
+    aCode.Add("OSF10020352")
+    aCode.Add("OSF10020354")
+    aCode.Add("OSF10020357")
+    aCode.Add("OSF10020359")
+    aCode.Add("OSF10020360")
+    aCode.Add("OSF10020364")
+    aCode.Add("OSF10020365")
+    aCode.Add("OSF10020366")
+    aCode.Add("OSF10020367")
+    aCode.Add("OSF10020370")
+    aCode.Add("OSF10020387")
+    aCode.Add("OSF10020388")
+    aCode.Add("OSF10020396")
+    aCode.Add("OSF10020402")
+    aCode.Add("OSF10020417")
+    aCode.Add("PT")
+    aCode.Add("PT2")
+    aCode.Add("PT154")
+    aCode.Add("R8")
+    aCode.Add("R9")
+    aCode.Add("RK1048")
+    aCode.Add("ROMAN8")
+    aCode.Add("ROMAN9")
+    aCode.Add("RUSCII")
+    aCode.Add("SE")
+    aCode.Add("SE2")
+    aCode.Add("SEN_850200_B")
+    aCode.Add("SEN_850200_C")
+    aCode.Add("SHIFT-JIS")
+    aCode.Add("SHIFTJISX0213")
+    aCode.Add("SHIFT_JIS")
+    aCode.Add("SHIFT_JISX0213")
+    aCode.Add("SJIS-OPEN")
+    aCode.Add("SJIS-WIN")
+    aCode.Add("SJIS")
+    aCode.Add("SS636127")
+    aCode.Add("STRK1048-2002")
+    aCode.Add("ST_SEV_358-88")
+    aCode.Add("T.61-8BIT")
+    aCode.Add("T.61")
+    aCode.Add("T.618BIT")
+    aCode.Add("TCVN-5712")
+    aCode.Add("TCVN")
+    aCode.Add("TCVN5712-1")
+    aCode.Add("TCVN5712-1:1993")
+    aCode.Add("THAI8")
+    aCode.Add("TIS-620")
+    aCode.Add("TIS620-0")
+    aCode.Add("TIS620.2529-1")
+    aCode.Add("TIS620.2533-0")
+    aCode.Add("TIS620")
+    aCode.Add("TS-5881")
+    aCode.Add("TSCII")
+    aCode.Add("TURKISH8")
+    aCode.Add("UCS-2")
+    aCode.Add("UCS-2BE")
+    aCode.Add("UCS-2LE")
+    aCode.Add("UCS-4")
+    aCode.Add("UCS-4BE")
+    aCode.Add("UCS-4LE")
+    aCode.Add("UCS2")
+    aCode.Add("UCS4")
+    aCode.Add("UHC")
+    aCode.Add("UJIS")
+    aCode.Add("UK")
+    aCode.Add("UNICODE")
+    aCode.Add("UNICODEBIG")
+    aCode.Add("UNICODELITTLE")
+    aCode.Add("US-ASCII")
+    aCode.Add("US")
+    aCode.Add("UTF-7-IMAP")
+    aCode.Add("UTF-7")
+    aCode.Add("UTF-8")
+    aCode.Add("UTF-16")
+    aCode.Add("UTF-16BE")
+    aCode.Add("UTF-16LE")
+    aCode.Add("UTF-32")
+    aCode.Add("UTF-32BE")
+    aCode.Add("UTF-32LE")
+    aCode.Add("UTF7")
+    aCode.Add("UTF8")
+    aCode.Add("UTF16")
+    aCode.Add("UTF16BE")
+    aCode.Add("UTF16LE")
+    aCode.Add("UTF32")
+    aCode.Add("UTF32BE")
+    aCode.Add("UTF32LE")
+    aCode.Add("VISCII")
+    aCode.Add("WCHAR_T")
+    aCode.Add("WIN-SAMI-2")
+    aCode.Add("WINBALTRIM")
+    aCode.Add("WINDOWS-31J")
+    aCode.Add("WINDOWS-874")
+    aCode.Add("WINDOWS-936")
+    aCode.Add("WINDOWS-1250")
+    aCode.Add("WINDOWS-1251")
+    aCode.Add("WINDOWS-1252")
+    aCode.Add("WINDOWS-1253")
+    aCode.Add("WINDOWS-1254")
+    aCode.Add("WINDOWS-1255")
+    aCode.Add("WINDOWS-1256")
+    aCode.Add("WINDOWS-1257")
+    aCode.Add("WINDOWS-1258")
+    aCode.Add("WINSAMI2")
+    aCode.Add("WS2")
+    aCode.Add("YU")
+
+    Return aCode
+
+End
+
+Static Public Function FontJSON(cFont As Collection) As Variant[]
+
+    Dim jData As New JSONCollection
+    Dim y As Integer
+    Dim idx As Integer
+    Dim vPoly As Variant[]
+    Dim vData As New Variant[]
+    Dim afPoints As Float[]
+    Dim afTemp As New Float[][]
+    Dim p As Integer
+    Dim x As Integer
+    Dim fCoef As Float = 100.0
+    Dim iColor As Integer
+
+    If cFont.Count > 0 Then
+        For Each vPoly In cFont
+
+            If iColor < 255 Then
+                Inc iColor
+            Else
+                icolor = 1
+            Endif
+
+            For Each afPoints In vPoly
+                jData.Add(idx, "Index")
+                jData.Add("polyline", "Entity")
+                jData.Add(False, "Block")
+                jData.Add(5, "Level")
+                jData.Add(iColor, "Color")
+                jData.Add(1, "Style")
+                jData.Add(2, "Weight")
+                jData.Add(Chr(Val("&" & cFont.Key)) & ": " & cFont.Key, "Text")
+
+                For p = 0 To afPoints.Max - 1 Step 2
+                    If p = 0 Then
+                        afTemp.Add([(afPoints[p] + x) * fCoef, (afPoints[p + 1] + y) * fCoef])
+                    Else
+                        afTemp.Add([(afPoints[p] + afPoints[p - 2]) * fCoef, (afPoints[p + 1] + afPoints[p - 1]) * fCoef])
+                    Endif
+                Next
+
+                jData.Add(afTemp.Copy(), "Points")
+                afTemp.Clear
+                vData.Add(jData.Copy())
+                jData.Clear
+                Inc idx
+            Next
+
+            If x < 16 Then
+                Inc x
+            Else
+                Inc y
+                x = 0
+            Endif
+
+        Next
+    Endif
+
+    Return vData
+
+End
+
+Static Public Function LoadFont(sFont As String) As Collection
+
+    Dim aRaw As String[]
+    Dim r As Integer
+    Dim sFile As String = "./var/lff" &/ sFont & ".lff"
+    'Dim sMark As String
+    'Dim vEnty As New Variant[]
+    Dim cFontPoly As New Collection
+    Dim af As New Float[]
+    Dim sCode As String
+    'Dim sCodeBase As String
+    Dim sIdx As String
+    Dim sBase As String
+    Dim fItem As Float
+    Dim aTmp As String[]
+    Dim s As String
+    Dim afCode As Float[]
+    Dim afX As New Float[]
+    Dim afY As New Float[]
+
+    Dim v As Integer
+    Dim LeterWidth As Float
+    'Dim dy As Float
+    Dim cFontSize As New Collection
+    Dim LeterSpace As Float
+    Dim LeterHeight As Float
+    Dim cFont As New Collection
+    'Dim afPoly As Float[]
+    Dim afPolylines As Float[][]
+
+    If Exist(sFile) Then
+        aRaw = File.Load2(sFile)
+
+        For r = 0 To 15
+            If InStr(aRaw[r], "LetterSpacing:") > 0 Then
+                LeterSpace = Split(Replace(aRaw[r], " ", ""), ":")[1]
+            Endif
+        Next
+
+        For r = 0 To aRaw.Max
+            sIdx = String.Mid(aRaw[r], 1, 1)
+            If sIdx = "[" Then
+                af.Clear
+
+                If String.Mid(aRaw[r], 6, 1) = "]" Then
+                    sCode = String.Mid(aRaw[r], 2, 4)
+                Endif
+            Else
+                If sIdx = "C" Then
+                    sBase = String.Mid(aRaw[r], 2, 4)
+                    If cFontPoly.Exist(sCode) Then
+                        If cFontPoly.Exist(sBase) Then
+                            For Each fItem In cFont[sBase]
+                                cFontPoly[sCode].Add(fItem)
+                            Next
+                        Endif
+                    Endif
+                Else
+
+                    If InStr(aRaw[r], ";") > 0 Then
+                        aTmp = Split(aRaw[r], ",;")
+                        For Each s In aTmp
+                            If InStr(aRaw[r], "A") = 0 Then
+                                af.Add(CFloat(s))
+                            Endif
+                        Next
+
+                        If cFontPoly.Exist(sCode) Then
+                            cFontPoly[sCode].Add(af.Copy())
+
+                        Else
+                            cFontPoly[sCode] = [af.Copy()]
+
+                        Endif
+                        af.Clear
+                    Endif
+                Endif
+
+            Endif
+        Next
+    Endif
+
+    For Each afPolylines In cFontPoly
+        For Each afCode In afPolylines
+            For v = 0 To afCode.Max - 1 Step 2
+                afX.Add(afCode[v])
+                afY.Add(afCode[v + 1])
+            Next
+        Next
+        afX.Sort
+        afY.Sort
+
+        LeterWidth = afX[afX.Max] - afX[0]
+        LeterHeight = afY[afY.Max] - afY[0]
+
+        If LeterHeight > 9 Then
+            Print "testing"
+        Endif
+        cFontSize[cFontPoly.Key] = [LeterHeight, LeterWidth, LeterSpace]
+        afX.Clear
+        afY.Clear
+
+    Next
+
+    For Each afPolylines In cFontPoly
+        If cFontSize.Exist(cFontPoly.Key) Then
+            cFont[cFontPoly.Key] = ["Sizes": cFontSize[cFontPoly.Key].Copy(), "Polylines": afPolylines.Copy()]
+        Else
+            cFont[cFontPoly.Key] = ["Sizes": [0.0, 0.0, 0.0], "Polylines": afPolylines.Copy()]
+        Endif
+
+    Next
+
+    Return cFont
+
+End
+
+Static Public Function Lettering(sText As String, fHeight As Float, afInsert As Float[], Optional fWidthFactor As Float, cFont As Collection) As Float[][]
+
+    Dim ilen As Integer
+    'Dim cLeters As New Collection
+    Dim afOut As New Float[][]
+    Dim p As Integer
+    Dim afPolyRaw As New Float[]
+    Dim afPolyOk As New Float[]
+    'Dim afx As New Float[]
+    'Dim afy As New Float[]
+    Dim i As Integer
+    Dim fPos As Float
+    'Dim fDelta As Float
+    Dim sChar As String
+    Dim lx0 As Float
+    Dim ly0 As Float
+    'Dim lx1 As Float
+    'Dim ly1 As Float
+    'Dim flo As Float
+    Dim q As Integer
+
+    Dim aTest As New String[]
+    Dim iPos As Integer
+    'Dim r As Float
+    Dim fLetterHeight As Float
+    Dim fLetterWidth As Float
+    Dim fLetterSpace As Float
+    Dim fRelation As Float
+    Dim sLeter As String
+
+    ilen = String.Len(sText)
+
+    If fWidthFactor = 0 Then
+        fWidthFactor = 1
+    Endif
+
+    fLetterHeight = cFont["0041"]["Sizes"][0]
+    fRelation = fHeight / fLetterHeight
+
+    For i = 1 To ilen
+        sLeter = String.Mid(sText, i, 1)
+        sChar = Hex(String.Code(sLeter), 4)
+        aTest.Add(String.Mid(sText, i, 1) & ":" & sChar)
+
+        If Not cFont.Exist(sChar) Then
+            If sLeter <> " " Then
+                sChar = "002A"
+            Endif
+            'fPos = fPos + fLetterWidth
+        Endif
+
+        If cFont.Exist(sChar) Then
+            If cFont[sChar].Exist("Polylines") And cFont[sChar].Exist("Sizes") Then
+                For p = 0 To cFont[sChar]["Polylines"].Max
+                    'fLetterHeight = cFont[sChar]["Sizes"][0]
+
+                    afPolyRaw = cFont[sChar]["Polylines"][p]
+                    afPolyOk.Clear
+
+                    For q = 0 To afPolyRaw.Max Step 2
+
+                        'fPos = fLetterWidth + fLetterSpace
+
+                        'lx0 = (afPolyRaw[q] + fPos) * fHeight * 0.1 * fWidthFactor + afInsert[0]
+                        'ly0 = (afPolyRaw[q + 1]) * fHeight * 0.1 + afInsert[1]
+
+                        lx0 = (afPolyRaw[q]) * fWidthFactor * fRelation + (fPos * fWidthFactor * fRelation) + afInsert[0]
+                        ly0 = (afPolyRaw[q + 1]) * fRelation + afInsert[1]
+
+                        afPolyOk.Add(lx0)
+                        afPolyOk.Add(ly0)
+                    Next
+
+                    afOut.Add(afPolyOk.Copy())
+                    afPolyOk.Clear
+
+                Next
+
+                'fLetterHeight = cFont[sChar]["Sizes"][0]
+                fLetterWidth = cFont[sChar]["Sizes"][1]
+                fLetterSpace = cFont[sChar]["Sizes"][2]
+                ' Select sLeter
+                '   Case " "
+                '     Print "Error"
+                ' End Select
+                fPos = fPos + fLetterWidth + fLetterSpace
+            Endif
+            Inc iPos
+        Else
+            fPos = fPos + fLetterWidth
+        Endif
+    Next
+
+    Return afOut
+
+End
+
+' Static Public Function JsonFormatter(sInput As String) As String
+'
+'   Dim sOutput As String
+'   Dim iStream As Stream
+'
+'   Dim $sReadChar As String
+'   Dim $iTab As Integer
+'   Dim $bQuote, $bBracket As Boolean
+'
+'   iStream = Open String sInput For Read
+'
+'   While (Not Eof(iStream))
+'     $sReadChar = Read #iStream, 1
+'     If ($sReadChar = "{" And Not $bQuote) Then
+'       $iTab += 1
+'       $sReadChar &= "\n" & Space$($iTab * 2)
+'     Else If ($sReadChar = "}" And Not $bQuote) Then
+'       $iTab -= 1
+'       $sReadChar = "\n" & Space$($iTab * 2) & $sReadChar
+'     Else If ($sReadChar = "\"") Then
+'       $bQuote = Not $bQuote
+'     Else If ($sReadChar = "[") Then
+'       $bBracket = True
+'     Else If ($sReadChar = "]") Then
+'       $bBracket = False
+'     Else If ($sReadChar = ":" And Not $bQuote) Then
+'       $sReadChar &= " "
+'     Else If ($sReadChar = "," And Not $bQuote) Then
+'       If (Not $bBracket) Then
+'         $sReadChar &= "\n" & Space$($iTab * 2)
+'       Else
+'         $sReadChar &= " "
+'       Endif
+'     Endif
+'     sOutput &= $sReadChar
+'   Wend
+'
+'   Close iStream
+'   ' replace null with ""
+'   sOutput = Replace(sOutput, " null", " \"\"")
+'
+'   Return sOutput
+'
+' End
+
+'' <b>RAD Extension.</b><br>
+'' Counts the number of words in a sentence.
+
+' Static Public Function Words(s As String) As Integer
+'
+'   Dim int As Integer
+'   Dim aString As New String[]
+'
+'   s = String.Trim(s)
+'
+'   If InStr(s, " ") > 0 Then
+'     aString = Split(s, " ")
+'     int = aString.Count
+'   Else
+'     If Len(s) > 0 Then
+'       int = 1
+'     Endif
+'   Endif
+'
+'   Return int
+'
+' End
+
+Static Public Function Words(s As String) As Integer
+
+    Dim st As String = Trim(s)
+
+    If Not st.Len Then Return 0
+    Return Split(st, " ").Count
+
+End
+
+'' <b>RAD Extension.</b><br>
+'' It removes the spaces at the beginning and the end of
+'' a <b>s</b> and if there are repeated spaces, it converts them into one.
+
+Static Public Function Trim(s As String) As String
+
+    Dim sOut As String
+
+    sOut = Trim(RTrim(s))
+    While InStr(sOut, "  ")
+        sOut = Replace(sOut, "  ", " ")
+    Wend
+
+    Return sOut
+
+End
+
+'' <b>RAD Extension.</b><br>
+'' Counts how much times some string apear in other
+
+Static Public Function Count(sWhere As String, sWhich As String) As Integer
+
+    Dim k As Integer = 1
+    Dim q As Integer
+    Dim r As Integer
+
+    Repeat
+        q = InStr(sWhere, sWhich, k)
+        If q > 0 Then
+            Inc r
+            k = q + String.Len(sWhich)
+        Endif
+    Until InStr(sWhere, sWhich, k) = 0 Or k > String.Len(sWhere)
+
+    Return r
+
+End
+
+'' <b>RAD Extension.</b><br>
+'' Returns a string with all its characters converted to ascii or utf-8 when bad codification ocurr.
+
+Static Public Function Flat(s As String) As String
+
+    Dim k As Integer = 1
+    Dim q As Integer
+    Dim r As Integer
+
+    Dim uni As String
+    Dim stx As New String[]
+    Dim u As String
+    Dim rep As String
+    Dim i As Integer
+
+    Repeat
+        q = InStr(s, "\\U+", k)
+        If q > 0 Then
+            Inc r
+            uni = String.Mid(s, q, 7)
+            stx.Add(uni)
+            k = q + String.Len("\\U+")
+        Endif
+    Until InStr(s, "\\U+", k) = 0 Or k > String.Len(s)
+
+    For Each u In stx
+        i = Val("&h" & String.Mid(u, 4, 4) & "&")
+        rep = String.Chr(i)
+        s = Replace(s, u, rep)
+    Next
+
+    Return s
+
+End
+
+' ------------------------------------- GO Package strings
+
+'' <b>GO Package strings</b><br>
+'' <u>Compare</u> returns an integer comparing two strings lexicographically. The result will be 0 If a == b, -1 If a < b, And +1 If a > b.
+
+Static Public Function Compare(a As String, b As String) As Integer
+
+    If a == b Then
+        Return 0
+    Else
+        If a < b Then
+            Return -1
+        Else
+            Return 1
+        Endif
+    Endif
+
+End
+
+'' <b>GO Package strings</b><br>
+'' Contains reports whether substr is within s.
+
+Static Public Function Contains(s As String, substr As String) As Boolean
+
+    If InStr(s, substr) > 0 Then
+        Return True
+    Else
+        Return False
+    Endif
+
+End
+
+'' <b>GO Package strings</b><br>
+'' <u>ContainsAny</u> reports whether any Unicode code points in chars are within s.
+
+Static Public Function ContainsAny(s As String, chars As String) As Boolean
+
+    Dim i As Integer
+    Dim b As Boolean = False
+
+    For i = 0 To chars.Len - 1
+        If s Like "*" & chars[i, 1] & "*" Then
+            b = True
+            Break
+        Endif
+    Next
+    Return b
+
+End
+
+'' <b>RAD Extension.</b><br>
+'' Fields splits the string s around each instance of one or more consecutive white space characters returning a string[] of substrings of s or an empty string[] if s contains only white space.
+'' GO Package strings
+Static Public Function Fields(s As String) As String[]
+
+    Dim sTmp As String
+    Dim word As String
+    Dim aOut As New String[]
+
+    While InStr(sTmp, "\t")
+        sTmp = Replace(sTmp, "\t", " ")
+    Wend
+
+    sTmp = Trim(RTrim(s))
+
+    While InStr(sTmp, "  ")
+        sTmp = Replace(sTmp, "  ", " ")
+    Wend
+
+    For Each word In Split(sTmp, " ")
+        aOut.Add(word)
+    Next
+
+    Return aOut
+
+End
+
+Static Public Function Flat3(s As String) As String
+
+    Dim ab1 As Byte[] = ["33", "48", "49", "50", "51", "52", "53", "54", "55", "56", "57", "65", "66", "67", "68", "69", "70", "71", "72", "73", "74", "75", "76", "77", "78", "79", "80", "81", "82", "83", "84", "85", "86", "87", "88", "89", "90", "97", "98", "99", "100", "101", "102", "103", "104", "105", "106", "107", "108", "109", "110", "111", "112", "113", "114", "115", "116", "117", "118", "119", "120", "121", "122", "192", "193", "194", "195", "196", "197", "198", "199", "200", "201", "202", "203", "204", "205", "206", "207", "208", "209", "210", "211", "212", "213", "214", "216", "217", "218", "219", "220", "221", "222", "223", "224", "225", "226", "227", "228", "229", "230", "231", "232", "233", "234", "235", "236", "237", "238", "239", "240", "241", "242", "243", "244", "245", "246", "248", "249", "250", "251", "252", "253", "254", "255"]
+
+    Dim ab2 As Byte[] = ["95", "48", "49", "50", "51", "52", "53", "54", "55", "56", "57", "65", "66", "67", "68", "69", "70", "71", "72", "73", "74", "75", "76", "77", "78", "79", "80", "81", "82", "83", "84", "85", "86", "87", "88", "89", "90", "97", "98", "99", "100", "101", "102", "103", "104", "105", "106", "107", "108", "109", "110", "111", "112", "113", "114", "115", "116", "117", "118", "119", "120", "121", "122", "65", "65", "65", "65", "65", "65", "65", "67", "69", "69", "69", "69", "73", "73", "73", "73", "68", "78", "79", "79", "79", "79", "79", "79", "85", "85", "85", "85", "89", "112", "98", "97", "97", "97", "97", "97", "97", "97", "99", "101", "101", "101", "101", "105", "105", "105", "105", "100", "110", "111", "111", "111", "111", "111", "111", "117", "117", "117", "117", "121", "112", "121"]
+
+    Dim ab As New Byte[]
+    Dim b As Byte
+    Dim o As String
+    Dim i As Integer
+
+    ab = Byte[].FromString(s)
+
+    If ab.Count > 0 Then
+        For Each b In ab
+            i = ab1.Find(b)
+            If i > -1 Then
+                o &= Chr(ab2[i])
+            Else
+                o &= "_"
+            Endif
+        Next
+    Endif
+
+    Return o
+
+End
+
+'' <b>RAD Extension.</b><br>
+'' Returns a string with all its characters converted to ascii or utf-8 when bad codification ocurr.
+
+Static Public Function Flat2(s As String) As String
+
+    Dim k As Integer = 1
+    Dim q As Integer
+    Dim r As Integer
+
+    Dim uni As String
+    Dim stx As New String[]
+    Dim u As String
+    Dim rep As String
+    Dim i As Integer
+
+    Repeat
+        q = InStr(s, "\\", k)
+        If q > 0 Then
+            Inc r
+            uni = String.Mid(s, q, 7)
+            stx.Add(uni)
+            k = q + String.Len("\\")
+        Endif
+    Until InStr(s, "\\", k) = 0 Or k > String.Len(s)
+
+    For Each u In stx
+        i = Val("&h" & String.Mid(u, 4, 4) & "&")
+        rep = String.Chr(i)
+        s = Replace(s, u, rep)
+    Next
+
+    Return s
+
+End
+
+'' GO Package strings
+
+Static Public Function IndexByte(s As String, c As Byte) As Integer
+
+    Return String.Index(s, c)
+
+End
+
+'' GO Package strings
+'' Partition a text given as a parameter, if the second argument, which is the word or cut letter, is null, each item of the array will be a character of the text string, if, on the contrary, a parameter of cut and it exists in the chain, it will be divided by this parameter. But in the case that a cut phrase is passed and it does not exist, the same original phrase will be returned without altering as zero item of the matrix.
+
+Static Public Function Split(s As String, Optional sep As String) As String[]
+
+    Dim int As Integer
+    Dim aString As New String[]
+
+    Select sep
+        Case ""
+            For int = 1 To String.Len(s)
+                aString.Add(String.Mid(s, int, 1))
+            Next
+
+        Case Else
+            If InStr(s, sep) > 0 Then
+                aString = Split(s, sep)
+            Else
+                aString.Add(s)
+            Endif
+    End Select
+
+    Return aString
+
+End
+
+'' <b>RAD Extension.</b><br>
+'' Converts the first character of each word to upper case.
+'' GO Package strings
+
+Static Public Function Title(s As String) As String
+
+    Dim sTmp As String
+    Dim word As String
+    Dim aOut As New String[]
+
+    sTmp = Trim(RTrim(s))
+    While InStr(sTmp, "  ")
+        sTmp = Replace(sTmp, "  ", " ")
+    Wend
+
+    For Each word In Split(sTmp, " ")
+        aOut.Add(Upper(Mid(word, 1, 1)) & Mid(Lower(word), 2))
+    Next
+
+    Return aOut.Join(" ")
+
+End
+
+'' GO Package strings
+
+Public Function TrimSpace(s As String) As String
+
+    Return Trim(s)
+
+End
+
+'' Return a float value, trim spaces, replace coma to point if is necesary.
+
+Public Function CFloat(var As Variant) As Float
+
+    Dim str As String
+    Dim flo As Float
+
+    Select TypeOf(var)
+        Case gb.String
+            str = Trim(var)
+            If InStr(var, ",") > 0 Then
+                str = Replace(str, ",", ".")
+                If InStr(var, " ") > 0 Then
+                    str = Replace(str, " ", "")
+                Endif
+            Endif
+            flo = CFloat(str)
+
+        Case gb.Float
+            flo = var
+
+        Case gb.Integer, gb.Byte, gb.Long, gb.Short
+            flo = CFloat(var)
+
+    End Select
+
+    Return flo
+
+End
+
+'' Function that count the times that a substring appear in other string
+
+Public Function StrCount(sWhere As String, sWhich As String) As Integer
+
+    Dim i As Integer
+    Dim Cursor1 As Integer
+    Dim Counter As Integer
+
+    i = 1
+
+    Repeat
+        Cursor1 = InStr(sWhere, sWhich, i)
+        If Cursor1 > 0 Then
+            Inc Counter
+            i = i + Cursor1 + String.Len(sWhich)
+        Endif
+
+    Until InStr(sWhere, sWhich, i) = 0 Or i > String.Len(sWhich)
+
+    Return Counter
+
+End
+
+'' Evaluate a string to decode a formula.
+
+' Public Function Formula(str As String) As String
+'
+'   Dim r As String
+'   Dim f As String
+'   Dim a As String
+'
+'   Dim y As String
+'   Dim m As Integer
+'   Dim mx As New String[]
+'   Dim t As Date
+'
+'   If InStr(str, "[") > 0 Then
+'     f = Split(str, "[")[0]
+'     a = Replace(Split(str, "[")[1], "]", "")
+'     Select String.UCase(f)
+'       Case "YMD" ' Handle code
+'         Select String.LCase(a)
+'           Case "now", ""
+'             t = Now()
+'             y = Format(t, "yy")
+'             m = CInt(Format(t, "m"))
+'             mx = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "X", "Y", "Z"]
+'             r = y & mx[m] & System.UUIDHandle(2)
+'         End Select
+'       Case "YMDHNS" ' Handle code
+'         Select String.LCase(a)
+'           Case "now", ""
+'             t = Now()
+'             r = Format(t, "yyyymmddhhnnss")
+'         End Select
+'
+'       Case "H" ' Handle code
+'         r = System.UUIDHandle(CInt(a))
+'       Case "U"
+'         r = String.UCase(a)
+'       Case "L"
+'         r = String.LCase(a)
+'
+'       Case "C"
+'         r = String.UCaseFirst(String.LCase(a))
+'
+'       Case "LNS"
+'         r = Replace(a, "\"", "in")
+'         r = Replace(r, "/", " ")
+'         r = Replace(Alphanumeric(String.LCase(r)), " ", "-")
+'         r = Replace(r, "--", "-")
+'
+'       Case Else
+'         r = a
+'
+'     End Select
+'
+'   Else
+'     r = str
+'   Endif
+'
+'   Return r
+'
+' End
+
+'' Returns a code that consists of counting the characters of all the words of a phrase that is passed as a parameter. for example for the phrase "santa claus" it returns "_1a2e1l1n1o1p2". This is interesting to find out if a name exists in a database regardless of the order, that is, first name, last name or vice versa.
+
+Public Function Footprint(str As String) As String
+
+    Dim stx As New String[]
+    Dim ai As New Integer[]
+    Dim strL As String ' Letra
+    Dim int As Integer
+    Dim intK As Integer
+    Dim strOut As String
+
+    stx.Add(Chr(32)) ' Espacio
+    ai.Add(0)
+
+    For int = 97 To 122 ' a to z
+
+        stx.Add(Chr(int))
+        ai.Add(0)
+    Next
+
+    str = String.LCase(str)
+    For int = 1 To String.Len(str)
+        strL = String.Mid(str, int, 1)
+        intK = stx.Find(strL)
+        If intK > -1 Then
+            ai[intk] = ai[intk] + 1
+        Endif
+    Next
+
+    For int = 0 To stx.Max
+        If ai[int] > 0 Then
+            strOut &= stx[int] & CStr(ai[int])
+        Endif
+    Next
+
+    Return strOut
+
+End
+
+'' Verify that a paragraph is in the correct form.
+
+Public Function ArrangeParagraph(strInText As String) As String
+
+    Dim stxUgly As New String[]
+    Dim stxGood As New String[]
+    Dim int As Integer
+
+    stxUgly.Clear
+    stxGood.Clear
+
+    stxUgly.Add("-\n\n")
+    stxGood.Add("\n")
+
+    For int = 0 To stxUgly.Max
+        If InStr(strInText, stxUgly[int]) > 0 Then
+            strInText = Replace(strInText, stxUgly[int], stxGood[int])
+        Endif
+    Next
+
+    Return strInText
+
+End
+
+'' Converts the word into an expression that allows filtering with accents in a like statement.
+
+Public Function SQLtr(s As String) As String[]
+
+    Dim stx As New String[]
+
+    Select s
+        Case "es"
+            stx.Add("'áàâãéèêíïóôõöúçñ'")
+            stx.Add("'aaaaeeeiiooooucn'")
+
+        Case "cz"
+            stx.Add("'áčďéěíňóřšťúůýž'")
+            stx.Add("'acdeeinorstuuyz'")
+    End Select
+
+    Return stx
+
+End
+
+'' Converts the word into an expression that allows filtering with accents in a like statement.
+
+Public Function SQLike(strInput As String) As String
+
+    Dim int As Integer
+    Dim strSymbol As String
+    Dim stxLeters As New String[]
+    Dim intKey As Integer
+    Dim stxOut As New String[]
+    Dim strOut As String
+
+    stxOut.Clear
+    stxLeters = Split("a:e:i:o:u:á:à:â:ã:é:è:ê:í:ï:ó:ô:õ:ö:ú:ç:ñ", ":")
+
+    For int = 1 To String.Len(strInput)
+        strSymbol = String.Mid(strInput, int, 1)
+        intKey = stxLeters.Find(String.LCase(strSymbol))
+        If intKey = -1 Then
+            stxOut.Add(strSymbol)
+        Else
+            Select String.LCase(strSymbol)
+                Case "a", "á", "à", "â", "ã"
+                    stxOut.Add("[aáàâã]")
+                Case "e", "é", "è", "ê"
+                    stxOut.Add("[eéèê]")
+                Case "i", "í", "ï"
+                    stxOut.Add("[iíï]")
+                Case "o", "ó", "ò" "ô", "õ", "ö"
+                    stxOut.Add("[oóòôõö]")
+                Case "u", "ú"
+                    stxOut.Add("[uú]")
+                Case "c", "ç"
+                    stxOut.Add("[cç]")
+                Case "n", "ñ"
+                    stxOut.Add("[nñ]")
+
+            End Select
+
+        End If
+    Next
+    strOut = stxOut.Join("")
+    Return strOut
+
+End
+
+'' Word validation.
+
+Static Public Function OnlyLeters(strInput As String) As String
+
+    Dim int As Integer
+    Dim strSymbol As String
+    Dim stxLeters As New String[]
+    Dim intKey As Integer
+    Dim stxOut As New String[]
+    Dim strOut As String
+    Dim btxLeters As New Byte[]
+
+    btxLeters = Byte[].FromString(strInput)
+    stxOut.Clear
+    stxLeters.Clear
+    stxLeters.Insert(Split("a:b:c:d:e:f:g:h:i:j:k:l:m:n:o:p:q:r:s:t:u:v:w:x:y:z", ":"))
+    stxLeters.Insert(Split("A:B:C:D:E:F:G:H:I:J:K:L:M:N:O:P:Q:R:S:T:U:V:W:X:Y:Z", ":"))
+    stxLeters.Insert(Split("á:à:â:ã:é:è:ê:í:ï:ó:ô:õ:ö:ú:ç:ñ:Á:À:Â:Ã:É:È:Í:Ï:Ó:Ô:Õ:Ö:Ú:Ç:Ñ", ":"))
+    For int = 1 To String.Len(strInput)
+        strSymbol = String.Mid(strInput, int, 1)
+        intKey = stxLeters.Find(strSymbol)
+        If intKey > -1 Then
+            stxOut.Add(strSymbol)
+        End If
+    Next
+    strOut = stxOut.Join("")
+    Return strOut
+
+End
+
+'' Validation of the text of a control in KDE the text of the buttons for example has an ampersand before the text.
+
+Public Function CaptionCheck(strInput As String) As String
+
+    Dim strOut As String
+
+    If String.Left(strInput) = "&" Then
+        strOut = String.Right(strInput, -1)
+    Endif
+    Return strOut
+
+End
+
+'' Function that tells if a text that is passed as a parameter has characters
+'' diacritical, that is, accented for example.
+
+Public Function Diacritics(s As String) As Boolean
+
+    If s = String.RemoveDiacritics(s) Then
+        Return False
+    Else
+        Return True
+    Endif
+
+End
+
+'' Alphanumericals are a combination of alphabetical and numerical characters, and is used to describe the collection of Latin letters and Arabic digits or a text constructed from this collection.
+
+Static Public Function Alphanumeric(strInput As String) As String
+
+    Dim int As Integer
+    Dim strSymbol As String
+
+    Dim stxLeters As New String[]
+    Dim intKey As Integer
+    Dim stxOut As New String[]
+    Dim strOut As String
+
+    Dim stxRepin As New String[]
+    Dim stxRepout As New String[]
+    Dim intRep As Integer
+
+    stxOut.Clear
+    stxLeters.Clear
+
+    stxLeters = Split(":a:b:c:d:e:f:g:h:i:j:k:l:m:n:o:p:q:r:s:t:u:v:w:x:y:z: :A:B:C:D:E:F:G:H:I:J:K:L:M:N:O:P:Q:R:S:T:U:V:W:X:Y:Z:á:à:â:ã:é:è:ê:í:ï:ó:ô:õ:ö:ú:ç:ñ:Á:À:Â:Ã:É:È:Ê:Í:Ï:Ó:Ô:Õ:Ö:Ú:Ç:Ñ:0:1:2:3:4:5:6:7:8:9", ":")
+    stxRepin = Split("Á:À:Â:Ã:É:È:Ê:Í:Ï:Ó:Ô:Õ:Ö:Ú:Ñ:á:à:â:ã:é:è:ê:í:ï:ó:ô:õ:ö:ú:ñ", ":")
+    stxRepout = Split("A:A:A:A:E:E:E:I:I:O:O:O:O:U:N:a:a:a:a:e:e:e:i:i:o:o:o:o:u:n", ":")
+
+    For int = 1 To String.Len(strInput)
+        strSymbol = String.Mid(strInput, int, 1)
+        intKey = stxLeters.Find(strSymbol)
+        If intKey > -1 Then
+
+            intRep = stxRepin.Find(strSymbol)
+            If intRep > -1 Then
+                strSymbol = stxRepout[intRep]
+            Endif
+
+            stxOut.Add(strSymbol)
+        End If
+    Next
+
+    strOut = stxOut.Join("")
+
+    Return strOut
+
+End
+
+'' Returns a text with only numbers.
+
+Static Public Function OnlyNumbers(strInput As String) As String
+
+    Dim int As Integer
+    Dim strSymbol As String
+
+    Dim stxLeters As New String[]
+    Dim intKey As Integer
+    Dim stxOut As New String[]
+    Dim strOut As String
+
+    Dim btxLeters As New Byte[]
+
+    btxLeters = Byte[].FromString(strInput)
+
+    stxOut.Clear
+    stxLeters.Clear
+
+    stxLeters = Split("0:1:2:3:4:5:6:7:8:9", ":")
+
+    For int = 1 To String.Len(strInput)
+        strSymbol = String.Mid(strInput, int, 1)
+        intKey = stxLeters.Find(strSymbol)
+        If intKey > -1 Then
+            stxOut.Add(strSymbol)
+        End If
+    Next
+
+    strOut = stxOut.Join("")
+
+    Return strOut
+
+End
+
+'' Validation of words in Cyrillic.
+
+Public Function OnlyCyrilic(strInput As String) As String
+
+    Dim int As Integer
+    Dim strSymbol As String
+
+    Dim stxLeters As New String[]
+    Dim intKey As Integer
+    Dim stxOut As New String[]
+    Dim strOut As String
+
+    Dim btxLeters As New Byte[]
+
+    btxLeters = Byte[].FromString(strInput)
+
+    stxOut.Clear
+    stxLeters.Clear
+
+    stxLeters = Split("а:б:в:г:д:е:ё:ж:з:и:й:к:л:м:н:о:п:р:с:т:у:ф:х:ц:ч:ш:щ:ъ:ы:ь:э:ю:я:А:Б:В:Г:Д:Е:Ё:Ж:З:И:Й:К:Л:М:Н:О:П:Р:С:Т:У:Ф:Х:Ц:Ч:Ш:Щ:Ъ:Ы:Ь:Э:Ю:Я", ":")
+
+    For int = 1 To String.Len(strInput)
+        strSymbol = String.Mid(strInput, int, 1)
+        intKey = stxLeters.Find(strSymbol)
+        If intKey > -1 Then
+            stxOut.Add(strSymbol)
+        End If
+    Next
+
+    strOut = stxOut.Join("")
+
+    Return strOut
+
+End
+
+'' Validation of latin text only, Numbers NO, Double space NO, Space At the beginning and / or at the end NO.
+
+Static Public Function OnlyText(strInput As String) As String
+
+    Dim int As Integer
+    Dim strSymbol As String
+    Dim strChecked As String
+    Dim strError As String
+    Dim stxSpaces As New String[]
+    Dim stxRepated As New String[]
+    Dim stxExcluded As New String[]
+    Dim stxEx As New String[]
+    Dim aiExN As New String[]
+
+    Dim stxLeters As New String[]
+    Dim stxLower As New String[]
+    Dim stxUpper As New String[]
+    Dim intM As Integer ' Contados de letras mayúsculas
+    Dim intKey As Integer
+    Dim intKx As Integer
+
+    strError = ""
+    stxSpaces.Clear
+    stxRepated.Clear
+    stxExcluded.Clear
+    stxEx.Clear
+    aiExN.Clear
+
+    stxLeters.Clear
+    stxLower.Clear
+    stxUpper.Clear
+
+    stxUpper = Split("A:B:C:D:E:F:G:H:I:J:K:L:M:N:O:P:Q:R:S:T:U:V:W:X:Y:Z:Á:À:Â:Ã:É:È:Í:Ï:Ó:Ô:Õ:Ö:Ú:Ç:Ñ", ":")
+    stxLower = Split("a:b:c:d:e:f:g:h:i:j:k:l:m:n:o:p:q:r:s:t:u:v:w:x:y:z:à:â:ã:é:è:ê:í:ï:ó:ô:õ:ö:ú:ç:ñ", ":")
+
+    stxLeters.Insert(stxLower)
+    stxLeters.Insert(stxUpper)
+
+    intM = 0
+
+    For int = 1 To String.Len(strInput)
+
+        strSymbol = String.Mid(strInput, int, 1)
+
+        intKey = stxLeters.Find(strSymbol)
+
+        Select intKey
+            Case -1
+                Select strSymbol
+                    Case " ", ",", ".", "¿", "?", "!", "¡"
+                        If String.Right(strChecked) <> strSymbol Then
+                            strChecked &= strSymbol
+                        Else
+                            stxRepated.Add("'" & strSymbol & "'")
+                        Endif
+                    Case Else
+                        Select Asc(strSymbol)
+                            Case 9
+                                stxExcluded.Add("'TB'")
+                            Case 10
+                                stxExcluded.Add("'LF'")
+                            Case 13
+                                stxExcluded.Add("'CR'")
+                            Case Else
+                                stxExcluded.Add("'" & strSymbol & "'")
+                        End Select
+
+                End Select
+            Case Else
+
+                'Verificacion de mas de una mayúscula
+                If stxUpper.Find(strSymbol) > -1 Then
+                    Inc intM
+                Endif
+
+                strChecked &= strSymbol
+        End Select
+    Next
+
+    If String.Right(strChecked) = " " Then
+        strChecked = String.Mid(strChecked, 1, String.Len(strChecked) - 1)
+        stxSpaces.Add("end")
+    Endif
+
+    If String.Left(strChecked) = " " Then
+        strChecked = String.Mid(strChecked, 2)
+        stxSpaces.Add("ini")
+    Endif
+
+    If stxSpaces.Find("ini") > -1 Then
+        If stxSpaces.Find("end") > -1 Then
+            strError &= "[" & ("Spaces at the beginning and at the end") & "]"
+        Else
+            strError &= "[" & ("Space at the start") & "]"
+        Endif
+    Else
+        If stxSpaces.Find("end") > -1 Then
+            strError &= "[" & ("Space at the end") & "]"
+        Endif
+    Endif
+
+    If stxRepated.Count > 0 Then
+        strError &= "[" & ("Repeated") & ": " & stxRepated.Join(",") & "]"
+    Endif
+
+    If stxExcluded.Count > 0 Then
+        For int = 0 To stxExcluded.Max
+            intKx = stxEx.Find(stxExcluded[int])
+
+            If intKx = -1 Then
+                stxEx.Add(stxExcluded[int])
+                aiExN.Add(1)
+            Else
+                aiExN[intKx] = aiExN[intKx] + 1
+            Endif
+        Next
+    Endif
+
+    stxExcluded.Clear
+
+    If stxEx.Count > 0 Then
+        For int = 0 To stxEx.Max
+            Select aiExN[int]
+                Case 1
+                    stxExcluded.Add(stxEx[int])
+                Case Else
+                    stxExcluded.Add(stxEx[int] & "#" & CStr(aiExN[int]))
+            End Select
+        Next
+        strError &= "[" & ("Excluded") & ": " & stxExcluded.Join(",") & "]"
+    Endif
+
+    If intM > 1 Then
+        strError &= "[" & ("More than one capital letter") & "]"
+    Endif
+
+    If strError = "" Then
+        Return strChecked
+    Else
+        Return strInput & "\t" & strError
+    Endif
+
+End
+
+'' Validation of Cyrilic text only, Numbers NO, Double space NO, Space At the beginning and / or at the end NO.
+
+Public Function OnlyTextCyrilic(strInput As String) As String
+
+    Dim int As Integer
+    Dim strSymbol As String
+    Dim strChecked As String
+    Dim strError As String
+    Dim stxSpaces As New String[]
+    Dim stxRepated As New String[]
+    Dim stxExcluded As New String[]
+    Dim stxEx As New String[]
+    Dim aiExN As New String[]
+
+    Dim stxLeters As New String[]
+    Dim stxLower As New String[]
+    Dim stxUpper As New String[]
+    Dim intM As Integer ' Contados de letras mayúsculas
+    Dim intKey As Integer
+    Dim intKx As Integer
+
+    strError = ""
+    stxSpaces.Clear
+    stxRepated.Clear
+    stxExcluded.Clear
+    stxEx.Clear
+    aiExN.Clear
+
+    stxLeters.Clear
+    stxLower.Clear
+    stxUpper.Clear
+
+    stxUpper = Split("А:Б:В:Г:Д:Е:Ё:Ж:З:И:Й:К:Л:М:Н:О:П:Р:С:Т:У:Ф:Х:Ц:Ч:Ш:Щ:Ъ:Ы:Ь:Э:Ю:Я", ":")
+    stxLower = Split("а:б:в:г:д:е:ё:ж:з:и:й:к:л:м:н:о:п:р:с:т:у:ф:х:ц:ч:ш:щ:ъ:ы:ь:э:ю:я", ":")
+
+    stxLeters.Insert(stxLower)
+    stxLeters.Insert(stxUpper)
+
+    intM = 0
+
+    For int = 1 To String.Len(strInput)
+
+        strSymbol = String.Mid(strInput, int, 1)
+
+        intKey = stxLeters.Find(strSymbol)
+
+        Select intKey
+            Case -1
+                Select strSymbol
+                    Case " ", ",", ".", "¿", "?", "!", "¡"
+                        If String.Right(strChecked) <> strSymbol Then
+                            strChecked &= strSymbol
+                        Else
+                            stxRepated.Add("'" & strSymbol & "'")
+                        Endif
+                    Case Else
+                        Select Asc(strSymbol)
+                            Case 9
+                                stxExcluded.Add("'TB'")
+                            Case 10
+                                stxExcluded.Add("'LF'")
+                            Case 13
+                                stxExcluded.Add("'CR'")
+                            Case Else
+                                stxExcluded.Add("'" & strSymbol & "'")
+                        End Select
+
+                End Select
+            Case Else
+
+                'Verificacion de mas de una mayúscula
+                If stxUpper.Find(strSymbol) > -1 Then
+                    Inc intM
+                Endif
+
+                strChecked &= strSymbol
+        End Select
+    Next
+
+    If String.Right(strChecked) = " " Then
+        strChecked = String.Mid(strChecked, 1, String.Len(strChecked) - 1)
+        stxSpaces.Add("end")
+    Endif
+
+    If String.Left(strChecked) = " " Then
+        strChecked = String.Mid(strChecked, 2)
+        stxSpaces.Add("ini")
+    Endif
+
+    If stxSpaces.Find("ini") > -1 Then
+        If stxSpaces.Find("end") > -1 Then
+            strError &= "[" & ("Spaces at the beginning and at the end") & "]"
+        Else
+            strError &= "[" & ("Space at the start") & "]"
+        Endif
+    Else
+        If stxSpaces.Find("end") > -1 Then
+            strError &= "[" & ("Space at the end") & "]"
+        Endif
+    Endif
+
+    If stxRepated.Count > 0 Then
+        strError &= "[" & ("Repeated") & ": " & stxRepated.Join(",") & "]"
+    Endif
+
+    If stxExcluded.Count > 0 Then
+        For int = 0 To stxExcluded.Max
+            intKx = stxEx.Find(stxExcluded[int])
+
+            If intKx = -1 Then
+                stxEx.Add(stxExcluded[int])
+                aiExN.Add(1)
+            Else
+                aiExN[intKx] = aiExN[intKx] + 1
+            Endif
+        Next
+    Endif
+
+    stxExcluded.Clear
+
+    If stxEx.Count > 0 Then
+        For int = 0 To stxEx.Max
+            Select aiExN[int]
+                Case 1
+                    stxExcluded.Add(stxEx[int])
+                Case Else
+                    stxExcluded.Add(stxEx[int] & "#" & CStr(aiExN[int]))
+            End Select
+        Next
+        strError &= "[" & ("Excluded") & ": " & stxExcluded.Join(",") & "]"
+    Endif
+
+    If intM > 1 Then
+        strError &= "[" & ("More than one capital letter") & "]"
+    Endif
+
+    If strError = "" Then
+        Return strChecked
+    Else
+        Return strInput & "\t" & strError
+    Endif
+
+End
+
+'' Decode the hexadecimal characters in the URIs by traversing the given string Params: strInput the URintPos to decode Return: the decoded URintPos<br>
+'' Original code <http://foro.gambas-es.org/viewtopic.php?f=1&t=2054&postdays=0&postorder=asc&start=10>
+
+Static Public Function ConvertPath(strInput As String) As String
+
+    Dim intLen As Integer
+    Dim intPos As Integer
+    Dim strChar As String
+    Dim strDigits As String
+    Dim strOutput As String
+
+    strOutput = ""
+    intLen = Len(strInput)
+    intPos = 1
+    Do While intPos <= intLen
+        'Examine the next character
+        strChar = Mid$(strInput, intPos, 1)
+        If strChar = "+" Then
+            strOutput = strOutput & strChar
+        Else If strChar <> "%" Then
+            'Normal, do not change
+            strOutput = strOutput & strChar
+        Else If intPos > intLen - 2 Then
+            strOutput = strOutput & strChar
+        Else
+            'Get the following hex characters.
+            strDigits = Mid$(strInput, intPos + 1, 2)
+            'here we convert the hexadecimal value to integer and pass it to Chr which returns the correct character.
+            strOutput = strOutput & Chr$(CInt(Val("&" & strDigits)))
+            intPos = intPos + 2
+        Endif
+        intPos = intPos + 1
+    Loop
+
+    Return strOutput
+
+End
+
+'' Checks if the extension has the short name and if so changes it to the long one.
+
+Public Function ChkExt(strExt As String) As String
+
+    Dim str As String
+
+    Select String.LCase(strExt)
+        Case "tif"
+            str = "tiff"
+        Case "jpg"
+            str = "jpeg"
+        Case Else
+            str = String.LCase(strExt)
+    End Select
+
+    Return str
+
+End
+
+'' Given a text file separated by commas, tabs etc. This function analyzes which is the separator character. To do this, it checks all the ascii characters and for each line and if they are in all the lines then it lists them. Once we have the set of characters that are in all the lines, the occurrences of each one in each line are counted and as soon as some character appears different amount of times in two different lines, it is discarded.
+
+Public Function ChkSeparator(sPath As String) As Collection
+
+    Dim stx As New String[]
+    Dim c As Byte
+    Dim n As Integer
+    Dim i As Integer
+    Dim col As New Collection
+
+    stx = File.Load2(sPath)
+    If stx.Count >= 10 Then
+        n = 9
+    Else
+        n = stx.Max
+    Endif
+    For c = 0 To 64
+        Select c
+            Case 48, 49, 50, 51, 52, 53, 54, 55, 56, 57
+                'skip
+            Case Else
+                col.Add(0, Chr(c))
+                For i = 0 To n
+                    If InStr(stx[i], Chr(c)) = 0 Then
+                        col[Chr(c)] = Null
+                        Break
+                    Else
+                        col[Chr(c)] = col[Chr(c)] + 1
+                    Endif
+                Next
+        End Select
+    Next
+    ' Aca faltaria una verificación mas. en caso que sea un separador este caracter debera ocurrir la misma cantidad de veces en todos los renglones
+    Return col
+
+End
+
+'' Convert the color passed in hexagesimal text format, such as #000000 into a number to be used in the prawn code.
+
+Public Function StrColor(strHex As String) As Integer
+
+    Dim int As Integer
+
+    If strHex <> "" Then
+        If InStr(strHex, "#") Then
+            strHex = Replace(strHex, "#", "&")
+            int = Val(strHex)
+            Return int
+        Else
+            If InStr(strHex, "&") Then
+                int = Val(strHex)
+                Return int
+            Endif
+        Endif
+
+    Endif
+
+End
+
+' '' Partition a text given as a parameter, if the second argument, which is the word or cut letter, is null, each item of the array will be a character of the text string, if, on the contrary, a parameter of cut and it exists in the chain, it will be divided by this parameter. But in the case that a cut phrase is passed and it does not exist, the same original phrase will be returned without altering as zero item of the matrix.
+'
+' Static Public Function Split(strText As String, Optional strCut As String) As String[]
+'
+'   Dim int As Integer
+'   Dim stx As New String[]
+'
+'   stx.Clear
+'
+'   Select strCut
+'     Case ""
+'       For int = 1 To String.Len(strText)
+'
+'         stx.Add(String.Mid(strText, int, 1))
+'       Next
+'
+'     Case Else
+'       If InStr(strText, strCut) > 0 Then
+'         stx = Split(strText, strCut)
+'       Else
+'         stx.Add(strText)
+'       Endif
+'   End Select
+'
+'   Return stx
+'
+' End
+
+'' Function that returns the identification number.
+
+Public Function ID(stx As String[]) As String
+
+    Dim scx As New String[]
+    Dim out As String
+    Dim str As String
+    Dim chr As String
+    Dim int As Integer
+
+    Dim strDigit As String
+    Dim intConstant As Integer
+    Dim intLen As Integer
+    Dim intPlus As Integer
+    Dim strRutTmp As Variant
+    Dim intDigit As Integer
+
+    If stx.Count > 0 Then
+        Select String.LCase(stx[0])
+
+            Case "dni-es", "nie-es"
+                If stx.Count > 1 Then
+                    scx = ["T", "R", "W", "A", "G", "M", "Y", "F", "P", "D", "X", "B", "N", "J", "Z", "S", "Q", "V", "H", "L", "C", "K", "E"]
+                    If String.LCase(stx[0]) = "nie-es" Then
+                        chr = String.LCase(String.Mid(stx[1], 1, 1))
+                        str = String.Mid(stx[1], 2, String.Len(stx[1]))
+                        Select chr
+                            Case "x"
+                                str = "0" & str
+                            Case "y"
+                                str = "1" & str
+                            Case "z"
+                                str = "2" & str
+                        End Select
+                    Endif
+                Endif
+                int = CInt(str)
+                ' Print int Mod 23
+
+            Case "vru-cl"
+
+                strDigit = ""
+                intConstant = 1
+                intLen = Len(Trim(stx[1]))
+                strRutTmp = Val(Trim(stx[1]))
+                Do Until intLen = 0
+                    intConstant = intConstant + 1
+                    intPlus = intPlus + Mid(strRutTmp, intLen, 1) * intConstant
+                    If intConstant = 7 Then
+                        intConstant = 1
+                    End If
+                    intLen = intLen - 1
+                Loop
+                intDigit = intPlus Mod 11
+                strDigit = Str(11 - intDigit)
+                If Val(strDigit) = 11 Then
+                    strDigit = "0"
+                End If
+                If Val(strDigit) = 10 Then
+                    strDigit = "K"
+                End If
+                out = strRutTmp & strDigit
+        End Select
+    Endif
+
+End
+
+'' Returns a text where each word has the first letter in uppercase and all subsequent letters in lowercase.
+
+Public Function CapitalWords(strIn As String) As String
+
+    Dim stx As New String[]
+    Dim str As String
+    Dim int As Integer
+
+    If strIn <> "" Then
+
+        If InStr(strIn, " ") > 0 Then
+            stx = Split(strIn, " ")
+        Else
+            stx.Add(strIn)
+        Endif
+
+        For int = 0 To stx.Max
+            str = stx[int]
+
+            If str <> "" Then
+
+                Select String.Len(str)
+                    Case 1
+                        stx[int] = String.UCase(str)
+                    Case Else
+                        stx[int] = String.UCase(String.Mid(str, 1, 1)) & String.LCase(String.Mid(str, 2, String.len(str) - 1))
+                End Select
+
+            Endif
+        Next
+
+        Return stx.Join(" ")
+    Else
+        Return ""
+    Endif
+
+End
+
+'' Returns a text with the first letter in uppercase and all subsequent letters in lowercase.
+
+Public Function Capital(strInput As String) As String
+
+    Dim strOutput As String
+
+    If strInput <> "" Then
+
+        strOutput = String.UCase(String.Mid(strInput, 1, 1))
+        strOutput &= String.LCase(String.Mid(strInput, 2, String.len(strInput) - 1))
+
+    Else
+        strOutput = ""
+    Endif
+
+    Return strOutput
+
+End
+
+'' Returns a text suitable for SQL queries, removes line breaks and non-compatible characters.
+
+Public Function Chek4SQLscript(strInput As String) As String
+
+    Dim strOutput As String
+
+    strOutput = Replace(strInput, "\n", "")
+    strOutput = Replace(strOutput, "\r", "")
+    strOutput = Replace(strOutput, "\t", " ")
+    strOutput = Replace(strOutput, "\x00", "")
+    strOutput = Replace(strOutput, Chr(96), Chr(39)) ' ' > .
+
+    Return strOutput
+
+End
+
+'' Returns a text suitable for SQL queries, removes line breaks and characters not compatible with SQL statements.
+
+Static Public Function Chek4SQL(strInput As String) As String
+
+    Dim strOutput As String
+
+    strOutput = Replace(strInput, Chr(92) & Chr(110), ":")
+    strOutput = Replace(strOutput, Chr(34), "")
+    strOutput = Replace(strOutput, "\n", " ")
+    strOutput = Replace(strOutput, "\r", "")
+    strOutput = Replace(strOutput, "\x00", "")
+    strOutput = Replace(strOutput, Chr(39), Chr(46)) ' ' > .
+    strOutput = Replace(strOutput, Chr(44), Chr(46)) ' , > .
+
+    Return strOutput
+
+End
+
+'' Paragraph validation, double space NO, Space at the beginning and / or at the end NO, line breaks at the beginning and / or at the end NO etc.
+
+Public Function Paragraph(strInput As String, Optional strMod As String) As String
+
+    Dim strOut As String
+    Dim strTmp As String
+    Dim int As Integer
+    Dim stxLines As New String[] ' lista de renglones tal como vienen en el txt
+    Dim str As String
+    Dim strCap As String
+    Dim strParagraph As String
+    Dim stxParagraph As New String[]
+    '
+    strTmp = Replace(strInput, "\n ", "\n")
+    strTmp = Replace(strInput, "\n\n", "\n")
+    strTmp = Replace(strInput, "\t\n", "\n")
+    strTmp = Replace(strInput, "\n\t", "\n")
+
+    stxLines = Toolbox.ArrayNoVaccum(Split(strTmp, "\n"))
+
+    ' Trabajo por parrafo
+    strParagraph = ""
+
+    For int = 0 To stxLines.Max
+        'str = vag.RSpaces(stxLines[int])
+        str = String.Trim(stxLines[int])
+        strCap = String.Left(str)
+        Select int
+            Case 0
+                stxParagraph.Add(str)
+            Case Else
+                If String.UCase(strCap) = strCap Then
+                    stxParagraph.Add(str)
+                Else
+                    stxParagraph[stxParagraph.Max] = stxParagraph[stxParagraph.Max] & " " & str
+                Endif
+        End Select
+
+    Next
+
+    Select String.LCase(strMod)
+        Case "html", "html5"
+            For int = 0 To stxParagraph.Max
+                ' Se hace una validacion de los caracteres, en este caso para XHTML 1.0
+                strParagraph = XmlValidate(stxParagraph[int], "utf8")
+
+                strParagraph = ReTager(strParagraph)
+                If InStr(strParagraph, "<h") > 0 Then
+                    stxParagraph[int] = "\n" & strParagraph & "\n"
+                Else
+                    stxParagraph[int] = "<p>" & strParagraph & "</p>"
+                Endif
+
+            Next
+    End Select
+
+    strOut = stxParagraph.Join("\n")
+
+    Return strOut
+
+End
+
+' '' It removes the spaces at the beginning and the end of a string and if there are repeated spaces between the beginning and the end, it converts them into one.
+'
+' Public Function RSpaces(str As String) As String
+'
+'   Dim strRemoved As String
+'
+'   strRemoved = Trim(RTrim(str))
+'   While InStr(strRemoved, "  ")
+'     strRemoved = Replace(strRemoved, "  ", " ")
+'   Wend
+'
+'   Return strRemoved
+'
+' End
+
+'' Rename the standard html tags to internal nomenclature tags.
+
+Public Function UnTager(inp As String) As String
+
+    Dim out As String
+
+    out = Replace(inp, "<h1>", "[:::H1:::]")
+    out = Replace(out, "</h1>", "[:::/H1:::]")
+
+    out = Replace(out, "<h2>", "[:::H2:::]")
+    out = Replace(out, "</h2>", "[:::/H2:::]")
+
+    out = Replace(out, "<h3>", "[:::H3:::]")
+    out = Replace(out, "</h3>", "[:::/H3:::]")
+
+    out = Replace(out, "<h4>", "[:::H4:::]")
+    out = Replace(out, "</h4>", "[:::/H4:::]")
+
+    out = Replace(out, "<h5>", "[:::H5:::]")
+    out = Replace(out, "</h5>", "[:::/H5:::]")
+
+    out = Replace(out, "<h6>", "[:::H6:::]")
+    out = Replace(out, "</h6>", "[:::/H6:::]")
+
+    out = Replace(out, "<p>", "[:::P:::]")
+    out = Replace(out, "</p>", "[:::P:::]")
+
+    Return out
+
+End
+
+'' Rename the internal nomenclature tags to standard html tags.
+
+Public Function ReTager(inp As String) As String
+
+    Dim out As String
+
+    out = Replace(inp, "[:::H1:::]", "<h1>")
+    out = Replace(out, "[:::/H1:::]", "</h1>")
+
+    out = Replace(out, "[:::H2:::]", "<h2>")
+    out = Replace(out, "[:::/H2:::]", "</h2>")
+
+    out = Replace(out, "[:::H3:::]", "<h3>")
+    out = Replace(out, "[:::/H3:::]", "</h3>")
+
+    out = Replace(out, "[:::H4:::]", "<h4>")
+    out = Replace(out, "[:::/H4:::]", "</h4>")
+
+    out = Replace(out, "[:::H5:::]", "<h5>")
+    out = Replace(out, "[:::/H5:::]", "</h5>")
+
+    out = Replace(out, "[:::H6:::]", "<h6>")
+    out = Replace(out, "[:::/H6:::]", "</h6>")
+
+    out = Replace(out, "[:::P:::]", "<p>")
+    out = Replace(out, "[:::P:::]", "</p>")
+
+    Return out
+
+End
+
+'' Convert a text string to conform to the XML standard
+
+Public Function XmlValidate(strInput As String, Optional strMod As String) As String
+
+    Dim stx As New String[]
+    Dim int As Integer
+    Dim IntKey As Integer
+    Dim intCh As Integer
+    Dim aiAsc As New Integer[]
+    Dim stxHtm As New String[]
+    Dim strOut As String
+
+    strInput = Replace(strInput, "&&", "#amp;#amp;")
+    strInput = Replace(strInput, "&", "#amp;")
+    strInput = Replace(strInput, "<", "#lt;")
+
+    Select String.LCase(strMod)
+        Case "utf8", "utf-8"
+            stx.Add("34\t&quot;")
+            stx.Add("38\t&amp;")
+            stx.Add("39\t&apos;")
+            stx.Add("60\t&lt;")
+            stx.Add("62\t&gt;")
+
+        Case Else
+
+            stx.Add("34\t&quot;")
+            stx.Add("38\t&amp;")
+            stx.Add("60\t&lt;")
+            stx.Add("62\t&gt;")
+            stx.Add("160\t&nbsp;")
+            stx.Add("161\t&iexcl;")
+            stx.Add("162\t&cent;")
+            stx.Add("163\t&pound;")
+            stx.Add("164\t&curren;")
+            stx.Add("165\t&yen;")
+            stx.Add("166\t&brvbar;")
+            stx.Add("167\t&sect;")
+            stx.Add("168\t&uml;")
+            stx.Add("169\t&copy;")
+            stx.Add("170\t&ordf;")
+            stx.Add("171\t&laquo;")
+            stx.Add("172\t&not;")
+            stx.Add("173\t&shy;")
+            stx.Add("174\t&reg;")
+            stx.Add("175\t&macr;")
+            stx.Add("176\t&deg;")
+            stx.Add("177\t&plusmn;")
+            stx.Add("178\t&sup2;")
+            stx.Add("179\t&sup3;")
+            stx.Add("180\t&acute;")
+            stx.Add("181\t&micro;")
+            stx.Add("182\t&para;")
+            stx.Add("183\t&middot;")
+            stx.Add("184\t&cedil;")
+            stx.Add("185\t&sup1;")
+            stx.Add("186\t&ordm;")
+            stx.Add("187\t&raquo;")
+            stx.Add("188\t&frac14;")
+            stx.Add("189\t&frac12;")
+            stx.Add("190\t&frac34;")
+            stx.Add("191\t&iquest;")
+            stx.Add("192\t&Agrave;")
+            stx.Add("193\t&Aacute;")
+            stx.Add("194\t&Acirc;")
+            stx.Add("195\t&Atilde;")
+            stx.Add("196\t&Auml;")
+            stx.Add("197\t&Aring;")
+            stx.Add("198\t&AElig;")
+            stx.Add("199\t&Ccedil;")
+            stx.Add("200\t&Egrave;")
+            stx.Add("201\t&Eacute;")
+            stx.Add("202\t&Ecirc;")
+            stx.Add("203\t&Euml;")
+            stx.Add("204\t&Igrave;")
+            stx.Add("205\t&Iacute;")
+            stx.Add("206\t&Icirc;")
+            stx.Add("207\t&Iuml;")
+            stx.Add("208\t&ETH;")
+            stx.Add("209\t&Ntilde;")
+            stx.Add("210\t&Ograve;")
+            stx.Add("211\t&Oacute;")
+            stx.Add("212\t&Ocirc;")
+            stx.Add("213\t&Otilde;")
+            stx.Add("214\t&Ouml;")
+            stx.Add("215\t&times;")
+            stx.Add("216\t&Oslash;")
+            stx.Add("217\t&Ugrave;")
+            stx.Add("218\t&Uacute;")
+            stx.Add("219\t&Ucirc;")
+            stx.Add("220\t&Uuml;")
+            stx.Add("221\t&Yacute;")
+            stx.Add("222\t&THORN;")
+            stx.Add("223\t&szlig;")
+            stx.Add("224\t&agrave;")
+            stx.Add("225\t&aacute;")
+            stx.Add("226\t&acirc;")
+            stx.Add("227\t&atilde;")
+            stx.Add("228\t&auml;")
+            stx.Add("229\t&aring;")
+            stx.Add("230\t&aelig;")
+            stx.Add("231\t&ccedil;")
+            stx.Add("232\t&egrave;")
+            stx.Add("233\t&eacute;")
+            stx.Add("234\t&ecirc;")
+            stx.Add("235\t&euml;")
+            stx.Add("236\t&igrave;")
+            stx.Add("237\t&iacute;")
+            stx.Add("238\t&icirc;")
+            stx.Add("239\t&iuml;")
+            stx.Add("240\t&eth;")
+            stx.Add("241\t&ntilde;")
+            stx.Add("242\t&ograve;")
+            stx.Add("243\t&oacute;")
+            stx.Add("244\t&ocirc;")
+            stx.Add("245\t&otilde;")
+            stx.Add("246\t&ouml;")
+            stx.Add("247\t&divide;")
+            stx.Add("248\t&oslash;")
+            stx.Add("249\t&ugrave;")
+            stx.Add("250\t&uacute;")
+            stx.Add("251\t&ucirc;")
+            stx.Add("252\t&uuml;")
+            stx.Add("253\t&yacute;")
+            stx.Add("254\t&thorn;")
+            stx.Add("255\t&yuml;")
+            stx.Add("338\t&OElig;")
+            stx.Add("339\t&oelig;")
+            stx.Add("352\t&Scaron;")
+            stx.Add("353\t&scaron;")
+            stx.Add("376\t&Yuml;")
+            stx.Add("710\t&circ;")
+            stx.Add("732\t&tilde;")
+            stx.Add("8194\t&ensp;")
+            stx.Add("8195\t&emsp;")
+            stx.Add("8201\t&thinsp;")
+            stx.Add("8204\t&zwnj;")
+            stx.Add("8205\t&zwj;")
+            stx.Add("8206\t&lrm;")
+            stx.Add("8207\t&rlm;")
+            stx.Add("8211\t&ndash;")
+            stx.Add("8212\t&mdash;")
+            stx.Add("8216\t&lsquo;")
+            stx.Add("8217\t&rsquo;")
+            stx.Add("8218\t&sbquo;")
+            stx.Add("8220\t&ldquo;")
+            stx.Add("8221\t&rdquo;")
+            stx.Add("8222\t&bdquo;")
+            stx.Add("8224\t&dagger;")
+            stx.Add("8225\t&Dagger;")
+            stx.Add("8240\t&permil;")
+            stx.Add("8249\t&lsaquo;")
+            stx.Add("8250\t&rsaquo;")
+            stx.Add("8364\t&euro;")
+
+    End Select
+
+    For int = 0 To stx.Max
+        aiAsc.Add(CInt(Split(stx[int], "\t")[0]))
+        stxHtm.Add(Split(stx[int], "\t")[1])
+    Next
+
+    For int = 1 To String.Len(strInput)
+        intCh = Asc(strInput, int)
+        IntKey = aiAsc.Find(intCh)
+        If IntKey > -1 Then
+            strOut &= stxHtm[IntKey]
+        Else
+            strOut &= String.Mid(strInput, int, 1)
+        Endif
+
+    Next
+
+    strOut = Replace(strOut, "#amp;", "&amp;")
+    strOut = Replace(strout, "#lt;", "&lt;")
+    Return strOut
+
+End
+
+'' Given an amount of elements, calculate the minimum square matrix that contains that amount.
+
+Public Function MinimalMatrix(int As Integer) As Integer
+
+    Dim intMx As Integer
+
+    If Sqr(CFloat(int)) > CFloat(Abs(Sqr(CFloat(int)))) Then
+        intMx = Abs(Sqr(CFloat(int))) + 1
+    Else
+        intMx = Abs(Sqr(CFloat(int))) + 1
+    Endif
+
+    Return intMx
+
+End
+
+'' Returns a files list from the drop text
+
+Public Function DropFiles(sPath As String) As String[]
+
+    Dim sPathsTmp As String
+    Dim stxPaths As New String[]
+
+    sPathsTmp = Replace(sPath, "\n", "")
+    sPathsTmp = Replace(sPathsTmp, "\r", "")
+    If String.Mid(sPath, 1, 7) = "file://" Then
+        sPathsTmp = Right$(sPathsTmp, -7)  ' Removing first "file://"
+    Endif
+
+    sPathsTmp = Replace(sPathsTmp, "file://", "\n") ' jus in case exist many files
+
+    sPathsTmp = Replace(sPathsTmp, "\x00", "") 'problematic character
+
+    If InStr(sPathsTmp, "\n") Then
+        stxPaths = Split(sPathsTmp, "\n")
+    Else
+        stxPaths.Add(sPathsTmp)
+    Endif
+
+    Return stxPaths
+
+End
+
+'' Returns a text string over time in "yyyy-mm-ddThh:nn:ss" format. From years to seconds.
+
+Static Public Function TimeText(dTime As Date) As String
+
+    Return Format(dTime, "yyyy-mm-ddThh:nn:ss")
+
+End
+
+'' Returns a text string over time in "yyyymmddhhnnss" format. From years to seconds.
+
+Static Public Function Timestamp(datTime As Date) As String
+
+    Return Format(datTime, "yyyymmddhhnnss")
+
+End
+
+'' Returns a text string over time in "yyyy-mm-ddThh:nn:ss" format. From years to seconds.
+
+Static Public Function TimeUTC(dTime As Date) As String
+
+    Return Format(DateAdd(dTime, gb.Second, System.TimeZone), "yyyy-mm-dd hh:nn UTC")
+
+End
+
+'' Returns the year from a text string that is passed as a parameter.
+
+Static Public Function TimeYear(str As String) As String
+
+    Dim strOut As String
+
+    Shell "date -d " & str & " +%Y 2>&1" To strOut
+
+    strOut = String.a.OnlyNumbers(strOut)
+
+    Return strOut
+
+End
+
+'' Returns a text string over time in "yyyymmddhhnnssuu" format. From years to milliseconds with three digits.
+
+Static Public Function Timestampu(datTime As Date) As String
+
+    Return Format(datTime, "yyyymmddhhnnssuu")
+
+End
