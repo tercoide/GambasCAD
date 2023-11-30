@@ -2,158 +2,158 @@
 
 Public Function PoWrite(jTr As Collection, oProject As Collection, sOutLang As String) As String
 
-  Dim s As String
-  Dim bHeader As Boolean
-  Dim sPrj As String
-  Dim vTr As Variant
+    Dim s As String
+    Dim bHeader As Boolean
+    Dim sPrj As String
+    Dim vTr As Variant
 
-  '' Recrear el .po del idioma de salida
-  s = Header(oProject, sOutLang)
-  bHeader = True
-  For Each sPrj In jTr[jTr.Keys[0]][1]
-    If sPrj = "#: .project:1" Then
-      bHeader = False
-      Break
+    '' Recrear el .po del idioma de salida
+    s = Header(oProject, sOutLang)
+    bHeader = True
+    For Each sPrj In jTr[jTr.Keys[0]][1]
+        If sPrj = "#: .project:1" Then
+            bHeader = False
+            Break
+        Endif
+    Next
+
+    If bHeader Then
+        s &= pot.Project(oProject)
     Endif
-  Next
 
-  If bHeader Then
-    s &= pot.Project(oProject)
-  Endif
+    For Each vTr In jTr
+        If jTr[jTr.Key][2] Then
+            s &= "# gb-ignore\n"
+        Endif
+        s &= jTr[jTr.Key][1].join("\n") & "\n"
+        s &= "msgid \"" & jTr.Key & "\"\n"
+        s &= "msgstr \"" & jTr[jTr.Key][0] & "\"\n"
+        s &= "\n"
+    Next
 
-  For Each vTr In jTr
-    If jTr[jTr.Key][2] Then
-      s &= "# gb-ignore\n"
-    Endif
-    s &= jTr[jTr.Key][1].join("\n") & "\n"
-    s &= "msgid \"" & jTr.Key & "\"\n"
-    s &= "msgstr \"" & jTr[jTr.Key][0] & "\"\n"
-    s &= "\n"
-  Next
-
-  Return s
+    Return s
 
 End
 
 Public Function PoRead(sFile As String) As JSONCollection
 
-  Dim aTmp As String[]
-  Dim aEx As New String[]
-  Dim r As Integer
-  Dim jVar As New JSONCollection
-  Dim sOutput As String
-  Dim sInput As String
-  Dim bIgnore As Boolean
+    Dim aTmp As String[]
+    Dim aEx As New String[]
+    Dim r As Integer
+    Dim jVar As New JSONCollection
+    Dim sOutput As String
+    Dim sInput As String
+    Dim bIgnore As Boolean
 
-  aTmp = File.Load2(sFile)
-  aEx.Clear
-  For r = 0 To aTmp.Max
-    If Left(aTmp[r], 3) = "#: " Then
-      aEx.Add(aTmp[r])
-      If Left(aTmp[r + 1], 3) = "msg" And Left(aTmp[r + 2], 3) = "msg" Then
-        'sInput = Replace(String.Mid(aTmp[r + 1], 7), "\"", "")
-        'sOutput = Replace(String.Mid(aTmp[r + 2], 8), "\"", "")
-        sInput = UnQuote(String.Mid(aTmp[r + 1], 7))
-        If InStr(sInput, "\"") > 0 Then
-          sInput = Replace(sInput, "\"", "\\" & "\"")
-        Endif
-        If InStr(sInput, "\n") > 0 Then
-          sInput = Replace(sInput, "\n", "\\n")
-        Endif
+    aTmp = File.Load2(sFile)
+    aEx.Clear
+    For r = 0 To aTmp.Max
+        If Left(aTmp[r], 3) = "#: " Then
+            aEx.Add(aTmp[r])
+            If Left(aTmp[r + 1], 3) = "msg" And Left(aTmp[r + 2], 3) = "msg" Then
+                'sInput = Replace(String.Mid(aTmp[r + 1], 7), "\"", "")
+                'sOutput = Replace(String.Mid(aTmp[r + 2], 8), "\"", "")
+                sInput = UnQuote(String.Mid(aTmp[r + 1], 7))
+                If InStr(sInput, "\"") > 0 Then
+                    sInput = Replace(sInput, "\"", "\\" & "\"")
+                Endif
+                If InStr(sInput, "\n") > 0 Then
+                    sInput = Replace(sInput, "\n", "\\n")
+                Endif
 
-        sOutput = UnQuote(String.Mid(aTmp[r + 2], 8))
-        If InStr(sOutput, "\"") > 0 Then
-          sOutput = Replace(sOutput, "\"", "\\" & "\"")
-        Endif
-        If InStr(sOutput, "\n") > 0 Then
-          sOutput = Replace(sOutput, "\n", "\\n")
-        Endif
+                sOutput = UnQuote(String.Mid(aTmp[r + 2], 8))
+                If InStr(sOutput, "\"") > 0 Then
+                    sOutput = Replace(sOutput, "\"", "\\" & "\"")
+                Endif
+                If InStr(sOutput, "\n") > 0 Then
+                    sOutput = Replace(sOutput, "\n", "\\n")
+                Endif
 
-        If File.BaseName(sFile) <> "" Then
-          bIgnore = False
-          If aTmp[r - 1] = "# gb-ignore" Then
-            bIgnore = True
-          Endif
-          jVar.Add([sOutput, aEx.Copy(), bIgnore], sInput)
-          aEx.Clear
-        Else
-          jVar.Add([sOutput, aEx.Copy(), False], sInput)
-          aEx.Clear
+                If File.BaseName(sFile) <> "" Then
+                    bIgnore = False
+                    If aTmp[r - 1] = "# gb-ignore" Then
+                        bIgnore = True
+                    Endif
+                    jVar.Add([sOutput, aEx.Copy(), bIgnore], sInput)
+                    aEx.Clear
+                Else
+                    jVar.Add([sOutput, aEx.Copy(), False], sInput)
+                    aEx.Clear
+                Endif
+            Endif
         Endif
-      Endif
-    Endif
-  Next
+    Next
 
-  Return jVar
+    Return jVar
 
 End
 
 Public Function PoRead2(sFile As String) As JSONCollection
 
-  Dim aTmp As String[]
-  'Dim Start As Boolean
-  Dim aEx As New String[]
-  Dim r As Integer
-  Dim jVar As New JSONCollection
-  Dim sFlag As String
-  Dim sID As String
-  Dim sTR As String
-  Dim iMsg As Integer
-  Dim sDef As String
+    Dim aTmp As String[]
+    'Dim Start As Boolean
+    Dim aEx As New String[]
+    Dim r As Integer
+    Dim jVar As New JSONCollection
+    Dim sFlag As String
+    Dim sID As String
+    Dim sTR As String
+    Dim iMsg As Integer
+    Dim sDef As String
 
-  aTmp = PoLoad(sFile)
-  If File.Ext(sFile) = "pot" Then
-    sDef = "new"
-  Else
-    sDef = "old"
-  Endif
+    aTmp = PoLoad(sFile)
+    If File.Ext(sFile) = "pot" Then
+        sDef = "new"
+    Else
+        sDef = "old"
+    Endif
 
-  aEx.Clear
-  sFlag = ""
-  sID = ""
-  sTR = ""
+    aEx.Clear
+    sFlag = ""
+    sID = ""
+    sTR = ""
 
-  For r = 0 To aTmp.Max
-    Select Left(aTmp[r], 2)
-      Case "# " ' Only in .po files, in .pot not exist gb-ignore flag
-        If aTmp[r] = "# gb-ignore" Then
-          sFlag = "skip"
-        Endif
+    For r = 0 To aTmp.Max
+        Select Left(aTmp[r], 2)
+            Case "# " ' Only in .po files, in .pot not exist gb-ignore flag
+                If aTmp[r] = "# gb-ignore" Then
+                    sFlag = "skip"
+                Endif
 
-      Case "#:"
-        aEx.Add(aTmp[r])
+            Case "#:"
+                aEx.Add(aTmp[r])
 
-      Case "ms"
-        If aEx.Count > 0 Then
-          If Left(aTmp[r], 6) = "msgid " Then
-            sID = Clean(String.Mid(aTmp[r], 7))
-            Inc iMsg
-          Else
-            If Left(aTmp[r], 6) = "msgstr" Then
-              sTR = Clean(String.Mid(aTmp[r], 8))
-              Inc iMsg
-            Endif
-          Endif
+            Case "ms"
+                If aEx.Count > 0 Then
+                    If Left(aTmp[r], 6) = "msgid " Then
+                        sID = Clean(String.Mid(aTmp[r], 7))
+                        Inc iMsg
+                    Else
+                        If Left(aTmp[r], 6) = "msgstr" Then
+                            sTR = Clean(String.Mid(aTmp[r], 8))
+                            Inc iMsg
+                        Endif
+                    Endif
 
-          If iMsg = 2 Then
-            'If sFlag = "" Then
-            'jVar.Add([sTR, sDef, aEx.Copy()], sID)
-            '  jVar.Add(sTR, sID)
-            'Else
-            'jVar.Add([sTR, sFlag, aEx.Copy()], sID)
-            jVar.Add(sTR, sID)
-            'Endif
-            'aEx.Clear
-            'sFlag = ""
-            sID = ""
-            sTR = ""
-            iMsg = 0
-          Endif
-        Endif
-    End Select
-  Next
+                    If iMsg = 2 Then
+                        'If sFlag = "" Then
+                        'jVar.Add([sTR, sDef, aEx.Copy()], sID)
+                        '  jVar.Add(sTR, sID)
+                        'Else
+                        'jVar.Add([sTR, sFlag, aEx.Copy()], sID)
+                        jVar.Add(sTR, sID)
+                        'Endif
+                        'aEx.Clear
+                        'sFlag = ""
+                        sID = ""
+                        sTR = ""
+                        iMsg = 0
+                    Endif
+                Endif
+        End Select
+    Next
 
-  Return jVar
+    Return jVar
 
 End
 
@@ -162,162 +162,162 @@ End
 
 Public Function PoLoad(sPath As String, Optional emptyLines As Boolean) As String[]
 
-  Dim sList As String
-  Dim aListTmp As New String[]
-  Dim aList As New String[]
-  Dim intList As Integer
+    Dim sList As String
+    Dim aListTmp As New String[]
+    Dim aList As New String[]
+    Dim intList As Integer
 
-  aList.Clear
+    aList.Clear
 
-  If Exist(sPath) Then
+    If Exist(sPath) Then
 
-    sList = File.Load(sPath)
-    While InStr(sList, "\"\n\"") > 0
-      sList = Replace(sList, "\"\n\"", "")
-    Wend
+        sList = File.Load(sPath)
+        While InStr(sList, "\"\n\"") > 0
+            sList = Replace(sList, "\"\n\"", "")
+        Wend
 
-    If InStr(sList, "\n") > -1 Then
-      aListTmp = Split(sList, "\n")
-    Else
-      If String.Len(sList) > 0 Then
-        aListTmp.Add(sList)
-      Endif
+        If InStr(sList, "\n") > -1 Then
+            aListTmp = Split(sList, "\n")
+        Else
+            If String.Len(sList) > 0 Then
+                aListTmp.Add(sList)
+            Endif
+        Endif
+
+        For intList = 0 To aListTmp.Max
+            Select emptyLines
+                Case False
+                    If aListTmp[intList] <> "" Then
+                        aList.Add(aListTmp[intList])
+                    Endif
+                Case Else
+                    aList.Add(aListTmp[intList])
+            End Select
+        Next
     Endif
 
-    For intList = 0 To aListTmp.Max
-      Select emptyLines
-        Case False
-          If aListTmp[intList] <> "" Then
-            aList.Add(aListTmp[intList])
-          Endif
-        Case Else
-          aList.Add(aListTmp[intList])
-      End Select
-    Next
-  Endif
-
-  Return aList
+    Return aList
 
 End
 
 Public Function Clean(sRaw As String) As String
 
-  Dim sOut As String
+    Dim sOut As String
 
-  sOut = UnQuote(sRaw)
+    sOut = UnQuote(sRaw)
 
-  If InStr(sOut, "\"") > 0 Then
-    sOut = Replace(sOut, "\"", "\\" & "\"")
-  Endif
+    If InStr(sOut, "\"") > 0 Then
+        sOut = Replace(sOut, "\"", "\\" & "\"")
+    Endif
 
-  If InStr(sOut, "\n") > 0 Then
-    sOut = Replace(sOut, "\n", "\\n")
-  Endif
+    If InStr(sOut, "\n") > 0 Then
+        sOut = Replace(sOut, "\n", "\\n")
+    Endif
 
-  Return sOut
+    Return sOut
 
 End
 
 Public Function Header(oProj As Collection, sLang As String) As String
 
-  Dim s As String
-  'Dim sHeader As String
+    Dim s As String
+    'Dim sHeader As String
 
-  s = "#, fuzzy\n"
-  s &= "msgid \"\"\n"
-  s &= "msgstr \"\"\n"
-  s &= "\"Project-Id-Version: " & oProj["title"] & " " & oProj["version"] & "\\n\"\n"
-  s &= "\"PO-Revision-Date: " & String.TimeUTC(Now) & "\\n\"\n"
-  s &= "\"Last-Translator: " & Config.TranslatorName & " <" & Config.TranslatorEmail & ">\\n\"\n"
-  s &= "\"Language: " & sLang & "\\n\"\n"
-  s &= "\"MIME-Version: 1.0\\n\"\n"
-  s &= "\"Content-Type: text/plain; charset=UTF-8\\n\"\n"
-  s &= "\"Content-Transfer-Encoding: 8bit\\n\"\n"
-  s &= "\n"
-  Return s
+    s = "#, fuzzy\n"
+    s &= "msgid \"\"\n"
+    s &= "msgstr \"\"\n"
+    s &= "\"Project-Id-Version: " & oProj["title"] & " " & oProj["version"] & "\\n\"\n"
+    s &= "\"PO-Revision-Date: " & String.TimeUTC(Now) & "\\n\"\n"
+    s &= "\"Last-Translator: " & Config.TranslatorName & " <" & Config.TranslatorEmail & ">\\n\"\n"
+    s &= "\"Language: " & sLang & "\\n\"\n"
+    s &= "\"MIME-Version: 1.0\\n\"\n"
+    s &= "\"Content-Type: text/plain; charset=UTF-8\\n\"\n"
+    s &= "\"Content-Transfer-Encoding: 8bit\\n\"\n"
+    s &= "\n"
+    Return s
 
 End
 
 Public Function Project(oProj As Collection) As String
 
-  Dim s As String
+    Dim s As String
 
-  s &= "#: .project:1\n"
-  s &= "msgid \"" & oProj["title"] & "\"\n"
-  s &= "msgstr \"\"\n"
-  s &= "\n"
-  s &= "#: .project:2\n"
-  s &= "msgid \"" & oProj["description"] & "\"\n"
-  s &= "msgstr \"\"\n"
-  s &= "\n"
+    s &= "#: .project:1\n"
+    s &= "msgid \"" & oProj["title"] & "\"\n"
+    s &= "msgstr \"\"\n"
+    s &= "\n"
+    s &= "#: .project:2\n"
+    s &= "msgid \"" & oProj["description"] & "\"\n"
+    s &= "msgstr \"\"\n"
+    s &= "\n"
 
-  Return s
+    Return s
 
 End
 
 Public Function Languages() As Collection
 
-  Dim cVar As New Collection
+    Dim cVar As New Collection
 
-  cVar.Add([("Afrikaans"), "Afrikáans"], "af")
-  cVar.Add([("Albanian"), "Gjuha shqipë"], "sq")
-  cVar.Add([("Arabic"), "العربية‎"], "ar")
-  cVar.Add([("Assamese"), " "], "te")
-  cVar.Add([("Azerbaijani"), " "], "az")
-  cVar.Add([("Basque"), " "], "eu")
-  cVar.Add([("Bulgarian"), "български език"], "bg")
-  cVar.Add([("Catalan"), " "], "ca")
-  cVar.Add([("Chinese"), "Chinese"], "zh")
-  cVar.Add([("Croatian"), " "], "hr")
-  cVar.Add([("Czech"), "Čeština"], "cs")
-  cVar.Add([("Danish"), "Dansk"], "da")
-  cVar.Add([("Dutch"), "Nederlands"], "nl")
-  cVar.Add([("English"), "English"], "en")
-  cVar.Add([("Esperanto"), "Esperanto"], "eo")
-  cVar.Add([("Estonian"), "Eesti"], "et") '' Gambas IDE  3.17.3 support only et_EE
-  cVar.Add([("Farsi"), " "], "fa")
-  cVar.Add([("Finnish"), "Suomi"], "fi")
-  cVar.Add([("French"), "Français"], "fr")
-  cVar.Add([("Galician"), " "], "gl")
-  cVar.Add([("German"), "Deutsch"], "de")
-  cVar.Add([("Greek"), "ελληνικά"], "el")
-  cVar.Add([("Hebrew"), " "], "he")
-  cVar.Add([("Hindi"), " "], "hi")
-  cVar.Add([("Hungarian"), "Magyar"], "hu")
-  cVar.Add([("Icelandic"), " "], "is")
-  cVar.Add([("Indonesian"), " "], "id")
-  cVar.Add([("Irish"), " "], "ir")
-  cVar.Add([("Italian"), "Italiano"], "it")
-  cVar.Add([("Japanese"), "日本語"], "ja")
-  cVar.Add([("Kannada"), " "], "kn")
-  cVar.Add([("Khmer"), " "], "km")
-  cVar.Add([("Korean"), " "], "ko")
-  cVar.Add([("Latin"), " "], "la")
-  cVar.Add([("Latvian"), "latviešu valoda"], "lv") '' Not supported on Gambas IDE 3.17.3
-  cVar.Add([("Lithuanian"), "lietuvių kalba"], "lt")
-  cVar.Add([("Macedonian"), " "], "mk")
-  cVar.Add([("Malayalam"), " "], "ml")
-  cVar.Add([("Norwegian"), "Norsk"], "no")
-  cVar.Add([("Polish"), "Polski"], "pl")
-  cVar.Add([("Portuguese"), "Português"], "pt")
-  cVar.Add([("Punjabi"), " "], "pa")
-  cVar.Add([("Romanian"), "Limba română"], "ro")
-  cVar.Add([("Russian"), "Русский"], "ru")
-  cVar.Add([("Serbian"), " "], "sr")
-  cVar.Add([("Slovak"), "slovenčina"], "sk") '' Not supported on Gambas IDE 3.17.3
-  cVar.Add([("Slovenian"), "slovenščina"], "sl")
-  cVar.Add([("Spanish"), "Español común"], "es")
-  cVar.Add([("Spanish"), "Español de Argentina"], "es_AR")
-  cVar.Add([("Spanish"), "Español de España"], "es_ES")
-  cVar.Add([("Swedish"), "Svenska"], "sv")
-  cVar.Add([("Tamil"), " "], "ta")
-  cVar.Add([("Turkish"), " "], "tr")
-  cVar.Add([("Ukrainian"), " "], "uk")
-  cVar.Add([("Valencian"), " "], "qcv")
-  cVar.Add([("Vietnamese"), " "], "vi")
-  cVar.Add([("Wallon"), " "], "wa")
-  cVar.Add([("Welsh"), " "], "cy")
+    cVar.Add([("Afrikaans"), "Afrikáans"], "af")
+    cVar.Add([("Albanian"), "Gjuha shqipë"], "sq")
+    cVar.Add([("Arabic"), "العربية‎"], "ar")
+    cVar.Add([("Assamese"), " "], "te")
+    cVar.Add([("Azerbaijani"), " "], "az")
+    cVar.Add([("Basque"), " "], "eu")
+    cVar.Add([("Bulgarian"), "български език"], "bg")
+    cVar.Add([("Catalan"), " "], "ca")
+    cVar.Add([("Chinese"), "Chinese"], "zh")
+    cVar.Add([("Croatian"), " "], "hr")
+    cVar.Add([("Czech"), "Čeština"], "cs")
+    cVar.Add([("Danish"), "Dansk"], "da")
+    cVar.Add([("Dutch"), "Nederlands"], "nl")
+    cVar.Add([("English"), "English"], "en")
+    cVar.Add([("Esperanto"), "Esperanto"], "eo")
+    cVar.Add([("Estonian"), "Eesti"], "et") '' Gambas IDE  3.17.3 support only et_EE
+    cVar.Add([("Farsi"), " "], "fa")
+    cVar.Add([("Finnish"), "Suomi"], "fi")
+    cVar.Add([("French"), "Français"], "fr")
+    cVar.Add([("Galician"), " "], "gl")
+    cVar.Add([("German"), "Deutsch"], "de")
+    cVar.Add([("Greek"), "ελληνικά"], "el")
+    cVar.Add([("Hebrew"), " "], "he")
+    cVar.Add([("Hindi"), " "], "hi")
+    cVar.Add([("Hungarian"), "Magyar"], "hu")
+    cVar.Add([("Icelandic"), " "], "is")
+    cVar.Add([("Indonesian"), " "], "id")
+    cVar.Add([("Irish"), " "], "ir")
+    cVar.Add([("Italian"), "Italiano"], "it")
+    cVar.Add([("Japanese"), "日本語"], "ja")
+    cVar.Add([("Kannada"), " "], "kn")
+    cVar.Add([("Khmer"), " "], "km")
+    cVar.Add([("Korean"), " "], "ko")
+    cVar.Add([("Latin"), " "], "la")
+    cVar.Add([("Latvian"), "latviešu valoda"], "lv") '' Not supported on Gambas IDE 3.17.3
+    cVar.Add([("Lithuanian"), "lietuvių kalba"], "lt")
+    cVar.Add([("Macedonian"), " "], "mk")
+    cVar.Add([("Malayalam"), " "], "ml")
+    cVar.Add([("Norwegian"), "Norsk"], "no")
+    cVar.Add([("Polish"), "Polski"], "pl")
+    cVar.Add([("Portuguese"), "Português"], "pt")
+    cVar.Add([("Punjabi"), " "], "pa")
+    cVar.Add([("Romanian"), "Limba română"], "ro")
+    cVar.Add([("Russian"), "Русский"], "ru")
+    cVar.Add([("Serbian"), " "], "sr")
+    cVar.Add([("Slovak"), "slovenčina"], "sk") '' Not supported on Gambas IDE 3.17.3
+    cVar.Add([("Slovenian"), "slovenščina"], "sl")
+    cVar.Add([("Spanish"), "Español común"], "es")
+    cVar.Add([("Spanish"), "Español de Argentina"], "es_AR")
+    cVar.Add([("Spanish"), "Español de España"], "es_ES")
+    cVar.Add([("Swedish"), "Svenska"], "sv")
+    cVar.Add([("Tamil"), " "], "ta")
+    cVar.Add([("Turkish"), " "], "tr")
+    cVar.Add([("Ukrainian"), " "], "uk")
+    cVar.Add([("Valencian"), " "], "qcv")
+    cVar.Add([("Vietnamese"), " "], "vi")
+    cVar.Add([("Wallon"), " "], "wa")
+    cVar.Add([("Welsh"), " "], "cy")
 
-  Return cVar
+    Return cVar
 
 End

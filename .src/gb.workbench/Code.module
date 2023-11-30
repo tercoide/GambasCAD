@@ -364,13 +364,13 @@
 
 Public Function IsCommentary(s As String) As Boolean
 
-  Dim bComment As Boolean = False
+    Dim bComment As Boolean = False
 
-  If String.Left(String.Trim(s)) = "'" Then
-    bComment = True
-  Endif
+    If String.Left(String.Trim(s)) = "'" Then
+        bComment = True
+    Endif
 
-  Return bComment
+    Return bComment
 
 End
 
@@ -378,54 +378,54 @@ End
 
 Public Function Profile(sLang As String, sText As String) As Collection
 
-  Dim oProf As New Collection
-  Dim aKeys As String[]
-  Dim sTmp As String
-  '  Dim sTerm1 As String
-  '  Dim sTerm2 As String
-  '  Dim sSym As String
+    Dim oProf As New Collection
+    Dim aKeys As String[]
+    Dim sTmp As String
+    '  Dim sTerm1 As String
+    '  Dim sTerm2 As String
+    '  Dim sSym As String
 
-  If InStr(sText, "App.") > 0 Then
-    Print "X"
-  Endif
-
-  oProf["meaning"] = "unknown"
-  ''¿Es un comentario?
-  If IsCommentary(sText) Then
-    aKeys = ["'"]
-    oProf["meaning"] = "commentary"
-    oProf["key"] = "commentary"
-    oProf["keywords"] = aKeys.Copy()
-  Else
-    If String.Trim(sText) = "" Then
-      oProf["meaning"] = "blank-line"
-      oProf["key"] = "blank-line"
-    Else
-      '' Separar, en caso de que existan comentarios  posteriores
-      If InStr(sText, " '") > 0 Then
-        sText = Split(sText, "'")[0]
-      Endif
-      aKeys = KeywordsLine(sText)
-      If aKeys.Count > 0 Then
-        oProf["key"] = aKeys.Join("-")
-        oProf["keywords"] = aKeys.Copy()
-        If Config.Learning.Exist(sLang) Then
-          If Config.Learning[sLang].Exist(oProf["key"]) Then
-            sTmp = Config.Learning[sLang][oProf["key"]]
-            oProf["meaning"] = sTmp
-          Else
-            Config.Learning[sLang][oProf["key"]] = "unknown-" & oProf["key"]
-            Config.Save(Config.Depot)
-          Endif
-        Else
-          Config.Learning[sLang] = [oProf["key"]: "unknown-" & oProf["key"]]
-          Config.Save(Config.Depot)
-        Endif
-      Endif
+    If InStr(sText, "App.") > 0 Then
+        Print "X"
     Endif
-  Endif
 
-  Return oProf
+    oProf["meaning"] = "unknown"
+    ''¿Es un comentario?
+    If IsCommentary(sText) Then
+        aKeys = ["'"]
+        oProf["meaning"] = "commentary"
+        oProf["key"] = "commentary"
+        oProf["keywords"] = aKeys.Copy()
+    Else
+        If String.Trim(sText) = "" Then
+            oProf["meaning"] = "blank-line"
+            oProf["key"] = "blank-line"
+        Else
+            '' Separar, en caso de que existan comentarios  posteriores
+            If InStr(sText, " '") > 0 Then
+                sText = Split(sText, "'")[0]
+            Endif
+            aKeys = KeywordsLine(sText)
+            If aKeys.Count > 0 Then
+                oProf["key"] = aKeys.Join("-")
+                oProf["keywords"] = aKeys.Copy()
+                If Config.Learning.Exist(sLang) Then
+                    If Config.Learning[sLang].Exist(oProf["key"]) Then
+                        sTmp = Config.Learning[sLang][oProf["key"]]
+                        oProf["meaning"] = sTmp
+                    Else
+                        Config.Learning[sLang][oProf["key"]] = "unknown-" & oProf["key"]
+                        Config.Save(Config.Depot)
+                    Endif
+                Else
+                    Config.Learning[sLang] = [oProf["key"]: "unknown-" & oProf["key"]]
+                    Config.Save(Config.Depot)
+                Endif
+            Endif
+        Endif
+    Endif
+
+    Return oProf
 
 End
 
@@ -433,80 +433,80 @@ End
 
 Public Function ClassSymbolLike(s As String) As String[]
 
-  'Dim aOperators As String[] = ["=", ".", "(", ")"]
-  Dim aText As String[]
-  Dim i As Integer
-  Dim aKey As New String[]
-  Dim sText As String
+    'Dim aOperators As String[] = ["=", ".", "(", ")"]
+    Dim aText As String[]
+    Dim i As Integer
+    Dim aKey As New String[]
+    Dim sText As String
 
-  If Code.IsCommentary(s) Then
-    aText = ["'"]
-  Else
-    sText = Replace(Lower(s), "[", " ")
-    sText = Replace(sText, "]", " ")
-    sText = Replace(sText, "(", " ")
-    sText = Replace(sText, ")", " ")
+    If Code.IsCommentary(s) Then
+        aText = ["'"]
+    Else
+        sText = Replace(Lower(s), "[", " ")
+        sText = Replace(sText, "]", " ")
+        sText = Replace(sText, "(", " ")
+        sText = Replace(sText, ")", " ")
 
-    aText = Split(String.Trim(sText), " ")
+        aText = Split(String.Trim(sText), " ")
 
-  Endif
-
-  For i = 0 To aText.Max
-    If InStr(aText[i], ".") > 0 Then
-      If Split(aText[i], ".")[0] <> "" And Split(aText[i], ".")[1] <> "" Then
-        aKey.Add(aText[i])
-      Endif
     Endif
-  Next
 
-  Return aKey
+    For i = 0 To aText.Max
+        If InStr(aText[i], ".") > 0 Then
+            If Split(aText[i], ".")[0] <> "" And Split(aText[i], ".")[1] <> "" Then
+                aKey.Add(aText[i])
+            Endif
+        Endif
+    Next
+
+    Return aKey
 
 End
 
 Public Function KeywordsLine(s As String) As String[]
 
-  Dim aText As String[]
-  Dim sText As String
-  Dim aKey As New String[]
-  Dim bSkip As Boolean = False
-  Dim i As Integer
-  Dim aKeywords As String[] = ["and", "append", "as", "asl", "asr", "assert", "begins", "binary", "break", "byref", "case", "catch", "chgrp", "chmod", "chown", "class", "close", "const", "continue", "copy", "create", "debug", "dec", "default", "dim", "div", "do", "downto", "each", "else", "end", "endif", "ends", "enum", "error", "event", "exec", "exit", "export", "extern", "false", "fast", "finally", "flush", "for", "from", "function", "gosub", "goto", "if", "implements", "in", "inc", "inherits", "input", "is", "kill", "last", "let", "library", "like", "line", "link", "lock", "loop", "lsl", "lsr", "match", "me", "memory", "mkdir", "mod", "move", "new", "next", "not", "null", "of", "on", "open", "optional", "or", "output", "peek", "pipe", "print", "private", "procedure", "property", "public", "quit", "raise", "randomize", "read", "repeat", "return", "rmdir", "rol", "ror", "seek", "select", "shell", "shl", "shr", "sleep", "static", "step", "stop", "struct", "sub", "super", "swap", "then", "to", "true", "try", "unlock", "unsafe", "until", "use", "wait", "watch", "wend", "while", "with", "write", "xor", "'"]
-  Dim aSkipwords As String[] = ["false", "true", "and", "null"]
+    Dim aText As String[]
+    Dim sText As String
+    Dim aKey As New String[]
+    Dim bSkip As Boolean = False
+    Dim i As Integer
+    Dim aKeywords As String[] = ["and", "append", "as", "asl", "asr", "assert", "begins", "binary", "break", "byref", "case", "catch", "chgrp", "chmod", "chown", "class", "close", "const", "continue", "copy", "create", "debug", "dec", "default", "dim", "div", "do", "downto", "each", "else", "end", "endif", "ends", "enum", "error", "event", "exec", "exit", "export", "extern", "false", "fast", "finally", "flush", "for", "from", "function", "gosub", "goto", "if", "implements", "in", "inc", "inherits", "input", "is", "kill", "last", "let", "library", "like", "line", "link", "lock", "loop", "lsl", "lsr", "match", "me", "memory", "mkdir", "mod", "move", "new", "next", "not", "null", "of", "on", "open", "optional", "or", "output", "peek", "pipe", "print", "private", "procedure", "property", "public", "quit", "raise", "randomize", "read", "repeat", "return", "rmdir", "rol", "ror", "seek", "select", "shell", "shl", "shr", "sleep", "static", "step", "stop", "struct", "sub", "super", "swap", "then", "to", "true", "try", "unlock", "unsafe", "until", "use", "wait", "watch", "wend", "while", "with", "write", "xor", "'"]
+    Dim aSkipwords As String[] = ["false", "true", "and", "null"]
 
-  If Code.IsCommentary(s) Then
-    aText = ["'"]
-  Else
-    sText = Replace(Lower(s), "[", " [ ")
-    sText = Replace(sText, "]", " ")
-    sText = Replace(sText, "(", " ( ")
-    sText = Replace(sText, ")", " ) ")
-    aText = Split(String.Trim(sText), " ")
-  Endif
-
-  For i = 0 To aText.Max
-    If aText[i] = "(" Or aText[i] = "=" Then
-      bSkip = True
+    If Code.IsCommentary(s) Then
+        aText = ["'"]
     Else
-      If aText[i] = ")" Then
-        bSkip = False
-      Else
-        If aText[i] = "to" And aText[0] = "for" Then
-          aKey.Add(aText[i])
-        Endif
-        If bSkip = False Then
-          If aKeywords.Exist(aText[i]) And Not aSkipwords.Exist(aText[i]) Then
-            If aKey.Count = 1 Then
-              If aKey[0] = "print" Then
-                Break
-              Endif
-            Endif
-            aKey.Add(aText[i])
-          Endif
-        Endif
-      Endif
+        sText = Replace(Lower(s), "[", " [ ")
+        sText = Replace(sText, "]", " ")
+        sText = Replace(sText, "(", " ( ")
+        sText = Replace(sText, ")", " ) ")
+        aText = Split(String.Trim(sText), " ")
     Endif
-  Next
-  Return aKey
+
+    For i = 0 To aText.Max
+        If aText[i] = "(" Or aText[i] = "=" Then
+            bSkip = True
+        Else
+            If aText[i] = ")" Then
+                bSkip = False
+            Else
+                If aText[i] = "to" And aText[0] = "for" Then
+                    aKey.Add(aText[i])
+                Endif
+                If bSkip = False Then
+                    If aKeywords.Exist(aText[i]) And Not aSkipwords.Exist(aText[i]) Then
+                        If aKey.Count = 1 Then
+                            If aKey[0] = "print" Then
+                                Break
+                            Endif
+                        Endif
+                        aKey.Add(aText[i])
+                    Endif
+                Endif
+            Endif
+        Endif
+    Next
+    Return aKey
 
 End
 
@@ -517,116 +517,116 @@ End
 
 Public Function ProjInfo(sPath As String) As Collection
 
-  Dim ctn As Collection = ["directory": File.Dir(sPath), "title": "~", "startup": "~", "icon": "~", "version": "~", "component": [], "description": "~", "authors": [], "language": "~", "vendor": "~", "iconart": "~", "iconurl": "~", "iconset": "~", "iconlic": "~", "menus": [], "categories": [], "groups": [], "extradependencies": []]
-  Dim str As String
-  Dim stx As New String[]
-  Dim i As Integer
-  Dim tag As String
-  Dim att As String
+    Dim ctn As Collection = ["directory": File.Dir(sPath), "title": "~", "startup": "~", "icon": "~", "version": "~", "component": [], "description": "~", "authors": [], "language": "~", "vendor": "~", "iconart": "~", "iconurl": "~", "iconset": "~", "iconlic": "~", "menus": [], "categories": [], "groups": [], "extradependencies": []]
+    Dim str As String
+    Dim stx As New String[]
+    Dim i As Integer
+    Dim tag As String
+    Dim att As String
 
-  If Exist(sPath) Then
-    str = File.Load(sPath)
-    stx = Split(str, "\n")
+    If Exist(sPath) Then
+        str = File.Load(sPath)
+        stx = Split(str, "\n")
 
-    If stx.Count > 0 Then
-      For i = 0 To stx.Max
-        If InStr(stx[i], "=") > 0 Then
-          tag = Lower(Split(stx[i], "=")[0])
-          att = Split(stx[i], "=")[1]
-          att = Replace(att, "\"", "")
-          If ctn.Exist(tag) Then
-            Select tag
-              Case "component", "authors", "menus", "categories", "groups", "extradependencies"
-                ctn[tag].Add(att)
-              Case Else
-                ctn[tag] = att
-            End Select
-          Else
-            ctn.Add(att, tag)
-          Endif
+        If stx.Count > 0 Then
+            For i = 0 To stx.Max
+                If InStr(stx[i], "=") > 0 Then
+                    tag = Lower(Split(stx[i], "=")[0])
+                    att = Split(stx[i], "=")[1]
+                    att = Replace(att, "\"", "")
+                    If ctn.Exist(tag) Then
+                        Select tag
+                            Case "component", "authors", "menus", "categories", "groups", "extradependencies"
+                                ctn[tag].Add(att)
+                            Case Else
+                                ctn[tag] = att
+                        End Select
+                    Else
+                        ctn.Add(att, tag)
+                    Endif
+                Endif
+            Next
         Endif
-      Next
     Endif
-  Endif
-  Return ctn
+    Return ctn
 
 End
 
 Public Function GetComponentInfo(sComp As String) As Collection
 
-  Dim aLines As String[]
-  '  Dim sVars As String[]
-  Dim sTag As String
-  Dim sVal As String
-  Dim sFile As String
-  Dim cOut As New Collection
-  Dim aState As String[] = ["STABLE", "STABLE_NOT_FINISHED", "UNSTABLE", "DEPRECATED", "UNKNOWN"]
+    Dim aLines As String[]
+    '  Dim sVars As String[]
+    Dim sTag As String
+    Dim sVal As String
+    Dim sFile As String
+    Dim cOut As New Collection
+    Dim aState As String[] = ["STABLE", "STABLE_NOT_FINISHED", "UNSTABLE", "DEPRECATED", "UNKNOWN"]
 
-  sFile = "/usr/lib/gambas3" &/ sComp & ".component"
-  cOut.Clear
+    sFile = "/usr/lib/gambas3" &/ sComp & ".component"
+    cOut.Clear
 
-  If Exist(sFile) Then
-    aLines = Split(File.Load(sFile), "\n", Null, True)
-    cOut["name"] = sComp
+    If Exist(sFile) Then
+        aLines = Split(File.Load(sFile), "\n", Null, True)
+        cOut["name"] = sComp
 
-    For Each s As String In aLines
-      If InStr(s, "=") Then
-        sTag = Split(s, "=")[0]
-        sVal = Split(s, "=")[1]
-      Endif
+        For Each s As String In aLines
+            If InStr(s, "=") Then
+                sTag = Split(s, "=")[0]
+                sVal = Split(s, "=")[1]
+            Endif
 
-      Select Lower(sTag)
-        Case "name"
-          cOut["description"] = sVal
-        Case "author", "authors"
-          cOut["author"] = sVal
-        Case "require", "requires"
-          cOut["require"] = sVal
-        Case "exclude", "Excludes"
-          cOut["exclude"] = sVal
-        Case "implement", "implements"
-          cOut["implement"] = LCase(sVal)
-        Case "need", "needs"
-          cOut["need"] = Lower(sVal)
-        Case "alpha"
-          cOut["state"] = "UNSTABLE"
-        Case "state"
-          Print sComp & ":" & sVal
-          Select Lower(sVal)
-            Case "stable", "finished"
-              cOut["state"] = "STABLE"
-            Case "notfinished", "unfinished"
-              cOut["state"] = "STABLE_NOT_FINISHED"
-            Case "experimental", "unstable"
-              cOut["state"] = "UNSTABLE"
-            Case "deprecated"
-              cOut["state"] = "DEPRECATED"
-            Default
-              If CInt(sVal) > -1 And CInt(sVal) < 5 Then
-                cOut["state"] = aState[CInt(sVal)]
-              Else
-                cOut["state"] = aState[4]
-              Endif
+            Select Lower(sTag)
+                Case "name"
+                    cOut["description"] = sVal
+                Case "author", "authors"
+                    cOut["author"] = sVal
+                Case "require", "requires"
+                    cOut["require"] = sVal
+                Case "exclude", "Excludes"
+                    cOut["exclude"] = sVal
+                Case "implement", "implements"
+                    cOut["implement"] = LCase(sVal)
+                Case "need", "needs"
+                    cOut["need"] = Lower(sVal)
+                Case "alpha"
+                    cOut["state"] = "UNSTABLE"
+                Case "state"
+                    Print sComp & ":" & sVal
+                    Select Lower(sVal)
+                        Case "stable", "finished"
+                            cOut["state"] = "STABLE"
+                        Case "notfinished", "unfinished"
+                            cOut["state"] = "STABLE_NOT_FINISHED"
+                        Case "experimental", "unstable"
+                            cOut["state"] = "UNSTABLE"
+                        Case "deprecated"
+                            cOut["state"] = "DEPRECATED"
+                        Default
+                            If CInt(sVal) > -1 And CInt(sVal) < 5 Then
+                                cOut["state"] = aState[CInt(sVal)]
+                            Else
+                                cOut["state"] = aState[4]
+                            Endif
 
-          End Select
-        Case "version"
-          cOut["version"] = sVal
-        Case "hidden"
-          cOut["visibility"] = "Hidden"
+                    End Select
+                Case "version"
+                    cOut["version"] = sVal
+                Case "hidden"
+                    cOut["visibility"] = "Hidden"
 
-      End Select
-    Next
-  Endif
+            End Select
+        Next
+    Endif
 
-  If Not cOut.Exist("visibility") Then
-    cOut["visibility"] = "Visible"
-  Endif
+    If Not cOut.Exist("visibility") Then
+        cOut["visibility"] = "Visible"
+    Endif
 
-  If Not cOut.Exist("state") Then
-    cOut["state"] = "STABLE"
-  Endif
+    If Not cOut.Exist("state") Then
+        cOut["state"] = "STABLE"
+    Endif
 
-  Return cOut
+    Return cOut
 
 End
 
@@ -774,86 +774,86 @@ End
 
 Public Function GetWikiInfo(sClass As String, sComp As String) As String
 
-  Dim sUrl As String = "http://www.gambaswiki.org/wiki/comp/" & Lower(sComp) & "/" & Lower(sClass)
-  Dim sContent As String
+    Dim sUrl As String = "http://www.gambaswiki.org/wiki/comp/" & Lower(sComp) & "/" & Lower(sClass)
+    Dim sContent As String
 
-  sContent = ""
-  Shell "curl " & sUrl To sContent
+    sContent = ""
+    Shell "curl " & sUrl To sContent
 
-  Return sContent
+    Return sContent
 
 End
 
 Public Function AllClases(obj As Object) As Collection
 
-  Dim cClass As New Collection
-  ' Dim MyClass As Class' = JSON
-  'Dim aNative As New String[]
-  Dim aClass As New String[]' = ["JSON", "String"]
-  Dim sClass As String
-  'Dim aKind As String[] = ["", "Variable", "Property", "Method", "Event", "Constant"]
-  '  Dim sInfo As String
-  'Dim aUggly As New String[]
-  Dim sComp As String
-  'Dim sVersion As String
-  'Dim q As Integer
-  'Dim jTmp As New JSONCollection
-  'Dim sSymbol As String
-  'Dim cSymbol As Collection
-  Dim aComp As New String[]
-  Dim cComp As New Collection
-  'Dim sFile As String
-  Dim cAll As Collection
-  Dim cTmp As New Collection
-  Dim cClasses As New Collection
-  Dim cTmpClass As New Collection
-  Dim vTmp As Variant
-  Dim aComp2 As String[]
-  'Dim sKey As String
+    Dim cClass As New Collection
+    ' Dim MyClass As Class' = JSON
+    'Dim aNative As New String[]
+    Dim aClass As New String[]' = ["JSON", "String"]
+    Dim sClass As String
+    'Dim aKind As String[] = ["", "Variable", "Property", "Method", "Event", "Constant"]
+    '  Dim sInfo As String
+    'Dim aUggly As New String[]
+    Dim sComp As String
+    'Dim sVersion As String
+    'Dim q As Integer
+    'Dim jTmp As New JSONCollection
+    'Dim sSymbol As String
+    'Dim cSymbol As Collection
+    Dim aComp As New String[]
+    Dim cComp As New Collection
+    'Dim sFile As String
+    Dim cAll As Collection
+    Dim cTmp As New Collection
+    Dim cClasses As New Collection
+    Dim cTmpClass As New Collection
+    Dim vTmp As Variant
+    Dim aComp2 As String[]
+    'Dim sKey As String
 
-  cAll = GInfo(obj)
+    cAll = GInfo(obj)
 
-  aComp2 = Dir("/usr/lib/gambas3", "*.component")
+    aComp2 = Dir("/usr/lib/gambas3", "*.component")
 
-  For Each vTmp In cAll
-    If InStr(cAll.Key, "#") > 0 Then
-      sComp = Split(cAll.Key, "#")[0]
-      If Not aComp.Exist(sComp) Then
-        aComp.Add(sComp)
-      Endif
-    Endif
-  Next
-
-  aComp.Sort(gb.Ascent)
-
-  For Each sComp In aComp
-    cComp.Add(Code.GetComponentInfo(sComp), sComp)
-    cTmp.Clear
-    aClass.Clear
-    For Each cClass In cAll
-      If Split(cAll.Key, "#")[0] = sComp Then
-        sClass = Split(cAll.Key, "#")[1]
-        If cClass.Exist("events") Then
-          cTmpCLass.Add(cClass["events"], "events")
+    For Each vTmp In cAll
+        If InStr(cAll.Key, "#") > 0 Then
+            sComp = Split(cAll.Key, "#")[0]
+            If Not aComp.Exist(sComp) Then
+                aComp.Add(sComp)
+            Endif
         Endif
-        If cClass.Exist("properties") Then
-          cTmpCLass.Add(cClass["properties"], "properties")
-        Endif
-
-        If cClass.Exist("methods") Then
-          cTmpCLass.Add(cClass["methods"], "methods")
-        Endif
-
-        cClasses.Add(cTmpCLass.Copy(), sClass)
-        cTmpCLass.Clear
-
-      Endif
     Next
-    cComp[sComp].Add(cClasses.Copy(), "classes")
-    cClasses.Clear
-  Next
 
-  Return cComp
+    aComp.Sort(gb.Ascent)
+
+    For Each sComp In aComp
+        cComp.Add(Code.GetComponentInfo(sComp), sComp)
+        cTmp.Clear
+        aClass.Clear
+        For Each cClass In cAll
+            If Split(cAll.Key, "#")[0] = sComp Then
+                sClass = Split(cAll.Key, "#")[1]
+                If cClass.Exist("events") Then
+                    cTmpCLass.Add(cClass["events"], "events")
+                Endif
+                If cClass.Exist("properties") Then
+                    cTmpCLass.Add(cClass["properties"], "properties")
+                Endif
+
+                If cClass.Exist("methods") Then
+                    cTmpCLass.Add(cClass["methods"], "methods")
+                Endif
+
+                cClasses.Add(cTmpCLass.Copy(), sClass)
+                cTmpCLass.Clear
+
+            Endif
+        Next
+        cComp[sComp].Add(cClasses.Copy(), "classes")
+        cClasses.Clear
+    Next
+
+    Return cComp
 
 End
 
@@ -861,23 +861,23 @@ End
 
 Public Function GetProjectsDirs(sPath As String) As String[]
 
-  Dim aRaw As New String[]
-  Dim a As New String[]
-  Dim int As Integer
+    Dim aRaw As New String[]
+    Dim a As New String[]
+    Dim int As Integer
 
-  aRaw.Clear
-  aRaw = RDir(sPath, "*.project", gb.File, True)
-  a.Clear
+    aRaw.Clear
+    aRaw = RDir(sPath, "*.project", gb.File, True)
+    a.Clear
 
-  For int = 0 To aRaw.Max
-    If Toolbox.DirGambas(sPath &/ File.Dir(aRaw[int])) = True Then
-      If a.Exist(sPath &/ aRaw[int]) = False Then
-        a.Add(sPath &/ aRaw[int])
-      Endif
-    Endif
-  Next
+    For int = 0 To aRaw.Max
+        If Toolbox.DirGambas(sPath &/ File.Dir(aRaw[int])) = True Then
+            If a.Exist(sPath &/ aRaw[int]) = False Then
+                a.Add(sPath &/ aRaw[int])
+            Endif
+        Endif
+    Next
 
-  Return a
+    Return a
 
 End
 
@@ -956,16 +956,16 @@ End
 
 Public Function GetKeywords(sLang As String) As Collection
 
-  Dim oLang As New Collection
+    Dim oLang As New Collection
 
-  Select sLang
-    Case "gambas"
-      oLang["comments"] = ["'"]
-      oLang["keywords"] =
-        oLang["datatypes"] = []
-    Case "javascript"
+    Select sLang
+        Case "gambas"
+            oLang["comments"] = ["'"]
+            oLang["keywords"] =
+                oLang["datatypes"] = []
+        Case "javascript"
 
-  End Select
+    End Select
 
 End
 
@@ -973,122 +973,122 @@ End
 
 Public Function Language() As Collection
 
-  Dim oKwords As New Collection
-  Dim oDtypes As New Collection
-  Dim aTmp As String[]
-  Dim aFiles As New String[]
-  Dim aComps As New String[]
-  Dim sInfoPath As String = "/usr/share/gambas3/info"
-  Dim cSystem As New Collection
-  Dim sFile As String
-  Dim sCmp As String
-  Dim aRaw As String[]
-  Dim aClass As New String[]
-  Dim oComps As New Collection
-  Dim sTmp As String
-  Dim iChr As Integer
-  Dim sName As String
-  Dim sFileClass As String
-  Dim oClass As New Collection
-  Dim oProp As New Collection
-  '  Dim oComp As Collection
-  Dim oAll As New Collection
-  Dim oSymbol As Collection
-  Dim oClassNative As New Collection
-  ' Dim v As Variant
-  Dim sKw As String
-  Dim sDt As String
+    Dim oKwords As New Collection
+    Dim oDtypes As New Collection
+    Dim aTmp As String[]
+    Dim aFiles As New String[]
+    Dim aComps As New String[]
+    Dim sInfoPath As String = "/usr/share/gambas3/info"
+    Dim cSystem As New Collection
+    Dim sFile As String
+    Dim sCmp As String
+    Dim aRaw As String[]
+    Dim aClass As New String[]
+    Dim oComps As New Collection
+    Dim sTmp As String
+    Dim iChr As Integer
+    Dim sName As String
+    Dim sFileClass As String
+    Dim oClass As New Collection
+    Dim oProp As New Collection
+    '  Dim oComp As Collection
+    Dim oAll As New Collection
+    Dim oSymbol As Collection
+    Dim oClassNative As New Collection
+    ' Dim v As Variant
+    Dim sKw As String
+    Dim sDt As String
 
-  For Each sDt In System.Datatypes
-    oDtypes.Add(sDt, Lower(sDt))
-  Next
-
-  cSystem.Add(oDtypes.Copy(), "datatypes")
-
-  For Each sKw In System.Keywords
-    If Not oDtypes.Exist(Lower(sKw)) Then
-      oKwords.Add(sKw, Lower(sKw))
-    Endif
-  Next
-  cSystem.Add(oKwords.Copy(), "keywords")
-
-  '' List all components
-  aTmp = Dir(sInfoPath, "*.info").Sort()
-  If aTmp.Exist("gb.info") Then
-    aFiles.Add("gb.info")
-    aComps.Add("gb")
-  Endif
-
-  For Each sFile In aTmp
-    If Not aFiles.Exist(sFile) Then
-      aFiles.Add(sFile)
-    Endif
-    If Not aComps.Exist(File.BaseName(sFile)) Then
-      aComps.Add(File.BaseName(sFile))
-    Endif
-  Next
-  cSystem.Add(aComps.Copy(), "components")
-
-  '' List classes for each component
-  For Each sCmp In aComps
-    sFile = "/usr/share/gambas3/info" &/ sCmp & ".list"
-    If Exist(sFile) Then
-      aRaw = File.Load2(sFile)
-      For Each sTmp In aRaw
-        iChr = Asc(String.Left(sTmp))
-
-        If (iChr > 64 And iChr < 91) Or (iChr > 96 And iChr < 123) Then
-          sName = sTmp
-          If String.Right(sTmp) = "!" Then
-            sName = String.Left(sTmp, -1)
-          Endif
-          If Not oClassNative.Exist(sName) Then
-            oClassNative[Lower(sName)] = [sCmp]
-          Else
-            oClassNative[Lower(sName)].Add(sCmp)
-          Endif
-          aClass.Add(sName)
-          sFileClass = "/usr/share/gambas3/info" &/ sCmp & ".info"
-          '' Y que métodos y propiedades tiene cada clase?
-          oSymbol = GInfo(sFileClass, sName)
-          If oClass.Exist(sName) Then
-            For Each oProp In oSymbol
-              If Not oClass[sName].Exist(oSymbol.Key) Then
-                oClass[sName].Add(oProp.Copy())
-              Endif
-            Next
-          Else
-            oClass[sName] = oSymbol.Copy()
-          Endif
-        Endif
-      Next
-    Endif
-    oComps[sCmp] = oClass.Copy()
-    oClass.Clear
-  Next
-  cSystem.Add(oClassNative.Copy(), "classes.native")
-  'cSystem.Add(oComps.Copy(), "components.classes")
-
-  '' Ahora todas las clases ordenadas y para cada una los metodos que existan en los componentes (por ejemplo String tiene metodos en gb y en gb.util )
-  For Each oClass In oComps
-    For Each oSymbol In oClass
-      If oClass.Key <> "" Then
-        If Not oAll.Exist(LCase(oClass.Key)) Then
-          oAll[LCase(oClass.Key)] = oSymbol.Copy()
-        Else
-          For Each oProp In oSymbol
-            If Not oAll[LCase(oClass.Key)].Exist(oSymbol.Key) Then
-              oAll[LCase(oClass.Key)].Add(oProp.Copy(), oSymbol.Key)
-            Endif
-          Next
-        Endif
-      Endif
+    For Each sDt In System.Datatypes
+        oDtypes.Add(sDt, Lower(sDt))
     Next
-  Next
-  cSystem.Add(oAll.Copy(), "classes.methods")
-  oComps.Clear
 
-  Return cSystem
+    cSystem.Add(oDtypes.Copy(), "datatypes")
+
+    For Each sKw In System.Keywords
+        If Not oDtypes.Exist(Lower(sKw)) Then
+            oKwords.Add(sKw, Lower(sKw))
+        Endif
+    Next
+    cSystem.Add(oKwords.Copy(), "keywords")
+
+    '' List all components
+    aTmp = Dir(sInfoPath, "*.info").Sort()
+    If aTmp.Exist("gb.info") Then
+        aFiles.Add("gb.info")
+        aComps.Add("gb")
+    Endif
+
+    For Each sFile In aTmp
+        If Not aFiles.Exist(sFile) Then
+            aFiles.Add(sFile)
+        Endif
+        If Not aComps.Exist(File.BaseName(sFile)) Then
+            aComps.Add(File.BaseName(sFile))
+        Endif
+    Next
+    cSystem.Add(aComps.Copy(), "components")
+
+    '' List classes for each component
+    For Each sCmp In aComps
+        sFile = "/usr/share/gambas3/info" &/ sCmp & ".list"
+        If Exist(sFile) Then
+            aRaw = File.Load2(sFile)
+            For Each sTmp In aRaw
+                iChr = Asc(String.Left(sTmp))
+
+                If (iChr > 64 And iChr < 91) Or (iChr > 96 And iChr < 123) Then
+                    sName = sTmp
+                    If String.Right(sTmp) = "!" Then
+                        sName = String.Left(sTmp, -1)
+                    Endif
+                    If Not oClassNative.Exist(sName) Then
+                        oClassNative[Lower(sName)] = [sCmp]
+                    Else
+                        oClassNative[Lower(sName)].Add(sCmp)
+                    Endif
+                    aClass.Add(sName)
+                    sFileClass = "/usr/share/gambas3/info" &/ sCmp & ".info"
+                    '' Y que métodos y propiedades tiene cada clase?
+                    oSymbol = GInfo(sFileClass, sName)
+                    If oClass.Exist(sName) Then
+                        For Each oProp In oSymbol
+                            If Not oClass[sName].Exist(oSymbol.Key) Then
+                                oClass[sName].Add(oProp.Copy())
+                            Endif
+                        Next
+                    Else
+                        oClass[sName] = oSymbol.Copy()
+                    Endif
+                Endif
+            Next
+        Endif
+        oComps[sCmp] = oClass.Copy()
+        oClass.Clear
+    Next
+    cSystem.Add(oClassNative.Copy(), "classes.native")
+    'cSystem.Add(oComps.Copy(), "components.classes")
+
+    '' Ahora todas las clases ordenadas y para cada una los metodos que existan en los componentes (por ejemplo String tiene metodos en gb y en gb.util )
+    For Each oClass In oComps
+        For Each oSymbol In oClass
+            If oClass.Key <> "" Then
+                If Not oAll.Exist(LCase(oClass.Key)) Then
+                    oAll[LCase(oClass.Key)] = oSymbol.Copy()
+                Else
+                    For Each oProp In oSymbol
+                        If Not oAll[LCase(oClass.Key)].Exist(oSymbol.Key) Then
+                            oAll[LCase(oClass.Key)].Add(oProp.Copy(), oSymbol.Key)
+                        Endif
+                    Next
+                Endif
+            Endif
+        Next
+    Next
+    cSystem.Add(oAll.Copy(), "classes.methods")
+    oComps.Clear
+
+    Return cSystem
 
 End
 
@@ -1096,71 +1096,71 @@ End
 
 Public Function GInfo(sFile As String, sClass As String) As Collection
 
-  'Dim sInfoPath As String = "/usr/share/gambas3/info"
-  'Dim sFile As String
-  '  Dim sComponent As String
-  Dim cData As New Collection
-  Dim aParts As String[]
-  Dim aRaw As String[]
-  Dim aLines As New String[]
-  'Dim sClass As String
-  'Dim sClass2 As String
-  'Dim sClass3 As String
-  Dim i As Integer
-  Dim x As Integer
-  Dim cProp As New Collection
-  'Dim cTmp As New Collection
-  Dim sLine As String
-  Dim aRaw2 As String[]
-  Dim sRaw As String
-  'Dim aTmp As String[]
-  'Dim aFiles As New String[]
+    'Dim sInfoPath As String = "/usr/share/gambas3/info"
+    'Dim sFile As String
+    '  Dim sComponent As String
+    Dim cData As New Collection
+    Dim aParts As String[]
+    Dim aRaw As String[]
+    Dim aLines As New String[]
+    'Dim sClass As String
+    'Dim sClass2 As String
+    'Dim sClass3 As String
+    Dim i As Integer
+    Dim x As Integer
+    Dim cProp As New Collection
+    'Dim cTmp As New Collection
+    Dim sLine As String
+    Dim aRaw2 As String[]
+    Dim sRaw As String
+    'Dim aTmp As String[]
+    'Dim aFiles As New String[]
 
-  aRaw = Split(File.Load(sFile), "\n")
-  For Each sLine In aRaw
-    If Left(sLine) <> "'" Then
-      aLines.Add(sLine)
-    Else
-      Print sLine
-    Endif
-  Next
-  sRaw = aLines.Join("\n")
-  aRaw.Clear
-  aParts = Split(sRaw, "#")
-
-  For i = 0 To aParts.Max
-    If aParts[i] <> "" Then
-      aRaw2 = Split(aParts[i], "\n")
-      aLines.Clear
-      For Each sLine In aRaw2
+    aRaw = Split(File.Load(sFile), "\n")
+    For Each sLine In aRaw
         If Left(sLine) <> "'" Then
-          aLines.Add(sLine)
+            aLines.Add(sLine)
+        Else
+            Print sLine
         Endif
-      Next
-      If aLines[0] = sClass Then
-        For x = 3 To aLines.Max - 4 Step 4
-          If aLines[x] <> "" Then
-            cProp.Add(aLines[x], "name")
-            cProp.Add(aLines[x + 1], "kind")
-            cProp.Add(aLines[x + 2], "type")
-            cProp.Add(File.BaseName(sFile), "component")
-            'cTmp.Add(cProp.Copy(), LCase(aLines[x]))
-            cData.Add(cProp.Copy(), LCase(aLines[x]))
-            cProp.Clear
-          Endif
-        Next
+    Next
+    sRaw = aLines.Join("\n")
+    aRaw.Clear
+    aParts = Split(sRaw, "#")
 
-        'If sComponent = "gb" And sClass = "String" Then
-        '  Print sComponent & "#" & sClass & "~" & sClass2 & "~" & sClass3
-        '$Native = cTmp.Copy()
-        'Endif
-        'cTmp.Clear
-      Endif
-    Endif
-  Next
+    For i = 0 To aParts.Max
+        If aParts[i] <> "" Then
+            aRaw2 = Split(aParts[i], "\n")
+            aLines.Clear
+            For Each sLine In aRaw2
+                If Left(sLine) <> "'" Then
+                    aLines.Add(sLine)
+                Endif
+            Next
+            If aLines[0] = sClass Then
+                For x = 3 To aLines.Max - 4 Step 4
+                    If aLines[x] <> "" Then
+                        cProp.Add(aLines[x], "name")
+                        cProp.Add(aLines[x + 1], "kind")
+                        cProp.Add(aLines[x + 2], "type")
+                        cProp.Add(File.BaseName(sFile), "component")
+                        'cTmp.Add(cProp.Copy(), LCase(aLines[x]))
+                        cData.Add(cProp.Copy(), LCase(aLines[x]))
+                        cProp.Clear
+                    Endif
+                Next
 
-  'Next
+                'If sComponent = "gb" And sClass = "String" Then
+                '  Print sComponent & "#" & sClass & "~" & sClass2 & "~" & sClass3
+                '$Native = cTmp.Copy()
+                'Endif
+                'cTmp.Clear
+            Endif
+        Endif
+    Next
 
-  Return cData
+    'Next
+
+    Return cData
 
 End
