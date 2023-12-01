@@ -425,7 +425,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     i = dxf.ReadCodePlus(71, sClaves, sValues, ByRef e.fParam[Me.ipaAsociativity], i, 91)
 
     i = dxf.ReadCodePlus(91, sClaves, sValues, ByRef LoopToRead, i)
-
+    'If e.id = "59B" Then Stop
     For iLoop = 0 To LoopToRead - 1 'descubri que un Loop puede o no ser un area a rellenar distinta, a veces un Loop es un agujero de otro Loop
         mySegments = New Entity[]
         NewPath.eSegments.Add(mySegments)
@@ -436,6 +436,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
         ' If i = True Then Stop
         If (LoopType And 2) <> 2 Then ' otherwise is a polyline
 
+            i = Abs(i)
             i = dxf.ReadCode(93, sClaves, sValues, ByRef EdgesToRead, i)
 
             For edge = 0 To EdgesToRead - 1
@@ -1321,15 +1322,17 @@ Public Sub MakeBorder2(oPath As Hatch)
             End Select
 
         Next
-        ' verifico que este cerrado
-        If (drwPath[0] <> drwPath[drwPath.Max - 1]) Or (drwPath[1] <> drwPath[drwPath.Max]) Then ' le agrego
 
-            drwPath.Add(drwPath[0])
-            drwPath.Add(drwPath[1])
+        If drwPath.Count > 0 Then
+            ' verifico que este cerrado
+            If (drwPath[0] <> drwPath[drwPath.Max - 1]) Or (drwPath[1] <> drwPath[drwPath.Max]) Then ' le agrego
+
+                drwPath.Add(drwPath[0])
+                drwPath.Add(drwPath[1])
+            End If
+
+            oPath.Polylines.add(drwPath)
         End If
-
-        oPath.Polylines.add(drwPath)
-
         drwPath = New Float[]
         FirstPointSet = False
 
