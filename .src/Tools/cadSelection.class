@@ -221,7 +221,7 @@ Public Function MouseDown()
 
             ' creo una entidad al vuelo, clonada de la engripada
             Me.OriginalEntityForEdit = GripPoint.AsociatedEntity
-            Me.EntityForEdit = clsEntities.ClonEntity(GripPoint.AsociatedEntity)
+            Me.EntityForEdit = clsEntities.ClonEntity(GripPoint.AsociatedEntity, False)
             GripPoint.AsociatedEntity = Me.EntityForEdit
             gcd.Drawing.Sheet.SkipSearch = GripPoint.AsociatedEntity
 
@@ -473,25 +473,34 @@ Public Sub MouseUp()
 
             ' C.1.2 ActionActive = ActionGripActive -> Finalizo la edicion por grips
             ' guardo todo
-            's = GripPoint.ToolTip & (" in ") & GripPoint.AsociatedEntity.Gender
-            'gcd.Drawing.uUndo.OpenUndoStage(s, Undo.TypeModify)
-            'gcd.Drawing.uUndo.AddUndoItem(Me.OriginalEntityForEdit)
+
             GripEdit
             gcd.Drawing.Sheet.Grips.Clear
-            gcd.Drawing.Sheet.entities.Add(Me.EntityForEdit, Me.EntityForEdit.id)
-            gcd.Drawing.Sheet.EntitiesVisibles.Add(Me.EntityForEdit, Me.EntityForEdit.id)
-            gcd.Drawing.Sheet.EntitiesSelected.Add(Me.EntityForEdit, Me.EntityForEdit.id)
-            e = Me.EntityForEdit
-            gcd.CCC[e.Gender].finish(e)
-            gcd.CCC[e.Gender].generategrips(e)
-
             If Not GripCopying Then
+                Me.EntityForEdit.id = Me.OriginalEntityForEdit.id
+                s = GripPoint.ToolTip & (" in ") & GripPoint.AsociatedEntity.Gender
+                gcd.Drawing.uUndo.OpenUndoStage(s, Undo.TypeModify)
+                gcd.Drawing.uUndo.AddUndoItem(Me.OriginalEntityForEdit)
+
                 gcd.Drawing.Sheet.Entities.Remove(Me.OriginalEntityForEdit.id)
                 gcd.Drawing.Sheet.EntitiesVisibles.Remove(Me.OriginalEntityForEdit.id)
                 gcd.Drawing.Sheet.EntitiesSelected.Remove(Me.OriginalEntityForEdit.id)
+            Else
+                Me.EntityForEdit.id = gcd.NewId()
+                gcd.Drawing.uUndo.OpenUndoStage("Grip copy ", Undo.TypeCreate)
+                gcd.Drawing.uUndo.AddUndoItem(Me.EntityForEdit)
+
             Endif
 
-            clsEntities.glGenDrawList(e)
+            gcd.Drawing.uUndo.CloseUndoStage()
+
+            gcd.CCC[Me.EntityForEdit.Gender].finish(Me.EntityForEdit)
+            gcd.CCC[Me.EntityForEdit.Gender].generategrips(Me.EntityForEdit)
+            gcd.Drawing.Sheet.entities.Add(Me.EntityForEdit, Me.EntityForEdit.id)
+            gcd.Drawing.Sheet.EntitiesVisibles.Add(Me.EntityForEdit, Me.EntityForEdit.id)
+            gcd.Drawing.Sheet.EntitiesSelected.Add(Me.EntityForEdit, Me.EntityForEdit.id)
+
+            clsEntities.glGenDrawList(Me.EntityForEdit)
             clsEntities.glGenDrawListSel()
             clsEntities.glGenDrawListLAyers(Me.EntityForEdit.pLayer)
             Me.EntityForEdit = Null
