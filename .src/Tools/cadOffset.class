@@ -120,13 +120,15 @@ Public Function MouseUp()
     If Me.PointsDone = 2 Then ' acabo de marcar el punto destino
         Me.SelEndXr = gcd.Xreal(mouse.x)
         Me.SelEndYr = gcd.Yreal(mouse.y)
+        gcd.Drawing.uUndo.OpenUndoStage("Offset", Undo.TypeModify)
+
         For Each e2 In gcd.Drawing.Sheet.EntitiesSelected
 
             ' creo una nueva entidad en el mismo lugar
             e = clsEntities.ClonEntity(e2)
             gcd.Drawing.Sheet.Entities.Add(e, e.id)
             gcd.CCC[e.gender].Finish(e)
-
+            gcd.Drawing.uUndo.AddUndoItem(e, Undo.TypeModify)
             Select Case e.Gender
                 Case "SPLINE", "LWPOLYLINE"
                     ' voy a aplicar una logica basica: veo cual es mayor dx, dy diferencia de clicks
@@ -185,6 +187,7 @@ Public Function MouseUp()
         clsEntities.glGenDrawList()
         clsEntities.DeSelection()
         gcd.Redraw
+        gcd.Drawing.uUndo.CloseUndoStage
         Run
 
         Me.PointsDone = 1

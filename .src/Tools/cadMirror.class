@@ -184,14 +184,18 @@ Public Sub Finish()
     Dim cContainer As Collection
 
     If Me.PointsDone = Me.PointsTotal Then
+        gcd.Drawing.uUndo.OpenUndoStage("Mirror", Undo.TypeModify)
 
         If KeepOriginal Then
             cContainer = clsEntities.ClonElements() ' let make a copy of them
             For Each e In cContainer
+                gcd.Drawing.uUndo.AddUndoItem(e, Undo.TypeCreate)
                 gcd.Drawing.Sheet.Entities.Add(e, e.id)
             Next
         End If
         For Each e In gcd.Drawing.Sheet.EntitiesSelected
+            gcd.Drawing.uUndo.AddUndoItem(e)
+
             ' en todos los casos, roto los puntos
             clsEntities.Translate(e, -Me.SelStartXr, -Me.SelStartYr)
             clsEntities.Scale(e, 1, -1)
@@ -199,7 +203,7 @@ Public Sub Finish()
             clsEntities.Translate(e, Me.SelStartXr, Me.SelStartYr)
             clsEntities.glGenDrawList(e)
         Next
-
+        gcd.Drawing.uUndo.CloseUndoStage()
     Endif
 
     Super.Finish()

@@ -27,6 +27,7 @@ Public Const Gender As String = "TRIM"
 Private Tijeras As New Collection
 Private Recortes As New Collection
 Private eRecortar As Entity
+Private eNewPart As Entity
 Private Multiple As Boolean
 
 Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer = 0) As Boolean
@@ -110,7 +111,7 @@ Public Sub Run()
         Endif
         If gcd.Drawing.Sheet.EntitiesSelected.Count > 1 Then Multiple = True Else Multiple = False
 
-        gcd.Drawing.uUndo.OpenUndoStage("Trim entities", Undo.TypeCreate)
+        gcd.Drawing.uUndo.OpenUndoStage("Trim entities", Undo.TypeModify)
         For Each e In gcd.Drawing.Sheet.EntitiesSelected
             eRecortar = e
             DoTrim
@@ -130,6 +131,8 @@ End
 '' Esta sub recorta una linea con otras cosas
 Public Sub DoTrim()
 
+    gcd.Drawing.uUndo.OpenUndoStage("Trim", Undo.TypeModify)
+    gcd.Drawing.uUndo.AddUndoItem(eRecortar, Undo.TypeModify)
     Select Case eRecortar.Gender
         Case "LINE"
             DoTrimLine
@@ -141,6 +144,8 @@ Public Sub DoTrim()
             DoTrimArc
 
     End Select
+    gcd.Drawing.uUndo.AddUndoItem(eNewPart, Undo.TypeCreate)
+    gcd.Drawing.uUndo.CloseUndoStage
 
 End
 
@@ -151,7 +156,7 @@ Public Sub DoTrimLine()
     Dim flxObjeto, flxTijera As Float[]
     Dim s1 As Integer
     Dim Xcorte As Float
-    Dim eTijera, eNewPart As Entity
+    Dim eTijera As Entity
 
     Dim C1x, C1y, C2x, C2y As Float ' candidatos al recorte, C1 es el que esta mas cerca de P01 y C2 de P23
     Dim Ycorte As Float
@@ -355,7 +360,7 @@ Public Sub DoTrimPline()
     Dim flxObjeto, flxTijera As Float[]
     Dim s1 As Integer
     Dim Xcorte As Float
-    Dim eTijera, eNewPart As Entity
+    Dim eTijera As Entity
 
     Dim C1x, C1y, C2x, C2y As Float ' candidatos al recorte, C1 es el que esta mas cerca de P01 y C2 de P23
     Dim TramoC1, TramoC2 As Integer ' tramos donde estan los puntos para recortar
@@ -590,7 +595,7 @@ Public Sub DoTrimCircle()
     Dim flxObjeto, flxTijera As Float[]
     Dim s1 As Integer
     Dim Xcorte As Float
-    Dim eTijera, eNewPart As Entity
+    Dim eTijera As Entity
 
     Dim C1, C2 As Float ' candidatos al recorte, C1 es el que esta mas cerca de 0 y C2 de 360
     Dim TramoC1, TramoC2 As Integer ' tramos donde estan los puntos para recortar
@@ -694,7 +699,7 @@ Public Sub DoTrimArc()
     Dim flxObjeto, flxTijera As Float[]
     Dim s1 As Integer
     Dim Xcorte As Float
-    Dim eTijera, eNewPart As Entity
+    Dim eTijera As Entity
 
     Dim C1, C2 As Float ' candidatos al recorte, C1 es el que esta mas cerca de 0 y C2 de 360
     Dim TramoC1, TramoC2 As Integer ' tramos donde estan los puntos para recortar

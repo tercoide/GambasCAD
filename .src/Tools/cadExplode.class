@@ -68,6 +68,7 @@ Private Sub Explode()
     Dim i As Integer
     Dim e, e2 As Entity
 
+    gcd.Drawing.uUndo.OpenUndoStage("Explode", Undo.TypeCreate)
     For Each e In gcd.Drawing.Sheet.EntitiesSelected
 
         Select e.Gender
@@ -75,17 +76,20 @@ Private Sub Explode()
                 ' tengo q crear todas lass entidades del bloque que lo conforma
                 ' y eliminar el Insert o Dimension
                 ' para ello debo seguir el mismo metodo con que los dibujo
-
+                gcd.Drawing.uUndo.AddUndoItem(e, Undo.TypeDelete)
                 Explode_List(e.pBlock.entities, e, gcd.Drawing.Sheet.Entities)
 
                 e = Null
 
             Case "LWPOLYLINE"
+                gcd.Drawing.uUndo.AddUndoItem(e, Undo.TypeDelete)
 
                 For i = 0 To e.P.max - 3 Step 2
 
                     e2 = cadLine.NewEntity([e.P[i], e.P[i + 1], e.P[i + 2], e.P[i + 3]], True)
                     cadLine.Finish(e2)
+                    gcd.Drawing.uUndo.AddUndoItem(e2, Undo.TypeCreate)
+
                     clsEntities.glGenDrawList(e2)
                     e.Container.entities.Add(e2, e2.id)
 
@@ -101,6 +105,7 @@ Private Sub Explode()
 
     Next
     clsEntities.DeleteSelected()
+    gcd.Drawing.uUndo.CloseUndoStage
 
     Me.Finish
 
@@ -115,6 +120,7 @@ Private Sub Explode_List(eList As Collection, eParent As Entity, cDestination As
     Dim et, etnew As Entity
 
     For Each ET In eList
+        gcd.Drawing.uUndo.AddUndoItem(et, Undo.TypeCreate)
         cDestination.Add(et, et.Id)
         clsEntities.glGenDrawList(et)
 
