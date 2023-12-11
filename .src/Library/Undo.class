@@ -2,7 +2,7 @@
 
 ' This class implemets the Undo/Redo actions
 
-Public cUndo As New Collection[]
+Public cUndo As New UndoStage[]
 ' cUndo[]
 '   cStage["1"]
 '       "name"="Editar nudo"
@@ -14,7 +14,7 @@ Public cUndo As New Collection[]
 '       "D3"=clsBarra object deletion
 '       "4"=clsBarra object
 
-Public cRedo As New Collection[]
+Public cRedo As New UndoStage[]
 Public UndoStage As Integer
 Public RedoStage As Integer
 Private IsStageOpen As Boolean = False
@@ -23,22 +23,38 @@ Public Const TypeModify As Integer = 1
 Public Const TypeCreate As Integer = 2
 Public Const TypeDelete As Integer = 3
 
-Public Function AddUndoItem(oItem As Object)
+Public Function AddUndoItem(oItem As Entity, Optional iType As Integer = -1)
 
+    Dim eCopy As Entity
     ' agrego un item a la coleccion activa, si no hay instancia activa, la creo
-    cUndo.Last.Add(oItem, oItem.Id)
+    If iType < 0 Then iType = cUndo.Last.iTypeDefault
+
+    Select Case iType
+        Case TypeCreate
+
+            cUndo.Last.cCreate.Add(oItem, oItem.Id)
+        Case TypeModify
+            ' necesito hacer una copia
+            eCopy = clsEntities.ClonEntity(oItem, False)
+
+            cUndo.Last.cModify.Add(eCopy, oItem.Id)
+        Case TypeDelete
+
+            cUndo.Last.cDelete.Add(oItem, oItem.Id)
+    End Select
 
 End
 
 '' Adds an undo stage where one or more stuff can be Undo'ed at once
 Public Function OpenUndoStage(sName As String, iStageType As Integer) As Boolean
 
-    Dim cStage As New Collection
+    Dim cStage As New UndoStage
 
-    If sName = "" Then sName = ""
+    If sName = "" Then sName = "<no description>"
     cUndo.Add(cStage)        ' agrego al array que acumula acciones
-    cStage.Add(sName, "name_" & CStr(iStageType))                   ' el primer item es el nombre de las acciones, ej: "Editar nudos"
+    cStage.Name = sName   ' el primer item es el nombre de las acciones, ej: "Editar nudos"
     IsStageOpen = True
+    cStage.iTypeDefault = iStageType
 
 End
 
@@ -51,46 +67,68 @@ End
 '' Esto debe ser llamado cuando el user presiona el boton de Undo
 Public Sub DoUndo()
 
-    Dim cLastUndo As Collection
     Dim FirstOne As Boolean = True
     Dim iType As Integer
     Dim indice As String
     Dim c As Variant
-    Dim NewRedo As New Collection
+    Dim e As Entity
+    Dim NewRedo As New UndoStage
 
     If cUndo.Count = 0 Then Return
-    cLastUndo = cUndo.Last
 
-    For Each c In cLastUndo
-        ' el primero es accion
-        If FirstOne Then
-            iType = CInt(Mid(cLastUndo.Key, 6))
-            FirstOne = False
-            cRedo.Add(NewRedo)
-            NewRedo.Add(c, cLastUndo.Key)
-            Continue
-        Endif
-        Select Case iType
-            Case Me.TypeModify
-                indice = cLastUndo.Key
-
-                NewRedo.Add(gcd.Drawing.Sheet.Entities[indice], cLastUndo.Key)
-                c.Container.Entities[indice] = c
-
-            Case Me.TypeCreate
-                indice = cLastUndo.Key
-                NewRedo.Add(gcd.Drawing.Sheet.Entities[indice], cLastUndo.Key)
-                gcd.Drawing.Sheet.Entities.Remove(indice)
-
-            Case Me.TypeDelete
-                indice = cLastUndo.Key
-                NewRedo.Add("nothing", cLastUndo.Key)
-                gcd.Drawing.Sheet.Entities.Add(c, indice)
-
-        End Select
+    For Each e In cUndo.Last.cCreate
+        indice = cUndo.Last.cCreate.Key
+        NewRedo.cCreate.Add(gcd.Drawing.Sheet.Entities[indice], indice)
+        gcd.Drawing.Sheet.Entities.Remove(indice)
 
     Next
 
+    For Each e In cUndo.Last.cModify
+        indice = cUndo.Last.cModify.Key
+        NewRedo.cModify.Add(gcd.Drawing.Sheet.Entities[indice], indice)
+        e.Container.Entities[indice] = e
+
+    Next
+
+    For Each e In cUndo.Last.cDelete
+        indice = cUndo.Last.cDelete.Key
+        NewRedo.cDelete.Add("nothing", indice)
+        gcd.Drawing.Sheet.Entities.Add(e, indice)
+
+    Next
+
+    ' For Each c In cLastUndo
+    '     ' el primero es accion
+    '     If FirstOne Then
+    '         iType = CInt(Mid(cLastUndo.Key, 6))
+    '         FirstOne = False
+    '         cRedo.Add(NewRedo)
+    '         NewRedo.Add(c, cLastUndo.Key)
+    '         Continue
+    '     Endif
+    '     Select Case iType
+    '         Case Me.TypeModify
+    '             indice = cLastUndo.Key
+    '
+    '             NewRedo.Add(gcd.Drawing.Sheet.Entities[indice], cLastUndo.Key)
+    '             c.Container.Entities[indice] = c
+    '
+    '         Case Me.TypeCreate
+    '             indice = cLastUndo.Key
+    '             NewRedo.Add(gcd.Drawing.Sheet.Entities[indice], cLastUndo.Key)
+    '             gcd.Drawing.Sheet.Entities.Remove(indice)
+    '
+    '         Case Me.TypeDelete
+    '             indice = cLastUndo.Key
+    '             NewRedo.Add("nothing", cLastUndo.Key)
+    '             gcd.Drawing.Sheet.Entities.Add(c, indice)
+    '
+    '     End Select
+    '
+    ' Next
+    NewRedo.iTypeDefault = cUndo.Last.iTypeDefault
+    NewRedo.Name = cUndo.Last.Name
+    cRedo.Add(NewRedo)
     cUndo.Remove(cUndo.Max)
 
 End
@@ -98,43 +136,63 @@ End
 '' Esto debe ser llamado cuando el user presiona el boton de Undo
 Public Sub DoRedo()
 
-    Dim cLastRedo As Collection
+    Dim cLastRedo As UndoStage
     Dim FirstOne As Boolean = True
     Dim iType As Integer
     Dim indice As String
-    Dim c As Variant
-    Dim NewUndo As New Collection
+    Dim e As Entity
+    Dim NewUndo As New UndoStage
 
     If cRedo.Count = 0 Then Return
-    cLastRedo = cRedo.Last
 
-    For Each c In cLastRedo
-        ' el primero es accion
-        If FirstOne Then
-            iType = CInt(Mid(cLastRedo.Key, 6))
-            FirstOne = False
-            cUndo.Add(NewUndo)
-            NewUndo.Add(c, cLastRedo.Key)
-            Continue
-        Endif
-        Select Case iType
-            Case Me.TypeModify
-                indice = cLastRedo.Key
-                NewUndo.Add(gcd.Drawing.Sheet.Entities[indice], cLastRedo.Key)
-                gcd.Drawing.Sheet.Entities[indice] = c
-            Case Me.TypeCreate
-                indice = cLastRedo.Key
-                NewUndo.Add(cLastRedo[cLastRedo.Key], cLastRedo.Key)
-                cLastRedo[cLastRedo.Key].Container.Entities.Add(cLastRedo[cLastRedo.Key], cLastRedo[cLastRedo.Key].id)
-            Case Me.TypeDelete
-                indice = cLastRedo.Key
-                NewUndo.Add(cLastRedo[cLastRedo.Key], cLastRedo.Key)
-                cLastRedo[cLastRedo.Key].Container.Entities.Remove(cLastRedo[cLastRedo.Key].id)
-
-        End Select
+    ' For Each c In cLastRedo
+    '     ' el primero es accion
+    '     If FirstOne Then
+    '         iType = CInt(Mid(cLastRedo.Key, 6))
+    '         FirstOne = False
+    '         cUndo.Add(NewUndo)
+    '         NewUndo.Add(c, cLastRedo.Key)
+    '         Continue
+    '     Endif
+    '     Select Case iType
+    '         Case Me.TypeModify
+    '             indice = cLastRedo.Key
+    '             NewUndo.Add(gcd.Drawing.Sheet.Entities[indice], cLastRedo.Key)
+    '             gcd.Drawing.Sheet.Entities[indice] = c
+    '         Case Me.TypeCreate
+    '             indice = cLastRedo.Key
+    '             NewUndo.Add(cLastRedo[cLastRedo.Key], cLastRedo.Key)
+    '             cLastRedo[cLastRedo.Key].Container.Entities.Add(cLastRedo[cLastRedo.Key], cLastRedo[cLastRedo.Key].id)
+    '         Case Me.TypeDelete
+    '             indice = cLastRedo.Key
+    '             NewUndo.Add(cLastRedo[cLastRedo.Key], cLastRedo.Key)
+    '             cLastRedo[cLastRedo.Key].Container.Entities.Remove(cLastRedo[cLastRedo.Key].id)
+    '
+    '     End Select
+    '
+    ' Next
+    For Each e In cRedo.Last.cCreate
+        indice = cRedo.Last.cCreate.Key
+        NewUndo.cCreate.Add(gcd.Drawing.Sheet.Entities[indice], indice)
+        cRedo.Last.cCreate[indice].Container.Entities.Add(cRedo.Last.cCreate[indice], indice)
 
     Next
 
+    For Each e In cRedo.Last.cModify
+        indice = cRedo.Last.cModify.Key
+        NewUndo.cModify.Add(gcd.Drawing.Sheet.Entities[indice], indice)
+        e.Container.Entities[indice] = e
+
+    Next
+
+    For Each e In cRedo.Last.cDelete
+        indice = cRedo.Last.cDelete.Key
+        NewUndo.cDelete.Add("nothing", indice)
+        cRedo.Last.cDelete[indice].Container.Entities.remove(indice)
+
+    Next
+
+    cUndo.Add(NewUndo)
     cRedo.Remove(cRedo.Max)
 
 End
