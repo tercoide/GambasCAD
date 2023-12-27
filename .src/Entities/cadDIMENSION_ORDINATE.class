@@ -233,7 +233,7 @@ Public Sub RebuildBlock(E As Entity, Optional iMode As Integer = 0, fAngle As Fl
     eText = cadMText.NewEntity([0, 0], True)  ' si leo un archivo, esta es la posicion final
     eText.fParam[cadMText.ipaAttchmPoint] = 8
     eText.fParam[cadMText.ipaTextAngle] = Me.DefAngle
-    eText.fParam[cadMText.ipaTextHeight] = e.pDimStyle.DIMTXT
+    eText.fParam[cadMText.ipaTextHeight] = e.pDimStyle.DIMTXT / e.pDimStyle.DIMSCALE
 
     If Me.DefAngle = 0 Then
         d = Me.DefPoint2b.x - Me.DefBaselinePoint.x
@@ -312,6 +312,7 @@ Public Sub RebuildBlock(E As Entity, Optional iMode As Integer = 0, fAngle As Fl
     If IsNegative Then eOblique2.fParam[cadInsert.ipaRotacion] += 180
     cadInsert.Finish(eOblique2)
 
+    cadMText.BuildGeometry(eText)
     ' agrego todo al bloque
     newBlock.entities.Add(eLineaPpal, eLineaPpal.Id)
     newBlock.entities.Add(eExtension2, eExtension2.Id)
@@ -350,5 +351,63 @@ Public Sub RebuildBlock(E As Entity, Optional iMode As Integer = 0, fAngle As Fl
     e.P[23] = 0
 
     Return newBlock
+
+End
+
+'' Genera un conjunto de grips para ser usados por cadSelection
+Public Function GenerateGrips(e As Entity) As Integer
+
+    Dim i As Integer
+    Dim g As Grip
+    Dim iCount As Integer
+    Dim flxGrip As New Float[]
+
+    g = New Grip
+    g.Shape = 0
+    g.X = e.P[0]
+    g.Y = e.P[1]
+    g.Action = 0 ' mover
+    g.AsociatedEntity = e
+    g.AsociatedPoint = 0
+    gcd.Drawing.Sheet.Grips.Add(g)
+    g.ToolTip = ("Move base point")
+
+    g = New Grip
+    g.Shape = 0
+    g.X = e.P[2]
+    g.Y = e.P[3]
+    g.Xr = g.X
+    g.Yr = g.Y
+    g.Action = 1 ' este dato es propio de la clase
+    g.AsociatedEntity = e
+    g.AsociatedPoint = 1
+    g.AsociatedGrip = 0
+    g.ToolTip = ("Move def point")
+    gcd.Drawing.Sheet.Grips.Add(g)
+
+    g = New Grip
+    g.Shape = 0
+    g.X = e.P[4]
+    g.Y = e.P[5]
+    g.Xr = g.X
+    g.Yr = g.Y
+    g.Action = 1 ' este dato es propio de la clase
+    g.AsociatedEntity = e
+    g.AsociatedPoint = 2
+    g.AsociatedGrip = 0
+    g.ToolTip = ("Move text position")
+
+End
+
+Public Function GripEdit(g As Grip) As Boolean
+
+    Dim e As Entity
+    Dim Xr, Yr, xs, ys As Float
+
+    e = g.AsociatedEntity
+    e.P[g.AsociatedPoint * 2] = g.X
+    e.P[g.AsociatedPoint * 2 + 1] = g.Y
+
+    e.pBlock = RebuildBlock(e)
 
 End

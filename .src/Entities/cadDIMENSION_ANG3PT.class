@@ -315,7 +315,7 @@ Public Sub RebuildBlock(E As Entity) As Block
     eText = cadMText.NewEntity([Me.DefTextMIdPoint.x, Me.DefTextMIdPoint.y], True)  ' si leo un archivo, esta es la posicion final
     eText.fParam[cadMText.ipaAttchmPoint] = 8
     eText.fParam[cadMText.ipaTextAngle] = ((eLineaPpal.fParam[2] + eLineaPpal.fParam[1]) / 2 - 90) / 180 * Pi
-    eText.fParam[cadMText.ipaTextHeight] = e.pDimStyle.DIMTXT
+    eText.fParam[cadMText.ipaTextHeight] = e.pDimStyle.DIMTXT / e.pDimStyle.DIMSCALE
 
     If (eLineaPpal.fParam[2] - eLineaPpal.fParam[1]) < 0 Then eLineaPpal.fParam[2] += 360
 
@@ -355,6 +355,7 @@ Public Sub RebuildBlock(E As Entity) As Block
         eText.sParam[cadMText.sdaText] = "\\A1;" & "L=" & sDim
     End If
 
+    cadMText.BuildGeometry(eText)
     ' ' veo si entra el texto
     ' flxTextExt = glx.TextExtends(sDim, Me.DimTextHeight)
     ' If flxTextExt[0] * 1.2 > d Then ' no entra
@@ -400,5 +401,74 @@ Public Sub RebuildBlock(E As Entity) As Block
     End If
 
     Return newBlock
+
+End
+
+'' Genera un conjunto de grips para ser usados por cadSelection
+Public Function GenerateGrips(e As Entity) As Integer
+
+    Dim i As Integer
+    Dim g As Grip
+    Dim iCount As Integer
+    Dim flxGrip As New Float[]
+
+    g = New Grip
+    g.Shape = 0
+    g.X = e.P[0]
+    g.Y = e.P[1]
+    g.Action = 0 ' mover
+    g.AsociatedEntity = e
+    g.AsociatedPoint = 0
+    gcd.Drawing.Sheet.Grips.Add(g)
+    g.ToolTip = ("Move center")
+
+    g = New Grip
+    g.Shape = 0
+    g.X = e.P[2]
+    g.Y = e.P[3]
+    g.Xr = g.X
+    g.Yr = g.Y
+    g.Action = 1 ' este dato es propio de la clase
+    g.AsociatedEntity = e
+    g.AsociatedPoint = 1
+    g.AsociatedGrip = 0
+    g.ToolTip = ("Move def point")
+    gcd.Drawing.Sheet.Grips.Add(g)
+
+    g = New Grip
+    g.Shape = 0
+    g.X = e.P[4]
+    g.Y = e.P[5]
+    g.Xr = g.X
+    g.Yr = g.Y
+    g.Action = 1 ' este dato es propio de la clase
+    g.AsociatedEntity = e
+    g.AsociatedPoint = 2
+    g.AsociatedGrip = 0
+    g.ToolTip = ("Move def point")
+    gcd.Drawing.Sheet.Grips.Add(g)
+
+    g = New Grip
+    g.Shape = 0
+    g.X = e.P[6]
+    g.Y = e.P[7]
+    g.Action = 0 ' mover
+    g.AsociatedEntity = e
+    g.AsociatedPoint = 3
+    gcd.Drawing.Sheet.Grips.Add(g)
+    g.ToolTip = ("Move text position")
+
+End
+
+Public Function GripEdit(g As Grip) As Boolean
+
+    Dim e As Entity
+    Dim Xr, Yr, xs, ys As Float
+
+    e = g.AsociatedEntity
+    e.P[g.AsociatedPoint * 2] = g.X
+    e.P[g.AsociatedPoint * 2 + 1] = g.Y
+
+    e.pBlock = RebuildBlock(e)
 
 End

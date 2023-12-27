@@ -186,6 +186,41 @@ End
 Public Function Action_Activate(sAction As String) As Boolean
 
     actions.ActionActivate(sAction)
+    Select sAction
+        Case "selectnew", "selectsingle", "selectrect", "selectpoly"
+            SetToolsMode("properties")
+            '' TODO: Definir como gestionar los bloques
+            'Case "placeblock"
+            'SetToolsMode("blocks")
+        Case Else
+            SetToolsMode("tools")
+    End Select
+
+End
+
+Private Sub SetToolsMode(sMode As String)
+
+    Dim obj As Object
+    Dim fp As FProps
+
+    For Each obj In pnlToolbarLeft.Children
+        obj.Visible = False
+        If sMode = "properties" And Object.Type(obj) = "Panel" Then
+            obj.Parent.Arrangement = Arrange.Vertical
+            obj.Visible = True
+            obj.Children.Clear
+            fp = New FProps(obj)
+            fp.Expand = True
+            '' TODO: Aca tenes que poner la coleccion de entidades seleccionadas
+            fp.FillProperties(gcd.Drawing.Sheet.EntitiesSelected)
+
+        Else
+            obj.Parent.Arrangement = Arrange.Row
+            If sMode = "tools" And Object.Type(obj) = "Frame" Then
+                obj.Visible = True
+            Endif
+        Endif
+    Next
 
 End
 
@@ -1670,7 +1705,7 @@ Public Sub splitterH_Resize()
     Config.SplitterH = splitterH.Layout
 
     For Each obj In pnlToolbarLeft.Children
-        If Object.Type(obj) = "Frame" Then
+        If Object.Type(obj) = "Frame" And obj.Visible Then
             q = obj.W / 32
 
             e = (obj.Children.count - 1) / q
