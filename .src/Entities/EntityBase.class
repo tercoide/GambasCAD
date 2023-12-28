@@ -275,12 +275,15 @@ Public Function GenerateGrips(e As Entity) As Integer
     Dim i As Integer
     Dim g As Grip
     Dim iCount As Integer
+    Dim xg, yg As Float
 
     For i = 0 To e.P.Max Step 2
         g = New Grip
         g.Shape = 0
         g.X = e.P[i]
         g.Y = e.P[i + 1]
+        xg += g.X
+        yg += g.y
         g.Action = 0 ' mover
         g.AsociatedEntity = e
         g.AsociatedPoint = iCount
@@ -289,6 +292,23 @@ Public Function GenerateGrips(e As Entity) As Integer
         Inc iCount
 
     Next
+    Dim flim As Float[]
+    flim = gcd.CCC[e.Gender].limits(e)
+
+    xg = (flim[0] + flim[2]) / 2
+    yg = (flim[1] + flim[3]) / 2
+
+    g = New Grip
+    g.Shape = 1
+    g.X = xg
+    g.Y = yg
+    g.Xr = xg
+    g.yr = yg
+    g.Action = 1 ' mover
+    g.AsociatedEntity = e
+    g.AsociatedPoint = -1
+    gcd.Drawing.Sheet.Grips.Add(g)
+    g.ToolTip = ("Translate " & e.Gender)
     Return iCount
 
 End
@@ -308,20 +328,22 @@ Public Function GripEdit(g As Grip) As Boolean
     Dim e As Entity, p2 As Integer
 
     e = g.AsociatedEntity
+    If g.AsociatedPoint > 0 Then
+        e.P[g.AsociatedPoint * 2] = g.X
+        e.P[g.AsociatedPoint * 2 + 1] = g.Y
 
-    e.P[g.AsociatedPoint * 2] = g.X
-    e.P[g.AsociatedPoint * 2 + 1] = g.Y
-
-    If e.P.Count / 2 > 1 Then
-        p2 = g.AsociatedPoint + 1
-        If p2 = e.P.Count / 2 Then
-            p2 = g.AsociatedPoint - 1
+        If e.P.Count / 2 > 1 Then
+            p2 = g.AsociatedPoint + 1
+            If p2 = e.P.Count / 2 Then
+                p2 = g.AsociatedPoint - 1
+            Endif
         Endif
-    Endif
 
-    gcd.Drawing.LastPoint.clear
-    gcd.Drawing.LastPoint.Insert([e.P[p2 * 2], e.P[p2 * 2 + 1]])
-
+        gcd.Drawing.LastPoint.clear
+        gcd.Drawing.LastPoint.Insert([e.P[p2 * 2], e.P[p2 * 2 + 1]])
+    Else
+        clsEntities.Translate(e, g.X - g.xr, g.Y - g.yr)
+    End If
     BuildGeometry(e)
 
 End
