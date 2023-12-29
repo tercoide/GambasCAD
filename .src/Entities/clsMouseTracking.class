@@ -11,7 +11,7 @@
 
 Create Static
 Create Private
-Fast Unsafe
+'Fast Unsafe
 
 Public LastFound As Entity              ' ultima entidad encontrada
 Public LastPointToCursorDistance As Float
@@ -240,7 +240,7 @@ Public Sub CheckPOI(xr As Float, Yr As Float, Optional e As Entity) As Float[]
     Dim rData, CurrentPoint As New Float[], e2, ePart As Entity
     Dim indexEntity, i, iInter, i2, iPoligon, iLine, iPoint As Integer
     Dim pend1, base1, pend2, base2 As Float ' vars para las ecuacionesde las rectas
-    Dim puntoB, puntoA, pIntersection, pInter, pInterPoly, pInterPoly2 As New Float[]
+    Dim pNea, puntoB, puntoA, pIntersection, pInter, pInterPoly, pInterPoly2 As New Float[]
     Dim end1X, end1Y, end2X, end2Y As Float
     Dim x0, y0, x1, y1 As Float
     ' distancias  los enganches, para determinar cual es el mas cercano al puntero
@@ -505,6 +505,10 @@ Public Sub CheckPOI(xr As Float, Yr As Float, Optional e As Entity) As Float[]
             DistMId = puntos.distancia((e.P[2] + e.P[0]) / 2, (e.P[3] + e.P[1]) / 2, xr, yr)
             i = 0
 
+            pNea = puntos.NearestToLine(xr, yr, e.P[0], e.P[1], e.P[2], e.P[3])
+
+            DistNearest = puntos.distancia(xr, yr, pNea[0], pNea[1])
+
         Case "Text", "MText"
 
             DistBase = puntos.distancia(e.P[0], e.P[1], xr, yr)
@@ -630,6 +634,10 @@ Public Sub CheckPOI(xr As Float, Yr As Float, Optional e As Entity) As Float[]
         If Dist > DistInter Then dist = DistInter
     End If
 
+    If gcd.SnapMode And gcd.poiNearest Then
+        If Dist > DistNearest Then dist = DistNearest
+    End If
+
     ' ofrezco ese punto
     If dist = DistEnd1 Then
         rData[0] = end1X
@@ -699,6 +707,13 @@ Public Sub CheckPOI(xr As Float, Yr As Float, Optional e As Entity) As Float[]
         rData[1] = e.P[1]
         rData[2] = gcd.poiBasePoint
         DrawingAIds.txtSnapTo = "BasePoint"
+    End If
+
+    If dist = DistNearest Then
+        rData[0] = pNea[0]
+        rData[1] = pNea[1]
+        rData[2] = gcd.poiNearest
+        DrawingAIds.txtSnapTo = "Nearest"
     End If
 
     ' Debug "pois checked"
