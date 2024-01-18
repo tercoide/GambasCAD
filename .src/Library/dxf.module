@@ -37,12 +37,17 @@
 '               handle = hEntity2
 '               owner  = hEntityInsert
 ' OBJECTS
+'     handle = variable HO
+'     owner  = 0
+
+'       DICTIONARY
+'
 '       OBJECT 1
 '               handle = hObject1
-'               owner  =
+'               owner  = HO
 '       OBJECT LAYOUT
 '               handle = hObject1
-'               owner  =
+'               owner  = HO
 
 Public LoadingPercent As Single
 Private LoadLastPercent As Single
@@ -60,6 +65,7 @@ Private eExports As Boolean
 ' Private Handle_Block_REcord As New Collection
 ' Private Handle_Block As New Collection
 ' Private Handle_Layout As New Collection
+Private hObjects As String
 Private hDictionary As String
 Public hContainers As New Collection
 Private ReadTimes As New Collection
@@ -901,6 +907,7 @@ Private Function Save3TablesDirect(drw As Drawing) As Integer
         s.Block.id = NewHandle()
         s.id = NewHandle()
     Next
+    hObjects = NewHandle()
     hDictionary = NewHandle()
     For Each b In drw.Blocks
         If b.Sheet Then Continue
@@ -1564,10 +1571,8 @@ Private Function Save4BlocksDirect(drw As Drawing) As Integer
     Dim sValues, lpclave, sBlockName As String
     Dim s As Sheet, eBlocks As Collection, e, e2 As Entity
 
-    Print #hFIle, "  0"
-    Print #hFIle, "SECTION"
-    Print #hFIle, "2"
-    Print #hFIle, "BLOCKS"
+    SaveCode(0, "SECTION")
+    SaveCode(2, "BLOCKS")
 
     ' For Each s In drw.Sheets
     '
@@ -1608,32 +1613,19 @@ Private Function Save4BlocksDirect(drw As Drawing) As Integer
 
     For Each eBlock In drw.Blocks
 
-        Print #hFIle, "  0"
-        Print #hFIle, "BLOCK"
-        Print #hFIle, "  5"         ' handle
-        Print #hFIle, eBlock.id 'Handle_Block[eBlock.name]
-        Print #hFIle, "  330"
-        Print #hFIle, eBlock.idContainer 'Handle_Block_Record[eBlock.name]
-        Print #hFIle, "  100"
-        Print #hFIle, "AcDbEntity"
-        Print #hFIle, " 8"          ' layer name
-        Print #hFIle, eBlock.layer
-        Print #hFIle, "100"
-        Print #hFIle, "AcDbBlockBegin"
-        Print #hFIle, "  2"
-        Print #hFIle, eBlock.name
-        Print #hFIle, "  70"
-        Print #hFIle, eBlock.Flags
-        Print #hFIle, codX0
-        Print #hFIle, eBlock.x0
-        Print #hFIle, cody0
-        Print #hFIle, eBlock.y0
-        Print #hFIle, codz0
-        Print #hFIle, eBlock.z0
-        Print #hFIle, "  3"
-        Print #hFIle, eBlock.name
-        Print #hFIle, "  1"
-        Print #hFIle, ""            ' X ref path
+        SaveCode(0, "BLOCK")
+        SaveCode(5, eBlock.id)              'Handle_Block[eBlock.name]
+        SaveCode(330, eBlock.idContainer)   'Handle_Block_Record[eBlock.name]
+        SaveCode(100, "AcDbEntity")
+        SaveCode(8, eBlock.layer)
+        SaveCode(100, "AcDbBlockBegin")
+        SaveCode(2, eBlock.name)
+        SaveCode(70, eBlock.Flags)
+        SaveCode(codX0, eBlock.x0)
+        SaveCode(cody0, eBlock.y0)
+        SaveCode(codz0, eBlock.z0)
+        SaveCode(3, eBlock.name)
+        SaveCode(1, "")            ' X ref path
         If (eBlock.entities.Count > 0) And (Not eBlock.Sheet) Then
 
             For Each eEnty In eBlock.entities
@@ -1650,8 +1642,7 @@ Private Function Save4BlocksDirect(drw As Drawing) As Integer
                     lpclave = stxEnty[i + 1]
                     lpvalue = stxEnty[i]
                     If lpclave = "330" Then lpvalue = eBlock.idContainer 'Handle_Block_Record[eBlock.name]
-                    Print #hFile, lpclave
-                    Print #hFIle, lpvalue
+                    SaveCode(lpclave, lpvalue)
                 Next
             Next
 
@@ -1737,8 +1728,7 @@ Private Function Save4BlocksDirect(drw As Drawing) As Integer
     '         End If
     '     Next
     ' Next
-    Print #hFIle, "  0"
-    Print #hFIle, "ENDSEC"
+    SaveCode(0, "ENDSEC")
 
 End
 
@@ -1771,8 +1761,7 @@ Private Function Save5EntitiesDirect(eEntys As Collection, hContainer As String)
                         lpvalue = hContainer
                     End If
                 End If
-                Print #hFile, lpclave
-                Print #hFIle, lpvalue
+                SaveCode(lpclave, lpvalue)
             Next
 
             If eEnty.Gender = "INSERT" Then
@@ -1798,8 +1787,7 @@ Private Function Save5EntitiesDirect(eEntys As Collection, hContainer As String)
                                 If lpclave = "330" Then
                                     lpvalue = hNewHandle
                                 End If
-                                Print #hFile, lpclave
-                                Print #hFIle, lpvalue
+                                SaveCode(lpclave, lpvalue)
                             Next
                         End If
                     Next
@@ -1837,8 +1825,7 @@ Private Function Save5EntitiesDirect(eEntys As Collection, hContainer As String)
                             If lpclave = "330" Then
                                 lpvalue = hNewHandle
                             End If
-                            Print #hFile, lpclave
-                            Print #hFIle, lpvalue
+                            SaveCode(lpclave, lpvalue)
                         Next
 
                     Next
@@ -1888,15 +1875,48 @@ Private Function Save6Objects(drw As Drawing) As Boolean
         cObjects.Add(cObject, s.Name)
     Next
 
-    Print #hFIle, "  0"
-    Print #hFIle, "SECTION"
-    Print #hFIle, "2"
-    Print #hFIle, "OBJECTS"
+    SaveCode(0, "SECTION")
+    SaveCode(2, "OBJECTS")
+    SaveCode(0, "DICTIONARY")
+    SaveCode(5, "A")
+    SaveCode(330, 0)
+    SaveCode(100, "AcDbDictionary")
+    SaveCode(280, 0)
+    SaveCode(281, 1)
+    SaveCode(3, "ACAD_COLOR")
+    SaveCode(350, "B")
+    SaveCode(3, "ACAD_GROUP")
+    SaveCode(350, "C")
+    SaveCode(3, "ACAD_LAYOUT")
+    SaveCode(350, "D")
+    SaveCode(3, "ACAD_MATERIAL")
+    SaveCode(350, "E")
+    SaveCode(3, "ACAD_MLEADERSTYLE")
+    SaveCode(350, "F")
+    SaveCode(3, "ACAD_MLINESTYLE")
+    SaveCode(350, "10")
+    SaveCode(3, "ACAD_PLOTSETTINGS")
+    SaveCode(350, "11")
+    SaveCode(3, "ACAD_PLOTSTYLENAME")
+    SaveCode(350, "12")
+    SaveCode(3, "ACAD_SCALELIST")
+    SaveCode(350, "14")
+    SaveCode(3, "ACAD_TABLESTYLE")
+    SaveCode(350, "15")
+    SaveCode(3, "ACAD_VISUALSTYLE")
+    SaveCode(350, "16")
+
+    SaveCode(2, "DICTIONARY")
+    SaveCode(5, "B")
+    SaveCode(330, "A")
+    SaveCode(100, "AcDbDictionary")
+    SaveCode(280, 0)
+    SaveCode(281, 1)
 
     '' FIXME: reparar los papaerspaces
-    ' For Each cObject In cObjects
-    '     SaveColection(cObject)
-    ' Next
+    For Each cObject In cObjects
+        SaveColection(cObject)
+    Next
     ' end section code
     Print #hFIle, "  0"
     Print #hFIle, "ENDSEC"
@@ -1909,10 +1929,8 @@ Private Function Save7ThumbNail(imgGLArea As Image) As Integer
     Dim i As Integer
     Dim cThumbs As Collection
 
-    Print #hFIle, "  0"
-    Print #hFIle, "SECTION"
-    Print #hFIle, "2"
-    Print #hFIle, "THUMBNAILIMAGE"
+    SaveCode(0, "SECTION")
+    SaveCode(2, "THUMBNAILIMAGE")
     ' cThumbs = cData["THUMBNAILIMAGE"]
     ' If Not IsNull(cThumbs) Then
     '   For Each sValues In cThumbs
@@ -1924,12 +1942,10 @@ Private Function Save7ThumbNail(imgGLArea As Image) As Integer
     '   Next
     ' End If
     ' ' end section code
-    Print #hFIle, "  0"
-    Print #hFIle, "ENDSEC"
+    SaveCode(0, "ENDSEC")
 
     ' end file code
-    Print #hFIle, "  0"
-    Print #hFIle, "EOF"
+    SaveCode(0, "EOF")
 
 End
 
@@ -2157,8 +2173,7 @@ Private Sub SaveColection(cData As Collection)
         lpclave = cData.Key
         I = InStr(lpclave, "_")
         If i > 0 Then lpclave = Left(lpclave, i - 1)
-        Print #hFile, lpclave
-        Print #hFIle, sValues
+        SaveCode(lpclave, sValues)
     Next
 
 End Sub
