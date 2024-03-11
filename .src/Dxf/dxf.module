@@ -111,6 +111,7 @@ Public Function DWGtoDXF(sDwgFile As String) As String
     ' convierte DWG a DXF version 2010
     Shell "/usr/local/bin/dwgread '" & sDwgFile & "' -O DXF -a r2010 -o '" & tmpfile & "'" Wait To str
     gcd.debuginfo("Resultados de la conversion DWG a DXF " & Str)
+    Wait
     Return tmpfile
 
 End
@@ -153,6 +154,7 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
 
                 Load1HeadersDirect(drw.Headers)
                 gcd.debugInfo("Leidos Headers",,, True)
+                Wait
 
             End If
 
@@ -160,7 +162,7 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
 
                 Load2Classes(drw)
                 gcd.debugInfo("Leidas Classes",,, True)
-
+                Wait
             End If
 
             If lpCode = "2" And lpValue = "TABLES" And Not IgnoreTables Then
@@ -172,14 +174,14 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
                 End If
                 Load3Tables(cLlaveActual)
                 gcd.debugInfo("Leidos Tables",,, True)
-
+                Wait
                 ' con las tablas cargadas, llenamoslas colecciones de objetos
                 ReadViewports(cToFill, drw)
                 ReadLTypes(cToFill, drw)
                 ReadStyles(cToFill, drw)
                 ReadLayers(cToFill, drw)
                 gcd.debugInfo("Tables al Drawing",,, True)
-
+                Wait
             End If
 
             '
@@ -189,7 +191,7 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
                 cToFill.Add(cLlaveActual, "BLOCKS")
                 Load4Blocks(cLlaveActual)
                 gcd.debugInfo("Leidos Blocks",,, True)
-
+                Wait
             End If
 
             If lpCode = "2" And lpValue = "ENTITIES" Then
@@ -199,7 +201,7 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
 
                 Load5Entities(cLlaveActual)
                 gcd.debugInfo("Leidas Entidades",,, True)
-
+                Wait
             End If
             '
             If lpCode = "2" And lpValue = "OBJECTS" Then
@@ -213,7 +215,7 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
 
                 Load6Objects(cLlaveActual)
                 gcd.debugInfo("Leidos Objetos",,, True)
-
+                Wait
             End If
 
             If lpCode = "2" And lpValue = "THUMBNAILIMAGE" Then
@@ -226,7 +228,7 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
                 End If
 
                 Load7Thumbnail(cLlaveActual)
-
+                Wait
             End If
 
         Endif
@@ -236,11 +238,15 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
     If ReadObjects Then ReadObjectsFromDXF(cToFill, drw)
     If UpdateGraphics Then
         ImportBlocksFromDXF(cToFill, drw)
+        Wait
         'depre clsEntities.BuildPoi()
         DXFtoEntity(cToFill["ENTITIES"], drw)
+        Wait
         clsEntities.BuildGeometry()
+        Wait
         'gcd.DigestInserts()
         SetViewports(cToFill, drw)
+        Wait
     End If
 
     'DiscardBlocks(drw)
@@ -248,7 +254,7 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
     For Each ft As Float In ReadTimes
         gcd.debugInfo(ReadEntities[ReadTimes.Key] & " " & gb.Tab & ReadTimes.Key & gb.Tab & gb.Tab & gb.Tab & " total time: " & Format(fT, "0.0000"))
     Next
-
+    Wait
     If VerboseLevel > 1 Then
         If VerboseLevel > 2 Then
             gcd.debuginfo("DXF: Leidas " & nEntitiesread & " entidades")
@@ -261,8 +267,11 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
             Print
         End If
         gcd.debuginfo("DXF: fin lectura en " & Str(Timer - t))
+
+    Else
+        gcd.debuginfo("DXF: fin lectura en " & Str(Timer - t))
     End If
-    gcd.debuginfo("DXF: fin lectura en " & Str(Timer - t))
+    Wait
     Return False
 
 End
