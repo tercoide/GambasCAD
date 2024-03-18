@@ -4,7 +4,7 @@ A CAD made in Gambas programming language
 
 ## Screenshot
 
-<a href="https://github.com/tercoide/GambasCAD/blob/main/screenshot1.png" target="_blank"><img src="https://github.com/tercoide/GambasCAD/blob/main/screenshot1.png" alt="Screenshot" width="800" height="480" ></a>
+<a href="https://github.com/tercoide/GambasCAD/blob/main/screenshot2.png" target="_blank"><img src="https://github.com/tercoide/GambasCAD/blob/main/screenshot1.png" alt="Screenshot" width="800" height="480" ></a>
 
 If you like this software, please support our work! There is still a lot to do! 
 
