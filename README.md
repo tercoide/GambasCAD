@@ -1,6 +1,6 @@
 # GambasCAD
 A CAD made in Gambas programming language
-### Current version: 0.0.14
+### Current version: 0.0.25
 
 ## Screenshot
 
