@@ -27,6 +27,7 @@ Public InUse As Boolean                         ' variable auxiliar para evitar 
 Public $hDrawTimer As New Timer As "DrawTimer"
 Public $hSearchTimer As New Timer As "SearchTimer"
 Public $hRecollectTimer As New Timer As "RecollectTimer"
+Private $hOneSecondTimer As New Timer As "OneSecondTimer"
 
 '' Printing stuff
 Public MyPrinter As Printer
@@ -44,7 +45,14 @@ Public aLinux As Collection
 
 Public fp As FProps
 
+Public tskReSearch As TskSearch
+
 'Public Printer1 As New Printer
+Public Sub MouseTracking_kill()
+
+    Debug "no Tracking"
+
+End
 
 Public Sub DrawTimer_Timer()
 
@@ -55,6 +63,7 @@ End Sub
 Public Sub RecollectTimer_Timer()
 
     'gcd.Drawing.GLAreaInUse.Refresh
+
     clsEntities.CollectVisibleEntities()
 
 End Sub
@@ -73,6 +82,7 @@ Public Sub SearchTimer_Timer()
         gcd.Drawing.HoveredEntity = Null
         gcd.Drawing.HoveredInsert = Null
     End If
+    'Debug "Found " & Str(gcd.Drawing.HoveredEntities.Count) & " entities below the mouse pointer"
 
 End Sub
 
@@ -297,6 +307,8 @@ End
 
 Public Sub form_Arrange()
 
+    tskReSearch = New TskSearch As "MouseTracking"
+
 End
 
 Public Sub GLArea1_draw()
@@ -516,7 +528,8 @@ Public Sub GLArea1_MouseMove()
     ' Universal:
     gcd.clsJob.MouseMove()
 
-    ReSearch
+    'FIXME: ver esto
+    ReSearch()
 
     'Me.lblCoordX.Text = Mouse.x & ":" & Mouse.y & " <-> " & Format(Xr, Config.FormatCoord) & " : " & Format(Yr, config.FormatInquiries)
     Me.lblCoordX.Text = "X: " & Mouse.x & " -> " & Format(Xr, Config.FormatCoord)
@@ -730,6 +743,9 @@ Public Sub ReSearch()
 
     $hSearchTimer.Trigger
     'Wait 0.001
+    ' tskReSearch.Stop
+    ' tskReSearch = New TskSearch As "MouseTracking"
+    ' Debug "Mouse tracking running? " & tskReSearch.Running
 
 End
 
@@ -1069,7 +1085,7 @@ Public Sub grdLayers_Click()
             gcd.Drawing.CurrLayer.Visible = Not gcd.Drawing.CurrLayer.Visible
 
             If gcd.Drawing.CurrLayer.Visible Then grdLayers[0, 1].Picture = fLayersOnScreen.picVisibleOn Else grdLayers[0, 1].Picture = fLayersOnScreen.picVisibleOff
-
+            clsEntities.CollectVisibleEntities()
         Else If grdLayers.Column = 2 Then ' frozen
             gcd.Drawing.CurrLayer.Frozen = Not gcd.Drawing.CurrLayer.Frozen
 
@@ -1090,6 +1106,7 @@ Public Sub grdLayers_Click()
             ' las propiedades de dichas entidades y hay que regenerar
             'fLayersOnScreen.Y = grdLayers.ScreenY + grdLayers.h + 1
         End If
+
     End If
 
 End
