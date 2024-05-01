@@ -15,6 +15,7 @@ Create Private
 
 Public LastFound As Entity              ' ultima entidad encontrada
 Public LastPointToCursorDistance As Float
+Public WaitEnabled As Boolean = False
 
 ' poi
 
@@ -123,7 +124,7 @@ Public Function CheckAboveEntities(xr As Float, Yr As Float, Optional iTolerance
         Else
             Break
         End If
-
+        If WaitEnabled Then Wait
     Loop
     Return fEntities
 
@@ -140,9 +141,12 @@ Public Function CheckBestPOI(xr As Float, Yr As Float, Optional eExclude As Enti
     BestPoint.Add(0)
     ShortestDistance = 1e10
 
+    If IsNull(gcd.Drawing.HoveredEntities) Then Return BestPoint
+
     For Each e In gcd.Drawing.HoveredEntities
         If e = eExclude Then Continue
         If e = gcd.Drawing.Sheet.SkipSearch Then Continue
+        If WaitEnabled Then Wait
         CurrentPoint = CheckPOI(xr, yr, e)
 
         ' veo si el punto cae dentro de la pantalla
@@ -195,7 +199,7 @@ Public Function CheckAboveEntity(xr As Float, Yr As Float, Optional iTolerance A
         If eVisible = gcd.Drawing.Sheet.SkipSearch Then Continue
 
         If Gcd.CCC[eVisible.gender].overme(eVisible, xr, yr, tolerance) Then
-
+            If WaitEnabled Then Wait
             'Debug eVisible.id, Rnd()
 
             Found = True
@@ -311,6 +315,7 @@ Public Sub CheckPOI(xr As Float, Yr As Float, Optional e As Entity) As Float[]
         Case "INSERT"
             ShortestDistance = 1e10
             For Each ePart In e.pBlock.Entities
+                If WaitEnabled Then Wait
                 CurrentPoint = CheckPOI(Xr, Yr, ePart)
 
                 If CurrentPoint[2] > 0 Then
@@ -376,6 +381,7 @@ Public Sub CheckPOI(xr As Float, Yr As Float, Optional e As Entity) As Float[]
 
             ' busco tambien intersecciones
             For Each e2 In gcd.Drawing.Sheet.EntitiesVisibles
+                If WaitEnabled Then Wait
                 If e = e2 Then Continue
 
                 Select Case e2.Gender
