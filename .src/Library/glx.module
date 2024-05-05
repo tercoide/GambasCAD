@@ -1,5 +1,113 @@
 ' Gambas module file
 
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+
+' El mundo segun OpenGL
+'       +-------------------------------------------------------------------------------------------+
+'       | 0,0                                     |top         x  P2 x,y                            |
+'       |                                         |           /                                     |
+'       |                                         |          /                                      |
+'       |                                         |         /                                       |
+'       |                                         |        /                                        |
+'       |                                         |       x P1 x,y                                  |
+'       |left                                     |                                           rigth | = glOrtho(left, rigth, bottom, top)
+'       |-----------------------------------------+-------------------------------------------------|   el papel donde voy a dibujar
+'       |                xxxxxxxxxxx              |0,0                                              |   = metros o lo que sea
+'       |                xxxxxxxxxxx              |                                                 |   Establece la ProjectionMatrix
+'       |                xxxx0,0xxxx              |                                                 |   y no se la toca mas
+'       |                xxxxxxxxxxx              |                                                 |
+'       |                xxxxxxxxxxx              |                                                 |
+'       |                                         |                                                 |
+'       |                     |<------------------|                                                 |
+'       |             ModelMatrix>Translate       |                                                 |
+'       |                                         |bottom                                           |gldrwArea.w,.h = Gl.Viewport = el area donde dibujo
+'       +-------------------------------------------------------------------------------------------+           = pixeles
+'Fast Unsafe
+' una lbreria de funciones para pasar de Paint a OpenGL
+Public Initialized As Boolean = False
+Public ActualFont As LFFFonts                      ' the class
+Public UnicodeFont As LFFFonts
+Public ActualFontName As String = "romanc"          ' the name
+Public ActualFontHeigth As Float = 1                ' the letter heigth
+Public FontScale As Float = 0.1125                     ' the general scale factor
+
+Public zLevel As Float = 0
+
+Public FontsNameList As String[]            ' lista de fuentes LFF disponibles ya cargadas
+
+Public FontsCAllLists As Integer[]          ' listas de listas de caracteres
+
+Public glFont As New Collection
+
+Public Struct textureSt
+    FileName As String
+    TextureName As String
+    Id As Integer
+    hImage As Image
+End Struct
+
+Public glTextures As New TextureSt[]
+
+Public Struct GLColorSt
+
+    r As Float
+    g As Float
+    b As Float
+    Alpha As Float
+
+End Struct
+' A shader is a small C program that the GPU understands
+' minimal shaders we need to compile at the GPU
+
+Public shaVertexShaderSource As String
+Public shaFragmentShaderSource As String
+
+Public shaVert1 As Integer              '  main vertex shader
+Public shaFrag1 As Integer              '  main fragment shader
+Public shaderProgram As Integer       '  el programa que corre en la GPU
+
+Public escalaGL As Float
+
+Public ViewportWIdth As Integer
+Public ViewportHeight As Integer
+
+Public hText As New Integer[]
+
+' new OpenGL stuff
+Public GLDrwList As New Integer[]                       ' all entities, each one
+Public GLDrwListEditing As New Integer[]                ' all entities on edit by some tool, including new ones
+
+' lineas de puntos
+Public LineStipples As New Integer[]
+Public LineStippleScales As New Integer[]
+
+' modo inmediato o programado
+Public InmediateMode As Boolean = True
+Public InmediateModeRequired As Boolean
+Public VBO_present As Boolean = False   ' si tenemos VBO que dibujar
+
+' VBO
+Public VBO_Id As Integer                'Current VBO buffer
+Public VBO_vertex As New Single[][]
+Public VBO_colors As New Single[][]
+Public VBO_normals As New Single[][]
+Public VBO_pixels As New Single[][]
+Public VBO_Primitive As New Integer[]
 '
 ' Copyright (C) Ing Martin P Cristia
 '
@@ -19,6 +127,9 @@
 ' Boston, MA  02110-1301  USA
 
 Library "libGL:1"
+
+'' WARNING: FLOAT en Gambas = DOUBLE en GL
+''          SINGLE en Gambas = FLOAT en GL
 
 Public Const DEPTH_BUFFER_BIT As Integer = &H000000000100
 Public Const STENCIL_BUFFER_BIT As Integer = &H000000000400
@@ -1570,7 +1681,7 @@ Public Extern glBufferSubData(iTarget As Integer, offset As Integer, size As Lon
 Public Extern glGetBufferSubData(iTarget As Integer, offset As Integer, size As Long, data As Pointer)
 Public Extern glMapBuffer(iTarget As Integer, access As Integer) As Integer[]
 Public Extern glUnmapBuffer(iTarget As Integer) As Boolean
-Public Extern glGetBufferParameteriv(iTarget As Integer, iPname As Integer, params As Integer[])
+Public Extern glGetBufferParameteriv(iTarget As Integer, iPname As Integer, params As Pointer)
 Public Extern glGetBufferPointerv(iTarget As Integer, iPname As Integer, params As Pointer)
 
 Public Extern glBlendEquationSeparate(ModeRGB As Integer, Modealpha As Integer)
@@ -2432,126 +2543,30 @@ Public Extern glDisableClientState(capacIdad As Integer)
 Public Extern glVertexPointer(size As Integer, type As Integer, strIde As Long, data As Pointer)
 Public Extern glNormalPointer(type As Integer, strIde As Long, data As Pointer)
 Public Extern glColorPointer(size As Integer, type As Integer, strIde As Long, data As Pointer)
-' Copyright (C) Ing Martin P Cristia
-'
-' This program is free software; you can redistribute it and/or modify
-' it under the terms of the GNU General Public License as published by
-' the Free Software Foundation; either version 3 of the License, or
-' (at your option) any later version.
-'
-' This program is distributed in the hope that it will be useful,
-' but WITHOUT ANY WARRANTY; without even the implied warranty of
-' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-' GNU General Public License for more details.
-'
-' You should have received a copy of the GNU General Public License
-' along with this program; if not, write to the Free Software
-' Foundation, Inc., 51 Franklin St, Fifth Floor,
-' Boston, MA  02110-1301  USA
-
-' El mundo segun OpenGL
-'       +-------------------------------------------------------------------------------------------+
-'       | 0,0                                     |top         x  P2 x,y                            |
-'       |                                         |           /                                     |
-'       |                                         |          /                                      |
-'       |                                         |         /                                       |
-'       |                                         |        /                                        |
-'       |                                         |       x P1 x,y                                  |
-'       |left                                     |                                           rigth | = glOrtho(left, rigth, bottom, top)
-'       |-----------------------------------------+-------------------------------------------------|   el papel donde voy a dibujar
-'       |                xxxxxxxxxxx              |0,0                                              |   = metros o lo que sea
-'       |                xxxxxxxxxxx              |                                                 |   Establece la ProjectionMatrix
-'       |                xxxx0,0xxxx              |                                                 |   y no se la toca mas
-'       |                xxxxxxxxxxx              |                                                 |
-'       |                xxxxxxxxxxx              |                                                 |
-'       |                                         |                                                 |
-'       |                     |<------------------|                                                 |
-'       |             ModelMatrix>Translate       |                                                 |
-'       |                                         |bottom                                           |gldrwArea.w,.h = Gl.Viewport = el area donde dibujo
-'       +-------------------------------------------------------------------------------------------+           = pixeles
-'Fast Unsafe
-' una lbreria de funciones para pasar de Paint a OpenGL
-Public Initialized As Boolean = False
-Public ActualFont As LFFFonts                      ' the class
-Public UnicodeFont As LFFFonts
-Public ActualFontName As String = "romanc"          ' the name
-Public ActualFontHeigth As Float = 1                ' the letter heigth
-Public FontScale As Float = 0.1125                     ' the general scale factor
-
-Public zLevel As Float = 0
-
-Public FontsNameList As String[]            ' lista de fuentes LFF disponibles ya cargadas
-
-Public FontsCAllLists As Integer[]          ' listas de listas de caracteres
-
-Public glFont As New Collection
-
-Public Struct textureSt
-    FileName As String
-    TextureName As String
-    Id As Integer
-    hImage As Image
-End Struct
-
-Public glTextures As New TextureSt[]
-
-Public Struct GLColorSt
-
-    r As Float
-    g As Float
-    b As Float
-    Alpha As Float
-
-End Struct
-' A shader is a small C program that the GPU understands
-' minimal shaders we need to compile at the GPU
-
-Public shaVertexShaderSource As String
-Public shaFragmentShaderSource As String
-
-Public shaVert1 As Integer              '  main vertex shader
-Public shaFrag1 As Integer              '  main fragment shader
-Public shaderProgram As Integer       '  el programa que corre en la GPU
-
-Public escalaGL As Float
-
-Public ViewportWIdth As Integer
-Public ViewportHeight As Integer
-
-Public hText As New Integer[]
-
-' new OpenGL stuff
-Public GLDrwList As New Integer[]                       ' all entities, each one
-Public GLDrwListEditing As New Integer[]                ' all entities on edit by some tool, including new ones
-
-' lineas de puntos
-Public LineStipples As New Integer[]
-Public LineStippleScales As New Integer[]
-
-' modo inmediato o programado
-Public InmediateMode As Boolean = True
-Public InmediateModeRequired As Boolean
-Public VBO_present As Boolean = False   ' si tenemos VBO que dibujar
-
-' VBO
-Public VBO_lines As New Single[]
-Public VBO_vertex As New Single[]
-Public VBO_colors As New Single[]
-Public VBO_normals As New Single[]
-Public VBO_pixels As New Single[]
 
 '' Clears the VBO from memory
-Public Sub VBOFlush()
+'' Clears the VBO from memory
+Public Sub VBOFlushAll()
 
     VBO_vertex.Clear
     VBO_colors.Clear
     VBO_normals.Clear
     VBO_pixels.Clear
 
-    VBO_vertex = New Single[]
-    VBO_colors.Clear
-    VBO_normals.Clear
-    VBO_pixels.Clear
+    VBO_vertex = New Single[][]
+    VBO_colors = New Single[][]
+    VBO_normals = New Single[][]
+    VBO_pixels = New Single[][]
+
+End
+
+'' Clears the VBO from memory
+Public Sub VBOFlush(Id As Integer)
+
+    VBO_vertex[id].Clear
+    VBO_colors[id].Clear
+    VBO_normals[id].Clear
+    VBO_pixels[id].Clear
 
 End
 
@@ -2599,7 +2614,7 @@ End
 Public Sub Init(drwContext As Object) ' only glArea for now
 
     'Resize(drwContext)
-    gcd.debuginfo("Init OpenGL",,, True)
+    Debug "Init OpenGL"
 
     Dim gbcolor As Integer
     Dim r, g, b, a As Float
@@ -2613,24 +2628,23 @@ Public Sub Init(drwContext As Object) ' only glArea for now
 
     gl.ClearColor(r, g, b, a)
 
+    ' line stipples
+
     Me.glFlush()
     Debug "libGL access: ok"
     Debug "Support VBO: " & gl.CheckExtensions("GL_ARB_vertex_buffer_object")
     Debug "Support GLSL: " & gl.CheckExtensions("GL_ARB_vertex_program")
-    ' Debug "Shading version: " & GL.GetString(gl.SHADING_LANGUAGE_VERSION)
-    ' Debug "GL version: " & GL.GetString(gl.VERSION)
-    ' Debug "Chipset vendor: " & GL.GetString(gl.VENDOR)
+    Debug "Shading version: " & GL.GetString(gl.SHADING_LANGUAGE_VERSION)
+    Debug "GL version: " & GL.GetString(gl.VERSION)
+    Debug "Chipset vendor: " & GL.GetString(gl.VENDOR)
     'gcd.debuginfo("Extensions" &  GL.GetString(gl.EXTENSIONS))
     Me.Initialized = True
-    ' lets make shaders
-    'Me.shaderProgram = Me.LoadShader("VertexShader1.txt", "FragmentShader1.txt")
-    ' gcd.debuginfo("Shader loading result:", gl.GetShaderInfoLog(Me.shaderProgram)
 
 End
-
 '' Dibuja un rectangulo, relleno o vacio.
 '' Puede dibujar un contorno del mismo de otro color->Bounding
 '' Mode: 0=relleno, 1=relleno y recuadro, 2=solo recuadro
+
 Public Sub Rectangle2D(x1 As Float, y1 As Float, w As Float, h As Float, Optional colour1 As Integer = Color.Blue, colour2 As Integer = -14, colour3 As Integer = -14, colour4 As Integer = -14, BoundingColor As Integer = Color.Blue, BoundingWIdth As Integer = 1, Dashes As Float[] = [], mode As Integer = 0)
 
     Dim c2, c3, c4 As Integer
@@ -2733,17 +2747,17 @@ Fast Unsafe Public Function DrawLines(fVertices As Float[], Optional colour As I
 
     Else ' we as writing to an array
         For i = 0 To vertices.Max Step 2
-            VBO_vertex.Add(vertices[i])         'X
-            VBO_vertex.Add(vertices[i + 1])     'Y
-            VBO_vertex.Add(0)                   'Z
+            VBO_vertex[VBO_Id].Add(vertices[i])         'X
+            VBO_vertex[VBO_Id].Add(vertices[i + 1])     'Y
+            VBO_vertex[VBO_Id].Add(0)                   'Z
 
-            VBO_colors.Add(r)                    'R
-            VBO_colors.Add(g)                    'G
-            VBO_colors.Add(b)                    'B
+            VBO_colors[VBO_Id].Add(r)                    'R
+            VBO_colors[VBO_Id].Add(g)                    'G
+            VBO_colors[VBO_Id].Add(b)                    'B
 
-            VBO_normals.Add(0)                    'Normales apuntan al user
-            VBO_normals.Add(0)                    '
-            VBO_normals.Add(1)                    '
+            VBO_normals[VBO_Id].Add(0)                    'Normales apuntan al user
+            VBO_normals[VBO_Id].Add(0)                    '
+            VBO_normals[VBO_Id].Add(1)                    '
 
         Next
 
@@ -3693,21 +3707,26 @@ Public Sub TexturedTriangle2D(x1 As Float, y1 As Float, x2 As Float, y2 As Float
 
 End
 
-Public Function createVBO(data As Pointer, dataSizeBytes As Integer, target As Integer, usage As Integer) As Integer
+Public Function createVBO(data As Pointer, dataSizeBytes As Integer, usage As Integer) As Integer
 
-    Dim Id As Integer = 0 ' 0 Is Reserved, glGenBuffersARB()will Return non - zero id If success
+    Dim e, Id As Integer = 0 ' 0 Is Reserved, glGenBuffersARB()will Return non - zero id If success
+    Dim iParams As New Integer[1]
 
-    glGenBuffers(1, VarPtr(Id))                     'Create a vbo
-    glBindBuffer(target, Id)                        'activate vbo id To Use
-    glBufferData(target, dataSizeBytes, data, usage)     'upload data To video card
+    glGenBuffers(1, VarPtr(Id))                                      'Create a vbo
+    glBindBuffer(ARRAY_BUFFER, Id)                                   'activate vbo id To Use
+    glBufferData(ARRAY_BUFFER, dataSizeBytes, data, usage)     'upload data To video card
+    e = glGetError()
+    Debug "Bufferdata:" & Hex(e)
 
     ' check data size In VBO Is Same As Input array, If Not Return 0 And delete VBO
-    Dim bufferSize As Integer = 0
-    glGetBufferParameteriv(target, BUFFER_SIZE, VarPtr(bufferSize))
-    If (dataSizeBytes <> bufferSize) Then
+    glGetBufferParameteriv(ARRAY_BUFFER, BUFFER_SIZE, iParams.Data)
+
+    If (dataSizeBytes <> iParams[0]) Then
         glDeleteBuffers(1, VarPtr(Id))
         Id = 0
-        Print "[createVBO()] Data size is mismatch with input array"
+        Debug "[createVBO()] Data size is mismatch with input array"
+    Else
+        Debug "[createVBO()] Buffer created OK"
     End If
 
     Return Id ' Return VBO id
@@ -3720,16 +3739,29 @@ Public Function CheckExtension(sExtension As String) As Boolean
 
 End
 
+'El contexto debe estar creado para poder usar los Shaders
 Public Function LoadShader(sVertexShaderFile As String, sFragmentShaderFile As String) As Integer
 
     Dim sShader, sInput As String
     Dim f As File
     Dim iShaderProgram, iVerShaderID, iFraShaderID As Integer
     ' verificamos si el sistema soporta shaders
-    If Not gl.CheckExtensions("GL_ARB_vertex_program") Then Return 0
-    If Not Exist(sVertexShaderFile) Then Return 0
-    If Not Exist(sFragmentShaderFile) Then Return 0
+    ' If Not gl.CheckExtensions("GL_ARB_vertex_program") Then
+    '   Debug "No se pueden cargar Shaders"
+    '
+    '   Return 0
+    ' End If
 
+    If Not Exist(sVertexShaderFile) Then
+        Debug "No existe el Vertex Shader"
+
+        Return 0
+    End If
+    If Not Exist(sFragmentShaderFile) Then
+        Debug "No existe el Vertex Shader"
+
+        Return 0
+    End If
     f = Open sVertexShaderFile For Input
     Do
         Input #f, sInput
@@ -3739,7 +3771,6 @@ Public Function LoadShader(sVertexShaderFile As String, sFragmentShaderFile As S
     Loop Until f.Eof
 
     Close #f
-    sShader = ""
 
     iVerShaderID = gl.CreateShader(gl.VERTEX_SHADER)
     If iVerShaderID = 0 Then Stop
@@ -3748,6 +3779,7 @@ Public Function LoadShader(sVertexShaderFile As String, sFragmentShaderFile As S
     ' ' compile
     gl.CompileShader(iVerShaderID)
 
+    sShader = ""
     f = Open sFragmentShaderFile For Input
     Do
         Input #f, sInput
