@@ -52,7 +52,7 @@ Public Function TagPic(sTag As String, iSize As Integer, Optional iFill As Integ
     sPic = "./svg/Gray/" & sTag & ".svg"
 
     If Exist(sPic) Then
-        sVector = Contrary(sPic, "#0066b3", -1)
+        sVector = SvgColorFix(sPic)
         pic = Image.FromString(sVector).Stretch(iSize, iSize).Picture
     Else
         pic = Stock["16/error"]
@@ -95,5 +95,37 @@ Public Function Contrary(sFile As String, sColor As String, iBackground As Integ
     Endif
 
     Return sVector
+
+End
+
+
+'' Reemplaza el color del trazo de SVG por el del ButtonForeground y el relleno por LigthForeground
+Public Function SvgColorFix(sFile As String) As String
+
+    Dim sVector, sSvg As String
+    Dim iContrast As Integer
+    Dim sReplace As String
+    Dim sAlternForeground As String
+    Dim sAlternLigthForeground As String
+    Dim p As Integer
+
+    'fill="none" stroke="#0066b3"
+    sAlternForeground = "stroke=\"#" & CStr(Hex(Color.ButtonForeground, 6))
+    sAlternLigthForeground = "fill=\"#" & CStr(Hex(Color.LightForeground, 6))
+
+    sSvg = File.Load(sFile)
+    Do
+        p = InStr(sSvg, "stroke=\"#", p + 1)
+        If p > 0 Then
+            sSvg = Mid(ssvg, 1, p - 1) & sAlternForeground & Mid(ssvg, p + 15)
+        Endif
+    Loop Until p = 0
+    Do
+        p = InStr(sSvg, "fill=\"#", p + 1)
+        If p > 0 Then
+            sSvg = Mid(ssvg, 1, p - 1) & sAlternLigthForeground & Mid(ssvg, p + 13)
+        Endif
+    Loop Until p = 0
+    Return ssvg
 
 End
