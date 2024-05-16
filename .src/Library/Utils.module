@@ -1235,3 +1235,62 @@ Public Function FindItem(cCol As Collection, vItem As Variant) As String
     Return ""
 
 End
+
+'' Reemplaza el color del trazo de SVG por el del ButtonForeground y el relleno por LigthForeground
+'' Opcionalmente usa el color provisto
+Public Function SvgColorFix(sFile As String, Optional iColor As Integer = -1) As String
+
+    Dim sVector, sSvg As String
+    Dim iContrast As Integer
+    Dim sReplace As String
+    Dim sAlternForeground As String
+    Dim sAlternLigthForeground As String
+    Dim p As Integer
+    Dim ButtonForeground, LightForeground As Integer
+
+    If iColor = -1 Then
+        ButtonForeground = Color.ButtonForeground
+        lightForeground = Color.LightForeground
+    Else
+        ButtonForeground = iColor
+        lightForeground = Color.Lighter(iColor)
+    Endif
+
+    'fill="none" stroke="#0066b3"
+    sAlternForeground = "stroke=\"#" & CStr(Hex(ButtonForeground, 6))
+    sAlternLigthForeground = "fill=\"#" & CStr(Hex(lightForeground, 6))
+
+    sSvg = File.Load(sFile)
+
+    Do
+        p = InStr(sSvg, "stroke=\"#", p + 1)
+        If p > 0 Then
+            sSvg = Mid(ssvg, 1, p - 1) & sAlternForeground & Mid(ssvg, p + 15)
+        Endif
+    Loop Until p = 0
+    Do
+        p = InStr(sSvg, "fill=\"#", p + 1)
+        If p > 0 Then
+            sSvg = Mid(ssvg, 1, p - 1) & sAlternLigthForeground & Mid(ssvg, p + 13)
+        Endif
+    Loop Until p = 0
+
+    ' Algunas Apps crean los SVG distinto
+    ' fill:#0066b3;stroke:#0066b3
+    sAlternForeground = "stroke:#" & CStr(Hex(ButtonForeground, 6))
+    sAlternLigthForeground = "fill:#" & CStr(Hex(LightForeground, 6))
+    Do
+        p = InStr(sSvg, "stroke:#", p + 1)
+        If p > 0 Then
+            sSvg = Mid(ssvg, 1, p - 1) & sAlternForeground & Mid(ssvg, p + 14)
+        Endif
+    Loop Until p = 0
+    Do
+        p = InStr(sSvg, "fill:#", p + 1)
+        If p > 0 Then
+            sSvg = Mid(ssvg, 1, p - 1) & sAlternLigthForeground & Mid(ssvg, p + 12)
+        Endif
+    Loop Until p = 0
+    Return ssvg
+
+End
