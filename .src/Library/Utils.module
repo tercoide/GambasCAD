@@ -722,6 +722,27 @@ Public Function SaveClass2(obj As Object, sFile As String) As Integer
 
     Dim jConfig As Collection
     Dim MyClass As Class = Object.Class(obj)
+    Dim ss, Var As String
+    Dim Valor As Variant[]
+
+    If sFile = "" Then
+        sFile = User.Home &/ "SaveClass.json"
+    Endif
+
+    jConfig = ClassToCollection2(obj)
+
+    If Not Exist(File.Dir(sFile)) Then
+        Shell "mkdir -p " & File.Dir(sFile) Wait
+    Endif
+    'ss = CollectionToString(jConfig)
+    'File.Save(sFile, ss)
+
+End
+
+Public Function SaveClass3(obj As Object, sFile As String) As Integer
+
+    Dim jConfig As Collection
+    Dim MyClass As Class = Object.Class(obj)
     Dim Var As String
     Dim Valor As Variant[]
 
@@ -896,11 +917,12 @@ Public Function ClassToCollection2(objClass As Object) As Collection
     Dim MyClass As Class = Object.Class(objClass)
     Dim Var As String
     Dim Valor, valor2 As Variant
-    Dim sClass, cNew As Collection
+    Dim sClass, cNew As Collection, c2 As New Collection[]
     Dim sObjectType As String
     Dim IsArray As Boolean
     Dim objDesconocIdo As Variant
     Dim i As Integer
+    Dim obx As New Object[]
     ' Next
 
     For Each Var In myClass.Symbols
@@ -921,7 +943,6 @@ Public Function ClassToCollection2(objClass As Object) As Collection
                     sClass = ClassToCollection2(valor)
                     Dec DeepCounter
                     jConfig.Add(sClass, var)
-
                 Else
                     i = 0
                     If Valor.Count > 0 Then
@@ -934,10 +955,10 @@ Public Function ClassToCollection2(objClass As Object) As Collection
 
                                 sClass = ClassToCollection2(objDesconocIdo)
                                 Dec DeepCounter
-                                cNew.Add(sClass, Str(i))
+                                cnew.Add(sClass)
                                 Inc i
                             Next
-                            jConfig.Add(cNew, var)
+                            jConfig.Add(obx, var)
 
                         End If
                     Else
@@ -948,6 +969,12 @@ Public Function ClassToCollection2(objClass As Object) As Collection
         End If
 
     Next
+
+    'test
+    Dim oVuelta As Object
+    oVuelta = object.New(MyClass.Name)
+    Dim MyClass2 As Class = Object.Class(objClass)
+    CollectionToClass(jConfig, oVuelta)
 
     Return jConfig
 
@@ -1200,24 +1227,24 @@ Public Sub CollectionToClass(cInput As Collection, obj As Object)
 
     For Each sSymbol In myClass.Symbols
         If cInput.Exist(sSymbol) Then
-            'If TypeOf(cInput[sSymbol]) = 16 Then
-            ' If cInput[sSymbol] Is Collection Then   ' es una coleccion de cierta Class
-            '     sClassName = object.type(object.getproperty(obj, sSymbol))
-            '     If Right(sClassName, 2) = "[]" Then                                 ' es Array
-            '
-            '         For Each j2 In cInput[sSymbol]
-            '             ' determino el tipo de clase
-            '             objNew = Object.New(Left(sClassName, -2))
-            '             CollectionToClass(j2, objNew)
-            '             Object.SetProperty(obj, sSymbol, objNew)
-            '         Next
-            '         'Else
-            '
-            '     End If
-            ' End If
-            'Else
-            Object.SetProperty(obj, sSymbol, cInput[sSymbol])
-            'Endif
+            If TypeOf(cInput[sSymbol]) = 16 Then
+                If cInput[sSymbol] Is Collection Then   ' es una coleccion de cierta Class
+                    sClassName = object.type(object.getproperty(obj, sSymbol))
+                    If Right(sClassName, 2) = "[]" Then                                 ' es Array
+
+                        For Each j2 In cInput[sSymbol]
+                            ' determino el tipo de clase
+                            objNew = Object.New(Left(sClassName, -2))
+                            CollectionToClass(j2, objNew)
+                            Object.SetProperty(obj, sSymbol, objNew)
+                        Next
+                        'Else
+
+                    End If
+                End If
+            Else
+                Object.SetProperty(obj, sSymbol, cInput[sSymbol])
+            Endif
 
         Endif
     Next
