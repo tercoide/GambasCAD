@@ -186,18 +186,19 @@ Public Sub Run() As Boolean
     tmrAutosave.Delay = config.AutoSaveDelayMin * 1000 * 60
     'tmrAutosave.Enabled = True
 
-    Me.Visible = False
+    'Me.Visible = False
+
+    LeerRecientes
+    LoadButtons(32, 4)
     If Config.SplitterH.count = 2 Then Config.SplitterH.Add(32)
     If Config.SplitterH[2] = 0 Then Config.SplitterH[2] = 32
     splitterH.Layout = Config.SplitterH
-    LeerRecientes
-    LoadButtons(32, 4)
 
     'SetButtonPics(Me)
     'dsk.Update(pnlMayor)
 
     'splitterV.Layout = Config.SplitterV
-
+    Me.Visible = True
     Me.Show()
 
     Me.Maximized = True
@@ -206,8 +207,7 @@ Public Sub Run() As Boolean
     '     splitterH.Layout = Config.SplitterH
     ' Endif
 
-    Wait
-    Me.Visible = True
+    'Wait
 
     'glx.ClearColor(Config.BackgroundColor)
 
@@ -247,15 +247,15 @@ End
 Public Function Action_Activate(sAction As String) As Boolean
 
     actions.ActionActivate(sAction)
-    Select sAction
-        Case "selectnew", "selectsingle", "selectrect", "selectpoly"
-            SetToolsMode("properties")
-            '' TODO: Definir como gestionar los bloques
-            'Case "placeblock"
-            'SetToolsMode("blocks")
-        Case Else
-            SetToolsMode("tools")
-    End Select
+    ' Select sAction
+    '     Case "selectnew", "selectsingle", "selectrect", "selectpoly"
+    '         SetToolsMode("properties")
+    '         '' TODO: Definir como gestionar los bloques
+    '         'Case "placeblock"
+    '         'SetToolsMode("blocks")
+    '     Case Else
+    '         SetToolsMode("tools")
+    ' End Select
 
 End
 
@@ -264,24 +264,24 @@ Private Sub SetToolsMode(sMode As String)
     Dim obj As Object
     ' Dim fp As FProps  TERCO: esto tiene que ser global, lo defino mas arriba
 
-    For Each obj In pnlToolbarLeft.Children
-        obj.Visible = False
-        If sMode = "properties" And Object.Type(obj) = "Panel" Then
-            obj.Parent.Arrangement = Arrange.Vertical
-            obj.Visible = True
-            obj.Children.Clear
-            fp = New FProps(obj)
-            fp.Expand = True
-            '' TODO: Aca tenes que poner la coleccion de entidades seleccionadas
-            fp.FillProperties(gcd.Drawing.Sheet.EntitiesSelected)
+    ' For Each obj In pnlToolbarLeft.Children
+    '     obj.Visible = False
+    '     If sMode = "properties" And Object.Type(obj) = "Panel" Then
+    '         obj.Parent.Arrangement = Arrange.Vertical
+    '         obj.Visible = True
+    '         obj.Children.Clear
+    fp = New FProps(pnlToolBarRigth)
+    fp.Expand = True
+    '' TODO: Aca tenes que poner la coleccion de entidades seleccionadas
+    fp.FillProperties(gcd.Drawing.Sheet.EntitiesSelected)
 
-        Else
-            obj.Parent.Arrangement = Arrange.Row
-            If sMode = "tools" And Object.Type(obj) = "Frame" Then
-                obj.Visible = True
-            Endif
-        Endif
-    Next
+    ' Else
+    '     obj.Parent.Arrangement = Arrange.Row
+    '     If sMode = "tools" And Object.Type(obj) = "Frame" Then
+    '         obj.Visible = True
+    '     Endif
+    '     Endif
+    ' Next
 
 End
 
@@ -345,12 +345,13 @@ Public Sub form_Close()
 
 End
 
-Public Sub Form_Activate()
+Public Sub Form_Resize()
 
-    'Return
-    tskReSearch = New TskSearch As "MouseTracking"
-    tskReSearch.Xreal = xr
-    tskReSearch.Yreal = yr
+    splitterH.W = Panel1.W - pnlToolbarLeft.w
+    ' 'Return
+    ' tskReSearch = New TskSearch As "MouseTracking"
+    ' tskReSearch.Xreal = xr
+    ' tskReSearch.Yreal = yr
 
 End
 
@@ -366,6 +367,19 @@ Public Sub GLArea1_open()
 End
 
 Public Sub form_Arrange()
+
+    ' Dim i As Integer
+    ' Dim f As Font
+    '
+    ' f = panentities.Font
+    ' i = f.Height
+
+    FixPanelHeight(panEntities) ', ToolPanel1.Padding, ToolPanel1.Border)
+    FixPanelHeight(panDimensions)
+    FixPanelHeight(panBlocks)
+    FixPanelHeight(panTools)
+    FixPanelHeight(panInquiry)
+    FixPanelHeight(pansnap)
 
     'tskReSearch = New TskSearch As "MouseTracking"
 End
@@ -981,7 +995,7 @@ Public Sub Form_Keyrelease()
         Case Key.F11
 
         Case Key.Esc
-            SetToolsMode("tools")
+            'SetToolsMode("tools")
             gcd.clsJob.KeyText("_CANCEL")
 
         Case Key.Space
@@ -1701,22 +1715,22 @@ Public Sub LoadButtons(Optional iSize As Integer = 32, iColumns As Integer = 2)
     panInquiry.W = iSize * iColumns + iBorder
 
     ' Entidades
-    Utils.TBNCreator(panEntities, "cad/draw-line", "cadLine",,, ("Line"))
-    Utils.TBNCreator(panEntities, "cad/draw-ray", "cadRay",,, ("Ray"))
-    Utils.TBNCreator(panEntities, "cad/draw-circle", "cadCircle",,, ("Circle"))
-    Utils.TBNCreator(panEntities, "cad/draw-arc", "cadArc",,, ("Arc"))
-    Utils.TBNCreator(panEntities, "cad/draw-polyline", "cadLWPolyline",,, ("Polyline"))
-    Utils.TBNCreator(panEntities, "cad/draw-ellipse", "cadEllipse",,, ("Ellipse"))
-    Utils.TBNCreator(panEntities, "cad/draw-text", "cadMText",,, ("Text"))
-    Utils.TBNCreator(panEntities, "cad/alter-attdef", "cadAttdef",,, "Attdef")
-    Utils.TBNCreator(panEntities, "cad/draw-mtext", "cadMtext",,, "M-Text")
-    Utils.TBNCreator(panEntities, "cad/draw-leader", "cadLeader",,, ("Leader"))
-    Utils.TBNCreator(panEntities, "cad/draw-spline", "cadSPline",,, ("Spline"))
-    Utils.TBNCreator(panEntities, "cad/draw-rectangle", "cadRectangle",,, ("Rectangle"))
-    Utils.TBNCreator(panEntities, "cad/draw-polygon", "cadPolygon",,, ("Polygon"))
-    Utils.TBNCreator(panEntities, "cad/draw-point", "cadPoint",,, ("Point"))
-    Utils.TBNCreator(panEntities, "cad/draw-solid", "cadSolId",,, ("Solid"))
-    Utils.tbnCreator(panEntities, "cad/draw-pattern", "cadhatch",,, ("Pattern"))
+    Utils.TBNCreator(panentities, "cad/draw-line", "cadLine",,, ("Line"))
+    Utils.TBNCreator(panentities, "cad/draw-ray", "cadRay",,, ("Ray"))
+    Utils.TBNCreator(panentities, "cad/draw-circle", "cadCircle",,, ("Circle"))
+    Utils.TBNCreator(panentities, "cad/draw-arc", "cadArc",,, ("Arc"))
+    Utils.TBNCreator(panentities, "cad/draw-polyline", "cadLWPolyline",,, ("Polyline"))
+    Utils.TBNCreator(panentities, "cad/draw-ellipse", "cadEllipse",,, ("Ellipse"))
+    Utils.TBNCreator(panentities, "cad/draw-text", "cadMText",,, ("Text"))
+    Utils.TBNCreator(panentities, "cad/alter-attdef", "cadAttdef",,, "Attdef")
+    Utils.TBNCreator(panentities, "cad/draw-mtext", "cadMtext",,, "M-Text")
+    Utils.TBNCreator(panentities, "cad/draw-leader", "cadLeader",,, ("Leader"))
+    Utils.TBNCreator(panentities, "cad/draw-spline", "cadSPline",,, ("Spline"))
+    Utils.TBNCreator(panentities, "cad/draw-rectangle", "cadRectangle",,, ("Rectangle"))
+    Utils.TBNCreator(panentities, "cad/draw-polygon", "cadPolygon",,, ("Polygon"))
+    Utils.TBNCreator(panentities, "cad/draw-point", "cadPoint",,, ("Point"))
+    Utils.TBNCreator(panentities, "cad/draw-solid", "cadSolId",,, ("Solid"))
+    Utils.tbnCreator(panentities, "cad/draw-pattern", "cadhatch",,, ("Pattern"))
 
     'Dimensiones
     Utils.tbnCreator(panDimensions, "cad/dim-linear", "cadDimension_Linear",,, ("Linear dimmension"), True)
@@ -1760,7 +1774,6 @@ Public Sub LoadButtons(Optional iSize As Integer = 32, iColumns As Integer = 2)
     Utils.tbnCreator(panInquiry, "cad/measure-protractor", "cadProtractor",,, ("Angle measure"), False)
     Utils.tbnCreator(panInquiry, "cad/measure-area", "cadArea",,, ("Area measure"), False)
     Utils.tbnCreator(panInquiry, "cad/alter-properties", "properties",,, ("Alter properties"), False)
-
     ' rigth bar
     ' Utils.tbnCreator(pnlToolBarRigth, "tbnNewSelection", "selectnew",,, ("New selection"))
     'Utils.tbnCreator(pnlToolBarRigth, "cad/select", "selectnew",,, ("New selection"), False)
@@ -1780,23 +1793,53 @@ Public Sub LoadButtons(Optional iSize As Integer = 32, iColumns As Integer = 2)
 
     ' Snap points
 
-    Utils.tbnCreator(pnlToolBarRigth, "cad/snap-apparent_intersection", "snapapparentintersection",,, ("Snap apparent intersection"), True)
-    Utils.tbnCreator(pnlToolBarRigth, "cad/snap-center_point", "snapcenter",,, ("Snap center"), True)
-    Utils.tbnCreator(pnlToolBarRigth, "cad/snap-end_point", "snapend",,, ("Snap end point"), True)
-    Utils.tbnCreator(pnlToolBarRigth, "cad/snap-geometric_center", "snapaparentcenter",,, ("Snap apparent center"), True)
-    Utils.tbnCreator(pnlToolBarRigth, "cad/snap-insert", "snapbase",,, ("Snap insert point"), True)
-    Utils.tbnCreator(pnlToolBarRigth, "cad/snap-intersection", "snapintersection",,, ("Snap intersection"), True)
-    Utils.tbnCreator(pnlToolBarRigth, "cad/snap-mid_point", "snapmid",,, ("Snap mid point"), True)
-    Utils.tbnCreator(pnlToolBarRigth, "cad/snap-nearest", "snapnearest",,, ("Snap nearest"), True)
-    Utils.tbnCreator(pnlToolBarRigth, "cad/snap-node", "snapnode",,, ("Snap node"), True)
-    Utils.tbnCreator(pnlToolBarRigth, "cad/snap-perpendicular", "snapperpendicular",,, ("Snap perpendicular"), True)
-    Utils.tbnCreator(pnlToolBarRigth, "cad/snap-quadrant", "snapquadrant",,, ("Snap quadrant"), True)
-    Utils.tbnCreator(pnlToolBarRigth, "cad/snap-tangent", "snaptangent",,, ("Snap tangent"), True)
-
+    Utils.tbnCreator(pansnap, "cad/snap-apparent_intersection", "snapapparentintersection",,, ("Snap apparent intersection"), True)
+    Utils.tbnCreator(pansnap, "cad/snap-center_point", "snapcenter",,, ("Snap center"), True)
+    Utils.tbnCreator(pansnap, "cad/snap-end_point", "snapend",,, ("Snap end point"), True)
+    Utils.tbnCreator(pansnap, "cad/snap-geometric_center", "snapaparentcenter",,, ("Snap apparent center"), True)
+    Utils.tbnCreator(pansnap, "cad/snap-insert", "snapbase",,, ("Snap insert point"), True)
+    Utils.tbnCreator(pansnap, "cad/snap-intersection", "snapintersection",,, ("Snap intersection"), True)
+    Utils.tbnCreator(pansnap, "cad/snap-mid_point", "snapmid",,, ("Snap mid point"), True)
+    Utils.tbnCreator(pansnap, "cad/snap-nearest", "snapnearest",,, ("Snap nearest"), True)
+    Utils.tbnCreator(pansnap, "cad/snap-node", "snapnode",,, ("Snap node"), True)
+    Utils.tbnCreator(pansnap, "cad/snap-perpendicular", "snapperpendicular",,, ("Snap perpendicular"), True)
+    Utils.tbnCreator(pansnap, "cad/snap-quadrant", "snapquadrant",,, ("Snap quadrant"), True)
+    Utils.tbnCreator(pansnap, "cad/snap-tangent", "snaptangent",,, ("Snap tangent"), True)
     ' ' Force the resize event
     ' lp = splitterH.Layout.Copy()
     ' splitterH.Layout = [2, 1]
     ' splitterH.Layout = lp.Copy()
+
+End
+
+Public Sub FixPanelHeight(p As Container)
+
+    Dim nx As Integer 'numero de botones segun X
+    Dim ny As Integer 'numero de botones segun y
+    Dim fy As Float
+    Dim iSize As Integer 'tamaño de los botones
+    Dim iBorderPixels, iMargin, iBorder As Integer
+
+    Dim iTitleHeight As Integer
+    Dim f As Font
+
+    Try f = panentities.Font
+    Try iTitleHeight = f.Height
+
+    Try iMargin = p.Padding
+    Try iBorder = p.Border
+
+    If p.Children.count = 0 Then Return
+    If iBorder <> 0 Then iBorderPixels = 2
+    iSize = p.Children[0].W
+    nx = (p.w - iMargin * 2) / isize
+
+    ' supongo que el ancho esta prestablecido
+    fy = p.Children.Count / nx
+    ny = p.Children.Count / nx
+    If fy > ny Then Inc ny
+
+    p.h = ny * iSize + iMargin * 2 + iBorderPixels + iTitleHeight * 1.5
 
 End
 
@@ -1806,32 +1849,28 @@ Public Sub togSnap_MouseDown()
 
 End
 
-Public Sub splitterV_Resize()
-
-    Config.SplitterV = splitterV.Layout
-
-End
-
-Public Sub splitterH_Resize()
-
-    Dim obj As Object
-    Dim q, e As Integer
-
-    Config.SplitterH = splitterH.Layout
-
-    ' For Each obj In pnlToolbarLeft.Children
-    '     If Object.Type(obj) = "Frame" And obj.Visible Then
-    '         q = obj.W / 32
-    '
-    '         e = (obj.Children.count - 1) / q
-    '         If e < 1 Then
-    '             e = 1
-    '         Endif
-    '         obj.H = 23 + ((e + 1) * 32)
-    '     Endif
-    ' Next
-
-End
+' Public Sub splitterH_Resize()
+'
+'     Dim obj As Object
+'     Dim q, e As Integer
+'
+'     Config.SplitterH = splitterH.Layout
+'
+'     'splitterH.Layout[0] = panTop.w
+'
+'     ' For Each obj In pnlToolbarLeft.Children
+'     '     If Object.Type(obj) = "Frame" And obj.Visible Then
+'     '         q = obj.W / 32
+'     '
+'     '         e = (obj.Children.count - 1) / q
+'     '         If e < 1 Then
+'     '             e = 1
+'     '         Endif
+'     '         obj.H = 23 + ((e + 1) * 32)
+'     '     Endif
+'     ' Next
+'
+' End
 
 Public Sub tmrSlash_Timer()
 
@@ -1862,7 +1901,7 @@ Public Sub Form_Open()
 
     Dim x As Integer
 
-    Layout.Fix(Me)
+    'Layout.Fix(Me)
     Me.Border = False
     'Layout.Shoot(Me)
     aThemes.Add("default")
@@ -1876,11 +1915,11 @@ Public Sub Form_Open()
     GUI.Update(pnlToolBarRigth, "default", "es", oTags)
     GUI.Update(pnlCommand, "default", "es", oTags)
 
-    x = splitterH.W
-    splitterH.W = x - 10
-    splitterH.W = x
-    'Layout.Fix(Me, 75)
-    splitterH_Resize
+    ' x = splitterH.W
+    ' splitterH.W = x - 10
+    ' splitterH.W = x
+    ' 'Layout.Fix(Me, 75)
+    ' splitterH_Resize
 
 End
 
