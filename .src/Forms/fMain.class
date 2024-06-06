@@ -525,10 +525,10 @@ Public Sub GLArea1_draw()
     If gcd.Drawing.GrIdActive Then
         gl.CallList(gcd.Drawing.GLListGrId)
     End If
-    If gcd.flgNewPosition Then
-        ReCollect
-        gcd.flgNewPosition = False
-    End If
+    ' If gcd.flgNewPosition Then
+    '     ReCollect
+    '     gcd.flgNewPosition = False
+    ' End If
 
     gl.PopMatrix()
     ' test area
@@ -675,10 +675,11 @@ Public Sub GLArea1_MouseWheel()
     ' If Not gcd.drawingready Then Return
     ' 2024
     Inc flgWheelCounter
+    gcd.flgQuitSearch = True
+    gcd.flgNewPosition = True
     gcd.clsJob.MouseWHEEL()
 
-    gcd.setdashes
-    DrawingAIds.RebuildGrId
+    tmrQuiet.Restart
     Dec flgWheelCounter
 
 End
@@ -1513,6 +1514,8 @@ Public Sub tabDrawings_Click()
     If Not gcd.Drawing Then
         Debug "ERROR: no Drawing"
         Return
+    Else
+        Me.Title = gcd.Drawing.FileName
     Endif
 
     'If gcd.Drawing Then FillBlock ' FIXME: pasa al nuevo formulario flotante
@@ -1907,7 +1910,7 @@ Public Sub Form_Open()
     Dim x As Integer
 
     'Layout.Fix(Me)
-    Me.Border = False
+    'Me.Border = False
     'Layout.Shoot(Me)
     aThemes.Add("default")
     aLinux = GUI.Linux()
@@ -1931,5 +1934,22 @@ End
 Public Sub cmbDimStyle_Click()
 
     gcd.Drawing.CurrDimStyle = gcd.Drawing.DimStyles[fMain.cmbDimStyle.Text]
+
+End
+
+Public Sub panTop_MouseDown()
+
+End
+
+' Este timer se activa cuando el user deja de hacer Zoom o Pan
+Public Sub tmrQuiet_Timer()
+
+    gcd.flgQuitSearch = False
+    If gcd.flgNewPosition Then
+        ReCollect
+        gcd.setdashes
+        DrawingAIds.RebuildGrId
+        gcd.flgNewPosition = False
+    End If
 
 End
