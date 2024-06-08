@@ -3431,46 +3431,25 @@ Public Function DrawText(UTFstring As String, posX As Float, posY As Float, Opti
 
                     ' no todos los tramos pueden tener bulges
                     If Abs(Bulges[i2 + 1]) > 0.001 Then
+                        ' ' FIXME: arc problem
+                        ' Continue
                         ang1 = Ang(Glyps[(i2 + 1) * 2] - Glyps[i2 * 2], Glyps[(i2 + 1) * 2 + 1] - Glyps[i2 * 2 + 1])    ' angulo del tramo
                         Lt = puntos.distancia(Glyps[i2 * 2], Glyps[i2 * 2 + 1], Glyps[(i2 + 1) * 2], Glyps[(i2 + 1) * 2 + 1])
                         If Lt = 0 Then Continue
                         mx = (Glyps[(i2 + 1) * 2] + Glyps[i2 * 2]) / 2          ' punto medio del tramo
                         my = (Glyps[(i2 + 1) * 2 + 1] + Glyps[i2 * 2 + 1]) / 2
                         B = Bulges[i2 + 1] * Lt / 2
-                        bx = mx + B * Sin(ang1)                             ' Tercer punto del Bulge
-                        by = my - B * Cos(ang1)
+                        bx = mx - B * Cos(ang1 - Pi / 2)                             ' Tercer punto del Bulge
+                        by = my + B * Sin(ang1 - Pi / 2)
 
                         ' aqui podria usar una rutina de arco entre 3 puntos
                         fArcParams = puntos.Arc3Point(Glyps[i2 * 2], Glyps[i2 * 2 + 1], bx, by, Glyps[(i2 + 1) * 2], Glyps[(i2 + 1) * 2 + 1])
                         ' traslado el centro
-                        If (Bulges[i2 + 1] > 0) Then Swap fArcParams[3], fArcParams[4]
+                        'If (Bulges[i2 + 1] > 0) Then Swap fArcParams[3], fArcParams[4]
 
                         gl.Translatef(fArcParams[0], fArcParams[1], 0)
 
-                        ' verifico Start_Angle y End_Angle (esta parte esta intimamente ligada a Arc3Point)
-                        ' las combinaciones de angulos son diversas, Arc3Point puede no funcionar bien en otra circunstancia
-
-                        If fArcParams[3] > 0 And fArcParams[4] > 0 Then
-                            ' TODO verificar si la siguiente linea debe incorporarse a LWPolyline
-                            If fArcParams[3] > fArcParams[4] Then fArcParams[4] += 2 * Pi
-                        Else If fArcParams[3] > 0 And fArcParams[4] < 0 Then
-
-                            Swap fArcParams[3], fArcParams[4]
-
-                        Else If fArcParams[3] < 0 And fArcParams[4] < 0 Then
-                            fArcParams[3] += 2 * Pi
-                            fArcParams[4] += 2 * Pi
-                            If fArcParams[3] > fArcParams[4] Then fArcParams[4] += 2 * Pi
-
-                        Else If fArcParams[3] < 0 And fArcParams[4] > 0 Then
-                            fArcParams[3] += 2 * Pi
-                            If fArcParams[3] > fArcParams[4] Then fArcParams[4] += 2 * Pi
-
-                        Endif
-
-                        If fArcParams[3] > fArcParams[4] Then Swap fArcParams[3], fArcParams[4]
-
-                        ARC(fArcParams[2], fArcParams[3], fArcParams[4] - fArcParams[3], colour)
+                        ARC(fArcParams[2], fArcParams[3], fArcParams[4], colour)
                         gl.Translatef(-fArcParams[0], -fArcParams[1], 0)
                         fArcParams = Null
 
@@ -3546,14 +3525,16 @@ Fast Unsafe Public Function DrawTextPoly(UTFstring As String, Optional textH As 
 
                     ' no todos los tramos pueden tener bulges
                     If Abs(Bulges[i2 + 1]) > 0.001 Then
+                        ' ' FIXME: arc problem
+                        ' Continue
                         ang1 = Ang(Glyps[(i2 + 1) * 2] - Glyps[i2 * 2], Glyps[(i2 + 1) * 2 + 1] - Glyps[i2 * 2 + 1])    ' angulo del tramo
                         Lt = puntos.distancia(Glyps[i2 * 2], Glyps[i2 * 2 + 1], Glyps[(i2 + 1) * 2], Glyps[(i2 + 1) * 2 + 1])
                         If Lt = 0 Then Continue
                         mx = (Glyps[(i2 + 1) * 2] + Glyps[i2 * 2]) / 2          ' punto medio del tramo
                         my = (Glyps[(i2 + 1) * 2 + 1] + Glyps[i2 * 2 + 1]) / 2
                         B = Bulges[i2 + 1] * Lt / 2
-                        bx = mx + B * Sin(ang1)                             ' Tercer punto del Bulge
-                        by = my - B * Cos(ang1)
+                        bx = mx - B * Cos(ang1 - Pi / 2)                             ' Tercer punto del Bulge
+                        by = my + B * Sin(ang1 - Pi / 2)
 
                         ' aqui podria usar una rutina de arco entre 3 puntos
                         fArcParams = puntos.Arc3Point(Glyps[i2 * 2], Glyps[i2 * 2 + 1], bx, by, Glyps[(i2 + 1) * 2], Glyps[(i2 + 1) * 2 + 1])
@@ -3564,28 +3545,9 @@ Fast Unsafe Public Function DrawTextPoly(UTFstring As String, Optional textH As 
                         ' dY += fArcParams[1]
                         ' verifico Start_Angle y End_Angle (esta parte esta intimamente ligada a Arc3Point)
                         ' las combinaciones de angulos son diversas, Arc3Point puede no funcionar bien en otra circunstancia
-                        If (Bulges[i2 + 1] > 0) Then Swap fArcParams[3], fArcParams[4]
 
-                        If fArcParams[3] > 0 And fArcParams[4] > 0 Then
-                            ' TODO verificar si la siguiente linea debe incorporarse a LWPolyline
-                            If fArcParams[3] > fArcParams[4] Then fArcParams[4] += 2 * Pi
-                        Else If fArcParams[3] > 0 And fArcParams[4] < 0 Then
 
-                            Swap fArcParams[3], fArcParams[4]
-
-                        Else If fArcParams[3] < 0 And fArcParams[4] < 0 Then
-                            fArcParams[3] += 2 * Pi
-                            fArcParams[4] += 2 * Pi
-                            If fArcParams[3] > fArcParams[4] Then fArcParams[4] += 2 * Pi
-                        Else If fArcParams[3] < 0 And fArcParams[4] > 0 Then
-                            fArcParams[3] += 2 * Pi
-                            If fArcParams[3] > fArcParams[4] Then fArcParams[4] += 2 * Pi
-
-                        Endif
-
-                        'If fArcParams[3] > fArcParams[4] Then Swap fArcParams[3], fArcParams[4]
-
-                        flxArc = ArcPoly(fArcParams[2], fArcParams[3], fArcParams[4] - fArcParams[3], Pi / 16)
+                        flxArc = ArcPoly(fArcParams[2], fArcParams[3], fArcParams[4], Pi / 16)
                         puntos.Translate(flxArc, fArcParams[0] + Xadvance, fArcParams[1])
                         flxAnswer.Insert(flxArc)
 

@@ -82,62 +82,71 @@ Public Sub Draw(oE As Entity)
     If Not oE.Visible Then Return
 
     ' version con bulges
-    Dim ang1, mx, my, B, bx, by, Lt As Float
+    Dim ang1, px0, py0, mx, my, px1, py1, B, bx, by, Lt As Float
     Dim i As Integer
     Dim fArcParams As Float[]
 
-    'If oe.Handle = "1C1CE090" Then Stop
+
 
     If oe.iParam[Me.iiiBulged] Then
+        ' If oe.id <> "12A6F" Then Return Else Stop
         For i = 0 To oe.P.Count / 2 - 2
-
+            px0 = oe.P[i * 2]
+            py0 = oe.P[i * 2 + 1]
+            px1 = oe.P[(i + 1) * 2]
+            py1 = oe.P[(i + 1) * 2 + 1]
             ' no todos los tramos pueden tener bulges
             If Abs(oe.fParam[i]) > 0.001 Then
-                ang1 = Ang(oe.P[(i + 1) * 2] - oe.P[i * 2], oe.P[(i + 1) * 2 + 1] - oe.P[i * 2 + 1])    ' angulo del tramo
-                Lt = puntos.distancia(oe.P[i * 2], oe.P[i * 2 + 1], oe.P[(i + 1) * 2], oe.P[(i + 1) * 2 + 1])
+                Goto NoBulge
+
+                ang1 = Ang(px1 - px0, py1 - py0)            ' angulo del tramo
+                If ang1 < 0 Then ang1 += 2 * Pi             ' Ang1 siempre >= 0
+                Lt = puntos.distancia(px0, py0, px1, py1)   ' longitud del tramo
                 If Lt = 0 Then Continue
-                mx = (oe.P[(i + 1) * 2] + oe.P[i * 2]) / 2          ' punto medio del tramo
-                my = (oe.P[(i + 1) * 2 + 1] + oe.P[i * 2 + 1]) / 2
+                mx = (px1 + px0) / 2          ' punto medio del tramo
+                my = (py1 + py0) / 2
                 B = oe.fParam[i] * Lt / 2
-                bx = mx + B * Sin(ang1)                             ' Tercer punto del Bulge
-                by = my - B * Cos(ang1)
+                bx = mx - B * Cos(ang1 - Pi / 2)                             ' Tercer punto del Bulge
+                by = my + B * Sin(ang1 - Pi / 2)
+
+                ' ' con esto el arco sera siempre counterclock
+                ' If oe.fParam[i] > 0 Then
+                '     Swap px1, px0
+                '     Swap py1, py0
+                ' Endif
+
 
                 ' aqui podria usar una rutina de arco entre 3 puntos
-                Try fArcParams = puntos.Arc3Point(oe.P[i * 2], oe.P[i * 2 + 1], bx, by, oe.P[(i + 1) * 2], oe.P[(i + 1) * 2 + 1])
+                fArcParams = puntos.Arc3Point(px0, py0, bx, by, px1, py1)
                 ' verifico Start_Angle y End_Angle (esta parte esta intimamente ligada a Arc3Point)
                 ' las combinaciones de angulos son diversas, Arc3Point puede no funcionar bien en otra circunstancia
 
                 ' la condicion a cumplir es que ambos valores sean positivos y que 3<4
                 If fArcParams.Count < 5 Then Continue
-                ' FIXME: hay bulges que se hace al reves
-                'If (oe.fParam[i] < 0) And (fArcParams[3] > fArcParams[4]) Then Swap fArcParams[3], fArcParams[4]
-                ' If (oe.fParam[i] < 0) Then Swap fArcParams[3], fArcParams[4]
-                If (oe.fParam[i] > 0) Then Swap fArcParams[3], fArcParams[4]
-                'If (fArcParams[3] < 0) And (oe.fParam[i] > 0) Then Swap fArcParams[3], fArcParams[4]
 
-                If fArcParams[3] < 0 Then fArcParams[3] += 2 * Pi
-                If fArcParams[4] < 0 Then fArcParams[4] += 2 * Pi
+                If fArcParams.Count = 0 Then Goto NoBulge
 
-                If fArcParams[3] > fArcParams[4] Then fArcParams[4] += 2 * Pi
 
                 If iContext = 0 Then
                     ' traslado el centro
                     gl.Translatef(fArcParams[0], fArcParams[1], 0)
 
-                    glx.ARC(fArcParams[2], fArcParams[3], fArcParams[4] - fArcParams[3], gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
-
+                    glx.ARC(fArcParams[2], fArcParams[3], fArcParams[4], gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
                     gl.Translatef(-fArcParams[0], -fArcParams[1], 0)
                 Else If iContext = 1 Then
-                    Paint.ARC(fArcParams[0], fArcParams[1], fArcParams[2], fArcParams[3], fArcParams[4] - fArcParams[3])
+                    Paint.ARC(fArcParams[0], fArcParams[1], fArcParams[2], fArcParams[3], fArcParams[4])
                 End If
+
 
                 fArcParams = Null
 
             Else    ' dibujo la linea normalmente
+
+            NoBulge:
                 If iContext = 0 Then
-                    glx.DrawLines([oe.P[i * 2], oe.P[i * 2 + 1], oe.P[(i + 1) * 2], oe.P[(i + 1) * 2 + 1]], gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
+                    glx.DrawLines([px0, py0, px1, py1], gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
                 Else If iContext = 1 Then
-                    paintPlus.Lines([oe.P[i * 2], oe.P[i * 2 + 1], oe.P[(i + 1) * 2], oe.P[(i + 1) * 2 + 1]])
+                    paintPlus.Lines([px0, py0, px1, py1])
                 End If
             End If
 
@@ -177,39 +186,7 @@ Public Function Draw2(oE As Entity)
     iContext = 0
 
 End
-' '' Creo los puntos de interes
-' '' Build point of interest
-'
-' Public Function BuildPOI(oE As Entity) As Integer
-'
-'     ' si este valor no es provisto , estos POI son de la ultima entidad
-'     Dim i As Integer
-'
-'     oe.PoiPoints.Clear
-'     oe.PoiType.Clear
-'
-'     oe.poiPoints.insert([oE.P[0], oE.P[1]])
-'     oe.poiType.Add(gcd.poiEndPoint)
-'     'oe.poiEntities.Add(arrIndex)
-'
-'     For i = 0 To oE.P.count - 4 Step 2
-'
-'         oe.poiPoints.insert([(oE.P[i + 0] + oE.P[i + 2]) / 2, (oE.P[i + 1] + oE.P[i + 3]) / 2])   ' mid
-'         oe.poiType.Add(gcd.poiMIdPoint)
-'         'oe.poiEntities.Add(arrIndex)
-'
-'         oe.poiPoints.insert([oE.P[i + 2], oE.P[i + 3]])
-'         oe.poiType.Add(gcd.poiEndPoint)
-'         'oe.poiEntities.Add(arrIndex)
-'
-'         ' line
-'         'gcd.CurrDrawing.poiLines.insert([oE.p[i], oE.p[i + 1], oE.p[i + 2], oE.p[i + 3]])
-'         'gcd.CurrDrawing.poiLinesEntities.Add(arrIndex)
-'         ' gcd.CurrDrawing.poiLinesRelPoint.Insert([i / 2, i / 2 + 1])
-'
-'     Next
-'
-' End
+
 
 ' This function will return False if the element couldn't be created for some reason: bad or incomple user input
 ' True means all is good, False will instruct the clsENTITYBUILDER to delete it
@@ -219,7 +196,6 @@ Public Sub Finish(oE As Entity) As Boolean
     'CreatePolygon(oe)
 
     If oe.fParam.Count = 0 Then oe.fParam.Add(0)
-    '  BuildPOI(oe)
 
     ' busco el tipo de linea, si hace falta
 

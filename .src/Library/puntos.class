@@ -35,13 +35,18 @@ Fast Unsafe        ' TODO: alwways set this after debugging
 Public HookSize As Integer = 16                       ' for use with poi
 Public NumericTolerance As Float = 1e-7
 
-'' Returns center, radious, start angle, end angle of an arc defined by 3 given points
+Public Const pi2 As Float = 6.28318530717959
+
+'' Returns center, radious, start angle, length of an arc defined by 3 given points
+'' Angles will be fixed so the ARC is counterclock
 Public Function Arc3Point(px1 As Float, py1 As Float, px2 As Float, py2 As Float, px3 As Float, py3 As Float) As Float[]
 
     Dim answer As Float[]
 
     ' mid points of segments
     Dim mx1, my1, mx2, my2 As Float
+
+
 
     mx1 = (px1 + px2) / 2
     my1 = (py1 + py2) / 2
@@ -50,7 +55,7 @@ Public Function Arc3Point(px1 As Float, py1 As Float, px2 As Float, py2 As Float
     my2 = (py3 + py2) / 2
 
     ' angles
-    Dim Ang1, Ang2 As Float
+    Dim Ang1, Ang2, angm As Float
     Ang1 = Ang(px2 - px1, py2 - py1)
     Ang2 = Ang(px3 - px2, py3 - py2)
 
@@ -65,13 +70,47 @@ Public Function Arc3Point(px1 As Float, py1 As Float, px2 As Float, py2 As Float
     ' the center is the intersection of the normals
     answer = lineLineIntersection2(mx1, my1, ax1, ay1, mx2, my2, ax2, ay2)
 
-    ' the radious
-    answer.Add(distancia(px1, py1, answer[0], answer[1]))
+    If answer.Count > 0 Then
 
-    ' start and end angles
-    answer.Add(Ang(px3 - answer[0], py3 - answer[1]))
-    answer.Add(Ang(px1 - answer[0], py1 - answer[1]))
 
+        ' the radious
+        answer.Add(distancia(px1, py1, answer[0], answer[1]))
+
+        ' start and end angles
+        ang1 = Ang(px1 - answer[0], py1 - answer[1])
+        ang2 = Ang(px3 - answer[0], py3 - answer[1])
+
+        angm = Ang(px2 - answer[0], py2 - answer[1])            ' mid angle
+
+        ' Tengo que usar solo valores positivos
+        If ang1 < 0 Then ang1 += Pi2
+        If ang2 < 0 Then ang2 += Pi2
+        If angm < 0 Then angm += Pi2
+
+
+        If ang1 > ang2 Then ang2 += Pi2
+        If angm < ang1 And angM < ang2 Then angm += pi2
+
+        ' ahora hay dos casos, angM cae en medio o no
+        If angm >= ang1 And angm <= ang2 Then
+
+        Else
+
+            Swap ang2, ang1
+            If ang2 < ang1 Then ang2 += Pi2
+        Endif
+
+
+        answer.Add(ang1)
+
+        answer.Add(ang2 - ang1)
+
+
+
+
+
+
+    Endif
     Return answer
 
 End
