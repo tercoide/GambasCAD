@@ -2836,36 +2836,57 @@ Fast Unsafe Public Function ARC(radio As Float, start_angle As Float, length As 
 
 End
 
-Fast Unsafe Public Function ArcPoly(Optional radio As Float, start_angle As Float, length As Float, Optional angle_increment As Float = Pi * 2 / 360) As Float[]
+Fast Unsafe Public Function ArcPoly(xCenter As Float, yCenter As Float, radio As Float, start_angle As Float, length As Float, Optional angle_increment As Float = Pi * 2 / 360) As Float[]
 
     Dim theta, x0, y0 As Float
     Dim flxPoly As New Float[]
+    Dim i As Integer
     'double max_angle = 2 * Math.PI
     'double angle_increment = Math.PI / 1000
     'angle_increment = Pi * 2 / 360
 
     ' verifico los angulos
     ' If length < 0 Then angle_increment *= -1
-
+    flxPoly.Resize(CInt(length / angle_increment) * 4)
     For theta = angle_increment To length Step angle_increment
         x0 = radio * Cos(start_angle + theta - angle_increment)
         y0 = radio * Sin(start_angle + theta - angle_increment)
-        flxPoly.Add(x0)
-        flxPoly.Add(y0)
+        flxPoly[i] = x0 + xCenter
+        Inc i
+        flxPoly[i] = y0 + yCenter
+        Inc i
         x0 = radio * Cos(start_angle + theta)
         y0 = radio * Sin(start_angle + theta)
-        flxPoly.Add(x0)
-        flxPoly.Add(y0)
+        flxPoly[i] = x0 + xCenter
+        Inc i
+        flxPoly[i] = y0 + yCenter
+        Inc i
 
     Next
     x0 = radio * Cos(start_angle + theta - angle_increment)
     y0 = radio * Sin(start_angle + theta - angle_increment)
-    flxPoly.Add(x0)
-    flxPoly.Add(y0)
+
+    If flxPoly.Count = i Then
+        flxPoly.Add(0)
+        flxPoly.Add(0)
+    Endif
+    flxPoly[i] = x0 + xCenter
+    Inc i
+    flxPoly[i] = y0 + yCenter
+    Inc i
+
     x0 = radio * Cos(start_angle + length)
     y0 = radio * Sin(start_angle + length)
-    flxPoly.Add(x0)
-    flxPoly.Add(y0)
+
+    If flxPoly.Count = i Then
+        flxPoly.Add(0)
+        flxPoly.Add(0)
+    Endif
+    flxPoly[i] = x0 + xCenter
+    Inc i
+    flxPoly[i] = y0 + yCenter
+    Inc i
+    'If flxPoly.Count <> i Then Stop
 
     Return flxPoly
 
@@ -3547,8 +3568,8 @@ Fast Unsafe Public Function DrawTextPoly(UTFstring As String, Optional textH As 
                         ' las combinaciones de angulos son diversas, Arc3Point puede no funcionar bien en otra circunstancia
 
 
-                        flxArc = ArcPoly(fArcParams[2], fArcParams[3], fArcParams[4], Pi / 16)
-                        puntos.Translate(flxArc, fArcParams[0] + Xadvance, fArcParams[1])
+                        flxArc = ArcPoly(fArcParams[0] + Xadvance, fArcParams[1], fArcParams[2], fArcParams[3], fArcParams[4], Pi / 16)
+                        'puntos.Translate(flxArc, fArcParams[0] + Xadvance, fArcParams[1])
                         flxAnswer.Insert(flxArc)
 
                         fArcParams.Clear
