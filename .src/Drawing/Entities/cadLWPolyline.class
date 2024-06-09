@@ -82,11 +82,11 @@ End
 Public Function MakePolyLine(oE As Entity)
 
 
-    Dim ang1, px0, py0, mx, my, px1, py1, B, bx, by, Lt As Float
+    Dim ang1, px0, py0, mx, my, px1, py1, B, bx, by, Lt, alpha As Float
     Dim i As Integer
     Dim fArcParams As New Float[]
 
-
+    ' If oe.id = "B2E7" Then Stop
     oe.PolyLine.Clear
 
     If oe.iParam[Me.iiiBulged] Then     ' necesito armar una Polylinea
@@ -105,16 +105,15 @@ Public Function MakePolyLine(oE As Entity)
                 If Lt = 0 Then Continue
                 mx = (px1 + px0) / 2          ' punto medio del tramo
                 my = (py1 + py0) / 2
-                B = oe.fParam[i] * Lt / 2
-                bx = mx - B * Cos(ang1 - Pi / 2)                             ' Tercer punto del Bulge
-                by = my + B * Sin(ang1 - Pi / 2)
+                B = Abs(oe.fParam[i] * Lt / 2)
+                If oe.fParam[i] < 0 Then alpha = Pi / 2 Else alpha = -Pi / 2
+                bx = mx + B * Cos(ang1 + alpha)                             ' Tercer punto del Bulge
+                by = my + B * Sin(ang1 + alpha)
 
                 fArcParams.Clear
 
-                ' aqui podria usar una rutina de arco entre 3 puntos
+
                 fArcParams = puntos.Arc3Point(px0, py0, bx, by, px1, py1)
-                ' verifico Start_Angle y End_Angle (esta parte esta intimamente ligada a Arc3Point)
-                ' las combinaciones de angulos son diversas, Arc3Point puede no funcionar bien en otra circunstancia
 
                 ' la condicion a cumplir es que ambos valores sean positivos y que 3<4
                 If fArcParams.Count < 5 Then
@@ -234,7 +233,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     For i = 0 To sClaves.Max
 
         'If sClaves[i] = "90" Then mPolyLine.vertexcount = Val(sValues[i])
-        'If sClaves[i] = "70" Then e.fParam[Me.ipaPolylineClosed] = CInt(sValues[i])       ' 0 = abierta, 1 = cerrada
+
         If sClaves[i] = "70" Then e.iParam[Me.iiiPolylineClosed] = CInt(sValues[i])        ' 0 = abierta, 1 = cerrada
         If sClaves[i] = "10" Then
             e.p.Add(CFloat(sValues[i]))
@@ -305,5 +304,28 @@ Public Function GripEdit(g As Grip) As Boolean
         g.Xr = g.X
         g.Yr = g.Y
     End If
+
+End
+
+Public Sub Scale(e As Entity, sX As Float, sY As Float)
+
+    Dim i, signo As Integer
+
+    For i = 0 To e.p.max Step 2
+
+        e.P[i] = e.P[i] * sX
+        e.P[i + 1] = e.P[i + 1] * sY
+
+    Next
+
+    ' si alguna escala es negativa, tengo que invertir los bulges
+    signo = Sgn(sx) * Sgn(sy)
+    For i = 0 To e.fParam.max
+
+        e.fParam[i] *= signo
+
+    Next
+
+    Me.BuildGeometry(e)
 
 End
