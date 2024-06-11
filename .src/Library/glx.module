@@ -2815,14 +2815,17 @@ End
 '' Siempre gira en sentido anti-horario
 '' Las medidas de los angulo inicial y recorrido estan en RADIANES
 
-Fast Unsafe Public Function ARC(radio As Float, start_angle As Float, length As Float, Optional colour As Integer = 0, LineWIdth As Float = 1, dashes As Float[] = [])
+Fast Unsafe Public Function ARC(radio As Float, start_angle As Float, length As Float, Optional tramos As Integer = 36, colour As Integer = 0, LineWIdth As Float = 1, dashes As Float[] = [])
 
     GL.Begin(gl.LINE_STRIP)
     Dim theta, angle_increment As Float
 
     'double max_angle = 2 * Math.PI
     'double angle_increment = Math.PI / 1000
-    angle_increment = Pi * 2 / 360
+    If tramos <= 0 Then tramos = 36
+    If tramos > 360 Then tramos = 36
+
+    angle_increment = Pi * 2 / tramos
 
     ' verifico los angulos
     ' If length < 0 Then angle_increment *= -1
@@ -3413,7 +3416,7 @@ Public Function DrawText(UTFstring As String, posX As Float, posY As Float, Opti
     Dim fArcParams As New Single[]
     Dim Glyps, Bulges As New Single[]
     Dim TGlyps, TBulges As Single[][]
-    Dim Ang, m1, m2, b, bx, by, mx, my, ang1, lt As Single
+    Dim Ang, m1, m2, b, bx, by, mx, my, ang1, lt, alpha As Single
     Dim iBulge As Integer
 
     gl.PushMatrix                                                               ' para evitar peleas, guardo la matriz de trnasformacion
@@ -3460,8 +3463,9 @@ Public Function DrawText(UTFstring As String, posX As Float, posY As Float, Opti
                         mx = (Glyps[(i2 + 1) * 2] + Glyps[i2 * 2]) / 2          ' punto medio del tramo
                         my = (Glyps[(i2 + 1) * 2 + 1] + Glyps[i2 * 2 + 1]) / 2
                         B = Bulges[i2 + 1] * Lt / 2
-                        bx = mx - B * Cos(ang1 - Pi / 2)                             ' Tercer punto del Bulge
-                        by = my + B * Sin(ang1 - Pi / 2)
+                        If Bulges[i2 + 1] < 0 Then alpha = Pi / 2 Else alpha = -Pi / 2
+                        bx = mx + B * Cos(ang1 + alpha)                             ' Tercer punto del Bulge
+                        by = my + B * Sin(ang1 + alpha)
 
                         ' aqui podria usar una rutina de arco entre 3 puntos
                         fArcParams = puntos.Arc3Point(Glyps[i2 * 2], Glyps[i2 * 2 + 1], bx, by, Glyps[(i2 + 1) * 2], Glyps[(i2 + 1) * 2 + 1])
@@ -3470,7 +3474,7 @@ Public Function DrawText(UTFstring As String, posX As Float, posY As Float, Opti
 
                         gl.Translatef(fArcParams[0], fArcParams[1], 0)
 
-                        ARC(fArcParams[2], fArcParams[3], fArcParams[4], colour)
+                        ARC(fArcParams[2], fArcParams[3], fArcParams[4],, colour)
                         gl.Translatef(-fArcParams[0], -fArcParams[1], 0)
                         fArcParams = Null
 
@@ -3508,7 +3512,7 @@ Fast Unsafe Public Function DrawTextPoly(UTFstring As String, Optional textH As 
     Dim Ang, m1, m2, b, bx, by, mx, my, ang1, lt As Single
     Dim iBulge As Integer
 
-    Dim dX, dY As Float ' donde tengo el cursor
+    Dim dX, dY, alpha As Float ' donde tengo el cursor
     Dim flxArc, flxGlyps, flxAnswer As New Float[]
 
     'SelectFont("romant")
@@ -3554,22 +3558,17 @@ Fast Unsafe Public Function DrawTextPoly(UTFstring As String, Optional textH As 
                         mx = (Glyps[(i2 + 1) * 2] + Glyps[i2 * 2]) / 2          ' punto medio del tramo
                         my = (Glyps[(i2 + 1) * 2 + 1] + Glyps[i2 * 2 + 1]) / 2
                         B = Bulges[i2 + 1] * Lt / 2
-                        bx = mx - B * Cos(ang1 - Pi / 2)                             ' Tercer punto del Bulge
-                        by = my + B * Sin(ang1 - Pi / 2)
+                        If Bulges[i2 + 1] < 0 Then alpha = Pi / 2 Else alpha = -Pi / 2
+                        bx = mx + B * Cos(ang1 + alpha)                             ' Tercer punto del Bulge
+                        by = my + B * Sin(ang1 + alpha)
 
                         ' aqui podria usar una rutina de arco entre 3 puntos
-                        fArcParams = puntos.Arc3Point(Glyps[i2 * 2], Glyps[i2 * 2 + 1], bx, by, Glyps[(i2 + 1) * 2], Glyps[(i2 + 1) * 2 + 1])
-                        ' traslado el centro
 
-                        'gl.Translatef(fArcParams[0], fArcParams[1], 0)
-                        ' dX += fArcParams[0]
-                        ' dY += fArcParams[1]
-                        ' verifico Start_Angle y End_Angle (esta parte esta intimamente ligada a Arc3Point)
-                        ' las combinaciones de angulos son diversas, Arc3Point puede no funcionar bien en otra circunstancia
+                        fArcParams = puntos.Arc3Point(Glyps[i2 * 2], Glyps[i2 * 2 + 1], bx, by, Glyps[(i2 + 1) * 2], Glyps[(i2 + 1) * 2 + 1])
 
 
                         flxArc = ArcPoly(fArcParams[0] + Xadvance, fArcParams[1], fArcParams[2], fArcParams[3], fArcParams[4], Pi / 16)
-                        'puntos.Translate(flxArc, fArcParams[0] + Xadvance, fArcParams[1])
+
                         flxAnswer.Insert(flxArc)
 
                         fArcParams.Clear
