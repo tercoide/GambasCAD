@@ -1,5 +1,148 @@
 ' Gambas class file
 
+
+
+
+' Public Sub FillDimstyle(d As DimStyle)
+'
+'     AddPropToCol(cProperties, "Table", d.Gender)
+'     AddPropToCol(cProperties, "Name", d.name)
+'
+'
+' End
+
+Public Sub FillTable(cProperties As Collection)
+
+
+    Dim sProp As Variant
+    Dim i As Integer
+    ' ARMO LA TABLA DE PROPIEDADES
+    tblProperties.Rows.Count = cProperties.Count
+    tblProperties.Columns.Count = 2
+    For Each sProp In cProperties
+
+        tblProperties[i, 0].Text = UCase$(Left(cProperties.Key, 1)) & Mid(cProperties.Key, 2)
+
+        If TypeOf(sProp) = gb.String Then
+            tblProperties[i, 1].Text = sProp
+        Else If TypeOf(sProp) = gb.Float Then
+            tblProperties[i, 1].Text = sProp
+        Else If TypeOf(sProp) = gb.Object Then
+            tblProperties[i, 1].Text = Utils.FloatToString(sProp)
+        Else
+            tblProperties[i, 1].Text = sProp
+
+        End If
+
+        tblProperties[i, 1].Font.Bold = True
+        Inc i
+    Next
+
+
+End
+
+Public Sub FillFilter(cTypes As Collection)
+
+    Dim sProp As String
+
+    cmbEntityType.Clear
+    cmbEntityType.Add(("All types"))
+    For Each sProp In cTypes
+        cmbEntityType.Add(sProp)
+    Next
+
+End
+
+
+Public Sub FillGeneral(objClass As Object)
+
+    Dim cClass As New Collection
+    Dim jConfig As New JSONCollection
+    Dim MyClass As Class = Object.Class(objClass)
+    Dim Var As String
+    Dim Valor, valor2 As Variant
+    Dim sClass, cNew, cProperties As New Collection
+    Dim sObjectType, sName As String
+    Dim IsArray As Boolean
+    Dim objDesconocIdo As Variant
+    Dim i As Integer
+    ' Next
+
+    For Each Var In myClass.Symbols
+        ' verificamos que sea una propiedad o variable
+        If (MyClass[var].kind = Class.Variable) Then
+            valor = Object.GetProperty(objClass, var)
+            If (TypeOf(valor) < 14) Then
+                AddPropToCol(cProperties, var, Valor)
+
+            Else
+
+                If IsNull(valor) Then
+
+                    sName = "<null>"
+                Else
+
+                    sObjectType = Object.Type(valor)
+
+                    If sObjectType = "Collection" Then
+
+                        sName = valor.count
+                    Else
+                        sName = ""
+                        Try sName = valor.name
+
+
+                    End If
+
+                End If
+                If sName <> "" Then
+                    AddPropToCol(cProperties, var, sName)
+                Else
+                    Continue
+                End If
+                ' If Right(sObjectType, 2) = "[]" Then IsArray = True
+                '
+                ' If Not isArray Then
+                '
+                '     sClass = ClassToCollection(valor)
+                '     Dec DeepCounter
+                '     jConfig.Add(sClass, var)
+                '
+                ' Else
+                '     i = 0
+                '     If Valor.Count > 0 Then
+                '         If TypeOf(valor[0]) < 14 Then
+                '             jConfig.Add(Valor, var)
+                '         Else
+                '             cnew = New Collection
+                '
+                '             For Each objDesconocIdo In valor
+                '
+                '                 sClass = ClassToCollection(objDesconocIdo)
+                '                 Dec DeepCounter
+                '                 cNew.Add(sClass, Str(i))
+                '                 Inc i
+                '             Next
+                '             jConfig.Add(cNew, var)
+                '
+                '         End If
+                '     Else
+                '     Endif
+                ' End If
+            End If
+
+        End If
+
+    Next
+
+    FillTable(cProperties)
+
+
+
+
+End
+
+
 '' Llena la tabla de propiedades
 Public Sub FillProperties(cEntities As Collection, Optional sFilter As String = "")
 
@@ -31,6 +174,7 @@ Public Sub FillProperties(cEntities As Collection, Optional sFilter As String = 
         If Not cTypes.Exist(e.Gender) Then cTypes.Add(e.Gender, e.Gender)
 
         ' GENERAL
+        AddPropToCol(cProperties, "entity", e.Gender)                                   'LAYER
         AddPropToCol(cProperties, "layer", e.pLayer.Name)                               'LAYER
         AddPropToCol(cProperties, "color", e.Colour)                                    'COLOR
         AddPropToCol(cProperties, "linetype", e.LineType.Name)                          'LINETYPE
@@ -83,37 +227,13 @@ Public Sub FillProperties(cEntities As Collection, Optional sFilter As String = 
                 AddPropToCol(cProperties, "block", e.pBlock.name)               'TEXT
         End Select
 
+
+
     Next
 
-    cmbEntityType.Clear
-    cmbEntityType.Add(("All types"))
-    For Each sProp In cTypes
-        cmbEntityType.Add(sProp)
-    Next
+    FillFilter(cTypes)
 
-    ' ARMO LA TABLA DE PROPIEDADES
-    tblProperties.Rows.Count = cProperties.Count
-    tblProperties.Columns.Count = 2
-    For Each sProp In cProperties
-
-        tblProperties[i, 0].Text = UCase$(Left(cProperties.Key, 1)) & Mid(cProperties.Key, 2)
-
-        If TypeOf(sProp) = gb.String Then
-            tblProperties[i, 1].Text = sProp
-        Else If TypeOf(sProp) = gb.Float Then
-            tblProperties[i, 1].Text = sProp
-        Else If TypeOf(sProp) = gb.Object Then
-            tblProperties[i, 1].Text = Utils.FloatToString(sProp)
-        Else
-            tblProperties[i, 1].Text = sProp
-
-        End If
-
-        tblProperties[i, 1].Font.Bold = True
-        Inc i
-    Next
-
-    Return
+    FillTable(cProperties)
 
 End
 
