@@ -3,23 +3,28 @@
 
 
 
-' Public Sub FillDimstyle(d As DimStyle)
-'
-'     AddPropToCol(cProperties, "Table", d.Gender)
-'     AddPropToCol(cProperties, "Name", d.name)
-'
-'
-' End
+Public ReadOnly As New String[]
+Public NoShow As New String[]
+Public EditWith As New Collection
+Public oLists As Object
+
 
 Public Sub FillTable(cProperties As Collection)
 
 
     Dim sProp As Variant
-    Dim i As Integer
+    Dim i As Integer = -1
     ' ARMO LA TABLA DE PROPIEDADES
-    tblProperties.Rows.Count = cProperties.Count
+    tblProperties.Rows.Count = cProperties.Count - 1
     tblProperties.Columns.Count = 2
     For Each sProp In cProperties
+        If i < 0 Then
+            tblProperties.Columns[0].Title = UCase$(Left(cProperties.Key, 1)) & Mid(cProperties.Key, 2)
+            tblProperties.Columns[1].Title = sProp
+            Inc i
+            Continue
+        End If
+
 
         tblProperties[i, 0].Text = UCase$(Left(cProperties.Key, 1)) & Mid(cProperties.Key, 2)
 
@@ -54,7 +59,7 @@ Public Sub FillFilter(cTypes As Collection)
 End
 
 
-Public Sub FillGeneral(objClass As Object)
+Public Sub FillGeneral(objClass As Object, Optional objList As Object = Null)
 
     Dim cClass As New Collection
     Dim jConfig As New JSONCollection
@@ -66,9 +71,27 @@ Public Sub FillGeneral(objClass As Object)
     Dim IsArray As Boolean
     Dim objDesconocIdo As Variant
     Dim i As Integer
+
+
     ' Next
+    oLists = objList
+
+    ' Primer pasada
+    For Each Var In myClass.Symbols
+        Try valor = Object.GetProperty(objClass, var)
+
+        If var = "_ReadOnly" Then ReadOnly.Insert(valor)
+
+        If var = "_NoShow" Then NoShow.Insert(valor)
+        If var = "_EditWith" Then EditWith = valor.Copy()
+    Next
+
+    AddPropToCol(cProperties, "Type", MyClass.Name)
 
     For Each Var In myClass.Symbols
+        If NoShow.Exist(var, gb.IgnoreCase) Then Continue
+        If Left(var) = "_" Or Left(var) = "$" Then Continue
+
         ' verificamos que sea una propiedad o variable
         If (MyClass[var].kind = Class.Variable) Then
             valor = Object.GetProperty(objClass, var)
@@ -100,35 +123,7 @@ Public Sub FillGeneral(objClass As Object)
                 Else
                     Continue
                 End If
-                ' If Right(sObjectType, 2) = "[]" Then IsArray = True
-                '
-                ' If Not isArray Then
-                '
-                '     sClass = ClassToCollection(valor)
-                '     Dec DeepCounter
-                '     jConfig.Add(sClass, var)
-                '
-                ' Else
-                '     i = 0
-                '     If Valor.Count > 0 Then
-                '         If TypeOf(valor[0]) < 14 Then
-                '             jConfig.Add(Valor, var)
-                '         Else
-                '             cnew = New Collection
-                '
-                '             For Each objDesconocIdo In valor
-                '
-                '                 sClass = ClassToCollection(objDesconocIdo)
-                '                 Dec DeepCounter
-                '                 cNew.Add(sClass, Str(i))
-                '                 Inc i
-                '             Next
-                '             jConfig.Add(cNew, var)
-                '
-                '         End If
-                '     Else
-                '     Endif
-                ' End If
+
             End If
 
         End If
@@ -249,14 +244,38 @@ End
 
 Public Sub tblProperties_Click()
 
-    Dim s, sProp As String, iProp As Integer
+    Dim s, sProp As String, iProp As Integer, v As Variant
     Dim sLayers, sLinetypes, sStyles, sDimStyles As New String[]
     Dim lay As Layer, lty As LineType, dst As DimStyle, sty As TextStyle
-    Dim flxPoints As Float[]
-
-    If tblProperties.Column = 0 Then tblProperties.Column = 1
+    Dim flxPoints As Float[], cOptions, cCombo As New Collection, sOptions As New String[]
 
     sProp = LCase(tblProperties[tblProperties.Row, 0].Text)
+    If tblProperties.Column = 0 Then
+        DrawingAids.GetHelp(tblProperties.Columns[1].Title, sprop)
+        Return
+    End If
+
+
+    If ReadOnly.Exist(sProp, gb.IgnoreCase) Then Return
+    If EditWith.Exist(sProp) Then
+        Select Case TypeOf(EditWith[sProp])
+            Case gb.Class
+                iprop = Object.Call(EditWith[sProp], "Run")
+                If iprop >= 0 Then
+                    tblProperties[tblProperties.Row, 1].Text = iProp - 1
+                    tblProperties[tblProperties.Row, 1].Tag = True
+                End If
+            Case gb.String
+                If Not IsNull(oLists) Then cOptions = Object.GetProperty(oLists, EditWith[sProp])
+                For Each v In cOptions
+
+                    sOptions.Add(v.name)
+
+                Next
+                tblProperties.Edit(sOptions, True)
+
+        End Select
+    Endif
 
     ' lleno los combos de edicion
     For Each lay In gcd.Drawing.Layers
