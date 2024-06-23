@@ -974,8 +974,12 @@ Public Function CollectVisibleEntities(Optional sSheet As Sheet)
     Dim i, tot As Integer
     Dim s As Sheet
     Dim ho As String
+    Dim t As Timer
+    Dim insideX, insideY As Boolean
 
     gcd.flgsearchingallowed = False
+
+    gcd.ResetChronograph
 
     x0 = gcd.Xreal(0)
     y1 = gcd.Yreal(0)                     ' el eje Y esta invertido en OpenGL
@@ -986,23 +990,31 @@ Public Function CollectVisibleEntities(Optional sSheet As Sheet)
 
     'If gcd.Drawing.oEntities > gcd.Drawing.arrVisibleEntities.Max Then gcd.Drawing.arrVisibleEntities.Resize(gcd.Drawing.oEntities.Count)
     gcd.Drawing.Sheet.EntitiesVisibles.Clear
+
     For Each e In sSheet.Entities 'gcd.Drawing.Entities
         If e.pLayer.Visible Then
+            insideX = False
+            insideY = False
+            If (e.Limits[0] <= x1) And (e.Limits[2] >= x0) Then insideX = True
+            If (e.Limits[1] <= y1) And (e.Limits[3] >= y0) Then insidey = True
 
-            'If e.HandleOwner = ho Then
 
-            If SelPArtial(e, x0, y0, x1, y1) Then
+
+
+
+            If insideX And insideY Then
 
                 gcd.Drawing.Sheet.EntitiesVisibles.Add(e, e.id)
 
             End If
-            'End If
+
         End If
     Next
 
     ' depre porque todas son detectables ahora CollectDetectableEntities
-    'gcd.debugInfo("Recolectadas las entidades visibles",,, True)
+    gcd.debugInfo("Recolectadas las entidades visibles " & Str(gcd.Drawing.Sheet.EntitiesVisibles.count) & " de " & Str(gcd.Drawing.Sheet.Entities.count),,, True, True)
     gcd.flgSearchingAllowed = True
+
 
 End
 
@@ -1057,7 +1069,7 @@ Public Function ComputeLimits(Optional entities As Collection, OnlyVisibles As B
 
         If IsVisible Then
 
-            puntos.LimitsMax(newLimits, gcd.CCC[e.Gender].limits(e))
+            puntos.LimitsMax(newLimits, e.limits)
 
             'If newLimits[0] < -1e10 Then Stop
 

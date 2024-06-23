@@ -52,7 +52,7 @@ Public Function TagPic(sTag As String, iSize As Integer, Optional iFill As Integ
     sPic = "./svg/Gray/" & sTag & ".svg"
 
     If Exist(sPic) Then
-        sVector = SvgColorFix(sPic)
+        sVector = SvgColorFix2(sPic)
         pic = Image.FromString(sVector).Stretch(iSize, iSize).Picture
     Else
         pic = Stock["16/error"]
@@ -154,5 +154,36 @@ Public Function SvgColorFix(sFile As String, Optional iColor As Integer = -1) As
         Endif
     Loop Until p = 0
     Return ssvg
+
+End
+
+Public Function SvgColorFix2(sFile As String) As String
+
+    Dim xf As New XmlDocument(sFile)
+    Dim ele As XmlElement
+    Dim sOriginalSize As String
+    Dim iOrig As Integer
+    Dim iScale As Integer
+    Dim nod As XmlNode
+    Dim sColor As String
+    Dim sFill As String
+
+    sColor = "#" & CStr(Hex(Color.ButtonForeground, 6))
+    sFill = "#" & CStr(Hex(Color.LightForeground, 6))
+
+    For Each ele In xf.All
+        For Each nod In ele.Attributes
+            If nod.Name = "stroke" Then
+                nod.Value = sColor
+            Endif
+            If nod.Name = "fill" Then
+                If nod.Value <> "none" Then
+                    nod.Value = sFill
+                Endif
+            Endif
+        Next
+    Next
+
+    Return xf.Content
 
 End

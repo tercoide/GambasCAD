@@ -200,7 +200,7 @@ Public Function ImportJsonCol(c As Collection, e As Entity) As Boolean
 End
 
 '' Return if that position is over the entity within the tolerance
-Public Function OverMe(e As Entity, Xr As Float, Yr As Float, tolerance As Float) As Boolean
+Fast Public Function OverMe(e As Entity, Xr As Float, Yr As Float, tolerance As Float) As Boolean
 
     If e.Polygon Then
         If puntos.isInside(e.Polygon, xr, yr) Then Return True
@@ -214,6 +214,7 @@ End
 Public Function BuildGeometry(E As Entity, Optional density As Float)
 
     Me.MakePolyLine(e)
+    Me.Limits(e)
 
 End
 
@@ -291,7 +292,7 @@ Public Function GenerateGrips(e As Entity) As Integer
 
     Next
     Dim flim As Float[]
-    flim = gcd.CCC[e.Gender].limits(e)
+    flim = e.limits
 
     xg = (flim[0] + flim[2]) / 2
     yg = (flim[1] + flim[3]) / 2
@@ -538,7 +539,7 @@ SearchPoints:
 
 End
 
-Public Function Limits(e As Entity) As Float[]
+Public Sub Limits(e As Entity)
 
     Dim e2 As Entity
     Dim flxPoly, flxLimits As Float[]
@@ -557,18 +558,16 @@ Public Function Limits(e As Entity) As Float[]
 
         Case "INSERT"
             For Each e2 In e.pBlock.entities
-                flxLimits = Limits(e2)
-                ' flxLimits[0] += e.P[0]
-                ' flxLimits[2] += e.P[0]
-                '
-                ' flxLimits[1] += e.P[1]
-                ' flxLimits[2] += e.P[1]
+                Limits(e2)
+                flxLimits = e2.Limits
+
 
                 puntos.LimitsMax(flxLimitsMax, flxLimits)
             Next
         Case Like "DIM*"
             For Each e2 In e.pBlock.entities
-                flxLimits = Limits(e2)
+                Limits(e2)
+                flxLimits = e2.Limits
                 puntos.LimitsMax(flxLimitsMax, flxLimits)
             Next
         Case "ATTDEF", "SEQEND"
@@ -591,7 +590,11 @@ Public Function Limits(e As Entity) As Float[]
     End Select
 
     'If flxLimitsMax[3] > 5000 Then Stop
-    Return flxLimitsMax
+    e.Limits[0] = flxLimitsMax[0]
+    e.Limits[1] = flxLimitsMax[1]
+    e.Limits[2] = flxLimitsMax[2]
+    e.Limits[3] = flxLimitsMax[3]
+    'Return flxLimitsMax
 
 End
 

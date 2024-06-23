@@ -5,6 +5,7 @@
 
 ' Usando partes de la informacion de
 ' http://devmag.org.za/2011/04/05/bzier-curves-a-tutorial/
+' https://www.codeproject.com/Articles/996281/NURBS-curve-made-easy
 
 Create Static
 Inherits EntityBase
@@ -14,7 +15,7 @@ Public Const CmdLineHelper As String = "SPLine"
 Public Const ParamType As String = "P+"                             ' that is Point, Point, Float could be Color Text, etc
 Public Const ParamHelper As String = ("Next Point")      ' a little text that is shown at the prompt waiting for user input during build
 Public Const ParamDefault As String = "Close/Undo"
-Public Const ContextMenu As String = ("Close polyline;_CLOSE;;;Undo last point;_UNDO;;;End in last point;_END;;") ' el menu para el boton derecho, los comandos en mayusculas NO se traducen
+Public Const ContextMenu As String = ("Close SPLine;_CLOSE;;;Undo last point;_UNDO;;;End in last point;_END;;") ' el menu para el boton derecho, los comandos en mayusculas NO se traducen
 
 ' otras const
 Public Const TypeControls As Integer = 0
@@ -22,10 +23,6 @@ Public Const TypeTangent As Integer = 1
 Public drawingPoints As New Float[]
 
 Public numDrawingPoints As Integer = 100
-
-' DXF Read/Export
-
-Public Const DXF_Export As Boolean = True
 
 Public nTramos As Integer = 100
 
@@ -90,22 +87,28 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
             GoSub DoKnots
             Return True
         End If
-    Else If vParam[1] = "CLOSE" Then
+    Else If vParam[1] = "_CLOSE" Then
         If sp.ControlPoints.Count > 4 Then sp.ControlPoints.Remove(sp.ControlPoints.Max - 1, 2)
         sp.ControlPoints[sp.ControlPoints.Max - 1] = sp.ControlPoints[0]
         sp.ControlPoints[sp.ControlPoints.Max] = sp.ControlPoints[1]
+        ' sp.ControlPoints.Add(sp.ControlPoints[2])
+        ' sp.ControlPoints.Add(sp.ControlPoints[3])
+        ' sp.ControlPoints.Add(sp.ControlPoints[4])
+        ' sp.ControlPoints.Add(sp.ControlPoints[5])
+
+
         GoSub DoKnots
         Inc gcd.StepsDone
         Return True
 
-    Else If vParam[1] = "UNDO" Then
+    Else If vParam[1] = "_UNDO" Then
         If sp.ControlPoints.Count > 4 Then
             sp.ControlPoints.Remove(sp.ControlPoints.Max - 1, 2)
             GoSub DoKnots
         End If
 
         Return True
-    Else If vParam[1] = "END" Then
+    Else If vParam[1] = "_END" Then
         If sp.ControlPoints.Count > 4 Then sp.ControlPoints.Remove(sp.ControlPoints.Max - 1, 2)
         GoSub DoKnots
         Inc gcd.StepsDone
@@ -122,12 +125,14 @@ DoKnots:
     sp.kNotValues.Add(0)
     sp.kNotValues.Add(0)
     sp.kNotValues.Add(0)
+    sp.kNotValues.Add(0)
 
     If sp.ControlPoints.Count / 2 > 3 Then
-        For i = 1 To sp.ControlPoints.count / 2 - 2
+        For i = 1 To sp.ControlPoints.count / 2 - 4
             sp.kNotValues.Add(i / ((sp.ControlPoints.count / 2 - 2)))
         Next
     End If
+    sp.kNotValues.Add(1)
     sp.kNotValues.Add(1)
     sp.kNotValues.Add(1)
     sp.kNotValues.Add(1)
@@ -410,7 +415,7 @@ Public Sub Draw(oE As Entity)
 End
 
 'Fast
-Public Function interpolate2(t As Float, degree As Integer, points As Float[], Optional knots As Float[], weights As Float[]) As Float[]
+Private Function interpolate2(t As Float, degree As Integer, points As Float[], Optional knots As Float[], weights As Float[]) As Float[]
 
     Dim i, j, s, l As Integer ' function - scoped iteration variables
     Dim d As Integer = 2 ' 2d o 3d o mas dimensiones
@@ -507,7 +512,7 @@ Public Function interpolate2(t As Float, degree As Integer, points As Float[], O
 End
 
 '' Return if that position is over the entity within the tolerance
-Public Function OverMe(e As Entity, Xr As Float, Yr As Float, tolerance As Float) As Boolean
+Fast Public Function OverMe(e As Entity, Xr As Float, Yr As Float, tolerance As Float) As Boolean
 
     Return cadPolyline.OverMe(e, xr, yr, tolerance)
 
