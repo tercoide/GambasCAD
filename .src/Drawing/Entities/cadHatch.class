@@ -163,16 +163,16 @@ Public Sub Draw(oE As Entity)
         '     glx.PolyLines(obound, iColour, gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
         ' Next
 
-        ' gl.Begin(gl.POINTS)
-        '
-        ' For i = 0 To oE.PolyLine.Max - 3 Step 4
-        '     If (oE.PolyLine[i] = oE.PolyLine[i + 2]) And (oE.PolyLine[i + 1] = oE.PolyLine[i + 3]) Then
-        '         glx.glColorRGB(iColour)
-        '         gl.Vertex2f(oE.PolyLine[i], oE.PolyLine[i + 1])
-        '     End If
-        '
-        ' Next
-        ' gl.end
+        gl.Begin(gl.POINTS)
+
+        For i = 0 To oE.PolyLine.Max - 3 Step 4
+            If (oE.PolyLine[i] = oE.PolyLine[i + 2]) And (oE.PolyLine[i + 1] = oE.PolyLine[i + 3]) Then
+                glx.glColorRGB(iColour)
+                gl.Vertex2f(oE.PolyLine[i], oE.PolyLine[i + 1])
+            End If
+
+        Next
+        gl.end
 
     Else
 
@@ -193,9 +193,9 @@ Public Sub Draw(oE As Entity)
         '
         '     Debug "A polygon in HATCH is self intersecting"
         ' Endif
-
+        glx.zLevel = 0.1
         glx.DrawTriangles(oe.Polygon, gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetGBColor(oE.Colour, oe.pLayer))
-
+        glx.zLevel = 0
         'Next
 
     End If
@@ -1469,6 +1469,11 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
     ' Calculo el CG
     Xcg = (Xmayor + Xmenor) / 2
     Ycg = (Ymayor + Ymenor) / 2
+    If (Xmayor - Xmenor) > (Ymayor - Ymenor) Then
+        Mucho = (Xmayor - Xmenor) * 2
+    Else
+        Mucho = (Ymayor - Ymenor) * 2
+    Endif
 
     If entToFill.pBlock.Patterns.count = 0 Then Return
 
@@ -1509,7 +1514,7 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
                 BaseY = DeltaY + oPat.BaseY + iPatternOffset * OffsetDirection * oPat.OffsetY
 
                 'Debug baseX, BaseY
-                Mucho = 1e5
+
 
                 StartX = BaseX - cosB * mucho
                 StartY = BaseY - SinB * Mucho
@@ -1519,9 +1524,9 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
 
                 Inc iPatternOffset
 
-                ' TEST: para ver si los dashed son el problema, descomentar la siguiente linea
+                ' TEST: para ver si los dashed son el problema, descomentar la siguientes lineas
                 'oPat.DashLength.Clear
-
+                'If puntos.PointToLineDistance([186.34, 558.75], [BaseX, baseY, FinalX, FinalY]) < 0.1 Then Stop
                 ' PARTE 1
 
                 ' La linea recortada al contorno es (OJO, esto puede ser un conjunto de lineas):
@@ -1556,10 +1561,17 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
                     End If
                 End If
                 ' PARTE 2
-
+                'If iHatchLinesDrawn = 265 Then Stop
                 ' La linea recortada al contorno es (OJO, esto puede ser un conjunto de lineas):
                 flxTrimmedLine = puntos.LinePolyIntersection([BaseX, baseY, startX, startY], flxContorno)
-
+                ' If flxTrimmedLine.Count >= 2 Then
+                '     If (puntos.distancia(flxTrimmedLine[flxTrimmedLine.Max - 1], flxTrimmedLine[flxTrimmedLine.Max], 190.0095, 552.2092) < 0.1) Or (puntos.distancia(flxTrimmedLine[0], flxTrimmedLine[1], 190.0095, 552.2092) < 0.1) Then
+                '         Stop
+                '
+                '
+                '         Goto QuitFill
+                '     End If
+                ' End If
                 If flxTrimmedLine.Count > 0 Then
                     'If flxTrimmedLine.Count > 4 Then Stop
                     EsUtil = True
@@ -1636,6 +1648,7 @@ Public Sub FillEntityWithHatch4(entToFill As Entity)    ' Apto para rotaciones
 
     'limpio los huecos
     'Else If (entToFill.Flag And 16) = 16 Then ' es outermost
+QuitFill:
 
     SeedIndex = -1
     Filled = False

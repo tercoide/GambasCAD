@@ -31,7 +31,7 @@
 
 Create Static       ' This two preposition are the same as creating a module instead of a
 Create Private      ' class in Gambas.
-Fast Unsafe        ' TODO: alwways set this after debugging
+'Fast Unsafe        ' TODO: alwways set this after debugging
 Public HookSize As Integer = 16                       ' for use with poi
 Public NumericTolerance As Float = 1e-7
 
@@ -893,6 +893,74 @@ Public Function SortLineSegments(flxPoly As Float[])
 
 End
 
+Public Function SortLineSegments2(flxPoly As Float[]) As Float[]
+
+    Dim i As Integer
+
+    Dim iInicial As Integer
+    Dim d1, d2, dx, dy, d As Float
+    Dim Swaped As Boolean
+    Dim f, flxLim, flxRet, flxRet0, flxret2, flxSorted As New Float[]
+    Dim i2, iz As Integer
+
+    flxLim = Limits(flxPoly)
+    dx = flxLim[2] - flxLim[0]
+    dy = flxLim[3] - flxLim[1]
+
+
+    If dx > dy Then
+
+        For i = 0 To flxPoly.max Step 2
+            flxRet.Add(flxPoly[i])
+            flxRet0.Add(flxPoly[i])
+            flxRet2.Add(flxPoly[i + 1])
+        Next
+        flxSorted = flxRet.Sort()
+
+        For i = 0 To flxsorted.max
+
+            For i2 = 0 To flxRet0.Max
+                If flxRet0[i2] = flxSorted[i] Then
+                    f.Add(flxRet[i])
+                    f.Add(flxret2[i2])
+                    flxRet0.Remove(i2)
+                    flxret2.Remove(i2)
+                    Break
+                Endif
+            Next
+
+        Next
+    Else
+        For i = 0 To flxPoly.max Step 2
+            flxRet.Add(flxPoly[i + 1])
+            flxRet0.Add(flxPoly[i + 1])
+            flxRet2.Add(flxPoly[i])
+        Next
+        flxSorted = flxRet.Sort()
+
+        For i = 0 To flxsorted.max
+
+            For i2 = 0 To flxRet0.Max
+                If flxRet0[i2] = flxsorted[i] Then
+                    f.Add(flxret2[i2])
+                    flxRet0.Remove(i2)
+                    flxret2.Remove(i2)
+                    f.Add(flxRet[i])
+                    Break
+                Endif
+            Next
+
+
+        Next
+
+
+    End If
+
+
+    Return f
+
+End
+
 Public Function InvertPolyline(flxPoly As Float[]) As Float[]
 
     Dim i As Integer
@@ -966,7 +1034,7 @@ Public Function LinePolyIntersection(flxLine As Float[], flxPoly As Float[]) As 
     ' Chequeos previos:
     Dim UsarUltimoPunto, FirstInsIde, LastInsIde As Boolean
     Dim i, UltimoPunto As Integer
-    Dim flxRta As New Float[]
+    Dim flxRta, flxInter As New Float[]
 
     If flxLine.Count <> 4 Then Return []
 
@@ -987,11 +1055,12 @@ Public Function LinePolyIntersection(flxLine As Float[], flxPoly As Float[]) As 
     ' busco todas las intersecciones de la linea con la polilinea
     For i = 0 To flxPoly.count - 4 Step 2
         If puntos.doIntersect(flxLine[0], flxLine[1], flxLine[2], flxLine[3], flxPoly[i + 0], flxPoly[i + 1], flxPoly[i + 2], flxPoly[i + 3]) Then
-            flxIntersections.Insert(puntos.lineLineIntersection2(flxLine[0], flxLine[1], flxLine[2], flxLine[3], flxPoly[i + 0], flxPoly[i + 1], flxPoly[i + 2], flxPoly[i + 3]))
+            flxInter = puntos.lineLineIntersection2(flxLine[0], flxLine[1], flxLine[2], flxLine[3], flxPoly[i + 0], flxPoly[i + 1], flxPoly[i + 2], flxPoly[i + 3])
+            flxIntersections.Insert(flxInter)
         Endif
     Next
 
-    SortLineSegments(flxIntersections)
+    flxIntersections = SortLineSegments2(flxIntersections)
     ' ' y el cierre de la poly
     ' If puntos.doIntersect(flxLine[0], flxLine[1], flxLine[2], flxLine[3], flxPoly[flxPoly.Max - 1], flxPoly[flxPoly.Max], flxPoly[0], flxPoly[1]) Then
     '     flxIntersections.Insert(puntos.lineLineIntersection2(flxLine[0], flxLine[1], flxLine[2], flxLine[3], flxPoly[flxPoly.Max - 1], flxPoly[flxPoly.Max], flxPoly[0], flxPoly[1]))
