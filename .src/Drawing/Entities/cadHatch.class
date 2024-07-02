@@ -111,13 +111,14 @@ End
 Public Function BuildGeometry(E As Entity, Optional density As Float)
 
     Dim flxContorno As Float[]
+    Dim h As Hatch = e.pBlock
 
-    If (e.pBlock.PolyLines.Count = 0) And (e.Polygon.Count = 0) Then
+    If (h.PolyLines.Count = 0) And (e.Polygon.Count = 0) Then
 
         e.PolyLine.Clear
         e.Polygon.Clear
 
-        MakeBorder2(e.pBlock)
+        MakeBorder2(h)
 
     End If
 
@@ -132,8 +133,8 @@ Public Function BuildGeometry(E As Entity, Optional density As Float)
         ' Ojo con LibreCAD
         'For Each e.pBlock In hData
 
-        For Each flxContorno In e.pBlock.PolyLines
-            e.Polygon.Insert(puntos.PolygonTriangulation(flxContorno))
+        For Each flxContorno In h.PolyLines
+            h.Triangles.Add(puntos.PolygonTriangulation(flxContorno))
         Next
 
     End If
@@ -145,7 +146,7 @@ Public Sub Draw(oE As Entity)
 
     Dim i, iLoop, iStart, iColour As Integer
     Dim fBorder As New Float[]
-
+    Dim h As Hatch = oe.pBlock
     Dim E2 As Entity
 
     If Not oE.Visible Then Return
@@ -193,10 +194,18 @@ Public Sub Draw(oE As Entity)
         '
         '     Debug "A polygon in HATCH is self intersecting"
         ' Endif
-        glx.zLevel = 0.1
-        glx.DrawTriangles(oe.Polygon, gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetGBColor(oE.Colour, oe.pLayer))
+        For i = 0 To h.Triangles.max
+            glx.zLevel = 0.1 - Abs(h.Levels[i] / 100)
+            If h.Levels[i] > 0 Then
+                iColour = gcd.GetGBColor(oE.Colour, oe.pLayer)
+            Else
+                iColour = Config.ModelBackgroundColor
+            Endif
+            glx.DrawTriangles(h.Triangles[i], iColour, iColour)
+
+        Next
+
         glx.zLevel = 0
-        'Next
 
     End If
 
