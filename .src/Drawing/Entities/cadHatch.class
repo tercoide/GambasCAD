@@ -1155,7 +1155,7 @@ End
 ' End
 '
 
-Public Sub ExportDXFCol(e As Entity, ByRef stxExport As String[]) As Boolean
+Public Function SaveDxfData(e As Entity) As Boolean
 
     Dim h As Hatch
     Dim t As Float
@@ -1164,82 +1164,82 @@ Public Sub ExportDXFCol(e As Entity, ByRef stxExport As String[]) As Boolean
 
     ' stxExport.insert(["INSERT", dxf.codEntity])
     ' Los datos comunes a todas las entidades son guardados por la rutina que llama a esta
-    stxExport.insert(["AcDbHatch", "100"])                          'sub class
+    dxf.SaveCodeInv("AcDbHatch", "100")                          'sub class
 
-    stxExport.insert([CStr(e.p[0]), dxf.codX0])                     ' elevation point
-    stxExport.insert([CStr(e.p[1]), dxf.codY0])
-    stxExport.insert(["0", dxf.codZ0])
+    dxf.SaveCodeInv(CStr(e.p[0]), dxf.codX0)                     ' elevation point
+    dxf.SaveCodeInv(CStr(e.p[1]), dxf.codY0)
+    dxf.SaveCodeInv("0", dxf.codZ0)
 
-    stxExport.insert(["0", "210"])                                   ' plano de extrusion
-    stxExport.insert(["0", "220"])
-    stxExport.insert(["1", "230"])
+    dxf.SaveCodeInv("0", "210")                                   ' plano de extrusion
+    dxf.SaveCodeInv("0", "220")
+    dxf.SaveCodeInv("1", "230")
 
-    stxExport.insert([e.sParam[0], "2"])                              ' nombre del hatch
+    dxf.SaveCodeInv(e.sParam[0], "2")                              ' nombre del hatch
 
     ' Indicador de relleno s ólido (relleno sólido = 1; relleno de patrón = 0); para polígonoM, la versión de polígonoM
     If UCase(e.sParam[0]) = "SOLID" Then
-        stxExport.insert(["1", "70"])
+        dxf.SaveCodeInv("1", "70")
     Else
-        stxExport.insert(["0", "70"])
+        dxf.SaveCodeInv("0", "70")
     End If
 
     ' 63 Para pol ígonoM, color de relleno de patrón como ACI
 
-    stxExport.insert(["1", "71"])                                    'indicador de asociatividad(asociativo = 1; no asociativo = 0); para pol ígonoM, indicador de relleno sólido (con relleno sólido = 1; sin relleno sólido = 0)
+    dxf.SaveCodeInv("1", "71")                                    'indicador de asociatividad(asociativo = 1; no asociativo = 0); para pol ígonoM, indicador de relleno sólido (con relleno sólido = 1; sin relleno sólido = 0)
 
     '-------------------CONTORNO-----------------------------------------------------------------------------------
-    stxExport.insert([e.pBlock.PolyLines.count, "91"])                  'Número de rutas de contorno (bucles)
+    dxf.SaveCodeInv(e.pBlock.PolyLines.count, "91")                  'Número de rutas de contorno (bucles)
 
     ' Indicador de tipo de ruta de contorno(codificado en bits): 0 = Valor por defecto; 1 = Externo; 2 = Polilínea 4 = Derivado; 8 = Cuadro de texto; 16 = Exterior
     Dim poly As Float[]
     Dim i As Integer
     For Each poly In h.Polylines
-        stxExport.insert([2, "92"])                                     ' de momento solo vamos a generar contornos de polys
-        stxExport.insert(["0", "72"])                                   ' Indicador de curvatura
+        dxf.SaveCodeInv(2, "92")                                     ' de momento solo vamos a generar contornos de polys
+        dxf.SaveCodeInv("0", "72")                                   ' Indicador de curvatura
 
-        stxExport.insert(["1", "73"])                                   ' Indicador de cerrada (en gcad son todas cerradas)
-        stxExport.insert([poly.Count / 2, "93"])                        ' Número de vértices de la polilínea, /2 porque es 2D
+        dxf.SaveCodeInv("1", "73")                                   ' Indicador de cerrada (en gcad son todas cerradas)
+        dxf.SaveCodeInv(poly.Count / 2, "93")                        ' Número de vértices de la polilínea, /2 porque es 2D
 
         For i = 0 To poly.Max Step 2
-            stxExport.insert([poly[i], "10"])
-            stxExport.insert([poly[i + 1], "20"])
+            dxf.SaveCodeInv(poly[i], "10")
+            dxf.SaveCodeInv(poly[i + 1], "20")
         Next
     Next
 
     '--------------------SOMBREADO--------------------------------------------------------------------------
 
-    stxExport.insert(["0", "75"])   ' Estilo de sombreado:
+    dxf.SaveCodeInv("0", "75")   ' Estilo de sombreado:
     '   0 = Sombrear el área de “paridad impar” (estilo Normal)
     '   1 = Sombrear s ólo las áreas más externas estilo Exterior)
     '   2 = Sombrear el área completa (estilo Ignorar)
 
-    stxExport.insert(["1", "76"])   ' Tipo de patrón de sombreado: 0 = Definido por el usuario; 1 = Predefinido; 2 = Personalizado
+    dxf.SaveCodeInv("1", "76")   ' Tipo de patrón de sombreado: 0 = Definido por el usuario; 1 = Predefinido; 2 = Personalizado
 
-    stxExport.insert([E.fParam[cadHatch.ipaRotation], "52"])   ' Ángulo de patrón de sombreado (sólo relleno de patrón)
-    stxExport.insert([E.fParam[cadHatch.ipaRotation], "41"])   ' Escala o intervalo de patr ón de sombreado (sólo relleno de patrón)
+    dxf.SaveCodeInv(E.fParam[cadHatch.ipaRotation], "52")   ' Ángulo de patrón de sombreado (sólo relleno de patrón)
+    dxf.SaveCodeInv(E.fParam[cadHatch.ipaRotation], "41")   ' Escala o intervalo de patr ón de sombreado (sólo relleno de patrón)
 
-    stxExport.insert(["0", "77"]) ' Indicador de patrón de sombreado doble (sólo relleno de patrón): 0 = no es doble; 1 = es doble
+    dxf.SaveCodeInv("0", "77") ' Indicador de patrón de sombreado doble (sólo relleno de patrón): 0 = no es doble; 1 = es doble
 
-    stxExport.insert([h.Patterns.Count, "78"])   'El número de líneas de definición de patrón
+    dxf.SaveCodeInv(h.Patterns.Count, "78")   'El número de líneas de definición de patrón
 
     Dim pat As Pattern
     If h.Patterns.Count > 0 Then
         For Each pat In h.Patterns
-            stxExport.insert([pat.AngleDeg, "53"])              ' Ángulo de línea de patrón
-            stxExport.insert([pat.BaseX, "43"])                 ' Punto base de línea de patrón, componente X
-            stxExport.insert([pat.BaseY, "44"])                 ' Punto base de línea de patrón, componente Y
-            stxExport.insert([pat.OffsetX, "45"])               ' Offset, componente X
-            stxExport.insert([pat.OffsetY, "46"])               ' Offset, componente Y
-            stxExport.insert([pat.DashLength.Count, "79"])      ' Nro de trazos
+            dxf.SaveCodeInv(pat.AngleDeg, "53")              ' Ángulo de línea de patrón
+            dxf.SaveCodeInv(pat.BaseX, "43")                 ' Punto base de línea de patrón, componente X
+            dxf.SaveCodeInv(pat.BaseY, "44")                 ' Punto base de línea de patrón, componente Y
+            dxf.SaveCodeInv(pat.OffsetX, "45")               ' Offset, componente X
+            dxf.SaveCodeInv(pat.OffsetY, "46")               ' Offset, componente Y
+            dxf.SaveCodeInv(pat.DashLength.Count, "79")      ' Nro de trazos
             For Each t In pat.DashLength
-                stxExport.insert([t, "49"])
+                dxf.SaveCodeInv(t, "49")
             Next
         Next
 
         ' -----------seed----------------------------------------
-        stxExport.insert([1, "98"])   'El número de puntos base
-        stxExport.insert([pat.BaseX, "10"])   'X
-        stxExport.insert([pat.BaseY, "20"])   'Y
+        dxf.SaveCodeInv(1, "98")   'El número de puntos base
+        dxf.SaveCodeInv(pat.BaseX, "10")   'X
+        dxf.SaveCodeInv(pat.BaseY, "20")   'Y
     End If
 
 End

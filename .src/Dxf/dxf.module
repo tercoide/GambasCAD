@@ -124,7 +124,8 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
     Dim cLlaveActual, cSectionActual, cTable As Collection
     Dim cToFill As New Collection
 
-    fp = Open sFile For Read
+
+    fp = Open sFile ' For Read
 
     If Not fp Then Error.Raise("Error !")
 
@@ -153,7 +154,7 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
                 End If
 
                 Load1HeadersDirect(drw.Headers)
-                gcd.debugInfo("Leidos Headers",,, True)
+                If VerboseLevel > 2 Then gcd.debugInfo("Leidos Headers",,, True)
                 Wait
 
             End If
@@ -161,7 +162,7 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
             If lpCode = "2" And lpValue = "CLASSES" Then
 
                 Load2Classes(drw)
-                gcd.debugInfo("Leidas Classes",,, True)
+                If VerboseLevel > 2 Then gcd.debugInfo("Leidas Classes",,, True)
                 Wait
             End If
 
@@ -173,14 +174,14 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
                     cLlaveActual = cToFill["TABLES"]
                 End If
                 Load3Tables(cLlaveActual)
-                gcd.debugInfo("Leidos Tables",,, True)
+                If VerboseLevel > 2 Then gcd.debugInfo("Leidos Tables",,, True)
                 Wait
                 ' con las tablas cargadas, llenamoslas colecciones de objetos
                 ReadViewports(cToFill, drw)
                 ReadLTypes(cToFill, drw)
                 ReadStyles(cToFill, drw)
                 ReadLayers(cToFill, drw)
-                gcd.debugInfo("Tables al Drawing",,, True)
+                If VerboseLevel > 2 Then gcd.debugInfo("Tables al Drawing",,, True)
                 Wait
             End If
 
@@ -190,7 +191,7 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
                 cLlaveActual = New Collection
                 cToFill.Add(cLlaveActual, "BLOCKS")
                 Load4Blocks(cLlaveActual)
-                gcd.debugInfo("Leidos Blocks",,, True)
+                If VerboseLevel > 2 Then gcd.debugInfo("Leidos Blocks",,, True)
                 Wait
             End If
 
@@ -200,7 +201,7 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
                 cToFill.Add(cLlaveActual, "ENTITIES")
 
                 Load5Entities(cLlaveActual)
-                gcd.debugInfo("Leidas Entidades",,, True)
+                If VerboseLevel > 2 Then gcd.debugInfo("Leidas Entidades",,, True)
                 Wait
             End If
             '
@@ -214,7 +215,7 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
                 End If
 
                 Load6Objects(cLlaveActual)
-                gcd.debugInfo("Leidos Objetos",,, True)
+                If VerboseLevel > 2 Then gcd.debugInfo("Leidos Objetos",,, True)
                 Wait
             End If
 
@@ -233,7 +234,7 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
 
         Endif
     Wend
-    gcd.debugInfo("Leidos el DXF",,, True)
+
 
     If ReadObjects Then ReadObjectsFromDXF(cToFill, drw)
     If UpdateGraphics Then
@@ -249,29 +250,28 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
         Wait
     End If
 
-    'DiscardBlocks(drw)
 
-    For Each ft As Float In ReadTimes
-        gcd.debugInfo(ReadEntities[ReadTimes.Key] & " " & gb.Tab & ReadTimes.Key & gb.Tab & gb.Tab & gb.Tab & " total time: " & Format(fT, "0.0000"))
-    Next
-    Wait
-    If VerboseLevel > 1 Then
-        If VerboseLevel > 2 Then
-            gcd.debuginfo("DXF: Leidas " & nEntitiesread & " entidades")
-            If cEntitiesUnread.Count > 0 Then
-                gcd.debuginfo("DXF: Un total de" & nEntitiesUnread & " entidades no pudieron ser leidas:")
-                For Each unread As String In cEntitiesUnread
-                    Print unread
-                Next
-            Endif
-            Print
-        End If
-        gcd.debuginfo("DXF: fin lectura en " & Str(Timer - t))
-
-    Else
-        gcd.debuginfo("DXF: fin lectura en " & Str(Timer - t))
-    End If
-    Wait
+    ' For Each ft As Float In ReadTimes
+    '     gcd.debugInfo(ReadEntities[ReadTimes.Key] & " " & gb.Tab & ReadTimes.Key & gb.Tab & gb.Tab & gb.Tab & " total time: " & Format(fT, "0.0000"))
+    ' Next
+    ' Wait
+    ' If VerboseLevel > 1 Then
+    '     If VerboseLevel > 2 Then
+    '         gcd.debuginfo("DXF: Leidas " & nEntitiesread & " entidades")
+    '         If cEntitiesUnread.Count > 0 Then
+    '             gcd.debuginfo("DXF: Un total de" & nEntitiesUnread & " entidades no pudieron ser leidas:")
+    '             For Each unread As String In cEntitiesUnread
+    '                 Print unread
+    '             Next
+    '         Endif
+    '         Print
+    '     End If
+    '     gcd.debuginfo("DXF: fin lectura en " & Str(Timer - t))
+    '
+    ' Else
+    '     gcd.debuginfo("DXF: fin lectura en " & Str(Timer - t))
+    ' End If
+    ' Wait
     Return False
 
 End
@@ -749,7 +749,7 @@ End
 
 Public Function SaveFile(sName As String, drwToSAve As Drawing, Optional LoadMinimal As Boolean = False, SaveHeader As Boolean = True, SaveTables As Boolean = True, SaveBlocks As Boolean = True, SaveThumbnail As Boolean = True) As Integer
 
-    hFile = Open sName For Write Create
+    hFile = Open sName For Create
 
     ' Las HANDLES
     ' 0 -> Es el Drawing
@@ -772,7 +772,8 @@ Public Function SaveFile(sName As String, drwToSAve As Drawing, Optional LoadMin
     ' Las TABLES tiene su entrada y su owner es el 0=Drawing
     ' Los BLOCKS tienen su handle y su owner es la entrada en el Block_Record
     ' Las entidades tienen su handle y su owner es un BLOCK o el MODEL o algun PAPER o alguna entidad contenedora (INSERT HATCH, etc), que son bloques tambien
-
+    gcd.ResetChronograph
+    Inc Application.Busy
     If SaveHeader Then
         If Save1HeadersAndVarsDirect(drwToSAve) Then Goto Error1
 
@@ -805,8 +806,8 @@ Public Function SaveFile(sName As String, drwToSAve As Drawing, Optional LoadMin
     End If
 
     hFile.Close
-
-    gcd.debugInfo(("Saved to ") & sName,,, True)
+    Dec Application.Busy
+    gcd.debugInfo(("Saved to ") & sName,,, True, True)
     Return 0
     ' Catch
 Error1:
@@ -1641,21 +1642,21 @@ Private Function Save4BlocksDirect(drw As Drawing) As Integer
         If (eBlock.entities.Count > 0) And (eBlock.name <> "*Model_Space") Then
 
             For Each eEnty In eBlock.entities
-                stxEnty = New String[]
 
-                If Gcd.CCC[eEnty.gender].DXF_export Then
-                    clsEntities.DXFExportCommonCol(eEnty, stxEnty)
-                    Gcd.CCC[eEnty.gender].ExportDXFCol(eEnty, stxEnty)
-                Else    ' trato de exportar como vino
 
-                    gcd.debugInfo(("No puedo guardar este tipo de entidades ") & eEnty.Gender,,, True)
-                End If
-                For i = 0 To stxEnty.max Step 2
-                    lpclave = stxEnty[i + 1]
-                    lpvalue = stxEnty[i]
-                    If lpclave = "330" Then lpvalue = eBlock.idContainer 'Handle_Block_Record[eBlock.name]
-                    SaveCode(lpclave, lpvalue)
-                Next
+                'If Gcd.CCC[eEnty.gender].DXF_export Then
+                DXFSaveCommonEntityData(eEnty)
+                Gcd.CCC[eEnty.gender].SaveDxfData(eEnty)
+                ' Else    ' trato de exportar como vino
+                '
+                '     gcd.debugInfo(("No puedo guardar este tipo de entidades ") & eEnty.Gender,,, True)
+                ' End If
+                ' For i = 0 To stxEnty.max Step 2
+                '     lpclave = stxEnty[i + 1]
+                '     lpvalue = stxEnty[i]
+                '     If lpclave = "330" Then lpvalue = eBlock.idContainer 'Handle_Block_Record[eBlock.name]
+                '     SaveCode(lpclave, lpvalue)
+                ' Next
             Next
 
             ' que pasa con el ENDBLK?
@@ -1744,6 +1745,21 @@ Private Function Save4BlocksDirect(drw As Drawing) As Integer
 
 End
 
+Public Sub DXFSaveCommonEntityData(e As Entity)
+
+    Dim idc As String
+
+    SaveCode(dxf.codEntity, e.Gender)
+    SaveCode(dxf.codid, e.id)
+    SaveCode(dxf.codidContainer, e.Container.idContainer)
+    SaveCode("100", "AcDbEntity")
+    SaveCode(dxf.codLayer, e.pLayer.Name)
+    SaveCode(dxf.codLType, e.LineType.Name)
+    SaveCode(dxf.codColor, e.colour)
+    SaveCode(dxf.codLWht, CStr(e.LineWidth))
+
+End
+
 Private Function Save5EntitiesDirect(eEntys As Collection, hContainer As String) As Integer
 
     Dim stxEnty As String[]
@@ -1756,105 +1772,105 @@ Private Function Save5EntitiesDirect(eEntys As Collection, hContainer As String)
         stxEnty = New String[]
         ' veo si lo tengo
         hNewHandle = NewHandle()
-        bCan = Gcd.CCC[eEnty.gender].DXF_export
-        If bCan Then
-            clsEntities.DXFExportCommonCol(eEnty, stxEnty)
-            Gcd.CCC[eEnty.gender].ExportDXFCol(eEnty, stxEnty)
+        ' bCan = Gcd.CCC[eEnty.gender].DXF_export
+        ' If bCan Then
+        DXFSaveCommonEntityData(eEnty)
+        Gcd.CCC[eEnty.gender].SaveDxfData(eEnty)
 
-            For i = 0 To stxEnty.max Step 2
-                lpclave = stxEnty[i + 1]
-                lpvalue = stxEnty[i]
+        ' For i = 0 To stxEnty.max Step 2
+        '     lpclave = stxEnty[i + 1]
+        '     lpvalue = stxEnty[i]
+        '
+        '     If lpclave = "5" Then lpvalue = hNewHandle
+        '     If lpclave = "330" Then
+        '         If eEnty.Container Then
+        '             lpvalue = eEnty.Container.idContainer
+        '         Else
+        '             lpvalue = hContainer
+        '         End If
+        '     End If
+        '     SaveCode(lpclave, lpvalue)
+        ' Next
 
-                If lpclave = "5" Then lpvalue = hNewHandle
-                If lpclave = "330" Then
-                    If eEnty.Container Then
-                        lpvalue = eEnty.Container.idContainer
-                    Else
-                        lpvalue = hContainer
+        If eEnty.Gender = "INSERT" Then
+            If (eEnty.pBlock.entities.Count > 0) Then
+
+                For Each eBlock In eEnty.pBlock.entities
+
+                    If eBlock.Gender = "ATTRIB" Then
+
+
+                        'If Gcd.CCC[eBlock.gender].DXF_export Then
+                        DXFSaveCommonEntityData(eBlock)
+                        Gcd.CCC[eBlock.gender].SaveDxfData(eBlock)
+                        ' Else    ' trato de exportar como vino
+                        '
+                        '     gcd.debugInfo(("No puedo guardar este tipo de entidades ") & eBlock.Gender,,, True)
+                        ' End If
+                        ' For i = 0 To stxEnty.max Step 2
+                        '     lpclave = stxEnty[i + 1]
+                        '     lpvalue = stxEnty[i]
+                        '     If lpclave = "5" Then lpvalue = NewHandle()
+                        '
+                        '     If lpclave = "330" Then
+                        '         lpvalue = hNewHandle
+                        '     End If
+                        '     SaveCode(lpclave, lpvalue)
+                        ' Next
                     End If
-                End If
-                SaveCode(lpclave, lpvalue)
-            Next
+                Next
 
-            If eEnty.Gender = "INSERT" Then
-                If (eEnty.pBlock.entities.Count > 0) Then
+                ' que pasa con el ENDBLK?
+                ' Al leer, lo guardo como una entidad y, por lo tanto lo tengo en el bloque, pero...corresponde?
+                ' no seria mejor generarlo? al fin y al cabo es solo una señal para el lector de archivos (como el SEQEND)
 
-                    For Each eBlock In eEnty.pBlock.entities
-
-                        If eBlock.Gender = "ATTRIB" Then
-
-                            stxEnty = New String[]
-                            If Gcd.CCC[eBlock.gender].DXF_export Then
-                                clsEntities.DXFExportCommonCol(eBlock, stxEnty)
-                                Gcd.CCC[eBlock.gender].ExportDXFCol(eBlock, stxEnty)
-                            Else    ' trato de exportar como vino
-
-                                gcd.debugInfo(("No puedo guardar este tipo de entidades ") & eBlock.Gender,,, True)
-                            End If
-                            For i = 0 To stxEnty.max Step 2
-                                lpclave = stxEnty[i + 1]
-                                lpvalue = stxEnty[i]
-                                If lpclave = "5" Then lpvalue = NewHandle()
-
-                                If lpclave = "330" Then
-                                    lpvalue = hNewHandle
-                                End If
-                                SaveCode(lpclave, lpvalue)
-                            Next
-                        End If
-                    Next
-
-                    ' que pasa con el ENDBLK?
-                    ' Al leer, lo guardo como una entidad y, por lo tanto lo tengo en el bloque, pero...corresponde?
-                    ' no seria mejor generarlo? al fin y al cabo es solo una señal para el lector de archivos (como el SEQEND)
-
-                Endif
-
-                SaveCode(0, "SEQEND")
-                SaveCode(5, NewHandle())
-                SaveCode(330, hNewHandle)
-                SaveCode(100, "AcDbEntity")
-                SaveCode(8, "0")
-                SaveCode(100, "AcDbBlockEnd")
-            Else If (eEnty.Gender = "POLYLINE") Or (eEnty.Gender = "POLYLINE_2D") Then
-                If (eEnty.pBlock.entities.Count > 0) Then
-
-                    For Each eBlock In eEnty.pBlock.entities
-
-                        stxEnty = New String[]
-                        If Gcd.CCC[eBlock.gender].DXF_export Then
-                            clsEntities.DXFExportCommonCol(eBlock, stxEnty)
-                            Gcd.CCC[eBlock.gender].ExportDXFCol(eBlock, stxEnty)
-                        Else    ' trato de exportar como vino
-
-                            gcd.debugInfo(("No puedo guardar este tipo de entidades ") & eBlock.Gender,,, True)
-                        End If
-                        For i = 0 To stxEnty.max Step 2
-                            lpclave = stxEnty[i + 1]
-                            lpvalue = stxEnty[i]
-                            If lpclave = "5" Then lpvalue = NewHandle()
-
-                            If lpclave = "330" Then
-                                lpvalue = hNewHandle
-                            End If
-                            SaveCode(lpclave, lpvalue)
-                        Next
-
-                    Next
-
-                Endif
-
-                SaveCode(0, "SEQEND")
-                SaveCode(5, NewHandle())
-                SaveCode(330, hNewHandle)
-                SaveCode(100, "AcDbEntity")
-                SaveCode(8, "0")
-                SaveCode(100, "AcDbBlockEnd")
             Endif
-        Else    ' trato de exportar como vino
 
-            gcd.debugInfo(("No puedo guardar este tipo de entidades ") & eEnty.Gender,,, True)
-        End If
+            SaveCode(0, "SEQEND")
+            SaveCode(5, NewHandle())
+            SaveCode(330, hNewHandle)
+            SaveCode(100, "AcDbEntity")
+            SaveCode(8, "0")
+            SaveCode(100, "AcDbBlockEnd")
+        Else If (eEnty.Gender = "POLYLINE") Or (eEnty.Gender = "POLYLINE_2D") Then
+            If (eEnty.pBlock.entities.Count > 0) Then
+
+                For Each eBlock In eEnty.pBlock.entities
+
+
+                    'If Gcd.CCC[eBlock.gender].DXF_export Then
+                    DXFSaveCommonEntityData(eBlock)
+                    Gcd.CCC[eBlock.gender].SaveDxfData(eBlock)
+                    ' Else    ' trato de exportar como vino
+                    '
+                    '     gcd.debugInfo(("No puedo guardar este tipo de entidades ") & eBlock.Gender,,, True)
+                    ' End If
+                    ' For i = 0 To stxEnty.max Step 2
+                    '     lpclave = stxEnty[i + 1]
+                    '     lpvalue = stxEnty[i]
+                    '     If lpclave = "5" Then lpvalue = NewHandle()
+                    '
+                    '     If lpclave = "330" Then
+                    '         lpvalue = hNewHandle
+                    '     End If
+                    '     SaveCode(lpclave, lpvalue)
+                    ' Next
+
+                Next
+
+            Endif
+
+            SaveCode(0, "SEQEND")
+            SaveCode(5, NewHandle())
+            SaveCode(330, hNewHandle)
+            SaveCode(100, "AcDbEntity")
+            SaveCode(8, "0")
+            SaveCode(100, "AcDbBlockEnd")
+        Endif
+        ' Else    ' trato de exportar como vino
+        '
+        '     gcd.debugInfo(("No puedo guardar este tipo de entidades ") & eEnty.Gender,,, True)
+        ' End If
     Next
 
 End
@@ -2163,7 +2179,7 @@ Public Function ReadCodeFromCol(cDxfEntityData As Collection, iCode As Integer, 
 
 End
 
-Private Sub SaveCode(sCode As Variant, sValue As Variant)
+Private Sub SaveCode(sCode As String, sValue As String)
 
     Dim sToPrint As String
 
@@ -2173,9 +2189,16 @@ Private Sub SaveCode(sCode As Variant, sValue As Variant)
     ' Else
     '   sToPrint = svalue
     ' Endif
-    Print #hFIle, CStr(svalue)
+    Print #hFIle, svalue
 
 End Sub
+
+Public Sub SaveCodeInv(sValue As String, sCode As String)
+
+    SaveCode(scode, svalue)
+
+End
+
 
 Private Sub SaveColection(cData As Collection)
 
