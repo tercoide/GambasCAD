@@ -17,6 +17,7 @@ Public LastFound As Entity              ' ultima entidad encontrada
 Public LastPointToCursorDistance As Float
 Public WaitEnabled As Boolean = False
 Public Searching As Boolean
+Public EntitiesSearchables As New Collection
 
 ' poi
 
@@ -109,13 +110,53 @@ Public Searching As Boolean
 '
 ' End
 
+Public Sub CollectEntitiesAroundMouse(xr As Float, Yr As Float, iTolerance As Integer)
+
+    Dim x0, y0, x1, y1 As Float
+    Dim lay As Layer
+    Dim e As Entity
+    Dim i, tot As Integer
+    Dim s As Sheet
+    Dim ho As String
+    Dim t As Timer
+    Dim insideX, insideY As Boolean
+    Dim Tolerance As Float = gcd.Metros(iTolerance)
+
+    x0 = xr - tolerance
+    y1 = yr + tolerance
+    x1 = xr + tolerance
+    y0 = yr - tolerance
+
+    EntitiesSearchables.Clear
+
+    For Each e In gcd.Drawing.Sheet.EntitiesVisibles
+        If e.pLayer.Visible Then
+            insideX = False
+            insideY = False
+            If (e.Limits[0] <= x1) And (e.Limits[2] >= x0) Then insideX = True
+            If (e.Limits[1] <= y1) And (e.Limits[3] >= y0) Then insidey = True
+
+            If insideX And insideY Then
+
+                EntitiesSearchables.Add(e, e.id)
+
+            End If
+
+        End If
+    Next
+
+End
+
 '' Veo si estoy sobre una entidad y la devuelvo
 Public Function CheckAboveEntities(xr As Float, Yr As Float, Optional iTolerance As Integer = 12) As Entity[]
 
     Dim fEntities As New Entity[]
     Dim e As Entity
+    Dim t As Float = Timer
 
     Searching = True
+
+    CollectEntitiesAroundMouse(xr, yr, iTolerance)
 
     Do
         If gcd.flgQuitSearch Then Break
@@ -132,35 +173,10 @@ Public Function CheckAboveEntities(xr As Float, Yr As Float, Optional iTolerance
     Loop
 
     Searching = False
-
+    fMain.benMouseTracking = Timer - t
     Return fEntities
 
 End
-
-' '' Veo si estoy sobre una entidad y la devuelvo
-' Public Sub CheckAboveEntities2()
-'
-'     Dim fEntities As New Entity[]
-'     Dim e As Entity
-'
-'     Debug "Searching at " & Str(fMain.xr) & ";" & Str(fMain.yr)
-'     Debug "Total entities to search for " & Str(gcd.Drawing.EntitiesVisibles.Count)
-'
-'     Do
-'         e = CheckAboveEntity(fMain.xr, fMain.yr,, e)
-'         If e Then
-'             If fEntities.Count > 0 Then
-'                 If e = fEntities.First Then Break
-'             End If
-'             fEntities.Add(e)
-'         Else
-'             Break
-'         End If
-'         If WaitEnabled Then Wait
-'     Loop
-'     gcd.Drawing.HoveredEntities = fEntities
-'
-' End
 
 Public Function CheckBestPOI(xr As Float, Yr As Float, Optional eExclude As Entity) As Float[]
 
@@ -223,7 +239,7 @@ Public Function CheckAboveEntity(xr As Float, Yr As Float, Optional iTolerance A
     eBounded = Null
     ePolyline = Null
 
-    For Each eVisible In gcd.Drawing.Sheet.EntitiesVisibles
+    For Each eVisible In EntitiesSearchables 'gcd.Drawing.Sheet.EntitiesVisibles
         If WaitEnabled Then Wait
         If gcd.flgQuitSearch Then Break
         Inc iVisible
