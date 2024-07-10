@@ -359,15 +359,56 @@ Public Sub glGenDrawList(Optional eEntity As Entity = Null)
 
 End
 
+'' Genera las listas GL de cada entidad individual para selecionada y remarcada
+'' Borra la lista anterior y genera una nueva
+Public Sub glGenDrawList2()
+
+    Dim idDrawing As Integer ' la instancia de dibujo en la que estamos
+    Dim i As Integer, e As Entity, b As Block, s As Sheet
+
+    ' listas de entidades
+    For Each s In gcd.Drawing.Sheets
+        'gcd.ReEscalar(s)
+        'gcd.GetZoomExtents(s)
+        For Each e In s.Entities
+            If Not (e.Gender = "HATCH" Or e.Gender = "INSERT") Then Continue
+            'If Not e.Visible Then Continue
+
+            Translate(e, -s.PanBaseRealX, -s.PanBaseRealY)
+            '
+            ' If Not gl.islist(e.glDrwList) Then e.glDrwList = gl.GenLists(1)
+            '
+            ' gl.NewList(e.glDrwList, gl.COMPILE)
+            ' gcd.CCC[e.gender].Draw(e)
+            ' gl.EndList
+
+            If Not gl.islist(e.glDrwListSel) Then e.glDrwListSel = gl.GenLists(1)
+            gl.NewList(e.glDrwListSel, gl.COMPILE)
+            gcd.CCC[e.gender].DrawSelected(e)
+            gl.EndList
+
+            If Not gl.islist(e.glDrwListRemark) Then e.glDrwListRemark = gl.GenLists(1)
+            gl.NewList(e.glDrwListRemark, gl.COMPILE)
+            Gcd.CCC[e.gender].DrawRemark(e)
+            gl.EndList
+
+            Translate(e, s.PanBaseRealX, s.PanBaseRealY)
+
+        Next
+
+    Next
+
+End
+
 '' Generates a GL list for the selected
 '' Mode: 0=Selected version 1=Normal version
-Public Sub glGenDrawListSel(Optional mode As Integer = 0, RegenEntity As Boolean = False)
+Public Sub glGenDrawListSel(Optional RegenEntity As Boolean = False)
 
     Dim idDrawing As Integer ' la instancia de dibujo en la que estamos
     Dim i As Integer, e As Entity
 
     For Each e In gcd.Drawing.Sheet.EntitiesSelected
-        If RegenEntity Then glGenDrawList(e)
+        If RegenEntity Then glGenDrawList2(e)
     Next
 
     If Not gl.islist(gcd.Drawing.GlListEntitiesSelected) Then gcd.Drawing.GlListEntitiesSelected = gl.GenLists(1)
@@ -375,9 +416,12 @@ Public Sub glGenDrawListSel(Optional mode As Integer = 0, RegenEntity As Boolean
     gl.NewList(gcd.Drawing.GlListEntitiesSelected, gl.COMPILE)
 
     For Each e In gcd.Drawing.Sheet.EntitiesSelected
-        If mode = 0 Then gl.CallList(e.glDrwListSel)
-        If mode = 1 Then gl.CallList(e.glDrwList)
+        If e.glDrwListSel > 0 Then
 
+            gl.CallList(e.glDrwListSel)
+        Else
+            Gcd.CCC[e.gender].DrawSelected(e)
+        End If
     Next
 
     gl.EndList
@@ -885,58 +929,49 @@ Public Sub Scale(e As Entity, sX As Float, sY As Float)
 
 End
 
-Public Function SelectionSquare(X1real As Float, Y1real As Float, X2real As Float, Y2real As Float, Optional crossing As Boolean = False) As Collection
+Public Function SelectionSquare(X0 As Float, Y0 As Float, x1 As Float, y1 As Float, Optional crossing As Boolean = False) As Collection
 
     ' Veo que accion estoy tomando
     Dim e As Entity, i, i2, TotalSeleccionados As Integer
     Dim c As New Collection
+    Dim lay As Layer
 
-    ' NuevaSumaResta = LCase$(NuevaSumaResta)
-    '
-    ' If NuevaSumaResta = "nueva" Then ' nueva seleccion
-    '     For Each e In gcd.Drawing.Sheet.EntitiesSelected
-    '         For i2 = 0 To e.Psel.max
-    '             e.Psel[i2] = False
-    '         Next
-    '     Next
-    '     gcd.Drawing.Sheet.EntitiesSelected.Clear
-    '     TotalSeleccionados = 0
-    ' End If
+    Dim tot As Integer
+    Dim s As Sheet
+    Dim ho As String
+    Dim t As Timer
+    Dim insideX, insideY, OutSideX, OutSidey As Boolean
 
     For Each e In gcd.Drawing.Sheet.EntitiesVisibles
-        ' cada entidad debe decidir si esta seleccionada o no
-        If crossing Then
-            If SelPArtial(e, X1real, Y1real, X2real, Y2real) Then c.Add(e, e.id)
-            '     ' el punto esta en el recuadro
-            '     If NuevaSumaResta <> "resta" Then
-            '         Inc TotalSeleccionados
-            '         Me.SelectElem(e, False)
-            '
-            '     Else If NuevaSumaResta = "resta" Then
-            '         Dec TotalSeleccionados
-            '         Me.DeSelectElem(e, False)
-            '
-            '     End If
-            '
-            ' Endif
-        Else
-            If SelFull(e, X1real, Y1real, X2real, Y2real) Then c.Add(e, e.id)
-            ' el punto esta en el recuadro
-            '     If NuevaSumaResta <> "resta" Then
-            '         Inc TotalSeleccionados
-            '         Me.SelectElem(e, False)
-            '
-            '     Else If NuevaSumaResta = "resta" Then
-            '         Dec TotalSeleccionados
-            '         Me.DeSelectElem(e, False)
-            '
-            '     End If
-            '
-            ' Endif
 
+        insideX = False
+        insideY = False
+        OutSideX = False
+        OutSidey = False
+
+        If (e.Limits[0] >= x0) And (e.Limits[2] <= x1) Then insideX = True
+        If (e.Limits[1] >= y0) And (e.Limits[3] <= y1) Then insidey = True
+        If (e.Limits[0] > x1) Or (e.Limits[2] < x0) Then OutSideX = True
+        If (e.Limits[1] > y1) Or (e.Limits[3] < y0) Then OutSidey = True
+
+        If insideX And insideY Then
+
+            c.Add(e, e.id)
+
+        Else If OutSideX Or OutSidey Then
+            Continue
+
+        Else If insidex Or insidey Then
+            ' cada entidad debe decidir si esta seleccionada o no
+            If crossing Then
+                If SelPArtial(e, X0, Y0, X1, Y1) Then c.Add(e, e.id)
+
+            Else
+
+                If SelFull(e, X0, Y0, X1, Y1) Then c.Add(e, e.id)
+            End If
         End If
     Next
-    ' GetSelectionCount()
 
     Return c
 
@@ -987,7 +1022,7 @@ Public Function CollectVisibleEntities(Optional sSheet As Sheet)
     'If gcd.Drawing.oEntities > gcd.Drawing.arrVisibleEntities.Max Then gcd.Drawing.arrVisibleEntities.Resize(gcd.Drawing.oEntities.Count)
     gcd.Drawing.Sheet.EntitiesVisibles.Clear
 
-    For Each e In sSheet.Entities 'gcd.Drawing.Entities
+    For Each e In sSheet.Entities
         If e.pLayer.Visible Then
             insideX = False
             insideY = False
