@@ -747,6 +747,45 @@ Private Sub Load7Thumbnail(cThumbnail As Collection)
 
 End
 
+Public Sub ReconstructHandles(drw As Drawing)
+
+    Dim di As DictEntry, item As DictList
+    ' Empiezo por los Bloques importantes
+    For Each b As Block In drw.Blocks
+        If b.name = "*Model_Space" Then
+            b.idContainer = NewHandle(1)
+            b.id = NewHandle()
+        Else If Left(b.name, 6) = "*Paper" Then
+            b.idContainer = NewHandle()
+            b.id = NewHandle()
+        Else
+            b.id = ""
+            b.idContainer = ""
+        Endif
+    Next
+    ' Ahora creo un Diccionario
+    drw.Dictionary.id = NewHandle()
+    di = New DictEntry
+
+    di.name = "ACAD_LAYOUT"
+    di.id = NewHandle()
+    drw.Dictionary.Definitions.Add(di, di.name)
+
+    ' Ahora creo una entrada de diccionario para los Layout
+    For Each b As Block In drw.Blocks
+        If b.Sheet Then
+            b.Sheet.id = NewHandle()
+            item = New DictList
+            item.name = b.Sheet.Name
+            item.idSoftOwner = b.Sheet.id
+            drw.Dictionary.Definitions["ACAD_LAYOUT"].items.Add(item)
+        Endif
+    Next
+
+    ' asigno handles a las Tables
+
+End
+
 Public Function SaveFile(sName As String, drwToSAve As Drawing, Optional LoadMinimal As Boolean = False, SaveHeader As Boolean = True, SaveTables As Boolean = True, SaveBlocks As Boolean = True, SaveThumbnail As Boolean = True) As Integer
 
     hFile = Open sName For Create
@@ -773,6 +812,7 @@ Public Function SaveFile(sName As String, drwToSAve As Drawing, Optional LoadMin
     ' Los BLOCKS tienen su handle y su owner es la entrada en el Block_Record
     ' Las entidades tienen su handle y su owner es un BLOCK o el MODEL o algun PAPER o alguna entidad contenedora (INSERT HATCH, etc), que son bloques tambien
     gcd.ResetChronograph
+    ReconstructHandles(drwToSAve)
     Inc Application.Busy
     If SaveHeader Then
         If Save1HeadersAndVarsDirect(drwToSAve) Then Goto Error1
@@ -831,7 +871,7 @@ Private Function Save1HeadersAndVarsDirect(drw As Drawing) As Integer
     Print #hFIle, "HEADER"
 
     'Intento guardar algunas cosas utiles para cuando abra de nuevo este archivo
-    drw.Headers.CLAYER = drw.CurrLayer.Name
+    drw.Headers.CLAYER = drw.CurrLayer.Name             ' Current LAYER
 
     stxHeaders = drw.Headers.ExportDXF()
 
@@ -989,7 +1029,7 @@ Private Function Save3TableAppID(drw As Drawing) As Integer
 
     Dim hTableHandle As String
 
-    hTableHandle = NewHandle()'Utils.FindItem(drw.Tables, drw.AppIDs)
+    hTableHandle = NewHandle()
 
     Print #hFIle, "  0"
     Print #hFIle, "TABLE"
@@ -1032,7 +1072,7 @@ Private Function Save3TableLayers(drw As Drawing) As Integer
 
     Dim hTableHandle As String
 
-    hTableHandle = NewHandle()'Utils.FindItem(drw.Tables, drw.Layers)
+    hTableHandle = NewHandle()
 
     Print #hFIle, "  0"
     Print #hFIle, "TABLE"
@@ -1087,7 +1127,7 @@ Private Function Save3TableTextStyles(drw As Drawing) As Integer
 
     Dim hTableHandle As String
 
-    hTableHandle = NewHandle()'Utils.FindItem(drw.Tables, drw.TextStyles)
+    hTableHandle = NewHandle()
 
     Print #hFIle, "  0"
     Print #hFIle, "TABLE"
@@ -2775,11 +2815,22 @@ Public Function ReadObjectsFromDXF(cData As Collection, drw As Drawing)
     Dim cObject As Collection, entNueva As Entity
     Dim sClaves, sValues As New String[]
     Dim s As Sheet
+    Dim entry As DictEntry
 
     gcd.debugInfo("Importing DXF object data",,, True)
     'Handle_Layout = New Collection
     If Not cData.Exist("OBJECTS") Then Return
     For Each cObject In cData["OBJECTS"]
+
+        If cObject["0"] = "DICTIONARY" Then
+
+            Me.DigestColeccion(cObject, ByRef sClaves, ByRef sValues)
+            entry = New DictEntry
+            entry.idOwner = dxf.ReadCodeFromCol(cObject, 330, True)
+            entry.name = dxf.ReadCodeFromCol(cObject, 3, True)                             ' name
+            entry.idSoftOwner = dxf.ReadCodeFromCol(cObject, 330, True)
+
+        Endif
 
         If cObject["0"] = "LAYOUT" Then
 
