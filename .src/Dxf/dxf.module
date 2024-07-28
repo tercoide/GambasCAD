@@ -239,6 +239,7 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
         DXFtoEntity(cToFill["ENTITIES"], drw)
         Wait
         gcd.debugInfo("Drawing generated",,, True, True)
+        'clsEntities.DeExtrude(drw)
         clsEntities.BuildGeometry()
         Wait
         'gcd.DigestInserts()
@@ -1698,14 +1699,14 @@ Private Function Save5EntitiesDirect(drwToSAve As Drawing) As Integer
 
                 bAttribPresent = False
                 If (eEnty.pBlock.entities.Count > 0) Then
-                    eEnty.pBlock.id = eEnty.id
+                    eEnty.pBlock.idContainer = eEnty.id
 
                     For Each eBlock In eEnty.pBlock.entities
 
                         If eBlock.Gender = "ATTRIB" Then
                             bAttribPresent = True
 
-                            eBlock.id = NewHandle()
+                            eBlock.idContainer = NewHandle()
                             DXFSaveCommonEntityData(eBlock)
                             Gcd.CCC[eBlock.gender].SaveDxfData(eBlock)
 
@@ -2557,23 +2558,23 @@ Public Sub DXFtoEntity(cDxfEntities As Collection, drw As Drawing, Optional bCon
                 End Select
                 'End If
 
-                obx.Add(entNueva, entNueva.Id)
+                If e[dxf.codEntity] <> "SEQEND" Then obx.Add(entNueva, entNueva.Id)
 
-                'gcd.debugInfo("Leida entidad tipo" & entNueva.Gender & " id " & entNueva.id,,, True)
-                If e[dxf.codEntity] = "POLYLINE" Then 'Stop
-                    flgIsPolyline = True
-                    'obx = entNueva.pBlock
-                    ' pBlockPolyline = New Block
-                    ' pBlockPolyline.entities = New Collection
-                    '
-                    ' entNueva.pBlock = pBlockPolyline
-                End If
-                If (e[dxf.codEntity] = "SEQEND") And (flgIsPolyline = True) Then
-                    flgIsPolyline = False
-                    obx.Remove(obx.Last)
-                    obx = Null
-
-                End If
+                ' 'gcd.debugInfo("Leida entidad tipo" & entNueva.Gender & " id " & entNueva.id,,, True)
+                ' If e[dxf.codEntity] = "POLYLINE" Then 'Stop
+                '     flgIsPolyline = True
+                '     'obx = entNueva.pBlock
+                '     ' pBlockPolyline = New Block
+                '     ' pBlockPolyline.entities = New Collection
+                '     '
+                '     ' entNueva.pBlock = pBlockPolyline
+                ' End If
+                ' If (e[dxf.codEntity] = "SEQEND") And (flgIsPolyline = True) Then
+                '     flgIsPolyline = False
+                '     obx.Remove(obx.Last)
+                '     obx = Null
+                '
+                ' End If
 
                 fTime = (Timer - t)
                 ReadTimes[entNueva.Gender] += fTime

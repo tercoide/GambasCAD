@@ -1050,7 +1050,9 @@ Public Sub BuildGeometry(Optional e As Entity = Null, s As Sheet = gcd.drawing.S
         gcd.CCC[e.gender].Buildgeometry(e)
     Else
         For Each b In gcd.Drawing.Blocks
+            If b.idAsociatedLayout = "0" Then Continue
             For Each e In b.entities
+                If (e.Extrusion[2] = -1) And (e.Gender = "INSERT") Then Stop
                 gcd.CCC[e.gender].Buildgeometry(e)
             Next
         Next
@@ -1195,20 +1197,12 @@ Public Function DXFImportToEntity(drw As Drawing, c As Collection, Optional IsDu
     End If
 
     If gcd.CCC[e.gender].ImportDXF(e, sClave, sValue) Then
-
+        'If e.id = "96C4" Then Stop
         ' chequeo la extrusion
         If c.Exist("210") Then e.Extrusion[0] = CFloat(c["210"])
         If c.Exist("220") Then e.Extrusion[1] = CFloat(c["220"])
         If c.Exist("230") Then e.Extrusion[2] = CFloat(c["230"])
 
-        If (e.Extrusion[2] = -1) Then
-            gcd.CCC[e.gender].Scale(e, -1, 1)
-            e.Extrusion[0] = 0
-            e.Extrusion[1] = 0
-            e.Extrusion[2] = 1
-        Endif
-
-        'If gcd.CCC[e.gender].gender <> "Hatch" Then gcd.CCC[e.gender].Finish(e)
         gcd.CCC[e.gender].Finish(e)
 
         Return e
@@ -1224,20 +1218,6 @@ Public Function DXFImportToEntity(drw As Drawing, c As Collection, Optional IsDu
     Return Null
 
 End
-
-' Public Function GetEntityIndex(dDrawing As Drawing, sid As String, Optional iStart As Integer = 0) As Integer
-'
-'     Dim i As Integer
-'
-'     For i = iStart To dDrawing.Sheet.Entities
-'
-'         If dDrawing.Sheet.Entities[i].id = sid Then Return i
-'
-'     Next
-'
-'     Return -1           ' no hay handle asociada a esa entidad
-'
-' End
 
 ' Public Sub DXFExportCommonCol(e As Entity, ByRef cExported As String[])
 '
