@@ -122,6 +122,22 @@ Public Function BuildGeometry(E As Entity, Optional density As Float)
 
     End If
 
+    FillContour(e)
+    If (e.Extrusion[2] = -1) Then
+        gcd.CCC[e.gender].Scale(e, -1, 1)
+        e.Extrusion[0] = 0
+        e.Extrusion[1] = 0
+        e.Extrusion[2] = 1
+    Endif
+    Me.Limits(e)
+
+End
+
+Public Sub FillContour(e As Entity)
+
+    Dim flxContorno As Float[]
+    Dim h As Hatch = e.pBlock
+
     If LCase(e.sParam[Me.sdaPattern]) <> "solid" Then
 
         FillEntityWithHatch4(e)
@@ -138,13 +154,6 @@ Public Function BuildGeometry(E As Entity, Optional density As Float)
         Next
 
     End If
-    If (e.Extrusion[2] = -1) Then
-        gcd.CCC[e.gender].Scale(e, -1, 1)
-        e.Extrusion[0] = 0
-        e.Extrusion[1] = 0
-        e.Extrusion[2] = 1
-    Endif
-    Me.Limits(e)
 
 End
 
@@ -296,6 +305,7 @@ End
 Public Sub Translate(e As Entity, dX As Float, dY As Float, Optional OnlySelected As Boolean = False)
 
     Dim p As Float[], eBorder As Entity, eBorders As Entity[], pater As Pattern
+    Dim i As Integer
 
     h = e.pBlock
 
@@ -323,7 +333,8 @@ Public Sub Translate(e As Entity, dX As Float, dY As Float, Optional OnlySelecte
 
     For Each oBound In h.Polylines
 
-        puntos.Translate(oBound, dx, dy)
+        puntos.TranslateConditional(oBound, dx, dy, h.Psel[i])
+        Inc i
     Next
 
 End
@@ -1273,6 +1284,7 @@ Fast Unsafe Public Sub MakeBorder2(oPath As Hatch)
     Dim eBorder, eFind As Entity
     Dim borders As Entity[]
     Dim drwPath As New Float[]
+    Dim psel As Boolean[]
     Dim i As Integer
     Dim FirstX, FirstY As Single
     Dim FirstPointSet As Boolean = False
@@ -1353,6 +1365,8 @@ Fast Unsafe Public Sub MakeBorder2(oPath As Hatch)
             End If
 
             oPath.Polylines.add(drwPath)
+            psel = New Boolean[]
+            oPath.Psel.Add(psel)
         End If
         drwPath = New Float[]
         FirstPointSet = False
@@ -1384,6 +1398,8 @@ Fast Unsafe Public Sub MakeBorder2(oPath As Hatch)
             Next
         Next
     Loop Until Not Changes
+
+    oPath.Generated = True
     Return
 
 End
