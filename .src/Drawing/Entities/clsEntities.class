@@ -323,8 +323,8 @@ Public Sub glGenDrawList(Optional eEntity As Entity = Null)
             For Each e In s.Entities
 
                 'If Not e.Visible Then Continue
-
-                Translate(e, -s.PanBaseRealX, -s.PanBaseRealY)
+                ' FIXME: er que hacer con este trnaslate para coordenadas lejanas
+                'Translate(e, -s.PanBaseRealX, -s.PanBaseRealY)
 
                 If Not gl.islist(e.glDrwList) Then e.glDrwList = gl.GenLists(1)
 
@@ -342,7 +342,7 @@ Public Sub glGenDrawList(Optional eEntity As Entity = Null)
                 Gcd.CCC[e.gender].DrawRemark(e)
                 gl.EndList
 
-                Translate(e, s.PanBaseRealX, s.PanBaseRealY)
+                ' Translate(e, s.PanBaseRealX, s.PanBaseRealY)
 
             Next
             ' la regeneracion se hace en el punto central de paneo, por lo tanto ahora el paneo es cero
@@ -359,43 +359,56 @@ Public Sub glGenDrawList(Optional eEntity As Entity = Null)
 
 End
 
-'' Genera las listas GL de cada entidad individual para selecionada y remarcada
-'' Borra la lista anterior y genera una nueva
-Public Sub glGenDrawList2()
+' '' Genera las listas GL de cada entidad individual para selecionada y remarcada
+' '' Borra la lista anterior y genera una nueva
+' Public Sub glGenDrawList2()
+'
+'     Dim idDrawing As Integer ' la instancia de dibujo en la que estamos
+'     Dim i As Integer, e As Entity, b As Block, s As Sheet
+'
+'     ' listas de entidades
+'     For Each s In gcd.Drawing.Sheets
+'         'gcd.ReEscalar(s)
+'         'gcd.GetZoomExtents(s)
+'         For Each e In s.Entities
+'             If Not (e.Gender = "HATCH" Or e.Gender = "INSERT") Then Continue
+'             'If Not e.Visible Then Continue
+'
+'             ' FIXME: er que hacer con este trnaslate para coordenadas lejanas
+'             ' Translate(e, -s.PanBaseRealX, -s.PanBaseRealY)
+'             '
+'             ' If Not gl.islist(e.glDrwList) Then e.glDrwList = gl.GenLists(1)
+'             '
+'             ' gl.NewList(e.glDrwList, gl.COMPILE)
+'             ' gcd.CCC[e.gender].Draw(e)
+'             ' gl.EndList
+'
+'             If Not gl.islist(e.glDrwListSel) Then e.glDrwListSel = gl.GenLists(1)
+'             gl.NewList(e.glDrwListSel, gl.COMPILE)
+'             gcd.CCC[e.gender].DrawSelected(e)
+'             gl.EndList
+'
+'             If Not gl.islist(e.glDrwListRemark) Then e.glDrwListRemark = gl.GenLists(1)
+'             gl.NewList(e.glDrwListRemark, gl.COMPILE)
+'             Gcd.CCC[e.gender].DrawRemark(e)
+'             gl.EndList
+'
+'             'Translate(e, s.PanBaseRealX, s.PanBaseRealY)
+'
+'         Next
+'
+'     Next
+'
+' End
 
-    Dim idDrawing As Integer ' la instancia de dibujo en la que estamos
-    Dim i As Integer, e As Entity, b As Block, s As Sheet
+'' ReGenerates the GL list of the selected entities
 
-    ' listas de entidades
-    For Each s In gcd.Drawing.Sheets
-        'gcd.ReEscalar(s)
-        'gcd.GetZoomExtents(s)
-        For Each e In s.Entities
-            If Not (e.Gender = "HATCH" Or e.Gender = "INSERT") Then Continue
-            'If Not e.Visible Then Continue
+Public Sub glGenDrawListSelected()
 
-            Translate(e, -s.PanBaseRealX, -s.PanBaseRealY)
-            '
-            ' If Not gl.islist(e.glDrwList) Then e.glDrwList = gl.GenLists(1)
-            '
-            ' gl.NewList(e.glDrwList, gl.COMPILE)
-            ' gcd.CCC[e.gender].Draw(e)
-            ' gl.EndList
+    Dim e As Entity
 
-            If Not gl.islist(e.glDrwListSel) Then e.glDrwListSel = gl.GenLists(1)
-            gl.NewList(e.glDrwListSel, gl.COMPILE)
-            gcd.CCC[e.gender].DrawSelected(e)
-            gl.EndList
-
-            If Not gl.islist(e.glDrwListRemark) Then e.glDrwListRemark = gl.GenLists(1)
-            gl.NewList(e.glDrwListRemark, gl.COMPILE)
-            Gcd.CCC[e.gender].DrawRemark(e)
-            gl.EndList
-
-            Translate(e, s.PanBaseRealX, s.PanBaseRealY)
-
-        Next
-
+    For Each e In gcd.Drawing.Sheet.EntitiesSelected
+        glGenDrawList(e)
     Next
 
 End
@@ -410,7 +423,7 @@ Public Sub glGenDrawListSel(Optional RegenEntity As Boolean = False)
     ' For Each e In gcd.Drawing.Sheet.EntitiesSelected
     '     If RegenEntity Then glGenDrawList2(e)
     ' Next
-    glGenDrawList2()
+    'glGenDrawList2()
     If Not gl.islist(gcd.Drawing.GlListEntitiesSelected) Then gcd.Drawing.GlListEntitiesSelected = gl.GenLists(1)
 
     gl.NewList(gcd.Drawing.GlListEntitiesSelected, gl.COMPILE)
@@ -986,7 +999,7 @@ Public Function SelectionSquare(X0 As Float, Y0 As Float, x1 As Float, y1 As Flo
         Else If OutSideX Or OutSidey Then
             Continue
 
-        Else If insidex Or insidey Then
+        Else
             ' cada entidad debe decidir si esta seleccionada o no
             If crossing Then
                 If SelPArtial(e, X0, Y0, X1, Y1) Then c.Add(e, e.id)
