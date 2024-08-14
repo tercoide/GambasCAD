@@ -97,7 +97,7 @@ Public Sub ClonEntity(eOrigen As Entity, Optional GetNewid As Boolean = True) As
     Next
     For Each blx In bBase.Psel
         bPoints = New Boolean[]
-        bPoints.Insert(bBase.Psel[blx].Copy())
+        bPoints.Insert(blx.Copy())
         h.Psel.add(bPoints)
     Next
 
@@ -162,7 +162,7 @@ Public Sub FillContour(e As Entity)
         ' tengo q ver cuantos puntos tiene cada loop
         ' Ojo con LibreCAD
         'For Each e.pBlock In hData
-
+        h.Triangles.Clear
         For Each flxContorno In h.PolyLines
             h.Triangles.Add(puntos.PolygonTriangulation(flxContorno))
         Next
@@ -326,30 +326,35 @@ Public Sub Translate(e As Entity, dX As Float, dY As Float, Optional OnlySelecte
     ' muevo las entidades que definen el contorno
     For Each eBorders In h.eSegments
         For Each eborder In eBorders
-            gcd.CCC[eborder.Gender].Translate(eborder, dx, dy)
+            gcd.CCC[eborder.Gender].Translate(eborder, dx, dy, OnlySelected)
         Next
     Next
 
-    ' muevo el patron
-    For Each pater In h.Patterns
-        pater.BaseX += dx
-        pater.BaseY += dy
-
-    Next
-
-    puntos.Translate(h.SeedPoints, dx, dy)
-
-    'Me.BuildGeometry(e)
-    puntos.Translate(e.PolyLine, dx, dy)
-    puntos.Translate(e.Polygon, dx, dy)
+    ' ' muevo el patron
+    ' For Each pater In h.Patterns
+    '     pater.BaseX += dx
+    '     pater.BaseY += dy
+    '
+    ' Next
+    '
+    ' puntos.Translate(h.SeedPoints, dx, dy)
+    '
+    '
+    ' puntos.Translate(e.PolyLine, dx, dy)
+    ' puntos.Translate(e.Polygon, dx, dy)
 
     Dim oBound As Float[]
 
     For Each oBound In h.Polylines
+        If OnlySelected Then
 
-        puntos.TranslateConditional(oBound, dx, dy, h.Psel[i])
-        Inc i
+            puntos.TranslateConditional(oBound, dx, dy, h.Psel[i])
+            Inc i
+        Else
+            puntos.Translate(oBound, dx, dy)
+        End If
     Next
+    BuildGeometry(e)
 
 End
 
@@ -1285,7 +1290,7 @@ Fast Public Function OverMe(e As Entity, Xr As Float, Yr As Float, tolerance As 
     For Each oBound In e.pBlock.Polylines
 
         If puntos.PointOverPolyLine([xr, yr], oBound, tolerance) Then Return True
-
+        If puntos.isInsIde(obound, xr, yr) Then Return True
     Next
 
     Return False
