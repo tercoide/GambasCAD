@@ -1,0 +1,450 @@
+' Gambas class file
+
+' GambasCAD
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+Create Static
+' Fast
+Inherits CadLWPolyline
+
+Public Const Gender As String = "MLINE"
+Public Const PointsToDraw As Integer = 0             ' minimal point requered for drawing something usefull
+Public Const CmdLineHelper As String = ("MLINE")
+Public Const ParamType As String = "P+"                             ' that is Point, Point, Float; could be Color Text, etc
+Public Const ParamHelper As String = ("Next Point")      ' a little text that is shown at the prompt waiting for user input during build
+Public Const ParamDefault As String = "Close/Undo"
+Public Const ContextMenu As String = ("Close polyline;_CLOSE;;;Undo last point;_UNDO;;;End in last point;_END;;") ' el menu para el boton derecho, los comandos en mayusculas NO se traducen
+
+Public Const totalpoints As Integer = 1
+' iParam helpers
+Public Const iTotalParams As Integer = 2
+Public Const iiiPolylineClosed As Integer = 0
+Public Const iiiBulged As Integer = 1
+
+' fParam helpers
+Public Const TotalParams As Integer = 10
+Public Const ipaScale As Integer = 0
+Public Const ipaJustification As Integer = 1
+Public Const ipaFlags As Integer = 2
+Public Const ipaRotation As Integer = 3
+
+' stringdata helpers
+Public Const sdaTotalParams As Integer = 1
+Public Const sdaMLineStyle As Integer = 0
+
+Public m As MLine
+Public MLineStyle As String
+Public fScale As Float
+Public Justification As Integer '0=Top 1=Center 2=Bottom
+Public Closed As Boolean = False
+Public CapsStart As Boolean = False
+Public CapsEnd As Boolean = False
+
+'' Builds the geometry of the entity wthout drwing it
+Public Function MakePolyLine(oE As Entity)
+
+    Dim ang1, px0, py0, mx, my, px1, py1, B, bx, by, Lt, alpha As Float
+    Dim i As Integer
+    Dim fArcParams As New Float[]
+
+    ' If oe.id = "B2E7" Then Stop
+    oe.PolyLine.Clear
+
+    If oe.iParam[Me.iiiBulged] Then     ' necesito armar una Polylinea
+
+        For i = 0 To oe.P.Count / 2 - 2
+            px0 = oe.P[i * 2]
+            py0 = oe.P[i * 2 + 1]
+            px1 = oe.P[(i + 1) * 2]
+            py1 = oe.P[(i + 1) * 2 + 1]
+            ' no todos los tramos pueden tener bulges
+            If Abs(oe.fParam[i]) > 0.001 Then
+
+                ang1 = Ang(px1 - px0, py1 - py0)            ' angulo del tramo
+                If ang1 < 0 Then ang1 += 2 * Pi             ' Ang1 siempre >= 0
+                Lt = puntos.distancia(px0, py0, px1, py1)   ' longitud del tramo
+                If Lt = 0 Then Continue
+                mx = (px1 + px0) / 2          ' punto medio del tramo
+                my = (py1 + py0) / 2
+                B = Abs(oe.fParam[i] * Lt / 2)
+                If oe.fParam[i] < 0 Then alpha = Pi / 2 Else alpha = -Pi / 2
+                bx = mx + B * Cos(ang1 + alpha)                             ' Tercer punto del Bulge
+                by = my + B * Sin(ang1 + alpha)
+
+                fArcParams = puntos.Arc3Point(px0, py0, bx, by, px1, py1)
+
+                ' la condicion a cumplir es que ambos valores sean positivos y que 3<4
+                If fArcParams.Count < 5 Then
+                    oe.PolyLine.Insert([px0, py0, px1, py1])
+                Else
+                    If (fArcParams[4] < 1e-3) Or (fArcParams[2] > 1e6) Then
+
+                        oe.PolyLine.Insert([px0, py0, px1, py1])
+
+                    Else
+
+                        oe.PolyLine.Insert(glx.ArcPoly(fArcParams[0], fArcParams[1], fArcParams[2], fArcParams[3], fArcParams[4]))
+                    Endif
+                End If
+
+            Else    ' dibujo la linea normalmente
+                oe.PolyLine.Insert([px0, py0, px1, py1])
+            End If
+
+        Next
+    Else
+
+        oe.PolyLine.Insert(oe.P.Copy())
+
+    End If
+
+End
+
+Public Sub Draw(oE As Entity)
+
+    If Not oE.Visible Then Return
+
+    If Me.iContext = 0 Then
+
+        glx.PolyLines(oE.PolyLine, gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oe.LineType.TrameLength)
+    Else If Me.iContext = 1 Then
+        paintPlus.LineStripe(oe.PolyLine)
+
+    End If
+
+End
+
+Public Sub DrawSelected(oE As Entity)
+
+    glx.PolyLines(oE.PolyLine, Color.Gradient(gcd.GetGBColor(oE.Colour, oe.pLayer), Config.ModelBackgroundColor), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
+
+End
+
+'' A fat version of the line
+Public Sub DrawRemark(oE As Entity)
+
+    If Not oE.Visible Then Return
+
+    glx.PolyLines(oE.PolyLine, Color.Gradient(gcd.GetGBColor(oE.Colour, oe.pLayer), Config.WhiteAndBlack), gcd.GetLineWt(oE.LineWIdth, oe.pLayer) + 1, oE.LineType.TrameLength)
+
+End
+
+Public Function Draw2(oE As Entity)
+
+    Me.iContext = 1
+    Me.Draw(oe)
+    Me.iContext = 0
+
+End
+
+Public Function SaveDxfData(e As Entity) As Boolean
+
+    Dim i, IMAX As Integer
+
+    ' stxExport.insert(["LWPOLYLINE", dxf.codEntity])
+    ' Los datos comunes a todas las entidades son guardados por la rutina que llama a esta
+    dxf.SaveCodeInv("AcDbPolyline", "100")
+    dxf.SaveCodeInv(e.P.Count / 2, "90")              ' n puntos
+    dxf.SaveCodeInv(CStr(e.iParam[Me.iiiPolylineClosed]), "70")      ' abierta =1 o cerrada =0
+    dxf.SaveCodeInv("0", "43")
+    imax = e.P.max
+    If e.iParam[Me.iiiPolylineClosed] Then imax -= 2
+    For i = 0 To e.p.Max Step 2
+        dxf.SaveCodeInv(CStr(e.p[i]), dxf.codX0)
+        dxf.SaveCodeInv(CStr(e.p[i + 1]), dxf.codY0)
+
+        If i / 2 <= e.fParam.max Then dxf.SaveCodeInv(CStr(e.fParam[i / 2]), "42")
+    Next
+    If e.Extrusion[2] <> 1 Then
+        dxf.SaveCodeInv(CStr(e.Extrusion[0]), "210")
+        dxf.SaveCodeInv(CStr(e.Extrusion[1]), "220")
+        dxf.SaveCodeInv(CStr(e.Extrusion[2]), "230")
+    Endif
+
+End
+
+Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
+
+    Dim i, i2 As Integer
+    Dim FirstBulge As Boolean
+    Dim NewTrame As Boolean
+    Dim BulgeAdded As Boolean
+    '  0
+    ' MLINE
+    '   5
+    ' 1414EAE6
+    ' 330
+    ' 1F
+    ' 100
+    ' AcDbEntity
+    '   8
+    ' 00-Est-Vigas
+    '   6
+    ' ByBlock
+    '  48
+    ' 0.025
+    ' 100
+    ' AcDbMline
+    '   2
+    ' VIGAS
+    ' 340
+    ' 121295B2
+    '  40
+    ' 0.15
+    '  70
+    '      0
+    '  71
+    '     13
+    '  72
+    '      2
+    '  73
+    '      3
+    '  10
+    ' 71.43775245572554
+    '  20
+    ' 374.6143267661033
+    '  30
+    ' 0.0
+    ' 210
+    ' 0.0
+    ' 220
+    ' 0.0
+    ' 230
+    ' 1.0
+    '  11
+    ' 71.43775245572554
+    '  21
+    ' 374.6143267661033
+    '  31
+    ' 0.0
+    '  12
+    ' 1.0
+    '  22
+    ' 0.0
+    '  32
+    ' 0.0
+    '  13
+    ' -2.220446049250313E-16
+    '  23
+    ' 1.0
+    '  33
+    ' 0.0
+    '  74
+    '      2
+    '  41
+    ' 0.0
+    '  41
+    ' 0.0
+    '  75
+    '      0
+    '  74
+    '      3
+    '  41
+    ' -0.075
+    '  41
+    ' 0.0999999999999943
+    '  41
+    ' 6.334477806320606
+    '  75
+    '      0
+    '  74
+    '      3
+    '  41
+    ' -0.15
+    '  41
+    ' 0.1999999999999886
+    '  41
+    ' 6.234477806320598
+    '  75
+    '      0
+    '  11
+    ' 77.87223026204614
+    '  21
+    ' 374.6143267661033
+    '  31
+    ' 0.0
+    '  12
+    ' 1.0
+    '  22
+    ' 0.0
+    '  32
+    ' 0.0
+    '  13
+    ' -2.220446049250313E-16
+    '  23
+    ' 1.0
+    '  33
+    ' 0.0
+    '  74
+    '      1
+    '  41
+    ' 0.0
+    '  75
+    '      0
+    '  74
+    '      1
+    '  41
+    ' -0.075
+    '  75
+    '      0
+    '  74
+    '      1
+    '  41
+    ' -0.15
+    '  75
+    '      0
+
+    ' Nomnre del estilo MLine
+    i = dxf.ReadCodePlus(2, sClaves, sValues, ByRef e.sParam[Me.sdaMLineStyle], 0)
+    If i < 0 Then Return
+
+    ' Escala
+    i = dxf.ReadCodePlus(40, sClaves, sValues, ByRef e.fParam[Me.ipaScale], i)
+    If i < 0 Then Return
+
+    ' Justificacion
+    i = dxf.ReadCodePlus(70, sClaves, sValues, ByRef e.fParam[Me.ipaJustification], i)
+    If i < 0 Then Return
+
+    ' Flags
+    i = dxf.ReadCodePlus(71, sClaves, sValues, ByRef e.fParam[Me.ipaFlags], i)
+    If i < 0 Then Return
+    If (CInt(e.fParam[Me.ipaFlags]) And 2) = 2 Then Me.Closed = True
+
+    Dim Vertives As Integer
+    Dim ElemDefinitions As Integer
+    Dim fDummy As Float
+
+    i = dxf.ReadCodePlus(72, sClaves, sValues, ByRef Vertives, i)
+    If i < 0 Then Return
+
+    i = dxf.ReadCodePlus(73, sClaves, sValues, ByRef ElemDefinitions, i)
+    If i < 0 Then Return
+
+    e.P.Clear
+
+    ' Start Point (me parece que se reppite con los codigos 11,21,31)
+    i = dxf.ReadCodePlus(10, sClaves, sValues, ByRef fDummy, i)
+    If i < 0 Then Return
+    i = dxf.ReadCodePlus(20, sClaves, sValues, ByRef fDummy, i)
+    If i < 0 Then Return
+    i = dxf.ReadCodePlus(30, sClaves, sValues, ByRef fDummy, i)
+    If i < 0 Then Return
+
+    ' Extrussion
+    i = dxf.ReadCodePlus(210, sClaves, sValues, ByRef fDummy, i)
+    If i < 0 Then Return
+    i = dxf.ReadCodePlus(220, sClaves, sValues, ByRef fDummy, i)
+    If i < 0 Then Return
+    i = dxf.ReadCodePlus(230, sClaves, sValues, ByRef fDummy, i)
+    If i < 0 Then Return
+
+    For i2 = 1 To Vertives
+
+        i = dxf.ReadCodePlus(11, sClaves, sValues, ByRef fDummy, i)
+        e.P.Add(fDummy)
+        If i < 0 Then Break
+
+        i = dxf.ReadCodePlus(21, sClaves, sValues, ByRef fDummy, i)
+        e.P.Add(fDummy)
+        If i < 0 Then Return
+
+        i = dxf.ReadCodePlus(31, sClaves, sValues, ByRef fDummy, i)
+        ' e.P.Add(fDummy)
+        If i < 0 Then Return
+
+    Next
+
+    If e.iParam[Me.Closed] And e.p.Count > 0 Then ' agrego el primer punto de nuevo
+        e.p.Add(e.p[0])
+        e.p.Add(e.p[1])
+    End If
+
+    Return True
+
+    ' catch
+
+    Return False
+
+End
+
+'' Return if that position is over the entity within the tolerance
+Fast Public Function OverMe(e As Entity, Xr As Float, Yr As Float, tolerance As Float) As Boolean
+
+    Dim i As Integer
+
+    For i = 0 To e.polyline.count - 4 Step 2
+        If puntos.doIntersect(xr - tolerance, Yr, Xr + tolerance, Yr, e.polyline[i + 0], e.polyline[i + 1], e.polyline[i + 2], e.polyline[i + 3]) Or puntos.doIntersect(xr, Yr - tolerance, Xr, Yr + tolerance, e.polyline[i + 0], e.polyline[i + 1], e.polyline[i + 2], e.polyline[i + 3]) Then Return True
+    Next
+
+    Return False
+
+End
+
+Public Function GripEdit(g As Grip) As Boolean
+
+    Dim e As Entity
+
+    e = g.AsociatedEntity
+    If g.AsociatedPoint >= 0 Then
+        e.P[g.AsociatedPoint * 2] = g.X
+        e.P[g.AsociatedPoint * 2 + 1] = g.Y
+
+        If g.AsociatedPoint = 0 Then
+            If e.iParam[Me.iiiPolylineClosed] Then
+                e.P[e.P.Max - 1] = g.X
+                e.P[e.P.Max] = g.Y
+
+            Endif
+        Else If g.AsociatedPoint = e.P.Max Then
+            If e.iParam[Me.iiiPolylineClosed] Then
+                e.P[0] = g.X
+                e.P[1] = g.Y
+
+            Endif
+        Endif
+
+    Else
+        clsEntities.Translate(e, g.X - g.xr, g.Y - g.yr)
+        g.Xr = g.X
+        g.Yr = g.Y
+    End If
+
+End
+
+Public Sub Scale(e As Entity, sX As Float, sY As Float)
+
+    Dim i, signo As Integer
+
+    For i = 0 To e.p.max Step 2
+
+        e.P[i] = e.P[i] * sX
+        e.P[i + 1] = e.P[i + 1] * sY
+
+    Next
+
+    ' ' si alguna escala es negativa, tengo que invertir los bulges
+    ' signo = Sgn(sx) * Sgn(sy)
+    ' For i = 0 To e.fParam.max
+    '
+    '     e.fParam[i] *= signo
+    '
+    ' Next
+
+End
