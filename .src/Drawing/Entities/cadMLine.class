@@ -62,71 +62,51 @@ Public Function MakePolyLine(oE As Entity)
     Dim ang1, px0, py0, mx, my, px1, py1, B, bx, by, Lt, alpha As Float
     Dim i As Integer
     Dim fArcParams As New Float[]
-
+    Dim m As MLineStyle
     ' If oe.id = "B2E7" Then Stop
     oe.PolyLine.Clear
+    m = gcd.Drawing.MLineStyles[oe.sParam[0]]
+    If Not m Then Return
 
-    If oe.iParam[Me.iiiBulged] Then     ' necesito armar una Polylinea
-
-        For i = 0 To oe.P.Count / 2 - 2
-            px0 = oe.P[i * 2]
-            py0 = oe.P[i * 2 + 1]
-            px1 = oe.P[(i + 1) * 2]
-            py1 = oe.P[(i + 1) * 2 + 1]
-            ' no todos los tramos pueden tener bulges
-            If Abs(oe.fParam[i]) > 0.001 Then
-
-                ang1 = Ang(px1 - px0, py1 - py0)            ' angulo del tramo
-                If ang1 < 0 Then ang1 += 2 * Pi             ' Ang1 siempre >= 0
-                Lt = puntos.distancia(px0, py0, px1, py1)   ' longitud del tramo
-                If Lt = 0 Then Continue
-                mx = (px1 + px0) / 2          ' punto medio del tramo
-                my = (py1 + py0) / 2
-                B = Abs(oe.fParam[i] * Lt / 2)
-                If oe.fParam[i] < 0 Then alpha = Pi / 2 Else alpha = -Pi / 2
-                bx = mx + B * Cos(ang1 + alpha)                             ' Tercer punto del Bulge
-                by = my + B * Sin(ang1 + alpha)
-
-                fArcParams = puntos.Arc3Point(px0, py0, bx, by, px1, py1)
-
-                ' la condicion a cumplir es que ambos valores sean positivos y que 3<4
-                If fArcParams.Count < 5 Then
-                    oe.PolyLine.Insert([px0, py0, px1, py1])
-                Else
-                    If (fArcParams[4] < 1e-3) Or (fArcParams[2] > 1e6) Then
-
-                        oe.PolyLine.Insert([px0, py0, px1, py1])
-
-                    Else
-
-                        oe.PolyLine.Insert(glx.ArcPoly(fArcParams[0], fArcParams[1], fArcParams[2], fArcParams[3], fArcParams[4]))
-                    Endif
-                End If
-
-            Else    ' dibujo la linea normalmente
-                oe.PolyLine.Insert([px0, py0, px1, py1])
-            End If
-
-        Next
-    Else
+    For i = 0 To m.Elements
 
         oe.PolyLine.Insert(oe.P.Copy())
 
-    End If
+    Next
 
 End
 
 Public Sub Draw(oE As Entity)
 
     If Not oE.Visible Then Return
+    Dim i, iX, iY As Integer
+    Dim fArcParams As New Float[]
+    Dim m As MLineStyle
+    Dim ml As MLine
+    Dim fOffset As Float
 
-    If Me.iContext = 0 Then
+    m = gcd.Drawing.MLineStyles[oe.sParam[0]]
+    ml = oe.pBlock
+    If Not m Then Return
 
-        glx.PolyLines(oE.PolyLine, gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oe.LineType.TrameLength)
-    Else If Me.iContext = 1 Then
-        paintPlus.LineStripe(oe.PolyLine)
+    If oe.fParam[Me.ipaJustification = 0] Then fOffset = m.JustificationTop
+    If oe.fParam[Me.ipaJustification = 2] Then fOffset = m.JustificationBottom
 
-    End If
+    For i = 0 To m.Elements - 1
+        iX = i * 2
+        iY = i * 2 + 1
+        If Me.iContext = 0 Then
+
+            puntos.Translate(oe.p, ml.Direction[1] * oe.fParam[Me.ipaScale] * (m.ElemOffset[i] + fOffset), ml.Direction[0] * oe.fParam[Me.ipaScale] * (m.ElemOffset[i] + fOffset))
+
+            glx.PolyLines(oE.P, gcd.GetGBColor(m.ElemColor[i], oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), gcd.Drawing.LineTypes[m.ElemLinetype[i]].TrameLength)
+
+            puntos.Translate(oe.p, -ml.Direction[1] * oe.fParam[Me.ipaScale] * (m.ElemOffset[i] + fOffset), -ml.Direction[0] * oe.fParam[Me.ipaScale] * (m.ElemOffset[i] + fOffset))
+        Else If Me.iContext = 1 Then
+            paintPlus.LineStripe(oe.PolyLine)
+
+        End If
+    Next
 
 End
 
@@ -185,6 +165,8 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     Dim FirstBulge As Boolean
     Dim NewTrame As Boolean
     Dim BulgeAdded As Boolean
+    Dim m As MLine
+
     '  0
     ' MLINE
     '   5
@@ -309,7 +291,10 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     ' -0.15
     '  75
     '      0
+    'If e.id = "141480B5" Then Stop
 
+    m = New MLine
+    e.pBlock = m
     ' Nomnre del estilo MLine
     i = dxf.ReadCodePlus(2, sClaves, sValues, ByRef e.sParam[Me.sdaMLineStyle], 0)
     If i < 0 Then Return
@@ -367,6 +352,30 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
         i = dxf.ReadCodePlus(31, sClaves, sValues, ByRef fDummy, i)
         ' e.P.Add(fDummy)
+        If i < 0 Then Return
+
+        i = dxf.ReadCodePlus(12, sClaves, sValues, ByRef fDummy, i)
+        m.Direction.Add(fDummy)
+        If i < 0 Then Return
+
+        i = dxf.ReadCodePlus(22, sClaves, sValues, ByRef fDummy, i)
+        m.Direction.Add(fDummy)
+        If i < 0 Then Return
+
+        i = dxf.ReadCodePlus(32, sClaves, sValues, ByRef fDummy, i)
+        'm.Direction.Add(fDummy)
+        If i < 0 Then Return
+
+        i = dxf.ReadCodePlus(13, sClaves, sValues, ByRef fDummy, i)
+        m.Miter.Add(fDummy)
+        If i < 0 Then Return
+
+        i = dxf.ReadCodePlus(23, sClaves, sValues, ByRef fDummy, i)
+        m.Miter.Add(fDummy)
+        If i < 0 Then Return
+
+        i = dxf.ReadCodePlus(33, sClaves, sValues, ByRef fDummy, i)
+        'm.Miter.Add(fDummy)
         If i < 0 Then Return
 
     Next

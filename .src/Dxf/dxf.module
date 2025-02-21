@@ -2219,7 +2219,7 @@ Public Sub ReadLTypes(cData As Collection, drw As Drawing)
     Drw.LineTypes.Clear
     For Each c As Collection In cData["TABLES"]["LTYPE"]
         hlty = New LineType
-        hlty.Name = c[dxf.codName]
+        hlty.Name = UCase(c[dxf.codName])
         hlty.Description = c["3"]
         If c.Exist("5") Then hlty.id = c["5"]
         If hLty.id = "" Then hLty.id = gcd.NewId()
@@ -2550,8 +2550,10 @@ Public Function ReadObjectsFromDXF(cData As Collection, drw As Drawing)
 
     Dim cObject As Collection, entNueva As Entity
     Dim sClaves, sValues As New String[]
-    Dim s As Sheet
+    Dim s As Sheet, m As MLineStyle
     Dim entry As DictEntry
+    Dim i, flags As Integer
+    Dim i2 As Integer
 
     gcd.debugInfo("Importing DXF object data",,, True)
     'Handle_Layout = New Collection
@@ -2584,6 +2586,45 @@ Public Function ReadObjectsFromDXF(cData As Collection, drw As Drawing)
                 drw.Model = s
 
             End If
+
+        Endif
+
+        If cObject["0"] = "MLINESTYLE" Then
+
+            Me.DigestColeccion(cObject, ByRef sClaves, ByRef sValues)
+            m = New MLineStyle
+            i = ReadCodePlus(2, sClaves, sValues, ByRef m.Name, 0)
+            i = ReadCodePlus(70, sClaves, sValues, ByRef flags, i)
+            m.FillOn = BTst(flags, 1)
+            m.ShowMiters = BTst(flags, 2)
+            m.StartSquareCap = BTst(flags, 5)
+            m.StartInnerArc = BTst(flags, 6)
+            m.StartRound = BTst(flags, 7)
+            m.EndSquareCap = BTst(flags, 9)
+            m.EndInnerArc = BTst(flags, 10)
+            m.EndRound = BTst(flags, 11)
+
+            i = ReadCodePlus(3, sClaves, sValues, ByRef m.Description, i)
+
+            i = ReadCodePlus(62, sClaves, sValues, ByRef m.FillColor, i)
+
+            i = ReadCodePlus(51, sClaves, sValues, ByRef m.StartAngle, i)
+
+            i = ReadCodePlus(52, sClaves, sValues, ByRef m.EndAngle, i)
+            i = ReadCodePlus(71, sClaves, sValues, ByRef m.Elements, i)
+
+            m.ElemOffset.Resize(m.Elements)
+            m.ElemColor.Resize(m.Elements)
+            m.ElemLinetype.Resize(m.Elements)
+
+            For i2 = 1 To m.Elements
+                i = ReadCodePlus(49, sClaves, sValues, ByRef m.ElemOffset[i2 - 1], i)
+                i = ReadCodePlus(62, sClaves, sValues, ByRef m.ElemColor[i2 - 1], i)
+                i = ReadCodePlus(6, sClaves, sValues, ByRef m.ElemLinetype[i2 - 1], i)
+                If (m.ElemOffset[i2 - 1] > 0) And (m.JustificationTop < m.ElemOffset[i2 - 1]) Then m.JustificationTop = m.ElemOffset[i2 - 1]
+                If (m.ElemOffset[i2 - 1] < 0) And (m.JustificationBottom > m.ElemOffset[i2 - 1]) Then m.JustificationBottom = m.ElemOffset[i2 - 1]
+            Next
+            drw.MLineStyles.Add(m, m.name)
 
         Endif
 
