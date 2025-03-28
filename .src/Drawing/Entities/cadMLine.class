@@ -83,25 +83,31 @@ Public Sub Draw(oE As Entity)
     Dim fArcParams As New Float[]
     Dim m As MLineStyle
     Dim ml As MLine
-    Dim fOffset As Float
+    Dim fOffsetX, fOffsetY As Float
 
     m = gcd.Drawing.MLineStyles[oe.sParam[0]]
     ml = oe.pBlock
     If Not m Then Return
 
-    If oe.fParam[Me.ipaJustification = 0] Then fOffset = m.JustificationTop
-    If oe.fParam[Me.ipaJustification = 2] Then fOffset = m.JustificationBottom
+    If oe.fParam[Me.ipaJustification] = 0 Then
+        fOffsetX = Abs(m.JustificationTop) * oe.fParam[Me.ipaScale] * ml.Direction[1]
+        fOffsetY = -Abs(m.JustificationTop) * oe.fParam[Me.ipaScale] * ml.Direction[0]
+    Else If oe.fParam[Me.ipaJustification] = 2 Then
+        fOffsetX = -Abs(m.JustificationBottom) * oe.fParam[Me.ipaScale] * ml.Direction[1]
+        fOffsetY = Abs(m.JustificationBottom) * oe.fParam[Me.ipaScale] * ml.Direction[0]
+    End If
+    'if oe.id = "1414E920" Then Stop
 
     For i = 0 To m.Elements - 1
         iX = i * 2
         iY = i * 2 + 1
         If Me.iContext = 0 Then
 
-            puntos.Translate(oe.p, ml.Direction[1] * oe.fParam[Me.ipaScale] * (m.ElemOffset[i] + fOffset), ml.Direction[0] * oe.fParam[Me.ipaScale] * (m.ElemOffset[i] + fOffset))
+            puntos.Translate(oe.p, ml.Direction[1] * oe.fParam[Me.ipaScale] * m.ElemOffset[i] + fOffsetX, ml.Direction[0] * oe.fParam[Me.ipaScale] * m.ElemOffset[i] + fOffsetY)
 
             glx.PolyLines(oE.P, gcd.GetGBColor(m.ElemColor[i], oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), gcd.Drawing.LineTypes[m.ElemLinetype[i]].TrameLength)
 
-            puntos.Translate(oe.p, -ml.Direction[1] * oe.fParam[Me.ipaScale] * (m.ElemOffset[i] + fOffset), -ml.Direction[0] * oe.fParam[Me.ipaScale] * (m.ElemOffset[i] + fOffset))
+            puntos.Translate(oe.p, -(ml.Direction[1] * oe.fParam[Me.ipaScale] * m.ElemOffset[i] + fOffsetX), -(ml.Direction[0] * oe.fParam[Me.ipaScale] * m.ElemOffset[i] + fOffsetY))
         Else If Me.iContext = 1 Then
             paintPlus.LineStripe(oe.PolyLine)
 
