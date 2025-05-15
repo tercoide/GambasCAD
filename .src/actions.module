@@ -3,7 +3,7 @@
 ' Este modulo contiene las acciones que , desde ahora, saco de FMain
 
 Public r As Float
-Public NewDrawing As Drawing
+
 Public f As String
 Public fDxf As String
 Public fBak As String
@@ -22,12 +22,21 @@ Public sActionParams As String[]
 Public Sub FileNew()
 
     ' Vamos a tratar de armar todo para que se pueda dibujar, sin necesidad de cargar un DXF base.
+    Dim NewDrawing As Drawing
+    Dim k As String
 
-    NewDrawing = gcd.NewDrawing("<new>")                    'Creo una nueva petaña, que me devuelve un Drawing con una Sheet
-    gcd.Drawing = NewDrawing                                'Apunto Gcd.Drawing a este nuevo Drawing
-    gcd.Drawing.Headers.FINGERPRINTGUID = gcd.UniqueId()
-    gcd.Drawings.Add(NewDrawing, gcd.Drawing.Headers.FINGERPRINTGUID)                            'Lo agrego al listado de dibujos abiertos
-    fmain.NewTabForDrawing(NewDrawing)
+    NewDrawing = gcd.NewDrawing("<new>")                    ' me devuelve un Drawing con una Sheet
+    Wait
+    'Apunto Gcd.Drawing a este nuevo Drawing
+    gcd.Drawing = NewDrawing
+
+    ' FIXME: URG aca no llega a agregarse el nuevo Drawing
+    k = NewDrawing.id
+    gcd.Drawings.Add(NewDrawing, k)                            'Lo agrego al listado de dibujos abiertos
+    Wait
+    fmain.NewTabForDrawing(NewDrawing)              'Creo una nueva petaña,
+    Wait
+
     DrawingAids.RebuildGrid
     gcd.setdashes
 
@@ -73,6 +82,8 @@ Public Sub FileSave(Optional sFile As String = "")
 End
 
 Public Sub FileOpen(Optional sFile As String = "")
+
+    Dim NewDrawing As Drawing
 
     If sFile = "" Then
 
@@ -226,7 +237,7 @@ LoadDXF:
     dTest = fmain.tabDrawings[fmain.tabDrawings.Index].Tag
     If dTest Then
         If dTest.RequiresFileRename And Not dTest.RequiresSaving Then 'estoy sobre una pestaña <new> donde no hice nada, la cierro
-            gcd.Drawings.Remove(dTest.Headers.FINGERPRINTGUID)
+            gcd.Drawings.Remove(dTest.id)
             Wait 0.1
             fmain.tabDrawings_Close(fmain.tabDrawings.Index)
 
@@ -234,8 +245,8 @@ LoadDXF:
     End If
     gcd.Drawing = NewDrawing
     gcd.Drawing.Sheet = gcd.Drawing.Model
-    fmain.NewTabForDrawing(NewDrawing)
-
+    fmain.NewTabForDrawing(NewDrawing) 'FIXME: 2025 no anda esto
+    Wait
     gcd.DrawingReady = True
     ' por ahora mostramos el dibujo centrado, hasta q leamos el estado anterior
     gcd.Regen()

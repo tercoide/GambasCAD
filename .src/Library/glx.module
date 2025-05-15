@@ -3169,8 +3169,8 @@ Public Sub Get2DpointFrom3Dworld(p1 As Punto3d, ByRef x2 As Float, ByRef y2 As F
     modelMatrix = gl.GetFloatv(GL.MODELVIEW_MATRIX)
     projMatrix = gl.GetFloatv(GL.PROJECTION_MATRIX)
     vp = gl.GetIntegerv(GL.VIEWPORT_)
-    ' Fixme: glu does not work anymore
-    ' p2 = glu.Project(p1.x, p1.y, p1.z, modelMatrix, projMatrix, vp)
+
+    p2 = glu.Project(p1.x, p1.y, p1.z, modelMatrix, projMatrix, vp)
 
     If IsNull(p2) Then Return
 
@@ -3379,7 +3379,7 @@ Public Function LoadFonts(DirPath As String) As String[]
         ActualFont = fntNuevas
         If fntNuevas.FontName = "unicode" Then UnicodeFont = fntNuevas
 
-        gcd.debugInfo("LeIdas " & fntNuevas.Letter.Count & " letras en " & sFilename)
+        Debug ("LeIdas " & fntNuevas.Letter.Count & " letras en " & sFilename)
         lista.Add(fntNuevas.FontName)
 
     Next
@@ -3607,6 +3607,65 @@ Fast Unsafe Public Function DrawTextPoly(UTFstring As String, Optional textH As 
 
 End
 
+
+' AlingHoriz : 0=Rigth, 1=Center, 2=Left
+' AlingVert: 0=Top, 1=Center, 2=Bottom
+Public Function DrawText2(UTFstring As String, posX As Float, posY As Float, Optional angle As Float = 0, textH As Float = 1, colour As Integer = -14, BackColour As Integer = -1, linewIdth As Float = 1, italic As Boolean = False, rectW As Float = 0, rectH As Float = 0, alignHoriz As Integer = 0, alignVert As Integer = 0) As Boolean
+
+    Dim flxText, tRect As New Float[]
+    Dim sItalicAngle As Single, tX, tY, factorX, factorY As Float
+
+    If italic Then sItalicAngle = 20
+
+    flxText = DrawTextPoly(UTFstring, textH, angle, sItalicAngle)
+    tRect = puntos.Limits(flxText)
+
+    ' veo si tengo que comprimir en un ractangulo
+    If (rectH > 0) And (rectW > 0) Then
+
+        factorX = rectW / (tRect[2] - tRect[0])
+        factorY = rectH / (tRect[3] - tRect[1])
+
+        puntos.Scale(flxText, factorX, factorY)
+
+
+    Else
+
+        rectH = tRect[3] - tRect[1]
+        rectW = tRect[2] - tRect[0]
+    End If
+
+    If alignHoriz = 1 Then tX = -rectW / 2
+    If alignHoriz = 2 Then tX = -rectW
+
+    If alignVert = 1 Then tY = -rectH / 2
+    If alignVert = 2 Then tY = -rectH
+
+
+    puntos.Translate(flxText, tx, ty)
+
+
+    gl.MatrixMode(gl.PROJECTION)
+    gl.PushMatrix
+
+    gl.LoadIdentity()
+
+    Gl.Ortho(0, fmain.gestru.w, 0, fmain.gestru.h, 0, 1)
+
+    gl.MatrixMode(gl.MODELVIEW)
+    gl.PushMatrix
+    gl.LoadIdentity()
+    gl.Translatef(posX, posY, 0)
+    DrawLines(flxText, colour, linewIdth)
+    Rectangle2D(0 + tx, 0 + ty, rectW, rectH, BackColour,,,,,,, 0)
+
+    gl.PopMatrix
+    gl.MatrixMode(gl.PROJECTION)
+    gl.PopMatrix
+
+
+End
+
 '' devuelve un rectangulo que contiene al texto
 '' [ancho,alto]
 Fast Unsafe Public Function TextExtends(UTFstring As String, Optional textH As Float = 1, sRotationRad As Single = 0, sItalicAngle As Single = 0) As Float[]
@@ -3658,7 +3717,7 @@ Public Function LoadTextures(DirPath As String) As String[]
         Break
     Next
 
-    gcd.debugInfo("LeIdas " & iTexture & " texturas en " & sFilename)
+    Debug ("LeIdas " & iTexture & " texturas en " & sFilename)
 
     Return lista
 
@@ -3794,3 +3853,146 @@ Public Function LoadShader(sVertexShaderFile As String, sFragmentShaderFile As S
     Return iShaderProgram
 
 End
+
+Public Sub txtRendering2D(texto As String, x As Float, y As Float, Optional Altura As Single = 12, Optional _color As Long = Color.Blue, Optional _BackColor As Long = -1, Optional centradoH As Integer = 0, Optional centradoV As Integer = 0)
+
+    ' this works in a Orthogonal projection
+
+    Dim rectangulo As RectF
+
+    Dim imagen As New Image, p As New Punto3d
+
+    imagen.Resize(200, 200) 'so Paint.Begin gives no error
+
+    Paint.Begin(imagen)
+
+    Paint.Font.Size = Altura
+
+    Paint.Brush = Paint.Color(_color)
+
+    rectangulo = Paint.TextSize(texto)
+
+    Paint.End
+
+    rectangulo.Height /= 1.25  ' correct the innecesary extra height
+
+    'this can't go into the Paint loop
+
+    imagen.resize(rectangulo.Width, rectangulo.Height)
+
+    If _backcolor > 0 Then
+
+        imagen.Fill(_BackColor)
+
+    Else
+
+        ' until I know how to make it transparente, it goes like this
+
+        imagen.Fill(Color.White)
+
+    End If
+
+    EscalaGL = 1
+
+    Paint.Begin(imagen)
+
+    Paint.Font.Size = Altura
+
+    Paint.Brush = Paint.Color(_color)
+
+    Paint.Text(texto, 0, rectangulo.Height * 0.85) 'locate the text at the bottom + 15% so it's vertically centered in the box
+
+    Paint.Fill
+
+    Paint.End
+
+    'imagen.Save("imagen.png")  ' this is to check the Paint worked (and works!) (re checckeado 02/06/16)
+
+    ' allignment to the 3D point p
+
+    If centradoH = 1 Then x -= rectangulo.Width * EscalaGL
+
+    If centradoH = 2 Then x -= rectangulo.Width / 2 * EscalaGL
+
+    If centradoV = 1 Then y -= rectangulo.Height * EscalaGL
+
+    If centradoV = 2 Then y -= rectangulo.Height / 2 * EscalaGL
+
+    gl.MatrixMode(gl.PROJECTION)
+    gl.PushMatrix
+
+    gl.LoadIdentity()
+
+    Gl.Ortho(0, fmain.gestru.w, 0, fmain.gestru.h, 0, 1)
+
+    gl.MatrixMode(gl.MODELVIEW)
+    gl.PushMatrix
+    gl.LoadIdentity()
+
+    Gl.TexImage2D(imagen)
+
+    Gl.TexParameteri(Gl.TEXTURE_2D, Gl.TEXTURE_MIN_FILTER, Gl.NEAREST)
+
+    Gl.TexParameteri(Gl.TEXTURE_2D, Gl.TEXTURE_MAG_FILTER, Gl.NEAREST)
+
+    gl.BindTexture(gl.TEXTURE_2D, hText[0])
+
+    Gl.Begin(Gl.QUADS)
+
+    gl.color3f(1, 1, 1)
+
+    Gl.TexCoordf(0.0, 1.0) ' Bottom Left OF The Texture AND Quad
+
+    Gl.Vertex2f(x, y)
+
+    Gl.TexCoordf(1.0, 1.0) ' Bottom Right OF The Texture AND Quad
+
+    Gl.Vertex2f(x + rectangulo.Width * EscalaGL, y)
+
+    Gl.TexCoordf(1.0, 0.0) ' Top Right OF The Texture AND Quad
+
+    Gl.Vertex2f(x + rectangulo.Width * EscalaGL, y + rectangulo.Height * EscalaGL)
+
+    Gl.TexCoordf(0.0, 0.0) ' Top Left OF The Texture AND Quad
+
+    Gl.Vertex2f(x, y + rectangulo.Height * EscalaGL)
+
+    Gl.End()
+
+    gl.PopMatrix
+    gl.MatrixMode(gl.PROJECTION)
+    gl.PopMatrix
+
+End
+
+Public Sub DrawText3D(texto As String, pr As Punto3d, Optional Altura As Single = 12, Optional _color As Long = Color.Blue, Optional _BackColor As Long = -1, Optional centradoH As Integer = 0, Optional centradoV As Integer = 0)
+
+    Dim x As Float, y As Float, z As Float
+
+    glx.Get2DpointFrom3Dworld(pr, ByRef x, ByRef y, ByRef z)
+
+    If z <= 1 Then DrawText2(texto, x, y, 0, altura, _color, _backcolor,,,,, centradoH, centradoV)
+
+End
+
+Public Sub LucesOn()
+
+    Gl.Lightfv(Gl.LIGHT0, Gl.AMBIENT_AND_DIFFUSE, [1.0, 1.0, 1.0, 0.5])
+
+    Gl.Lightfv(Gl.LIGHT0, Gl.POSITION, [GLCam.Position.x, GLCam.Position.y, GLCam.Position.z, 1])
+
+    Gl.Enable(Gl.LIGHTING)
+    Gl.Enable(Gl.LIGHT0)
+
+    Gl.Enable(Gl.NORMALIZE) ' esto sirve para normalizar los vectores normales , o sea que sean de largo = 1
+
+End
+
+Public Sub LucesOff()
+
+    Gl.Disable(Gl.LIGHTING)
+    Gl.disable(Gl.LIGHT0)
+
+    Gl.disable(Gl.NORMALIZE) ' esto sirve para normalizar los vectores normales , o sea que sean de largo = 1
+
+End Sub
