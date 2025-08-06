@@ -780,6 +780,46 @@ Public Function lineLineIntersection2(Ax As Float, Ay As Float, Bx As Float, By 
 
 End
 
+'' Devuelve la interseccion de A-B con D-C
+
+Public Function lineLineIntersection2_single(Ax As Single, Ay As Single, Bx As Single, By As Single, Cx As Single, Cy As Single, Dx As Single, Dy As Single) As Single[]
+
+    '     / / LINE AB represented As A1x + b1y = c1
+    Dim a1 As Single = By - Ay
+    Dim b1 As Single = Ax - Bx
+    Dim c1 As Single = a1 * (Ax) + b1 * (Ay)
+    '
+    '     / / LINE CD represented As A2x + b2y = c2
+    Dim a2 As Single = Dy - Cy
+    Dim b2 As Single = Cx - Dx
+    Dim c2 As Single = a2 * (Cx) + b2 * (Cy)
+    '
+    Dim determinant As Single = a1 * b2 - a2 * b1
+
+    ' veo el caso particular q coincidan los extremos
+
+    If ax = cx And ay = cy Then Return [ax, ay]
+    If ax = dx And ay = dy Then Return [ax, ay]
+
+    If bx = cx And by = cy Then Return [bx, by]
+    If bx = dx And by = dy Then Return [bx, by]
+
+    '
+    If (determinant = 0) Then
+        '
+        '         / / The lines are parallel.This Is Simplified
+        '         / / by returning a pair Of FLT_MAX
+        Return [] 'Null
+        '
+    Else
+        '
+        Dim x As Single = (b2 * c1 - b1 * c2) / determinant
+        Dim y As Single = (a1 * c2 - a2 * c1) / determinant
+        Return [x, y]
+    End If
+
+End
+
 ' Devuelve el punto de intersecion de una linea con una polilinea cerrada
 Public Function LinePolyIntersection2(flxLine As Float[], flxPoly As Float[]) As Float[]
 
@@ -1182,6 +1222,32 @@ Public Function PointOverLine(fPoint As Float[], fLine As Float[], Optional fTol
 End
 
 '' Determines if the point is over the line within a tolerance. Optimized for perfomance
+Public Function PointOverLine_Int(x As Integer, y As Integer, x0 As Integer, y0 As Integer, x1 As Integer, y1 As Integer, Optional iTolerance As Integer = 8) As Boolean
+
+    ' veo los casos mas simples
+    If x0 <= x1 Then
+        If x + iTolerance < x0 Then Return False
+        If x - iTolerance > x1 Then Return False
+    Else
+        If x + iTolerance < x1 Then Return False
+        If x - iTolerance > x0 Then Return False
+
+    Endif
+    If y0 <= y1 Then
+        If y + iTolerance < y0 Then Return False
+        If y - iTolerance > y1 Then Return False
+    Else
+
+        If y + iTolerance < y1 Then Return False
+        If y - iTolerance > y0 Then Return False
+
+    Endif
+
+    If Abs(PointToLineDistance_Single(x, y, x0, y0, x1, y1)) < iTolerance Then Return True Else Return False
+
+End
+
+'' Determines if the point is over the line within a tolerance. Optimized for perfomance
 Public Function PointOverPolyLine(fPoint As Float[], fLine As Float[], Optional fTolerance As Float = 1E-3) As Boolean
 
     Dim i As Integer
@@ -1217,6 +1283,37 @@ Public Function PointToLineDistance(fPoint As Float[], fLine As Float[]) As Floa
     CE = fPoint[0] - e[0]
 
     angE = ATan2(fLine[3] - fLine[1], fLine[2] - fLine[0])
+
+    ' Debug "Radio", ce
+    ' Debug "angulo", angE
+    ' Debug "distancia", CE * Sin(angE)
+    Return CE * Sin(angE)
+
+End
+
+Public Function PointToLineDistance_Single(x As Single, y As Single, x0 As Single, y0 As Single, x1 As Single, y1 As Single) As Single
+
+    ' adaptado de
+    ' https://www.mathopenref.com/coordpointdisttrig.html
+    Dim E As Single[]
+
+    Dim CE, angE As Single
+
+    ' veo los casos mas simples
+
+    If x0 = x1 Then ' la linea es vertical
+        Return x0 - x
+
+    Else If y0 = y1 Then ' la linea es horizontal
+        Return y0 - y
+
+    Endif
+
+    e = lineLineIntersection2_single(x, y, 10e10, y, x0, y0, x1, y1)
+
+    CE = x - e[0]
+
+    angE = ATan2(y1 - y0, x1 - x0)
 
     ' Debug "Radio", ce
     ' Debug "angulo", angE
