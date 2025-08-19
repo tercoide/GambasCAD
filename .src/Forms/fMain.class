@@ -34,6 +34,9 @@ Public $hSearchTimer As New Timer As "SearchTimer"
 Public $hRecollectTimer As New Timer As "RecollectTimer"
 Private $hOneSecondTimer As New Timer As "OneSecondTimer"
 
+Public elaRecollect As Single
+Public elaSearch As Single
+
 '' Printing stuff
 Public MyPrinter As Printer
 
@@ -64,7 +67,9 @@ End Sub
 
 Public Sub RecollectTimer_Timer()
 
+    elaRecollect = Timer
     clsEntities.CollectVisibleEntities()
+    elaRecollect = Timer - elaRecollect
 
 End Sub
 
@@ -122,8 +127,9 @@ Public Sub SearchTimer_Timer()
     ' tskReSearch.Yreal = yr
     ' Return
     ' gcd.Drawing.HoveredEntities = tskReSearch.EntitiesBelow
+    elaSearch = Timer
     gcd.Drawing.HoveredEntities = clsMouseTracking.CheckAboveEntities(Xr, Yr)
-
+    elaSearch = Timer - elaSearch
     If IsNull(gcd.Drawing.HoveredEntities) Then Return
 
     If gcd.Drawing.HoveredEntities.Count > 0 Then
@@ -630,9 +636,11 @@ Public Sub GLArea1_MouseMove()
     'FIXME: ver esto
     ReSearch()
 
-    'Me.lblCoordX.Text = Mouse.x & ":" & Mouse.y & " <-> " & Format(Xr, Config.FormatCoord) & " : " & Format(Yr, config.FormatInquiries)
     Me.lblCoordX.Text = "X: " & Mouse.x & " -> " & Format(Xr, Config.FormatCoord)
-    Me.lblCoordY.Text = "Y: " & Mouse.y & " -> " & Format(Yr, config.FormatCoord)
+    ' Me.lblCoordY.Text = "Y: " & Mouse.y & " -> " & Format(Yr, config.FormatCoord)
+    ' FIXME: para debug
+    Me.lblCoordY.Text = "R: " & Format(elaRecollect, "0.0000") & "S: " & Format(elaSearch, "0.0000")
+
     ' Me.lblCoordX.Refresh
     ' Me.lblCoordY.Refresh
 
@@ -671,7 +679,6 @@ Public Sub GLArea1_MouseMove()
     '
     ' End If
     Redraw
-    'glarea1.Refresh
 
 End
 
@@ -1014,6 +1021,8 @@ Public Sub form_KeyPress()
             ShowBenchMarkInfo = Not ShowBenchMarkInfo
         Case Key.f8
             clsMouseTracking.WaitEnabled = Not clsMouseTracking.WaitEnabled
+
+            Debug "Wait enabled?", clsMouseTracking.WaitEnabled
         Case Key.f7
 
             Action_Activate("savesvg")

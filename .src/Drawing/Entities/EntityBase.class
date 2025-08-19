@@ -421,7 +421,7 @@ End
 
 '' Determines if the entity
 '' by default, if ANY point is selected, it can.
-Public Function SelPartial(eTesting As Entity, X1real As Float, Y1real As Float, X2real As Float, Y2real As Float) As Boolean
+Fast Public Function SelPartial(eTesting As Entity, X1real As Float, Y1real As Float, X2real As Float, Y2real As Float, Optional MarkPoints As Boolean = True) As Boolean
 
     Dim ii As Integer, puedo As Boolean = False
     Dim oLoop As Hatch, flxPoly As Float[]
@@ -429,14 +429,19 @@ Public Function SelPartial(eTesting As Entity, X1real As Float, Y1real As Float,
     Dim ePart As Entity
     Dim fPolygon As New Float[]
     Dim bSel As Boolean[]
+    Dim okX, okY As Boolean
 
     Select Case eTesting.Gender
 
             'Case "INSERT"
 
         Case Like "DIM*", "INSERT"
+            ' FIXME: pruebo a ver si esto es mas rapido
+            If (eTesting.Limits[0] > X1real And eTesting.Limits[0] < X2real) Or (eTesting.Limits[2] > X1real And eTesting.Limits[0] < X2real) Then okX = True
+            If (eTesting.Limits[1] > Y1real And eTesting.Limits[1] < Y2real) Or (eTesting.Limits[3] > Y1real And eTesting.Limits[3] < Y2real) Then okY = True
+            If okx And oky Then Return True Else Return False
             For Each ePart In eTesting.pBlock.entities
-                puedo = SelPartial(ePart, X1real, Y1real, X2real, Y2real)
+                puedo = SelPartial(ePart, X1real, Y1real, X2real, Y2real, False)
                 If puedo Then Break
             Next
 
@@ -476,13 +481,13 @@ Public Function SelPartial(eTesting As Entity, X1real As Float, Y1real As Float,
 
                 puedo = puntos.IsPoligonInsideRect(eTesting.Polygon, X1real, Y1real, X2real, Y2real)
                 If puedo Then
-                    GoSub SearchPoints
+                    If MarkPoints Then GoSub SearchPoints
                     Return True
                 End If
 
                 puedo = puntos.IsPoligonCrossingRect(eTesting.Polygon, X1real, Y1real, X2real, Y2real)
                 If puedo Then
-                    GoSub SearchPoints
+                    If MarkPoints Then GoSub SearchPoints
                     Return True
                 End If
 
@@ -492,7 +497,7 @@ Public Function SelPartial(eTesting As Entity, X1real As Float, Y1real As Float,
                 If puntos.IsPoligonCrossingRect(eTesting.PolyLine, X1real, Y1real, X2real, Y2real) Then puedo = True
 
                 If puedo Then
-                    GoSub SearchPoints
+                    If MarkPoints Then GoSub SearchPoints
                     Return True
                 End If
 
@@ -522,7 +527,7 @@ Public Function SelPartial(eTesting As Entity, X1real As Float, Y1real As Float,
                 '     End If
                 '
                 ' Next
-                GoSub SearchPoints
+                If MarkPoints Then GoSub SearchPoints
 
                 If puntos.IsPoligonCrossingRect(eTesting.p, X1real, Y1real, X2real, Y2real) Then puedo = True
 
@@ -531,7 +536,7 @@ Public Function SelPartial(eTesting As Entity, X1real As Float, Y1real As Float,
             ' ademas
             If eTesting.Gender Like "DIM*" Then
                 For Each ePart In eTesting.pBlock.entities
-                    puedo = SelPartial(ePart, X1real, Y1real, X2real, Y2real)
+                    puedo = SelPartial(ePart, X1real, Y1real, X2real, Y2real, False)
                     If puedo Then
                         Break
                     End If

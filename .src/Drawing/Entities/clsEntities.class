@@ -967,17 +967,20 @@ Public Sub Scale(e As Entity, sX As Float, sY As Float)
 
 End
 
-Public Function SelectionSquare(X0 As Float, Y0 As Float, x1 As Float, y1 As Float, Optional crossing As Boolean = False) As Collection
+Fast Public Function SelectionSquare(X0 As Float, Y0 As Float, x1 As Float, y1 As Float, Optional crossing As Boolean = False) As Collection
 
     ' Veo que accion estoy tomando
     Dim e As Entity, i, i2, TotalSeleccionados As Integer
     Dim c As New Collection
+    Dim cTimes As New Collection
+    Dim cTotal As New Collection
     Dim lay As Layer
 
     Dim tot As Integer
     Dim s As Sheet
     Dim ho As String
-    Dim t As Timer
+    Dim t As Float = Timer
+    Dim t2 As Float
     Dim insideX, insideY, OutSideX, OutSidey As Boolean
 
     For Each e In gcd.Drawing.Sheet.EntitiesVisibles
@@ -1003,15 +1006,28 @@ Public Function SelectionSquare(X0 As Float, Y0 As Float, x1 As Float, y1 As Flo
         Else
             ' cada entidad debe decidir si esta seleccionada o no
             If crossing Then
+                t2 = Timer
                 If SelPArtial(e, X0, Y0, X1, Y1) Then c.Add(e, e.id)
 
+                t2 = Timer - t2
+                If cTimes.Exist(e.Gender) Then
+                    cTimes[e.Gender] += t2
+                    cTotal[e.Gender] += 1
+                Else
+                    cTimes.Add(t2, e.Gender)
+                    cTotal.Add(1, e.Gender)
+                End If
             Else
 
                 If SelFull(e, X0, Y0, X1, Y1) Then c.Add(e, e.id)
             End If
         End If
     Next
-
+    t = Timer - t
+    Debug "Select parsing time ", t, "sec to ", c.Count, " of ", gcd.Drawing.Sheet.EntitiesVisibles.Count, " visibles"
+    For Each t In cTimes
+        Debug cTotal[cTimes.Key], cTimes.Key, t
+    Next
     Return c
 
 End
@@ -1452,7 +1468,7 @@ Public Sub EntityToJsonString(e As Entity) As String
 
 End
 
-Public Function SelectionCombine(cBase As Collection, cNew As Collection, sMode As String) As Collection
+Fast Public Function SelectionCombine(cBase As Collection, cNew As Collection, sMode As String) As Collection
 
     Dim cCombined As New Collection, e As Entity
 
