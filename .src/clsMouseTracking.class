@@ -11,7 +11,7 @@
 
 Create Static
 Create Private
-Fast Unsafe
+'Fast Unsafe
 
 Public LastFound As Entity              ' ultima entidad encontrada
 Public LastPointToCursorDistance As Float
@@ -159,7 +159,7 @@ Public Function CheckAboveEntities(xr As Float, Yr As Float, Optional iTolerance
 
     Searching = True
 
-    CollectEntitiesAroundMouse(xr, yr, iTolerance)
+    'CollectEntitiesAroundMouse(xr, yr, iTolerance)
 
     Do
         If gcd.flgQuitSearch Then Break
@@ -168,7 +168,9 @@ Public Function CheckAboveEntities(xr As Float, Yr As Float, Optional iTolerance
             If fEntities.Count > 0 Then
                 If e = fEntities.First Then Break
             End If
-            fEntities.Add(e)
+
+            fEntities.Add(e)                                                ' agrego la parte
+            If e.Container.Parent Then fEntities.Add(e.Container.Parent)    ' y el Insert
         Else
             Break
         End If
@@ -199,6 +201,8 @@ Public Function CheckBestPOI(xr As Float, Yr As Float, Optional eExclude As Enti
         If e = eExclude Then Continue
         If e = gcd.Drawing.Sheet.SkipSearch Then Continue
         If WaitEnabled Then Wait
+
+        If e.Gender = "INSERT" Then Continue
         CurrentPoint = CheckPOI(xr, yr, e)
 
         ' OBSOLETO, ahora verifico que el punto encontrado este cerca del mouse
@@ -242,7 +246,7 @@ Public Function CheckAboveEntity(xr As Float, Yr As Float, Optional iTolerance A
     eBounded = Null
     ePolyline = Null
 
-    For Each eVisible In EntitiesSearchables 'gcd.Drawing.Sheet.EntitiesVisibles
+    For Each eVisible In gcd.Drawing.Sheet.EntitiesVisibles
         If WaitEnabled Then Wait
         If gcd.flgQuitSearch Then Break
         Inc iVisible
@@ -260,9 +264,11 @@ Public Function CheckAboveEntity(xr As Float, Yr As Float, Optional iTolerance A
             'Debug eVisible.id, Rnd()
 
             Found = True
-            If eVisible.pBlock Then '.HandleOwner <> "" Then
+            If eVisible.Container.Parent Then
+
                 ePartFound = eVisible
-                eInsertFound = eVisible
+                eInsertFound = eVisible.Container.Parent
+
                 'eInsertFound = gcd.Drawing.Entities[eVisible.HandleOwner]
             Else If eVisible.Polygon.Count > 0 Then
                 eBounded = eVisible
@@ -287,7 +293,7 @@ Public Function CheckAboveEntity(xr As Float, Yr As Float, Optional iTolerance A
         If eFound Then Return eFound        ' primero las lineas
         If ePolyline Then Return ePolyline  ' luego las Poly
         If eBounded Then Return eBounded    ' luego Polygonos
-        Return eInsertFound                 ' luego Insertos
+        Return ePartFound 'eInsertFound                 ' luego Insertos
     Else
         Return Null
     End If
@@ -370,6 +376,7 @@ Public Sub CheckPOI(xr As Float, Yr As Float, Optional e As Entity) As Float[]
     Select Case e.Gender
 
         Case "INSERT"
+            Stop
             ShortestDistance = 1e10
             For Each ePart In e.pBlock.Entities
                 If gcd.flgQuitSearch Then Break

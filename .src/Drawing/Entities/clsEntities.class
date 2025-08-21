@@ -997,7 +997,7 @@ Fast Public Function SelectionSquare(X0 As Float, Y0 As Float, x1 As Float, y1 A
 
         If insideX And insideY Then
 
-            c.Add(e, e.id)
+            GoSub AddMe
             e.Psel.Fill(True)
 
         Else If OutSideX Or OutSidey Then
@@ -1007,28 +1007,38 @@ Fast Public Function SelectionSquare(X0 As Float, Y0 As Float, x1 As Float, y1 A
             ' cada entidad debe decidir si esta seleccionada o no
             If crossing Then
                 t2 = Timer
-                If SelPArtial(e, X0, Y0, X1, Y1) Then c.Add(e, e.id)
+                If SelPArtial(e, X0, Y0, X1, Y1) Then GoSub AddMe
 
-                t2 = Timer - t2
-                If cTimes.Exist(e.Gender) Then
-                    cTimes[e.Gender] += t2
-                    cTotal[e.Gender] += 1
-                Else
-                    cTimes.Add(t2, e.Gender)
-                    cTotal.Add(1, e.Gender)
-                End If
+                ' t2 = Timer - t2
+                ' If cTimes.Exist(e.Gender) Then
+                '     cTimes[e.Gender] += t2
+                '     cTotal[e.Gender] += 1
+                ' Else
+                '     cTimes.Add(t2, e.Gender)
+                '     cTotal.Add(1, e.Gender)
+                ' End If
             Else
 
-                If SelFull(e, X0, Y0, X1, Y1) Then c.Add(e, e.id)
+                If SelFull(e, X0, Y0, X1, Y1) Then GoSub AddMe
             End If
         End If
     Next
     t = Timer - t
     Debug "Select parsing time ", t, "sec to ", c.Count, " of ", gcd.Drawing.Sheet.EntitiesVisibles.Count, " visibles"
-    For Each t In cTimes
-        Debug cTotal[cTimes.Key], cTimes.Key, t
-    Next
+    ' For Each t In cTimes
+    '     Debug cTotal[cTimes.Key], cTimes.Key, t
+    ' Next
     Return c
+
+AddMe:
+
+    If e.Container.parent Then
+        c.Add(e.Container.parent, e.Container.Parent.id)
+    Else
+
+        c.Add(e, e.id)
+    End If
+    Return
 
 End
 
@@ -1064,6 +1074,8 @@ Fast Unsafe Public Function CollectVisibleEntities(Optional sSheet As Sheet)
     Dim ho As String
     Dim t As Timer
     Dim insideX, insideY As Boolean
+    Dim cEntities As Collection
+    Dim cNewVisibles As New Collection
 
     gcd.ResetChronograph
 
@@ -1075,10 +1087,26 @@ Fast Unsafe Public Function CollectVisibleEntities(Optional sSheet As Sheet)
     If Not sSheet Then sSheet = gcd.Drawing.Sheet
 
     'If gcd.Drawing.oEntities > gcd.Drawing.arrVisibleEntities.Max Then gcd.Drawing.arrVisibleEntities.Resize(gcd.Drawing.oEntities.Count)
-    gcd.Drawing.Sheet.EntitiesVisibles.Clear
 
-    For Each e In sSheet.Entities
-        If e.pLayer.Visible Then
+    Collect(sSheet.Entities, x0, x1, y0, y1, cNewVisibles)
+
+    gcd.Drawing.Sheet.EntitiesVisibles = cNewVisibles
+    gcd.debugInfo("Recolectadas las entidades visibles " & Str(gcd.Drawing.Sheet.EntitiesVisibles.count) & " de " & Str(gcd.Drawing.Sheet.Entities.count),,, True, True)
+
+End
+
+Fast Private Sub Collect(cEntities As Collection, x0 As Float, x1 As Float, y0 As Float, y1 As Float, cNewVisibles As Collection)
+
+    Dim e As Entity
+
+    Dim insideX, insideY As Boolean
+
+    For Each e In cEntities
+        If Not e.pLayer.Visible Then Continue
+        If e.Gender = "INSERT" Then
+            Collect(e.pBlock.Entities, x0, x1, y0, y1, cNewVisibles)
+        Else
+
             insideX = False
             insideY = False
             If (e.Limits[0] <= x1) And (e.Limits[2] >= x0) Then insideX = True
@@ -1086,14 +1114,14 @@ Fast Unsafe Public Function CollectVisibleEntities(Optional sSheet As Sheet)
 
             If insideX And insideY Then
 
-                gcd.Drawing.Sheet.EntitiesVisibles.Add(e, e.id)
+                cNewVisibles.Add(e, e.id)
 
             End If
 
         End If
     Next
 
-    gcd.debugInfo("Recolectadas las entidades visibles " & Str(gcd.Drawing.Sheet.EntitiesVisibles.count) & " de " & Str(gcd.Drawing.Sheet.Entities.count),,, True, True)
+    Return
 
 End
 
