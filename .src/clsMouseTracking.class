@@ -11,13 +11,15 @@
 
 Create Static
 Create Private
-'Fast Unsafe
+Fast Unsafe
 
 Public LastFound As Entity              ' ultima entidad encontrada
 Public LastPointToCursorDistance As Float
-Public WaitEnabled As Boolean = False
+Public WaitEnabled As Boolean = True
 Public Searching As Boolean
 Public EntitiesSearchables As New Collection
+Public EntitiesFound As New Entity[]
+Public SearchingSpeed As Integer = 250   ' la cantidad de entidades que busco por 0.1 segundos
 
 ' poi
 
@@ -160,7 +162,7 @@ Public Function CheckAboveEntities(xr As Float, Yr As Float, Optional iTolerance
     Searching = True
 
     'CollectEntitiesAroundMouse(xr, yr, iTolerance)
-
+    EntitiesFound.Clear
     Do
         If gcd.flgQuitSearch Then Break
         e = CheckAboveEntity(xr, yr,, e)
@@ -200,7 +202,6 @@ Public Function CheckBestPOI(xr As Float, Yr As Float, Optional eExclude As Enti
         If gcd.flgQuitSearch Then Break
         If e = eExclude Then Continue
         If e = gcd.Drawing.Sheet.SkipSearch Then Continue
-        If WaitEnabled Then Wait
 
         If e.Gender = "INSERT" Then Continue
         CurrentPoint = CheckPOI(xr, yr, e)
@@ -231,7 +232,7 @@ Public Function CheckBestPOI(xr As Float, Yr As Float, Optional eExclude As Enti
 End
 
 '' Veo si estoy sobre una entidad y la devuelvo
-Public Function CheckAboveEntity(xr As Float, Yr As Float, Optional iTolerance As Integer = 12, SkipEntiy As Entity) As Entity
+Public Function CheckAboveEntity(xr As Float, Yr As Float, Optional iTolerance As Integer = 12, SkipEntiy As Entity) As Entity[]
 
     Dim iVisible As Integer
     Dim Found As Boolean = True
@@ -246,8 +247,16 @@ Public Function CheckAboveEntity(xr As Float, Yr As Float, Optional iTolerance A
     eBounded = Null
     ePolyline = Null
 
+    EntitiesFound.Clear
+
     For Each eVisible In gcd.Drawing.Sheet.EntitiesVisibles
-        If WaitEnabled Then Wait
+        If WaitEnabled Then
+
+            If iVisible = SearchingSpeed Then
+                Wait 0
+                iVisible = 0
+            Endif
+        End If
         If gcd.flgQuitSearch Then Break
         Inc iVisible
         'If iVisible
@@ -259,29 +268,29 @@ Public Function CheckAboveEntity(xr As Float, Yr As Float, Optional iTolerance A
 
         If eVisible = gcd.Drawing.Sheet.SkipSearch Then Continue
 
-        If Gcd.CCC[eVisible.gender].overme(eVisible, xr, yr, tolerance) Then
-            If WaitEnabled Then Wait
-            'Debug eVisible.id, Rnd()
-
-            Found = True
-            If eVisible.Container.Parent Then
-
-                ePartFound = eVisible
-                eInsertFound = eVisible.Container.Parent
-
-                'eInsertFound = gcd.Drawing.Entities[eVisible.HandleOwner]
-            Else If eVisible.Polygon.Count > 0 Then
-                eBounded = eVisible
-            Else If eVisible.PolyLine.Count > 0 Then
-                ePolyline = eVisible
-
-            Else
-
-                eFound = eVisible
-
-                Break
-            End If
-        End If
+        If Gcd.CCC[eVisible.gender].overme(eVisible, xr, yr, tolerance) Then EntitiesFound.Add(eVisible)
+        '     'If WaitEnabled Then Wait 0
+        '     'Debug eVisible.id, Rnd()
+        '
+        '     Found = True
+        '     If eVisible.Container.Parent Then
+        '
+        '         ePartFound = eVisible
+        '         eInsertFound = eVisible.Container.Parent
+        '
+        '         'eInsertFound = gcd.Drawing.Entities[eVisible.HandleOwner]
+        '     Else If eVisible.Polygon.Count > 0 Then
+        '         eBounded = eVisible
+        '     Else If eVisible.PolyLine.Count > 0 Then
+        '         ePolyline = eVisible
+        '
+        '     Else
+        '
+        '         eFound = eVisible
+        '
+        '         Break
+        '     End If
+        ' End If
 
         'utils.DoEvents(0.01000)
 
@@ -289,14 +298,14 @@ Public Function CheckAboveEntity(xr As Float, Yr As Float, Optional iTolerance A
 
     gcd.flgSearchingAllowed = True
 
-    If Found Then                           ' devuelvo con orden de prelacion
-        If eFound Then Return eFound        ' primero las lineas
-        If ePolyline Then Return ePolyline  ' luego las Poly
-        If eBounded Then Return eBounded    ' luego Polygonos
-        Return ePartFound 'eInsertFound                 ' luego Insertos
-    Else
-        Return Null
-    End If
+    ' If Found Then                           ' devuelvo con orden de prelacion
+    '     If eFound Then Return eFound        ' primero las lineas
+    '     If ePolyline Then Return ePolyline  ' luego las Poly
+    '     If eBounded Then Return eBounded    ' luego Polygonos
+    '     Return ePartFound 'eInsertFound                 ' luego Insertos
+    ' Else
+    Return EntitiesFound
+    ' End If
 
 End
 
@@ -380,7 +389,7 @@ Public Sub CheckPOI(xr As Float, Yr As Float, Optional e As Entity) As Float[]
             ShortestDistance = 1e10
             For Each ePart In e.pBlock.Entities
                 If gcd.flgQuitSearch Then Break
-                If WaitEnabled Then Wait
+                If WaitEnabled Then Wait 0
                 CurrentPoint = CheckPOI(Xr, Yr, ePart)
 
                 If CurrentPoint[2] > 0 Then
