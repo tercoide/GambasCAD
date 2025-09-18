@@ -57,6 +57,8 @@ Public tskReSearch As TskSearch
 
 Public ActivationCompleted As Boolean
 
+Public camera As GlCamera
+
 'Public Printer1 As New Printer
 
 Public Sub DrawTimer_Timer()
@@ -377,10 +379,6 @@ Public Sub glarea1_resize()
 
 End
 
-Public Sub GLArea1_open()
-
-End
-
 Public Sub form_Arrange()
 
     ' Dim i As Integer
@@ -401,121 +399,84 @@ Public Sub form_Arrange()
 
 End
 
-Public Sub GLArea1_draw()
+Private Sub Draw_Model()
 
-    Dim iParent As Integer
-    Dim i, BackGroundColor As Integer
+    Dim L As Layer
+
+    For Each L In gcd.Drawing.Layers
+        If L.Visible And Not l.Frozen Then gl.CallList(L.glList)
+    Next
+
+End
+
+Private Sub Draw_Paper()
+
     Dim L As Layer
     Dim vpt As Viewport
-    Dim e As Entity
+    Dim i, BackGroundColor As Integer
 
-    If Not gcd.DrawingReady Then Return
-    Inc benGLAreaRefresh
-    gl.Clear(gl.DEPTH_BUFFER_BIT Or gl.COLOR_BUFFER_BIT)
-
-    gl.LoadIdentity
-    gl.Translatef(gcd.Drawing.Sheet.PanX, gcd.Drawing.Sheet.PanY, 0)
-    gl.Scalef(gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom, 1)
-
-    '---------------------------------------------------
-    gl.Translatef(-gcd.Drawing.Sheet.PanBaseRealX, -gcd.Drawing.Sheet.PanBaseRealY, 0)
-    gcd.clsJob.Draw()
-    gl.Translatef(gcd.Drawing.Sheet.PanBaseRealX, gcd.Drawing.Sheet.PanBaseRealY, 0)
-    '--------------------------------------------------------------------
-
-    If gcd.DrawHoveredEntity Then
-
-        ' If gcd.Drawing.HoveredInsert Then
-        '     gl.CallList(gcd.Drawing.HoveredInsert.glDrwListRemark)
-        ' Else
-        If gcd.Drawing.HoveredEntity Then
-            If gcd.Drawing.HoveredEntity.glDrwListRemark > 0 Then
-                gl.CallList(gcd.Drawing.HoveredEntity.glDrwListRemark)
-            Else
-                gcd.CCC[gcd.Drawing.HoveredEntity.Gender].DrawRemark(gcd.Drawing.HoveredEntity)
-            End If
-        End If
-    End If
-
-    'gcd.clsJob.Draw()
-    If Not gcd.Drawing.Sheet.IsModel Then   ' Sheet view
-
-        For Each vpt In gcd.Drawing.Sheet.Viewports
-            If Not vpt.Visibile Then Continue
-            gl.LoadIdentity
-
-            ' el scissor no se ve afectado por las trnasformaciones!!!!!!!!
-            ' se aplica al Viewport XLow,Ylow,Width,Heigth
-
-            'glx.Rectangle2D(-GLArea1.W / 2 + gcd.XPix(vpt.X0), GLArea1.h / 2 - gcd.YPix(vpt.Y0), gcd.Pixels(vpt.X1 - vpt.x0), gcd.Pixels(vpt.Y1 - vpt.y0))
-
-            gl.Scissor(gcd.XPix(vpt.X0), GLArea1.h - gcd.YPix(vpt.Y0), gcd.Pixels(Abs(vpt.X1 - vpt.x0)), gcd.Pixels(Abs(vpt.Y1 - vpt.y0)))
-
-            gl.Translatef(gcd.Drawing.Sheet.PanX, gcd.Drawing.Sheet.PanY, 0)
-
-            gl.Scalef(gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom, 1)
-
-            gl.Translatef(vpt.PanX, vpt.PanY, 0)
-            gl.Scalef(vpt.ScaleZoom, vpt.ScaleZoom, 1)
-
-            gl.Enable(GL.sCISSOR_TEST)
-
-            For Each L In vpt.Layers
-                'For Each L In gcd.Drawing.Layers
-                If L.Visible And Not l.Frozen Then
-                    gl.CallList(L.glList)
-                End If
-            Next
-            gl.Disable(gl.SCISSOR_TEST)
-        Next
-
-        'gl.Viewport(0, 0, gcd.Drawing.GLAreaInUse.W, gcd.Drawing.GLAreaInUse.h)
-
+    For Each vpt In gcd.Drawing.Sheet.Viewports
+        If Not vpt.Visibile Then Continue
         gl.LoadIdentity
+
+        ' el scissor no se ve afectado por las trnasformaciones!!!!!!!!
+        ' se aplica al Viewport XLow,Ylow,Width,Heigth
+
+        'glx.Rectangle2D(-GLArea1.W / 2 + gcd.XPix(vpt.X0), GLArea1.h / 2 - gcd.YPix(vpt.Y0), gcd.Pixels(vpt.X1 - vpt.x0), gcd.Pixels(vpt.Y1 - vpt.y0))
+
+        gl.Scissor(gcd.XPix(vpt.X0), GLArea1.h - gcd.YPix(vpt.Y0), gcd.Pixels(Abs(vpt.X1 - vpt.x0)), gcd.Pixels(Abs(vpt.Y1 - vpt.y0)))
 
         gl.Translatef(gcd.Drawing.Sheet.PanX, gcd.Drawing.Sheet.PanY, 0)
 
         gl.Scalef(gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom, 1)
 
-        ' For Each e In gcd.Drawing.Sheet.Entities
-        '     If e.Visible Then gl.CallList(e.glDrwList)
-        ' Next
+        gl.Translatef(vpt.PanX, vpt.PanY, 0)
+        gl.Scalef(vpt.ScaleZoom, vpt.ScaleZoom, 1)
 
-        gl.CallList(gcd.Drawing.Sheet.GlListAllEntities)
+        gl.Enable(GL.sCISSOR_TEST)
 
-        ' esto representa la hoja a imprimir
-
-        If gcd.Drawing.Sheet.Viewport Then ' tenemos un viewport activo
-            BackGroundColor = Color.LightGray
-            glx.Rectangle2D(gcd.Drawing.Sheet.Viewport.x0, gcd.Drawing.Sheet.Viewport.Y0, gcd.Drawing.Sheet.Viewport.X1 - gcd.Drawing.Sheet.Viewport.x0, gcd.Drawing.Sheet.Viewport.y1 - gcd.Drawing.Sheet.Viewport.y0, gcd.Drawing.Sheet.BackGroundColor,,,,,,, 2)
-        Else
-            BackGroundColor = gcd.Drawing.Sheet.BackGroundColor
-        End If
-
-        ' depre porque esto no parece ser necesario
-        'glx.Rectangle2D(0, 0, gcd.Drawing.Sheet.pPrintStyle.PaperSizeW, gcd.Drawing.Sheet.pPrintStyle.PaperSizeH, BackGroundColor,,,,,,, 2)
-
-    Else ' Model view
-
-        For Each L In gcd.Drawing.Layers
-            If L.Visible And Not l.Frozen Then gl.CallList(L.glList)
+        For Each L In vpt.Layers
+            'For Each L In gcd.Drawing.Layers
+            If L.Visible And Not l.Frozen Then
+                gl.CallList(L.glList)
+            End If
         Next
+        gl.Disable(gl.SCISSOR_TEST)
+    Next
 
+    'gl.Viewport(0, 0, gcd.Drawing.GLAreaInUse.W, gcd.Drawing.GLAreaInUse.h)
+
+    gl.LoadIdentity
+
+    gl.Translatef(gcd.Drawing.Sheet.PanX, gcd.Drawing.Sheet.PanY, 0)
+
+    gl.Scalef(gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom, 1)
+
+    ' For Each e In gcd.Drawing.Sheet.Entities
+    '     If e.Visible Then gl.CallList(e.glDrwList)
+    ' Next
+
+    gl.CallList(gcd.Drawing.Sheet.GlListAllEntities)
+
+    ' esto representa la hoja a imprimir
+
+    If gcd.Drawing.Sheet.Viewport Then ' tenemos un viewport activo
+        BackGroundColor = Color.LightGray
+        glx.Rectangle2D(gcd.Drawing.Sheet.Viewport.x0, gcd.Drawing.Sheet.Viewport.Y0, gcd.Drawing.Sheet.Viewport.X1 - gcd.Drawing.Sheet.Viewport.x0, gcd.Drawing.Sheet.Viewport.y1 - gcd.Drawing.Sheet.Viewport.y0, gcd.Drawing.Sheet.BackGroundColor,,,,,,, 2)
+    Else
+        BackGroundColor = gcd.Drawing.Sheet.BackGroundColor
     End If
 
-    ' el orden del dibujo es importante en paint, porque una cosa tapa a la otra; en openGL aparentemente es al reves, lo primero se dibuja ultimo
+    ' depre porque esto no parece ser necesario
+    'glx.Rectangle2D(0, 0, gcd.Drawing.Sheet.pPrintStyle.PaperSizeW, gcd.Drawing.Sheet.pPrintStyle.PaperSizeH, BackGroundColor,,,,,,, 2)
 
-    gl.PushMatrix()
-    gl.Translatef(-gcd.Drawing.Sheet.PanBaseRealX, -gcd.Drawing.Sheet.PanBaseRealY, 0)
+End
 
-    ' If gcd.DrawBounds Then DrawingAIds.DrawPolygons
+Private Sub Draw_Model3D()
 
-    'DrawingAIds.DrawCoordenadas
+End
 
-    DrawingAIds.DibujaHelper
-
-    '
-    'clsEntities.DrawArrays()
+Private Sub Draw_Poi()
 
     ' POI dinamicos
     If gcd.Drawing.flgShowPOIinfo And gcd.Drawing.iEntity.Count > 0 Then
@@ -542,12 +503,11 @@ Public Sub GLArea1_draw()
     If gcd.Drawing.GrIdActive Then
         gl.CallList(gcd.Drawing.GLListGrId)
     End If
-    ' If gcd.flgNewPosition Then
-    '     ReCollect
-    '     gcd.flgNewPosition = False
-    ' End If
 
-    gl.PopMatrix()
+End
+
+Private Sub Draw_Test()
+
     ' test area
     ' gl.LoadIdentity
     '
@@ -591,6 +551,63 @@ Public Sub GLArea1_draw()
     ' flx2 = puntos.LinePolyIntersection([230, 65, -20, 30], flx2)
     ' flx = puntos.DashedLineStrip(flx2, [5, -2.5], 1, 3, True)
     ' glx.DrawLines(flx, Color.Yellow)
+
+End
+
+Public Sub GLArea1_draw()
+
+    Dim iParent As Integer
+    Dim i, BackGroundColor As Integer
+    Dim L As Layer
+    Dim vpt As Viewport
+    Dim e As Entity
+
+    If Not gcd.DrawingReady Then Return
+    Inc benGLAreaRefresh
+    gl.Clear(gl.DEPTH_BUFFER_BIT Or gl.COLOR_BUFFER_BIT)
+
+    gl.LoadIdentity
+    gl.Translatef(gcd.Drawing.Sheet.PanX, gcd.Drawing.Sheet.PanY, gcd.Drawing.Sheet.PanZ)
+    gl.Scalef(gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom)
+    gl.Rotatef(gcd.Drawing.Sheet.RotX, 1, 0, 0)
+    gl.Rotatef(gcd.Drawing.Sheet.RotY, 0, 1, 0)
+    gl.Rotatef(gcd.Drawing.Sheet.RotZ, 0, 0, 1)
+    '---------------------------------------------------
+    gl.Translatef(-gcd.Drawing.Sheet.PanBaseRealX, -gcd.Drawing.Sheet.PanBaseRealY, 0)
+    gcd.clsJob.Draw()
+    gl.Translatef(gcd.Drawing.Sheet.PanBaseRealX, gcd.Drawing.Sheet.PanBaseRealY, 0)
+    '--------------------------------------------------------------------
+
+    If gcd.DrawHoveredEntity Then
+
+        If gcd.Drawing.HoveredEntity Then
+            If gcd.Drawing.HoveredEntity.glDrwListRemark > 0 Then
+                gl.CallList(gcd.Drawing.HoveredEntity.glDrwListRemark)
+            Else
+                gcd.CCC[gcd.Drawing.HoveredEntity.Gender].DrawRemark(gcd.Drawing.HoveredEntity)
+            End If
+        End If
+    End If
+
+    If gcd.Drawing.Sheet.Is3D Then
+
+        'gcd.clsJob.Draw()
+    Else If Not gcd.Drawing.Sheet.IsModel Then   ' Sheet view
+
+        Draw_Paper
+
+    Else ' Model view
+        Draw_Model
+
+    End If
+
+    ' el orden del dibujo es importante en paint, porque una cosa tapa a la otra; en openGL aparentemente es al reves, lo primero se dibuja ultimo
+
+    gl.Translatef(-gcd.Drawing.Sheet.PanBaseRealX, -gcd.Drawing.Sheet.PanBaseRealY, 0)
+
+    DrawingAIds.DibujaHelper
+
+    Draw_Poi
 
 End
 
@@ -1575,22 +1592,24 @@ Public Sub tabSheets_Click()
         gcd.Drawing.Sheet = Last.current.tag
 
         gcd.Drawing.LastLayer = gcd.Drawing.CurrLayer
+        If gcd.Drawing.Sheet.Is3D Then
 
-        Me.GLArea1 = gcd.Drawing.Sheet.GLSheet
-        GLArea1.Enabled = True
-        'Object.Attach(GLArea1, Me, "GLArea1")
+        Else
+            Me.GLArea1 = gcd.Drawing.Sheet.GLSheet
+            GLArea1.Enabled = True
+            'Object.Attach(GLArea1, Me, "GLArea1")
 
-        Me.GLArea1.Refresh
+            Me.GLArea1.Refresh
 
-        If Not gcd.Drawing.Sheet.Shown Then
-            'cadZoomE.Start()
-            gcd.Drawing.Sheet.Shown = True
+            If Not gcd.Drawing.Sheet.Shown Then
+                'cadZoomE.Start()
+                gcd.Drawing.Sheet.Shown = True
+            End If
+
+            Me.ReCollect
+
+            'Debug gcd.Drawing.FileName, gcd.Drawing.Sheet.Name
         End If
-
-        Me.ReCollect
-
-        'Debug gcd.Drawing.FileName, gcd.Drawing.Sheet.Name
-
     End If
 
 End
@@ -1632,7 +1651,7 @@ Public Function NewTabForDrawing(nDrawing As Drawing)
     MinOrder = 1000
     For Each s In nDrawing.Sheets
         If s.Name = "Model" Then Continue
-
+        'If s.Name = "Model3D" Then Continue
         If s.TabOrder > MaxOrder Then MaxOrder = s.TabOrder
         If s.TabOrder < MinOrder Then MinOrder = s.TabOrder
 
@@ -1641,9 +1660,9 @@ Public Function NewTabForDrawing(nDrawing As Drawing)
 
         For Each s In nDrawing.Sheets
             If s.Name = "Model" Then Continue
-
+            'If s.Name = "Model3D" Then Continue
             If i = s.TabOrder Then
-                NewSheet(tabFileNew, s)
+                NewSheet(tabFileNew, s,, s.Is3D)
                 Break
             End If
 
@@ -1661,14 +1680,14 @@ Public Function NewTabForDrawing(nDrawing As Drawing)
 End
 
 '' Crea una nueva Tab para alojar una nueva hoja
-Public Function NewSheet(tabSheets As TabPanel, s As Sheet, Optional UseFirst As Boolean = False)
+Public Function NewSheet(tabSheets As TabPanel, s As Sheet, Optional UseFirst As Boolean = False, Is3D As Boolean = False)
 
     Dim i As Integer
     Dim glaFile2 As GLArea
+    Dim scene As Scene3d
 
     InUse = True
     gcd.DrawingReady = False
-
     If Not UseFirst Then
         tabSheets.Count += 1
         tabSheets.Index = tabSheets.Count - 1
@@ -1677,26 +1696,35 @@ Public Function NewSheet(tabSheets As TabPanel, s As Sheet, Optional UseFirst As
     End If
     tabSheets.Text = s.Name
     tabSheets.Refresh
+    If Is3D Then
 
-    glaFile2 = New GLArea(tabSheets.Current) As "glarea1"
+        scene = New Scene3d(tabSheets.Current) As "glScene3d"
+        scene.BackGroundColor = Config.ModelBackgroundColor
+        scene.Expand = True
+        scene.Tracking = True
+        scene.Mouse = Cursor.CrossHair
+        s.scene = scene
+    Else
 
-    glaFile2.Background = Config.ModelBackgroundColor
-    glaFile2.Expand = True
-    glaFile2.Tracking = True
-    glaFile2.Mouse = Cursor.CrossHair
-    glaFile2.Refresh
+        glaFile2 = New GLArea(tabSheets.Current) As "glarea1"
 
-    ' Object.Attach(glaFile2, Me, "GLArea1")
-    GLArea1 = glaFile2
+        glaFile2.Background = Config.ModelBackgroundColor
+        glaFile2.Expand = True
+        glaFile2.Tracking = True
+        glaFile2.Mouse = Cursor.CrossHair
+        glaFile2.Refresh
 
-    s.GLSheet = glaFile2
-    's.GLSheet.Refresh
+        ' Object.Attach(glaFile2, Me, "GLArea1")
+        GLArea1 = glaFile2
+        glarea1.Cursor = gcd.CursorCross
+        s.GLSheet = glaFile2
+        's.GLSheet.Refresh
 
+        glx.Resize(glarea1)
+
+    End If
     tabSheets.Current.Tag = s
     tabSheets.Current.Refresh
-    glarea1.Cursor = gcd.CursorCross
-
-    glx.Resize(glarea1)
     gcd.DrawingReady = True
     InUse = False
 
@@ -2041,5 +2069,9 @@ End
 Public Sub splRigth_Resize()
 
     Config.splRigth = splRigth.Layout
+
+End
+
+Public Sub panEntities_MouseDown()
 
 End

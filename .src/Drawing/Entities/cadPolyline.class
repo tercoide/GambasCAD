@@ -44,7 +44,12 @@ End
 
 Public Sub Draw(oE As Entity)
 
-    glx.PolyLines(oe.PolyLine, gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
+    If (oe.iParam[Me.iiiPolylineType] And 64) = 64 Then
+
+        'glx.DrawTriangles3D(oe.p, oe.PolyLine, gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer))
+    Else
+        glx.PolyLines(oe.PolyLine, gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
+    End If
 
 End
 
@@ -52,23 +57,118 @@ End
 Public Function BuildGeometry(E As Entity, Optional density As Float)
 
     Dim ePart As Entity
+    Dim f As Float
+    Dim i, ii, iii As Integer
+    Dim v1, v2, n As New Punto3d
 
     If Not E.Visible Then Return
 
     ' construyo una poliliea
     e.PolyLine.Clear
-    For Each ePart In e.pBlock.entities
-        If ePart.Gender Like "VERTEX*" Then
+    e.P.Clear
+    ' Voy a procesar distinto si es una Poly comun o una cara
+    If e.iParam[Me.iiiPolylineType] And 64 = 0 Then       ' Polilinea =======================================================
 
-            If ((CInt(ePart.fParam[cadVERTEX.ipaFlags70])) Xor 128) = 0 Then Continue
+        For Each ePart In e.pBlock.entities
+            If ePart.Gender Like "VERTEX*" Then
 
-            e.PolyLine.Add(ePart.P[0])
-            e.PolyLine.Add(ePart.P[1])
-            'Endif
-        Else If ePart.Gender <> "SEQEND" Then
-            Stop
-        End If
-    Next
+                If ((CInt(ePart.fParam[cadVERTEX.ipaFlags70])) Xor 128) = 0 Then Continue
+
+                e.PolyLine.Add(ePart.P[0])
+                e.PolyLine.Add(ePart.P[1])
+                'Endif
+                ' ======================= Mesh 3D
+
+            Else If ePart.Gender <> "SEQEND" Then
+                Stop
+            End If
+        Next
+    Else If e.iParam[Me.iiiPolylineType] And 64 = 64 Then     ' Mesh 3D=============================================================
+        For Each ePart In e.pBlock.entities
+            If ePart.Gender Like "VERTEX*" Then
+
+                If epart.fParam[cadVERTEX.ipaMeshIndex1_71] = 0 Then
+                    e.P.Add(ePart.P[0])
+                    e.P.Add(ePart.P[1])                 ' es un vertice
+                    e.P.Add(ePart.P[2])
+                Else    ' es una cara
+                    ' vertice 1
+                    i = Abs(ePart.fParam[cadVERTEX.ipaMeshIndex1_71])
+                    e.PolyLine.Add(e.P[(i - 1) * 3])        ' X
+                    e.PolyLine.Add(e.P[(i - 1) * 3 + 1])    ' Y
+                    e.PolyLine.Add(e.P[(i - 1) * 3 + 2])    ' Z
+
+                    If ePart.fParam[cadVERTEX.ipaMeshIndex1_71] > 0 Then gcd.Drawing.Sheet.model3d.xyzWireframe.Insert(e.PolyLine.Copy(0, 3))
+
+                    ' vertice 2
+                    i = Abs(ePart.fParam[cadVERTEX.ipaMeshIndex2_72])
+                    e.PolyLine.Add(e.P[(i - 1) * 3])        ' X
+                    e.PolyLine.Add(e.P[(i - 1) * 3 + 1])    ' Y
+                    e.PolyLine.Add(e.P[(i - 1) * 3 + 2])    ' Z
+
+                    If ePart.fParam[cadVERTEX.ipaMeshIndex2_72] > 0 Then gcd.Drawing.Sheet.model3d.xyzWireframe.Insert(e.PolyLine.Copy(3, 3))
+
+                    ' vertice 3
+                    i = Abs(ePart.fParam[cadVERTEX.ipaMeshIndex3_73])
+                    e.PolyLine.Add(e.P[(i - 1) * 3])        ' X
+                    e.PolyLine.Add(e.P[(i - 1) * 3 + 1])    ' Y
+                    e.PolyLine.Add(e.P[(i - 1) * 3 + 2])    ' Z
+
+                    If ePart.fParam[cadVERTEX.ipaMeshIndex3_73] > 0 Then gcd.Drawing.Sheet.model3d.xyzWireframe.Insert(e.PolyLine.Copy(6, 3))
+
+                    If ePart.fParam[cadVERTEX.ipaMeshIndex4_74] <> 0 Then ' esta cara es un Quad
+                        ' vertice 1
+                        i = Abs(ePart.fParam[cadVERTEX.ipaMeshIndex1_71])
+                        e.PolyLine.Add(e.P[(i - 1) * 3])        ' X
+                        e.PolyLine.Add(e.P[(i - 1) * 3 + 1])    ' Y
+                        e.PolyLine.Add(e.P[(i - 1) * 3] + 2)    ' Z
+
+                        ' vertice 3
+                        i = Abs(ePart.fParam[cadVERTEX.ipaMeshIndex3_73])
+                        e.PolyLine.Add(e.P[(i - 1) * 3])        ' X
+                        e.PolyLine.Add(e.P[(i - 1) * 3 + 1])    ' Y
+                        e.PolyLine.Add(e.P[(i - 1) * 3 + 2])    ' Z
+
+                        ' vertice 4
+                        i = Abs(ePart.fParam[cadVERTEX.ipaMeshIndex4_74])
+                        e.PolyLine.Add(e.P[(i - 1) * 3])        ' X
+                        e.PolyLine.Add(e.P[(i - 1) * 3 + 1])    ' Y
+                        e.PolyLine.Add(e.P[(i - 1) * 3 + 2])    ' Z
+                    Endif
+
+                End If
+
+            Else If ePart.Gender <> "SEQEND" Then
+                Stop
+            End If
+            ' Else If e.pBlock.Gender = "MODEL3D" Then
+            '
+        Next
+
+        ' creo el model3d
+        For Each f In e.PolyLine
+            gcd.Drawing.Sheet.model3d.xyzVertex.Add(f)
+        Next
+
+        ' normales
+        For i = 0 To e.PolyLine.Max - 8 Step 9
+            v1.x = e.PolyLine[i] - e.PolyLine[i + 3]
+            v1.y = e.PolyLine[i + 1] - e.PolyLine[i + 4]
+            v1.z = e.PolyLine[i + 2] - e.PolyLine[i + 5]
+
+            v2.x = e.PolyLine[i + 6] - e.PolyLine[i + 3]
+            v2.y = e.PolyLine[i + 7] - e.PolyLine[i + 4]
+            v2.z = e.PolyLine[i + 8] - e.PolyLine[i + 5]
+
+            modAlgebra.Cross(v1, v2, n)
+            modAlgebra.Normalizar(n)
+            For ii = 1 To 3
+                gcd.Drawing.Sheet.model3d.xyzNormals.Add(n.x)
+                gcd.Drawing.Sheet.model3d.xyzNormals.Add(n.y)
+                gcd.Drawing.Sheet.model3d.xyzNormals.Add(n.z)
+            Next
+        Next
+    End If
     If (e.Extrusion[2] = -1) Then
         gcd.CCC[e.gender].Scale(e, -1, 1)
         e.Extrusion[0] = 0
@@ -81,7 +181,12 @@ End
 
 Public Sub DrawSelected(oE As Entity)
 
-    glx.PolyLines(oe.PolyLine, Color.Gradient(gcd.GetGBColor(oE.Colour, oe.pLayer), Config.ModelBackgroundColor), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
+    If (oe.iParam[Me.iiiPolylineType] And 64) = 64 Then
+
+        'glx.DrawTriangles3D(oe.p, oe.PolyLine, gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer))
+    Else
+        glx.PolyLines(oe.PolyLine, Color.Gradient(gcd.GetGBColor(oE.Colour, oe.pLayer), Config.ModelBackgroundColor), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
+    End If
 
 End
 
@@ -117,7 +222,7 @@ Public Function SaveDxfData(e As Entity) As Boolean
     dxf.SaveCodeInv(CStr(e.p[1]), dxf.codY0)
     dxf.SaveCodeInv("0", DXF.codZ0)
     Try dxf.SaveCodeInv(CStr(e.fParam[0]), "39")
-    dxf.SaveCodeInv(CStr(e.iParam[Me.iiiPolylineClosed]), "70")
+    dxf.SaveCodeInv(CStr(e.iParam[Me.iiiPolylineType]), "70")
 
     dxf.SaveCodeInv(CStr(e.Extrusion[0]), "210")
     dxf.SaveCodeInv(CStr(e.Extrusion[1]), "220")
@@ -130,7 +235,6 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     Dim i As Integer
 
     e.pBlock = New Block
-
     e.P.Clear
     For i = 0 To sClaves.Max
 
@@ -139,9 +243,15 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
         'If sClaves[i] = "30" Then e.P.Add(CFloat(sValues[i]))
         'If sClaves[i] = "39" Then e.fParam.Add(CFloat(sValues[i]))
 
-        If sClaves[i] = "70" Then e.iParam[Me.iiiPolylineClosed] = CInt(sValues[i])
+        If sClaves[i] = "70" Then e.iParam[Me.iiiPolylineType] = CInt(sValues[i])
 
     Next
+
+    If e.iParam[Me.iiiPolylineType] And 64 = 64 Then ' this is a polyfacemesh
+        e.pBlock.Model3d = New Model3d
+    End If
+
+    'End If
     Return True
 
     ' catch

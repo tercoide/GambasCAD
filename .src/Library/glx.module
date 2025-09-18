@@ -2959,6 +2959,25 @@ Fast Unsafe Public Function DrawTriangles(vertices As Float[], Optional colour A
 
 End
 
+Fast Unsafe Public Function DrawTriangles3D(vertices3D As Float[], faces As Float[], Optional colour As Integer = 0, FillColor As Integer = 0, LineWIdth As Float = 1)
+
+    Dim i As Integer
+
+    'glColorRGB(colour)
+    gl.LineWIdth(LineWIdth) ' obsoleto en WebGL
+
+    gl.Begin(gl.TRIANGLES)
+
+    For i = 0 To faces.max Step 3
+
+        glColorRGB(colour)
+        gl.Vertex3f(vertices3d[faces[i]], vertices3d[faces[i + 1]], vertices3d[faces[i + 2]])
+
+    Next
+    gl.end
+
+End
+
 '' Dibuja un circulo
 
 Public Function CIRCLE(center As Float[], radious As Float, Optional colour As Integer = 0, Filled As Boolean = False, LineWIdth As Float = 1, dashes As Float[] = [])
@@ -3001,12 +3020,12 @@ Public Function CIRCLE(center As Float[], radious As Float, Optional colour As I
 
 End
 
-Fast Unsafe Public Sub glColorRGB(gbColor As Integer)
+Fast Unsafe Public Sub glColorRGB(gbColor As Integer, Optional alpha As Float = 1.0)
     ' set the color to GL
 
     Dim r, g, b, a As Float
 
-    a = 1 - Color.GetAlpha(gbColor) / 255
+    a = alpha ' 1 - Color.GetAlpha(gbColor) / 255
     r = (Shr(gbColor, 16) And 255) / 255
     g = (Shr(gbColor, 8) And 255) / 255
     b = (gbColor And 255) / 255
@@ -3036,21 +3055,14 @@ Public Sub ClearColor(iColor As Integer)
     gl.ClearColor(rgba[0], rgba[1], rgba[2], rgba[3])
 
 End
+' Define un ColorMaterial: rgba ambient , rgba diffuse, rgba specular, shininess (13 valores en total)
 
-Public Sub glMaterial(gbColor As Integer, Optional Alpha As Float = 0)
-    ' set the color to GL
+Public Sub glMaterial(fMaterial As Float[])
 
-    Dim r As Float, g As Float, b As Float
-    Dim MyColor As New Float[]
-
-    'If gbcolor > 0 Then Stop
-    r = (Shr(gbColor, 16) And 255) / 256
-    g = (Shr(gbColor, 8) And 255) / 256
-    b = (gbColor And 255) / 256
-    MyColor = [r, g, b, Alpha]
-
-    gl.Materialfv(gl.FRONT_AND_BACK, gl.AMBIENT_AND_DIFFUSE, MyColor)
-    gl.Materialf(gl.FRONT_AND_BACK, gl.SHININESS, 45)
+    gl.Materialfv(gl.FRONT_AND_BACK, gl.AMBIENT, fMaterial.Copy(0, 4))
+    gl.Materialfv(gl.FRONT_AND_BACK, gl.DIFFUSE, fMaterial.Copy(4, 4))
+    gl.Materialfv(gl.FRONT_AND_BACK, gl.SPECULAR, fMaterial.Copy(8, 4))
+    gl.Materiali(gl.FRONT_AND_BACK, gl.SHININESS, CInt(fMaterial[12]))
 
 End
 
@@ -3107,15 +3119,15 @@ Public Sub glMaterialConcreto(Optional Alpha As Float = 0)
 
     gl.Materialfv(gl.FRONT_AND_BACK, gl.AMBIENT, MyColor)
 
-    MyColor = [0.4, 0.4, 0.4]
+    MyColor = [0.6, 0.6, 0.6]
 
     gl.Materialfv(gl.FRONT_AND_BACK, gl.DIFFUSE, MyColor)
 
-    MyColor = [0.6, 0.6, 0.6]
+    MyColor = [1, 1, 1]
 
     gl.Materialfv(gl.FRONT_AND_BACK, gl.SPECULAR, MyColor)
 
-    gl.Materialf(gl.FRONT_AND_BACK, gl.SHININESS, 0.25 * 128)
+    gl.Materialf(gl.FRONT_AND_BACK, gl.SHININESS, 64)
 
 End
 

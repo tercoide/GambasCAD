@@ -34,7 +34,7 @@ Public Const ContextMenu As String = ("Close polyline;_CLOSE;;;Undo last point;_
 Public Const totalpoints As Integer = 1
 ' iParam helpers
 Public Const iTotalParams As Integer = 2
-Public Const iiiPolylineClosed As Integer = 0
+Public Const iiiPolylineType As Integer = 0
 Public Const iiiBulged As Integer = 1
 
 Public iContext As Integer = 0 ' var local para usar Draw2 con Draw
@@ -199,10 +199,10 @@ Public Function SaveDxfData(e As Entity) As Boolean
     ' Los datos comunes a todas las entidades son guardados por la rutina que llama a esta
     dxf.SaveCodeInv("AcDbPolyline", "100")
     dxf.SaveCodeInv(e.P.Count / 2, "90")              ' n puntos
-    dxf.SaveCodeInv(CStr(e.iParam[Me.iiiPolylineClosed]), "70")      ' abierta =1 o cerrada =0
+    dxf.SaveCodeInv(CStr(e.iParam[Me.iiiPolylineType]), "70")      ' abierta =1 o cerrada =0
     dxf.SaveCodeInv("0", "43")
     imax = e.P.max
-    If e.iParam[Me.iiiPolylineClosed] Then imax -= 2
+    If e.iParam[Me.iiiPolylineType] Then imax -= 2
     For i = 0 To e.p.Max Step 2
         dxf.SaveCodeInv(CStr(e.p[i]), dxf.codX0)
         dxf.SaveCodeInv(CStr(e.p[i + 1]), dxf.codY0)
@@ -229,7 +229,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
         'If sClaves[i] = "90" Then mPolyLine.vertexcount = Val(sValues[i])
 
-        If sClaves[i] = "70" Then e.iParam[Me.iiiPolylineClosed] = CInt(sValues[i])        ' 0 = abierta, 1 = cerrada
+        If sClaves[i] = "70" Then e.iParam[Me.iiiPolylineType] = CInt(sValues[i])        ' 0 = abierta, 1 = cerrada
         If sClaves[i] = "10" Then
             e.p.Add(CFloat(sValues[i]))
 
@@ -245,7 +245,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
         End If
     Next
 
-    If e.iParam[Me.iiiPolylineClosed] And e.p.Count > 0 Then ' agrego el primer punto de nuevo
+    If e.iParam[Me.iiiPolylineType] And e.p.Count > 0 Then ' agrego el primer punto de nuevo
         e.p.Add(e.p[0])
         e.p.Add(e.p[1])
     End If
@@ -281,13 +281,13 @@ Public Function GripEdit(g As Grip) As Boolean
         e.P[g.AsociatedPoint * 2 + 1] = g.Y
 
         If g.AsociatedPoint = 0 Then
-            If e.iParam[Me.iiiPolylineClosed] Then
+            If e.iParam[Me.iiiPolylineType] Then
                 e.P[e.P.Max - 1] = g.X
                 e.P[e.P.Max] = g.Y
 
             Endif
         Else If g.AsociatedPoint = e.P.Max Then
-            If e.iParam[Me.iiiPolylineClosed] Then
+            If e.iParam[Me.iiiPolylineType] Then
                 e.P[0] = g.X
                 e.P[1] = g.Y
 
