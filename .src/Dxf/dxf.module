@@ -61,14 +61,13 @@ Private lpCode As String
 Private lpValue As String
 
 Private LastCodeReadIndex As Integer = 0
-Private eExports As Boolean
 
 Public hContainers As New Collection
-Private ReadTimes As New Collection
-Private ReadEntities As New Collection
-Public cEntitiesUnread As Collection
-Public nEntitiesUnread As Integer
-Public nEntitiesRead As Integer
+' Private ReadTimes As New Collection
+' Private ReadEntities As New Collection
+' Public cEntitiesUnread As Collection
+' Public nEntitiesUnread As Integer
+' Public nEntitiesRead As Integer
 
 ' Codigos del DXF
 Public Const codEntity As String = "0"
@@ -116,8 +115,7 @@ End
 ' Verbose=0 nada, 1=minimo, 2=grupos, 3=todo
 Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables As Boolean = False, IgnoreBlocks As Boolean = False, IgnoreHeader As Boolean = False, VerboseLevel As Integer = 0, UpdateGraphics As Boolean = True, ReadObjects As Boolean = True) As Boolean
 
-    Dim t As Float = Timer
-    Dim cLlaveActual, cSectionActual, cTable As Collection
+    Dim cLlaveActual As Collection
     Dim cToFill As New Collection
 
     fp = Open sFile ' For Read
@@ -127,9 +125,9 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
     LoadedBytes = 0
     LoadTotalBytes = Lof(fp)
 
-    cEntitiesUnread = New Collection
-    nEntitiesUnread = 0
-    nEntitiesRead = 0
+    ' cEntitiesUnread = New Collection
+    ' nEntitiesUnread = 0
+    ' nEntitiesRead = 0
     hContainers = New Collection        '' Clave = Handle , Dato = Colection
 
     While Not Eof(fp)
@@ -155,7 +153,7 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
             End If
 
             If lpCode = "2" And lpValue = "CLASSES" Then
-
+                ' Stop
                 Load2Classes(drw)
                 If VerboseLevel > 2 Then gcd.debugInfo("Leidas Classes",,, True)
                 Wait
@@ -273,15 +271,15 @@ Public Function LoadFile(sFile As String, drw As Drawing, Optional IgnoreTables 
 
 End
 
-Private Sub DiscardBlocks(drw As Drawing)
-
-    Dim b As Block
-
-    For Each b In drw.Blocks
-        If (Left(b.name) = "*") And (b.idAsociatedLayout <> "0") Then drw.Blocks.Remove(drw.Blocks.Key)
-    Next
-
-End
+' Private Sub DiscardBlocks(drw As Drawing)
+'
+'     Dim b As Block
+'
+'     For Each b In drw.Blocks
+'         If (Left(b.name) = "*") And (b.idAsociatedLayout <> "0") Then drw.Blocks.Remove(drw.Blocks.Key)
+'     Next
+'
+' End
 
 Private Sub ReadData()
 
@@ -324,9 +322,7 @@ Private Sub Load1HeadersDirect(Headers As Headers)
 
     Dim sVarName As String
     Dim cVariable As Variant[]
-    Dim v As Variant
-    Dim slx As New Single[]
-    Dim inx As New Integer[]
+
     Dim i As Integer
 
     ReadData
@@ -343,7 +339,7 @@ Private Sub Load1HeadersDirect(Headers As Headers)
                 If lpcode = "0" Or lpCode = "9" Then Break
                 cVariable.Add(lpvalue)
             Loop
-            If Not SetValues(sVarName, cVariable) Then gcd.debugInfo("Var " & sVarName & " not found.")
+            If Not SetValues(Headers, sVarName, cVariable) Then gcd.debugInfo("Var " & sVarName & " not found.")
             Inc i
 
         Endif
@@ -442,7 +438,7 @@ Private Sub Load3Tables(cTables As Collection)
             ' verifico que la tabla no tenga entradas, lo que me altera la carga
             If lpvalue <> "ENDTAB" Then
                 'NewObject(cTable, sTableHandle)
-                Load31Table(cTable, iTableEntries)
+                Load31Table(cTable)
             End If
         End If
         ReadData
@@ -451,7 +447,7 @@ Private Sub Load3Tables(cTables As Collection)
 End
 '' Lee todas las tables de esta table
 
-Private Sub Load31Table(cVars As Collection, iEntries As Integer)
+Private Sub Load31Table(cVars As Collection)
 
     ' Yo usare dos colecciones
 
@@ -2459,8 +2455,8 @@ Public Sub DXFtoEntity(cDxfEntities As Collection, drw As Drawing, Optional bCon
                 If entNueva.Gender = cadEndBlk.Gender Then Continue
 
                 'stats
-                If Not ReadTimes.Exist(entNueva.Gender) Then ReadTimes.Add(fTime, entNueva.Gender)
-                If Not ReadEntities.Exist(entNueva.Gender) Then ReadEntities.Add(1, entNueva.Gender)
+                ' If Not ReadTimes.Exist(entNueva.Gender) Then ReadTimes.Add(fTime, entNueva.Gender)
+                ' If Not ReadEntities.Exist(entNueva.Gender) Then ReadEntities.Add(1, entNueva.Gender)
 
                 'Debug "Contenedor", hContainer
                 ' -hBlock-Record
@@ -2512,10 +2508,10 @@ Public Sub DXFtoEntity(cDxfEntities As Collection, drw As Drawing, Optional bCon
                 '
                 ' End If
 
-                fTime = (Timer - t)
-                ReadTimes[entNueva.Gender] += fTime
-
-                ReadEntities[entNueva.Gender] = ReadEntities[entNueva.Gender] + 1
+                ' fTime = (Timer - t)
+                ' ReadTimes[entNueva.Gender] += fTime
+                '
+                ' ReadEntities[entNueva.Gender] = ReadEntities[entNueva.Gender] + 1
 
                 ' If entNueva.Gender = "HATCH" Then
                 '     ReadTimes.Add(fTime, entNueva.Handle)
@@ -2664,7 +2660,7 @@ Fast Private Function NewHandle(Optional iStart As Integer = "-1") As String
 
 End
 
-Public Function SetValues(sVarName As String, vValue As Variant[]) As Boolean
+Public Function SetValues(obj As Object, sVarName As String, vValue As Variant[]) As Boolean
 
     Dim slx As New Single[]
     Dim inx As New Integer[]
@@ -2676,26 +2672,28 @@ Public Function SetValues(sVarName As String, vValue As Variant[]) As Boolean
 
     If vValue.Count > 1 Then
         ' determino el tipo de array
-        tipo = Object.GetProperty(Me, "_" & sVarName)
+        tipo = Object.GetProperty(obj, "_" & sVarName)
         If (tipo > 9) And (tipo < 70) Then
             For Each v In vValue
                 slx.Add(v)
             Next
-            Object.SetProperty(Me, sVarName2, slx)
+            Object.SetProperty(obj, sVarName2, slx)
         Else
             For Each v In vValue
                 inx.Add(v)
             Next
-            Object.SetProperty(Me, sVarName2, inx)
+            Object.SetProperty(obj, sVarName2, inx)
         End If
 
     Else
 
-        Object.SetProperty(Me, sVarName2, vValue[0])
+        Object.SetProperty(obj, sVarName2, vValue[0])
 
     Endif
     Return True
 Catch
+
+    Debug "Error setting " & sVarName & " to object " & Object.Class(obj).Name
     Return False
 
 End
