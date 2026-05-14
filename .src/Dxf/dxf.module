@@ -843,6 +843,7 @@ Private Function Save1HeadersAndVarsDirect(drw As Drawing) As Integer
 
     Dim sValues As String
     Dim stxHeaders As String[]
+    Dim cHeaders, cDato, cValor As New Collection
 
     Print #hFIle, "999"
     Print #hFIle, "GambasCAD"
@@ -854,10 +855,25 @@ Private Function Save1HeadersAndVarsDirect(drw As Drawing) As Integer
     'Intento guardar algunas cosas utiles para cuando abra de nuevo este archivo
     drw.Headers.CLAYER = drw.CurrLayer.Name             ' Current LAYER
 
-    stxHeaders = drw.Headers.ExportDXF()
+    cHeaders = drw.Headers.cExport()
 
-    For Each sValues In stxHeaders
-        Print #hFile, sValues
+    For Each cDato In cHeaders
+        Print #hFile, "  9"
+        Print #hFile, "$" & cHeaders.Key
+        Print #hFile, Str$(cDato["tipo"])
+        Select Case cDato["tipo"]
+            Case 10 ' array
+                Print #hFile, Str$(cDato["dato"][0])
+                Print #hFile, "20"
+                Print #hFile, Str$(cDato["dato"][2])
+                Print #hFile, "30"
+                Print #hFile, Str$(cDato["dato"][3])
+
+            Case Else
+                Print #hFile, Str$(cDato["dato"])
+
+        End Select
+
     Next
     Print #hFIle, "  0"
     Print #hFIle, "ENDSEC"
@@ -1633,7 +1649,7 @@ Private Function Save5EntitiesDirect(drwToSAve As Drawing) As Integer
                         If eBlock.Gender = "ATTRIB" Then
                             bAttribPresent = True
 
-                            eBlock.idContainer = NewHandle()
+                            eBlock.Container.id = NewHandle()
                             DXFSaveCommonEntityData(eBlock)
                             Gcd.CCC[eBlock.gender].SaveDxfData(eBlock)
 
@@ -2084,7 +2100,8 @@ Public Sub ReadLayers(cLaydata As Collection, drw As Drawing)
         hLay.id = cLay[dxf.codid]
         hLay.Visible = CInt(cLay[dxf.codColor]) >= 0
         hLay.Colour = Abs(CInt(cLay[dxf.codColor]))
-        hLay.LineType = drw.LineTypes[cLay[Me.codLType]]
+        hLay.LineType = drw.LineTypes[UCase(cLay[Me.codLType])]
+        If IsNull(hLay.LineType) Then hLay.LineType = drw.LineTypes[drw.LineTypes.First]
 
         Try hLay.LineWt = cLay["370"]       ' algunos dxf no traen esta info
         If hLay.LineWt = 0 Then hLay.LineWt = 1
