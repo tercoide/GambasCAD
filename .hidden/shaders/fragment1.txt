@@ -1,0 +1,40 @@
+// GLSL version (OpenGL 3.3)
+#version 330
+// uniforms
+uniform vec4 lightPosition;             // should be in the eye space
+uniform vec4 lightAmbient;              // light ambient color
+uniform vec4 lightDiffuse;              // light diffuse color
+uniform vec4 lightSpecular;             // light specular color
+uniform sampler2D map0;                 // texture map #1
+uniform bool textureUsed;               // flag for texture
+// varyings (input)
+in vec3 esVertex;
+in vec3 esNormal;
+in vec4 color;
+in vec2 texCoord0;
+// output
+out vec4 fragColor;
+void main()
+{
+    vec3 normal = normalize(esNormal);
+    vec3 light;
+    if(lightPosition.w == 0.0)
+    {
+        light = normalize(lightPosition.xyz);
+    }
+    else
+    {
+        light = normalize(lightPosition.xyz - esVertex);
+    }
+    vec3 view = normalize(-esVertex);
+    vec3 reflectVec = reflect(-light, normal);  // 2 * N * (N dot L) - L
+
+    fragColor = lightAmbient * color;                       // begin with ambient
+    float dotNL = max(dot(normal, light), 0.0);
+    fragColor += lightDiffuse * color * dotNL;              // add diffuse
+    if(textureUsed)
+        fragColor *= texture(map0, texCoord0);              // modulate texture map
+    float dotVR = max(dot(view, reflectVec), 0.0);
+    fragColor += pow(dotVR, 128.0) * lightSpecular * color; // add specular
+    fragColor.a = color.a;                                  // keep alpha as diffuse
+}

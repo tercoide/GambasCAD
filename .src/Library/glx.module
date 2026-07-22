@@ -103,11 +103,13 @@ Public VBO_present As Boolean = False   ' si tenemos VBO que dibujar
 
 ' VBO
 Public VBO_Id As Integer                'Current VBO buffer
-Public VBO_vertex As New Single[][]
-Public VBO_colors As New Single[][]
-Public VBO_normals As New Single[][]
-Public VBO_pixels As New Single[][]
-Public VBO_Primitive As New Integer[]
+Public VBOCurrent As VBO                ' Current VBO version moderna
+Public VBOs As New Collection           ' de VBOs con una Id string
+Public VBO_vertex As New Collection
+Public VBO_colors As New Collection
+Public VBO_normals As New Collection
+Public VBO_pixels As New Collection
+Public VBO_Primitive As New Collection
 '
 ' Copyright (C) Ing Martin P Cristia
 '
@@ -2639,6 +2641,7 @@ Public Sub Init(drwContext As Object) ' only glArea for now
     Debug "GL version: " & GL.GetString(gl.VERSION)
     Debug "Chipset vendor: " & GL.GetString(gl.VENDOR)
     'gcd.debuginfo("Extensions" &  GL.GetString(gl.EXTENSIONS))
+
     Me.Initialized = True
 
 End
@@ -2712,7 +2715,7 @@ Public Sub Rombo2D(x1 As Float, y1 As Float, side As Float, Optional ColorLeft A
 End
 
 '' Dibuja un serie de lineas
-Fast Unsafe Public Function DrawLines(fVertices As Float[], Optional colour As Integer = 0, LineWIdth As Float = 1, dashes As Float[] = [])
+Public Function DrawLines(fVertices As Float[], Optional colour As Integer = 0, LineWIdth As Float = 1, dashes As Float[] = [])
 
     Dim i As Integer
     Dim r As Float, g As Float, b As Float
@@ -2724,45 +2727,24 @@ Fast Unsafe Public Function DrawLines(fVertices As Float[], Optional colour As I
     b = (Colour And 255) / 256
 
     If fvertices.Count < 2 Then Return
+    If dashes.Count > 0 Then
+        Vertices = puntos.DashedLineStrip(fvertices, dashes, 1)
+    Else
 
-    If InmediateMode Then
+        Vertices = fvertices
 
-        gl.LineWIdth(LineWIdth) ' obsoleto en WebGL
-        If dashes.Count > 0 Then
-            Vertices = puntos.DashedLineStrip(fvertices, dashes, 1)
-        Else
+    Endif
 
-            Vertices = fvertices
+    For i = 0 To vertices.Max Step 2
+        VBOCurrent.Vertex.Add(vertices[i])         'X
+        VBOCurrent.Vertex.Add(vertices[i + 1])     'Y
+        VBOCurrent.Vertex.Add(0)                   'Z
 
-        Endif
+        VBOCurrent.Colors.Add(r)                    'R
+        VBOCurrent.Colors.Add(g)                    'G
+        VBOCurrent.Colors.Add(b)                    'B
 
-        gl.Begin(gl.Lines)
-        gl.Color3f(r, g, b)
-        For i = 0 To vertices.Max Step 2
-
-            'glColorRGB(colour)
-            gl.Vertex2f(vertices[i], vertices[i + 1])
-
-        Next
-        gl.end
-
-    Else ' we as writing to an array
-        For i = 0 To vertices.Max Step 2
-            VBO_vertex[VBO_Id].Add(vertices[i])         'X
-            VBO_vertex[VBO_Id].Add(vertices[i + 1])     'Y
-            VBO_vertex[VBO_Id].Add(0)                   'Z
-
-            VBO_colors[VBO_Id].Add(r)                    'R
-            VBO_colors[VBO_Id].Add(g)                    'G
-            VBO_colors[VBO_Id].Add(b)                    'B
-
-            VBO_normals[VBO_Id].Add(0)                    'Normales apuntan al user
-            VBO_normals[VBO_Id].Add(0)                    '
-            VBO_normals[VBO_Id].Add(1)                    '
-
-        Next
-
-    End If
+    Next
 
 End
 
@@ -2896,42 +2878,60 @@ Fast Unsafe Public Function ArcPoly(xCenter As Float, yCenter As Float, radio As
 
 End
 
-Fast Unsafe Public Function PolyLines(fVertices As Float[], Optional colour As Integer = 0, LineWIdth As Float = 1, dashes As Float[] = [])
+Public Function PolyLines(fVertices As Float[], Optional colour As Integer = 0, LineWIdth As Float = 1, dashes As Float[] = [])
 
     Dim i As Integer
     Dim vertices, vertices2 As Float[]
     Dim r As Float, g As Float, b As Float
+    Dim x0, y0 As Float
 
     r = (Shr(Colour, 16) And 255) / 256
     g = (Shr(Colour, 8) And 255) / 256
     b = (Colour And 255) / 256
 
     If fvertices.Count < 2 Then Return
-    gl.LineWIdth(LineWIdth) ' obsoleto en WebGL
 
-    If dashes.count > 0 Then
+    If dashes.Count > 0 Then
         Vertices = puntos.DashedLineStrip(fvertices, dashes, 1)
-
-        gl.Begin(gl.LINES)
-        gl.Color3f(r, g, b)
-        For i = 0 To vertices.Max Step 2
-            '    glColorRGB(colour)
-            gl.Vertex2f(vertices[i], vertices[i + 1])
-        Next
-
     Else
 
         Vertices = fvertices
-        gl.Begin(gl.LINE_STRIP)
-        gl.Color3f(r, g, b)
-        For i = 0 To vertices.Max Step 2
-            'glColorRGB(colour)
-            gl.Vertex2f(vertices[i], vertices[i + 1])
-        Next
 
-    End If
+    Endif
 
-    gl.end
+    VBOCurrent.Vertex.Add(vertices[0])         'X
+    VBOCurrent.Vertex.Add(vertices[1])     'Y
+    VBOCurrent.Vertex.Add(0)                   'Z
+
+    VBOCurrent.Colors.Add(r)                    'R
+    VBOCurrent.Colors.Add(g)                    'G
+    VBOCurrent.Colors.Add(b)                    'B
+
+    For i = 2 To vertices.Max - 2 Step 2
+        VBOCurrent.Vertex.Add(vertices[i])         'X
+        VBOCurrent.Vertex.Add(vertices[i + 1])     'Y
+        VBOCurrent.Vertex.Add(0)                   'Z
+
+        VBOCurrent.Colors.Add(r)                    'R
+        VBOCurrent.Colors.Add(g)                    'G
+        VBOCurrent.Colors.Add(b)                    'B
+
+        VBOCurrent.Vertex.Add(vertices[i])         'X
+        VBOCurrent.Vertex.Add(vertices[i + 1])     'Y
+        VBOCurrent.Vertex.Add(0)                   'Z
+
+        VBOCurrent.Colors.Add(r)                    'R
+        VBOCurrent.Colors.Add(g)                    'G
+        VBOCurrent.Colors.Add(b)                    'B
+
+    Next
+    VBOCurrent.Vertex.Add(vertices[vertices.Max - 1])         'X
+    VBOCurrent.Vertex.Add(vertices[vertices.max])     'Y
+    VBOCurrent.Vertex.Add(0)                   'Z
+
+    VBOCurrent.Colors.Add(r)                    'R
+    VBOCurrent.Colors.Add(g)                    'G
+    VBOCurrent.Colors.Add(b)                    'B
 
 End
 
@@ -3852,6 +3852,16 @@ Public Sub TexturedTriangle2D(x1 As Float, y1 As Float, x2 As Float, y2 As Float
 
 End
 
+Public Function InitVBO(id As String, Optional UseNormals As Boolean = True) As Boolean
+
+    Dim vbo1 As New VBO
+
+    VBOs.Add(vbo1, id)
+
+    Return True
+
+End
+
 Public Function createVBO(data As Pointer, dataSizeBytes As Integer, usage As Integer) As Integer
 
     Dim e, Id As Integer = 0 ' 0 Is Reserved, glGenBuffersARB()will Return non - zero id If success
@@ -3859,7 +3869,7 @@ Public Function createVBO(data As Pointer, dataSizeBytes As Integer, usage As In
 
     glGenBuffers(1, VarPtr(Id))                                      'Create a vbo
     glBindBuffer(ARRAY_BUFFER, Id)                                   'activate vbo id To Use
-    glBufferData(ARRAY_BUFFER, dataSizeBytes, data, usage)     'upload data To video card
+    glBufferData(ARRAY_BUFFER, dataSizeBytes, data, usage)           'upload data To video card
     e = glGetError()
 
     ' check data size In VBO Is Same As Input array, If Not Return 0 And delete VBO

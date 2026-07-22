@@ -63,7 +63,7 @@ Public camera As GlCamera
 
 Public Sub DrawTimer_Timer()
 
-    glarea1.Refresh
+    If Not IsNull(glarea1) Then glarea1.Refresh
 
 End Sub
 
@@ -404,8 +404,28 @@ Private Sub Draw_Model()
 
     Dim L As Layer
 
+    ' le cargo el Shader
+    If gcd.Drawing.Model.GlShaderId = 0 Then gcd.Drawing.Model.glshaderId = glx.LoadShader(Application.Path &/ ".hidden/shaders/basic.vert", Application.Path &/ ".hidden/shaders/basic.frag")
+
+    gl.UseProgram(gcd.Drawing.Model.GlShaderId)
+
     For Each L In gcd.Drawing.Layers
-        If L.Visible And Not l.Frozen Then gl.CallList(L.glList)
+        If L.Visible And Not l.Frozen Then
+            ' glx.glEnableClientState(glx.VERTEX_ARRAY)
+            ' glx.glEnableClientState(glx.COLOR_ARRAY)
+            '
+            ' glx.glBindBuffer(gl.ARRAY_BUFFER, l.VBO.IdVertex)
+            ' glx.glVertexPointer(3, gl.DOUBLE, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+            '
+            ' glx.glBindBuffer(gl.ARRAY_BUFFER, l.VBO.IdColors)
+            ' glx.glColorPointer(3, gl.DOUBLE, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+            '
+            ' glx.glDrawArrays(gl.LINES, 0, l.VBO.Vertex.Count / 2)
+            ' glx.glDisableClientState(glx.VERTEX_ARRAY)
+            ' glx.gldisableClientState(glx.COLOR_ARRAY)
+
+            l.VBO.Draw()
+        End If
     Next
 
 End
@@ -579,38 +599,72 @@ Public Sub GLArea1_draw()
     gl.Translatef(gcd.Drawing.Sheet.PanBaseRealX, gcd.Drawing.Sheet.PanBaseRealY, 0)
     '--------------------------------------------------------------------
 
-    If gcd.DrawHoveredEntity Then
-
-        If gcd.Drawing.HoveredEntity Then
-            If gcd.Drawing.HoveredEntity.glDrwListRemark > 0 Then
-                gl.CallList(gcd.Drawing.HoveredEntity.glDrwListRemark)
-            Else
-                gcd.CCC[gcd.Drawing.HoveredEntity.Gender].DrawRemark(gcd.Drawing.HoveredEntity)
-            End If
-        End If
-    End If
-
-    If gcd.Drawing.Sheet.Is3D Then
-
-        'gcd.clsJob.Draw()
-    Else If Not gcd.Drawing.Sheet.IsModel Then   ' Sheet view
-
-        Draw_Paper
-
-    Else ' Model view
-        Draw_Model
-
-    End If
+    Draw_Model
 
     ' el orden del dibujo es importante en paint, porque una cosa tapa a la otra; en openGL aparentemente es al reves, lo primero se dibuja ultimo
 
     gl.Translatef(-gcd.Drawing.Sheet.PanBaseRealX, -gcd.Drawing.Sheet.PanBaseRealY, 0)
 
-    DrawingAIds.DibujaHelper
-
-    Draw_Poi
-
 End
+
+' Version e modo inmediato funcional
+
+' Public Sub GLArea1_draw()
+'
+'     Dim iParent As Integer
+'     Dim i, BackGroundColor As Integer
+'     Dim L As Layer
+'     Dim vpt As Viewport
+'     Dim e As Entity
+'
+'     If Not gcd.DrawingReady Then Return
+'     Inc benGLAreaRefresh
+'     gl.Clear(gl.DEPTH_BUFFER_BIT Or gl.COLOR_BUFFER_BIT)
+'
+'     gl.LoadIdentity
+'     gl.Translatef(gcd.Drawing.Sheet.PanX, gcd.Drawing.Sheet.PanY, gcd.Drawing.Sheet.PanZ)
+'     gl.Scalef(gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom)
+'     gl.Rotatef(gcd.Drawing.Sheet.RotX, 1, 0, 0)
+'     gl.Rotatef(gcd.Drawing.Sheet.RotY, 0, 1, 0)
+'     gl.Rotatef(gcd.Drawing.Sheet.RotZ, 0, 0, 1)
+'     '---------------------------------------------------
+'     gl.Translatef(-gcd.Drawing.Sheet.PanBaseRealX, -gcd.Drawing.Sheet.PanBaseRealY, 0)
+'     gcd.clsJob.Draw()
+'     gl.Translatef(gcd.Drawing.Sheet.PanBaseRealX, gcd.Drawing.Sheet.PanBaseRealY, 0)
+'     '--------------------------------------------------------------------
+'
+'     If gcd.DrawHoveredEntity Then
+'
+'         If gcd.Drawing.HoveredEntity Then
+'             If gcd.Drawing.HoveredEntity.glDrwListRemark > 0 Then
+'                 gl.CallList(gcd.Drawing.HoveredEntity.glDrwListRemark)
+'             Else
+'                 gcd.CCC[gcd.Drawing.HoveredEntity.Gender].DrawRemark(gcd.Drawing.HoveredEntity)
+'             End If
+'         End If
+'     End If
+'
+'     If gcd.Drawing.Sheet.Is3D Then
+'
+'         'gcd.clsJob.Draw()
+'     Else If Not gcd.Drawing.Sheet.IsModel Then   ' Sheet view
+'
+'         Draw_Paper
+'
+'     Else ' Model view
+'         Draw_Model
+'
+'     End If
+'
+'     ' el orden del dibujo es importante en paint, porque una cosa tapa a la otra; en openGL aparentemente es al reves, lo primero se dibuja ultimo
+'
+'     gl.Translatef(-gcd.Drawing.Sheet.PanBaseRealX, -gcd.Drawing.Sheet.PanBaseRealY, 0)
+'
+'     DrawingAIds.DibujaHelper
+'
+'     Draw_Poi
+'
+' End
 
 ' NUEVO Protocolo del Mouse para OpenGL: todo se envia a la clsJob actuante
 
@@ -1707,18 +1761,18 @@ Public Function NewSheet(tabSheets As TabPanel, s As Sheet, Optional UseFirst As
         s.scene = scene
     Else
 
-        glaFile2 = New GLArea(tabSheets.Current) As "glarea1"
+        glArea1 = New GLArea(tabSheets.Current) As "glarea1"
 
-        glaFile2.Background = Config.ModelBackgroundColor
-        glaFile2.Expand = True
-        glaFile2.Tracking = True
-        glaFile2.Mouse = Cursor.CrossHair
-        glaFile2.Refresh
+        glArea1.Background = Config.ModelBackgroundColor
+        glArea1.Expand = True
+        glArea1.Tracking = True
+        glArea1.Mouse = Cursor.CrossHair
+        glArea1.Refresh
 
         ' Object.Attach(glaFile2, Me, "GLArea1")
-        GLArea1 = glaFile2
+        'GLArea1 = glaFile2
         glarea1.Cursor = gcd.CursorCross
-        s.GLSheet = glaFile2
+        s.GLSheet = glArea1
         's.GLSheet.Refresh
 
         glx.Resize(glarea1)
@@ -2011,6 +2065,14 @@ Public Sub Form_Activate()
     If ActivationCompleted Then Return
 
     ActivationCompleted = True
+    ' Message("Activation completed")
+    If Application.Args.Count > 1 Then
+        sFile = Args[1]
+        actions.FileOpen(sfile)
+    Else
+        actions.FileNew
+    Endif
+    gcd.clsJob.start()
 
 End
 

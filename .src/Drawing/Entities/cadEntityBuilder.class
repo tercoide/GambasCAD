@@ -67,6 +67,8 @@ Public LastEntity As Entity
 
 Public XYreal As Float[]
 
+Public VBO As New VBO
+
 Public Const ContextMenu As String = ("Cancel;_CANCEL;;") ' el menu para el boton derecho, los comendos en mayusculas NO se traducen
 
 Public Function Start(Optional ElemToBuild As Variant, Optional Mode As Integer = -1)
@@ -95,7 +97,8 @@ Public Function Start(Optional ElemToBuild As Variant, Optional Mode As Integer 
     LastPoint = False
     clsEntities.DeSelection()
 
-    clsEntities.GLGenDrawListSel(0)
+    ' clsEntities.GLGenDrawListSel(0)
+    glx.VBOCurrent = VBO
 
     ' Verify if its a valid class to build
     If TypeOf(ElemToBuild) <> gb.Object Then                                            ' not Entity class given
@@ -127,7 +130,7 @@ Public Function Start(Optional ElemToBuild As Variant, Optional Mode As Integer 
 
     gcd.StepsDone = 0
 
-    Try elem.colour = gcd.CurrentColor()
+    Try elem.colour = gcd.Drawing.CurrColor
     elem.LineWIdth = gcd.Drawing.CurrLineWt
     If elem.LineWIdth = 0 Then elem.LineWIdth = 1
     If gcd.Drawing.Sheet.IsModel Then elem.PaperSpace = False Else elem.PaperSpace = True
@@ -296,7 +299,7 @@ Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD
                 AdvanceStep
 
             Endif
-            Key.Cod
+            Key.Code
 
     End Select
 
@@ -559,9 +562,12 @@ End
 Public Sub Draw()
 
     ' algunas entidades necesitan que se genere la poly
+    VBO.Clear
     clsEntities.BuildGeometry(elem)
     clsEntities.Draw(elem)
-    DrawingAids.DrawSnapText()
+    VBO.SendBuffersToGPU()
+    VBO.Draw()
+    ' DrawingAids.DrawSnapText()
     ' Debug "ENTITYBUILDER: Drawn " & iCounter
     ' Inc iCounter
 
@@ -627,11 +633,8 @@ Public Sub Finish() As Boolean
     cadSelection.PoiChecking = True
     DrawingAIds.CleanTexts
 
-    ' Genero la lista de dibujado de OpenGL de esta entidad en particular
-    clsEntities.GLGenDrawList(elem)
-
     ' y renuevo la lista para este layer
-    clsEntities.glGenDrawListLayers(elem.pLayer)
+    clsEntities.glGenDrawVbo(elem.pLayer)
 
     gcd.redraw
 
