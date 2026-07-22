@@ -2547,32 +2547,6 @@ Public Extern glNormalPointer(type As Integer, strIde As Long, data As Pointer)
 Public Extern glTexCoordPointer(size As Integer, type As Integer, strIde As Long, data As Pointer)
 Public Extern glColorPointer(size As Integer, type As Integer, strIde As Long, data As Pointer)
 
-'' Clears the VBO from memory
-'' Clears the VBO from memory
-Public Sub VBOFlushAll()
-
-    VBO_vertex.Clear
-    VBO_colors.Clear
-    VBO_normals.Clear
-    VBO_pixels.Clear
-
-    VBO_vertex = New Single[][]
-    VBO_colors = New Single[][]
-    VBO_normals = New Single[][]
-    VBO_pixels = New Single[][]
-
-End
-
-'' Clears the VBO from memory
-Public Sub VBOFlush(Id As Integer)
-
-    VBO_vertex[id].Clear
-    VBO_colors[id].Clear
-    VBO_normals[id].Clear
-    VBO_pixels[id].Clear
-
-End
-
 Public Sub Resize(drwContext As Object) ' only glArea for now
 
     ' establecemos adonde vamos a dibujar, porque puede ser en algun lugar mas chico de la misma glDrawingArea
@@ -2660,7 +2634,7 @@ Public Sub Rectangle2D(x1 As Float, y1 As Float, w As Float, h As Float, Optiona
         If colour3 = -14 Then c3 = colour1 Else c3 = colour3
         If colour4 = -14 Then c4 = colour1 Else c4 = colour4
 
-        gl.begin(gl.TRIANGLES)
+        ' TODO: gl.begin(gl.TRIANGLES)
 
         Vertex2D(x1, y1, colour1)
         Vertex2D(x1 + w, y1, c2)
@@ -2670,7 +2644,7 @@ Public Sub Rectangle2D(x1 As Float, y1 As Float, w As Float, h As Float, Optiona
         Vertex2D(x1 + w, y1 + h, c4)
         Vertex2D(x1, y1 + h, c3)
 
-        gl.end
+        'gl.end
 
     End If
 
@@ -2692,7 +2666,7 @@ Public Sub Rombo2D(x1 As Float, y1 As Float, side As Float, Optional ColorLeft A
     side /= 2
     If mode = 0 Or mode = 1 Then
 
-        gl.begin(gl.TRIANGLES)
+        ' TODO: gl.begin(gl.TRIANGLES)
 
         Vertex2D(x1 - side, y1, ColorLeft)
         Vertex2D(x1, y1 + side, ColorLeft)
@@ -2702,7 +2676,7 @@ Public Sub Rombo2D(x1 As Float, y1 As Float, side As Float, Optional ColorLeft A
         Vertex2D(x1, y1 + side, ColorRigth)
         Vertex2D(x1, y1 - side, ColorRigth)
 
-        gl.end
+        ' gl.end
 
     End If
 
@@ -2754,7 +2728,7 @@ Fast Unsafe Public Function PolygonFilled(vertices As Float[], Optional colour A
     Dim i As Integer
 
     'glColorRGB(colour)
-    gl.LineWIdth(LineWIdth) ' obsoleto en WebGL
+    ' TODO: gl.LineWIdth(LineWIdth) ' obsoleto en WebGL
 
     If dashes Then
         gl.LineStipple(LineStippleScales[dashes], LineStipples[dashes])
@@ -2765,14 +2739,14 @@ Fast Unsafe Public Function PolygonFilled(vertices As Float[], Optional colour A
 
     Endif
 
-    gl.Begin(gl.POLYGON)
+    ' TODO: gl.Begin(gl.POLYGON)
 
     For i = 0 To vertices.Max Step 2
         glColorRGB(colour)
         gl.Vertex2f(vertices[i], vertices[i + 1])
 
     Next
-    gl.end
+    ' gl.end
 
 End
 
@@ -2782,16 +2756,16 @@ Fast Unsafe Public Function Polygon(vertices As Float[], Optional colour As Inte
     Dim i As Integer
 
     'glColorRGB(colour)
-    gl.LineWIdth(LineWIdth) ' obsoleto en WebGL
+    ' TODO: gl.LineWIdth(LineWIdth) ' obsoleto en WebGL
 
-    gl.Begin(gl.LINE_LOOP)
+    ' TODO: gl.Begin(gl.LINE_LOOP)
 
     For i = 0 To vertices.Max Step 2
         glColorRGB(colour)
         gl.Vertex2f(vertices[i], vertices[i + 1])
 
     Next
-    gl.end
+    ' gl.end
 
 End
 '' Dibuja un arco, suponiendo que el centro esta en 0,0 (despues de un Translate())
@@ -2800,8 +2774,8 @@ End
 
 Fast Unsafe Public Function ARC(radio As Float, start_angle As Float, length As Float, Optional tramos As Integer = 36, colour As Integer = 0, LineWIdth As Float = 1, dashes As Float[] = [])
 
-    GL.Begin(gl.LINE_STRIP)
     Dim theta, angle_increment As Float
+    Dim points As New Float[]
 
     'double max_angle = 2 * Math.PI
     'double angle_increment = Math.PI / 1000
@@ -2815,10 +2789,11 @@ Fast Unsafe Public Function ARC(radio As Float, start_angle As Float, length As 
 
     For theta = 0 To length Step angle_increment
 
-        Vertex2D(radio * Cos(start_angle + theta), radio * Sin(start_angle + theta), colour)
+        points.Add(radio * Cos(start_angle + theta))
+        points.Add(radio * Sin(start_angle + theta))
     Next
 
-    GL.End
+    PolyLines(points, colour, linewIdth, dashes)
 
 End
 
@@ -2940,7 +2915,13 @@ Fast Unsafe Public Function DrawTriangles(vertices As Float[], Optional colour A
     Dim i As Integer
 
     'glColorRGB(colour)
-    gl.LineWIdth(LineWIdth) ' obsoleto en WebGL
+    ' TODO: gl.LineWIdth(LineWIdth) ' obsoleto en WebGL
+
+    Dim r As Float, g As Float, b As Float
+
+    r = (Shr(Colour, 16) And 255) / 256
+    g = (Shr(Colour, 8) And 255) / 256
+    b = (Colour And 255) / 256
 
     If dashes.Count > 0 Then
 
@@ -2948,14 +2929,16 @@ Fast Unsafe Public Function DrawTriangles(vertices As Float[], Optional colour A
 
     Endif
 
-    gl.Begin(gl.TRIANGLES)
-
     For i = 0 To vertices.Max Step 2
-        glColorRGB(colour)
-        gl.Vertex3f(vertices[i], vertices[i + 1], zLevel)
+        VBOCurrent.VertexTriangle.Add(vertices[i])
+        VBOCurrent.VertexTriangle.Add(vertices[i + 1])
+        VBOCurrent.VertexTriangle.Add(zLevel)
+
+        VBOCurrent.ColorsTriangle.Add(r)                    'R
+        VBOCurrent.ColorsTriangle.Add(g)                    'G
+        VBOCurrent.ColorsTriangle.Add(b)                    'B
 
     Next
-    gl.end
 
 End
 
@@ -2963,18 +2946,25 @@ Fast Unsafe Public Function DrawTriangles3D(vertices3D As Float[], faces As Floa
 
     Dim i As Integer
 
-    'glColorRGB(colour)
-    gl.LineWIdth(LineWIdth) ' obsoleto en WebGL
+    Dim r As Float, g As Float, b As Float
 
-    gl.Begin(gl.TRIANGLES)
+    r = (Shr(Colour, 16) And 255) / 256
+    g = (Shr(Colour, 8) And 255) / 256
+    b = (Colour And 255) / 256
+
+    ' TODO: gl.LineWIdth(LineWIdth) ' obsoleto en WebGL
 
     For i = 0 To faces.max Step 3
 
-        glColorRGB(colour)
-        gl.Vertex3f(vertices3d[faces[i]], vertices3d[faces[i + 1]], vertices3d[faces[i + 2]])
+        VBOCurrent.VertexTriangle.Add(vertices3d[faces[i]])
+        VBOCurrent.VertexTriangle.Add(vertices3d[faces[i + 1]])
+        VBOCurrent.VertexTriangle.Add(vertices3d[faces[i + 2]])
+
+        VBOCurrent.ColorsTriangle.Add(r)                    'R
+        VBOCurrent.ColorsTriangle.Add(g)                    'G
+        VBOCurrent.ColorsTriangle.Add(b)                    'B
 
     Next
-    gl.end
 
 End
 
@@ -3020,7 +3010,7 @@ Public Function CIRCLE(center As Float[], radious As Float, Optional colour As I
 
 End
 
-Fast Unsafe Public Sub glColorRGB(gbColor As Integer, Optional alpha As Float = 1.0)
+Fast Unsafe Public Sub glColorRGB(gbColor As Integer, Optional alpha As Float = 1.0, Triangles As Boolean = True)
     ' set the color to GL
 
     Dim r, g, b, a As Float
@@ -3029,7 +3019,15 @@ Fast Unsafe Public Sub glColorRGB(gbColor As Integer, Optional alpha As Float = 
     r = (Shr(gbColor, 16) And 255) / 255
     g = (Shr(gbColor, 8) And 255) / 255
     b = (gbColor And 255) / 255
-    gl.Color4f(r, g, b, a)
+    If Triangles Then
+        VBOCurrent.ColorsTriangle.Add(r)                    'R
+        VBOCurrent.ColorsTriangle.Add(g)                    'G
+        VBOCurrent.ColorsTriangle.Add(b)                    'B
+    Else
+        VBOCurrent.Colors.Add(r)                    'R
+        VBOCurrent.Colors.Add(g)                    'G
+        VBOCurrent.Colors.Add(b)                    'B
+    End If
 
 End
 
@@ -3131,42 +3129,60 @@ Public Sub glMaterialConcreto(Optional Alpha As Float = 0)
 
 End
 
-Fast Unsafe Public Sub Vertex2D(x2d As Float, y2d As Float, Optional colour As Integer = Color.Red)
+Fast Unsafe Public Sub Vertex2D(x2d As Float, y2d As Float, Optional colour As Integer = Color.Red, Triangles As Boolean = True)
     '
     '
     '     '2020 el color va primero
     ' '
 
-    If colour Then
-        Me.glColorRGB(colour)
+    glColorRGB(colour,, Triangles)
+
+    If Triangles Then
+        VBOCurrent.VertexTriangle.Add(x2d)
+        VBOCurrent.VertexTriangle.Add(y2d)
+        VBOCurrent.VertexTriangle.Add(0)
+
+    Else
+        VBOCurrent.Vertex.Add(x2d)
+        VBOCurrent.Vertex.Add(y2d)
+        VBOCurrent.Vertex.Add(0)
 
     Endif
 
-    gl.Vertex2f(x2d, y2d)
     '
 
 End
 
-Fast Unsafe Public Sub Vertex3D(p As Punto3d, Optional colour As Integer = Color.blue)
+Fast Unsafe Public Sub Vertex3D(p As Punto3d, Optional colour As Integer = Color.blue, Triangles As Boolean = True)
     '
     '
     '     '2020 el color va primero
     '
 
-    glx.glColorRGB(colour)
+    glColorRGB(colour,, Triangles)
 
-    gl.Vertex3f(p.x, p.y, p.z)
+    If Triangles Then
+        VBOCurrent.VertexTriangle.Add(p.x)
+        VBOCurrent.VertexTriangle.Add(p.y)
+        VBOCurrent.VertexTriangle.Add(p.z)
+
+    Else
+        VBOCurrent.Vertex.Add(p.x)
+        VBOCurrent.Vertex.Add(p.y)
+        VBOCurrent.Vertex.Add(p.z)
+
+    Endif
     '
 
 End
 '
-
-Public Sub Normal3D(p As Punto3d)
-    '
-    '     gl.Normal3f(p.x, p.y, p.z)
-    ' '
-
-End
+'
+' Public Sub Normal3D(p As Punto3d)
+'     '
+'     '     gl.Normal3f(p.x, p.y, p.z)
+'     ' '
+'
+' End
 
 Public Sub Get2DpointFrom3Dworld(p1 As Punto3d, ByRef x2 As Float, ByRef y2 As Float, Optional ByRef z2 As Float)
 
@@ -3477,80 +3493,84 @@ Public Function DrawText(UTFstring As String, posX As Float, posY As Float, Opti
     gl.Translatef(posX, posY, 0)
     gl.Rotatef(angle, 0, 0, 1)                                                  ' en grados
     gl.Scalef(textH * FontScale, textH * FontScale, 1)
-    If colour <> -14 Then Me.glColorRGB(colour)
-    For i = 1 To String.Len(UTFstring)                                                 ' para cada letra
-        UTFcode = String.Code(UTFstring, i)                                     ' obtengo el UTF code
-        If UTFcode = 32 Then                                                    ' es un espacio
-            gl.Translatef(ActualFont.WordSpacing, 0, 0)                       ' muevo el puntero a la siguiente posicion
-        Else
-            ' DEPRE LetterIndex = GetCodeIndex(ActualFont, UTFcode)                     ' obtengo el indice de la letra
-            If ActualFont.Letter.Exist(UTFcode) Then
-                TGlyps = ActualFont.Letter[UTFcode].FontGlyps
-                TBulges = ActualFont.Letter[UTFcode].FontBulges
 
-            Else If UnicodeFont.Letter.Exist(UTFcode) Then ' is unicode
-                TGlyps = UnicodeFont.Letter[UTFcode].FontGlyps
-                TBulges = UnicodeFont.Letter[UTFcode].FontBulges
+    Dim fGlyphs As Float[]
+    fGlyphs = DrawTextPoly(UTFstring, textH, angle, 0, 1)
+    DrawLines(fGlyphs, colour)
 
-            Else
-                ' descarto la letra
-                Continue
-
-            End If
-
-            ' con bulges
-            '============================================================================
-            iBulge = 0
-
-            For Each Glyps In TGlyps
-                Bulges = TBulges[iBulge]
-
-                For i2 = 0 To Glyps.Count / 2 - 2
-
-                    ' no todos los tramos pueden tener bulges
-                    If Abs(Bulges[i2 + 1]) > 0.001 Then
-                        ' ' FIXME: arc problem
-                        ' Continue
-                        ang1 = Ang(Glyps[(i2 + 1) * 2] - Glyps[i2 * 2], Glyps[(i2 + 1) * 2 + 1] - Glyps[i2 * 2 + 1])    ' angulo del tramo
-                        Lt = puntos.distancia(Glyps[i2 * 2], Glyps[i2 * 2 + 1], Glyps[(i2 + 1) * 2], Glyps[(i2 + 1) * 2 + 1])
-                        If Lt = 0 Then Continue
-                        mx = (Glyps[(i2 + 1) * 2] + Glyps[i2 * 2]) / 2          ' punto medio del tramo
-                        my = (Glyps[(i2 + 1) * 2 + 1] + Glyps[i2 * 2 + 1]) / 2
-                        B = Bulges[i2 + 1] * Lt / 2
-                        If Bulges[i2 + 1] < 0 Then alpha = Pi / 2 Else alpha = -Pi / 2
-                        bx = mx + B * Cos(ang1 + alpha)                             ' Tercer punto del Bulge
-                        by = my + B * Sin(ang1 + alpha)
-
-                        ' aqui podria usar una rutina de arco entre 3 puntos
-                        fArcParams = puntos.Arc3Point(Glyps[i2 * 2], Glyps[i2 * 2 + 1], bx, by, Glyps[(i2 + 1) * 2], Glyps[(i2 + 1) * 2 + 1])
-                        ' traslado el centro
-                        'If (Bulges[i2 + 1] > 0) Then Swap fArcParams[3], fArcParams[4]
-
-                        gl.Translatef(fArcParams[0], fArcParams[1], 0)
-
-                        ARC(fArcParams[2], fArcParams[3], fArcParams[4],, colour)
-                        gl.Translatef(-fArcParams[0], -fArcParams[1], 0)
-                        fArcParams = Null
-
-                    Else    ' dibujo la linea normalmente
-
-                        drawLines([Glyps[i2 * 2], Glyps[i2 * 2 + 1], Glyps[(i2 + 1) * 2], Glyps[(i2 + 1) * 2 + 1]], Colour)
-                    End If
-
-                Next
-                For iii = 0 To Glyps.Max Step 2  ' calculo cuanto tiene que avanzar el puntero
-                    If Glyps[iii] > Xadvance Then Xadvance = Glyps[iii]
-                Next
-
-                Inc iBulge
-            Next
-            gl.Translatef(Xadvance + ActualFont.LetterSpacing, 0, 0)                                       ' muevo el puntero a la siguiente posicion
-            'Debug Xadvance
-            Xadvance = 0
-            '================================================================================
-
-        End If
-    Next
+    ' For i = 1 To String.Len(UTFstring)                                                 ' para cada letra
+    '     UTFcode = String.Code(UTFstring, i)                                     ' obtengo el UTF code
+    '     If UTFcode = 32 Then                                                    ' es un espacio
+    '         gl.Translatef(ActualFont.WordSpacing, 0, 0)                       ' muevo el puntero a la siguiente posicion
+    '     Else
+    '         ' DEPRE LetterIndex = GetCodeIndex(ActualFont, UTFcode)                     ' obtengo el indice de la letra
+    '         If ActualFont.Letter.Exist(UTFcode) Then
+    '             TGlyps = ActualFont.Letter[UTFcode].FontGlyps
+    '             TBulges = ActualFont.Letter[UTFcode].FontBulges
+    '
+    '         Else If UnicodeFont.Letter.Exist(UTFcode) Then ' is unicode
+    '             TGlyps = UnicodeFont.Letter[UTFcode].FontGlyps
+    '             TBulges = UnicodeFont.Letter[UTFcode].FontBulges
+    '
+    '         Else
+    '             ' descarto la letra
+    '             Continue
+    '
+    '         End If
+    '
+    '         ' con bulges
+    '         '============================================================================
+    '         iBulge = 0
+    '
+    '         For Each Glyps In TGlyps
+    '             Bulges = TBulges[iBulge]
+    '
+    '             For i2 = 0 To Glyps.Count / 2 - 2
+    '
+    '                 ' no todos los tramos pueden tener bulges
+    '                 If Abs(Bulges[i2 + 1]) > 0.001 Then
+    '                     ' ' FIXME: arc problem
+    '                     ' Continue
+    '                     ang1 = Ang(Glyps[(i2 + 1) * 2] - Glyps[i2 * 2], Glyps[(i2 + 1) * 2 + 1] - Glyps[i2 * 2 + 1])    ' angulo del tramo
+    '                     Lt = puntos.distancia(Glyps[i2 * 2], Glyps[i2 * 2 + 1], Glyps[(i2 + 1) * 2], Glyps[(i2 + 1) * 2 + 1])
+    '                     If Lt = 0 Then Continue
+    '                     mx = (Glyps[(i2 + 1) * 2] + Glyps[i2 * 2]) / 2          ' punto medio del tramo
+    '                     my = (Glyps[(i2 + 1) * 2 + 1] + Glyps[i2 * 2 + 1]) / 2
+    '                     B = Bulges[i2 + 1] * Lt / 2
+    '                     If Bulges[i2 + 1] < 0 Then alpha = Pi / 2 Else alpha = -Pi / 2
+    '                     bx = mx + B * Cos(ang1 + alpha)                             ' Tercer punto del Bulge
+    '                     by = my + B * Sin(ang1 + alpha)
+    '
+    '                     ' aqui podria usar una rutina de arco entre 3 puntos
+    '                     fArcParams = puntos.Arc3Point(Glyps[i2 * 2], Glyps[i2 * 2 + 1], bx, by, Glyps[(i2 + 1) * 2], Glyps[(i2 + 1) * 2 + 1])
+    '                     ' traslado el centro
+    '                     'If (Bulges[i2 + 1] > 0) Then Swap fArcParams[3], fArcParams[4]
+    '
+    '                     gl.Translatef(fArcParams[0], fArcParams[1], 0)
+    '
+    '                     ARC(fArcParams[2], fArcParams[3], fArcParams[4],, colour)
+    '                     gl.Translatef(-fArcParams[0], -fArcParams[1], 0)
+    '                     fArcParams = Null
+    '
+    '                 Else    ' dibujo la linea normalmente
+    '
+    '                     drawLines([Glyps[i2 * 2], Glyps[i2 * 2 + 1], Glyps[(i2 + 1) * 2], Glyps[(i2 + 1) * 2 + 1]], Colour)
+    '                 End If
+    '
+    '             Next
+    '             For iii = 0 To Glyps.Max Step 2  ' calculo cuanto tiene que avanzar el puntero
+    '                 If Glyps[iii] > Xadvance Then Xadvance = Glyps[iii]
+    '             Next
+    '
+    '             Inc iBulge
+    '         Next
+    '         gl.Translatef(Xadvance + ActualFont.LetterSpacing, 0, 0)                                       ' muevo el puntero a la siguiente posicion
+    '         'Debug Xadvance
+    '         Xadvance = 0
+    '         '================================================================================
+    '
+    '     End If
+    ' Next
     gl.PopMatrix
 
 End
@@ -3830,7 +3850,7 @@ End
 
 '' Dibuja un triangulo con una textura ya cargada
 
-Public Sub TexturedTriangle2D(x1 As Float, y1 As Float, x2 As Float, y2 As Float, x3 As Float, y3 As Float, TextureId As Integer, Scale As Float)
+Public Sub DEPRE_TexturedTriangle2D(x1 As Float, y1 As Float, x2 As Float, y2 As Float, x3 As Float, y3 As Float, TextureId As Integer, Scale As Float)
 
     Gl.TexImage2D(glTextures[TextureId].hImage)                                           ' genero un objeto OpenGL
     gl.BindTexture(gl.TEXTURE_2D, hText[TextureId])                      ' enlazo la textura a una handle
@@ -3849,16 +3869,6 @@ Public Sub TexturedTriangle2D(x1 As Float, y1 As Float, x2 As Float, y2 As Float
     gl.Vertex2f(x3, y3)
 
     gl.End
-
-End
-
-Public Function InitVBO(id As String, Optional UseNormals As Boolean = True) As Boolean
-
-    Dim vbo1 As New VBO
-
-    VBOs.Add(vbo1, id)
-
-    Return True
 
 End
 
@@ -3970,7 +3980,7 @@ Public Function LoadShader(sVertexShaderFile As String, sFragmentShaderFile As S
 
 End
 
-Public Sub txtRendering2D(texto As String, x As Float, y As Float, Optional Altura As Single = 12, Optional _color As Long = Color.Blue, Optional _BackColor As Long = -1, Optional centradoH As Integer = 0, Optional centradoV As Integer = 0)
+Public Sub DEPRE_txtRendering2D(texto As String, x As Float, y As Float, Optional Altura As Single = 12, Optional _color As Long = Color.Blue, Optional _BackColor As Long = -1, Optional centradoH As Integer = 0, Optional centradoV As Integer = 0)
 
     ' this works in a Orthogonal projection
 
@@ -4081,7 +4091,7 @@ Public Sub txtRendering2D(texto As String, x As Float, y As Float, Optional Altu
 
 End
 
-Public Sub DrawText3D(texto As String, pr As Punto3d, Optional Altura As Single = 12, Optional _color As Long = Color.Blue, Optional _BackColor As Long = -1, Optional centradoH As Integer = 0, Optional centradoV As Integer = 0)
+Public Sub DEPRE_DrawText3D(texto As String, pr As Punto3d, Optional Altura As Single = 12, Optional _color As Long = Color.Blue, Optional _BackColor As Long = -1, Optional centradoH As Integer = 0, Optional centradoV As Integer = 0)
 
     Dim x As Float, y As Float, z As Float
 
@@ -4113,7 +4123,7 @@ End
 '
 ' End Sub
 
-Public Sub GLQuadColor4F(p1 As Punto3d, p2 As Punto3d, p3 As Punto3d, p4 As Punto3d, Optional c1 As Integer, c2 As Integer, c3 As Integer, c4 As Integer)
+Public Sub DEPRE_GLQuadColor4F(p1 As Punto3d, p2 As Punto3d, p3 As Punto3d, p4 As Punto3d, Optional c1 As Integer, c2 As Integer, c3 As Integer, c4 As Integer)
 
     ' Quad esta obsoleto , reemplazo por dos triangulos
 
