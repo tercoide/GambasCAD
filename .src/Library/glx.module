@@ -104,6 +104,7 @@ Public VBO_present As Boolean = False   ' si tenemos VBO que dibujar
 ' VBO
 Public VBO_Id As Integer                'Current VBO buffer
 Public VBOCurrent As VBO                ' Current VBO version moderna
+Public VBOLast As VBO                   ' para nuevo buffer
 Public VBOs As New Collection           ' de VBOs con una Id string
 Public VBO_vertex As New Collection
 Public VBO_colors As New Collection
@@ -2722,8 +2723,32 @@ Public Function DrawLines(fVertices As Float[], Optional colour As Integer = 0, 
 
 End
 
+'' Dibuja un serie de lineas
+Public Function Drawpoints(fPoints As Float[], Optional colour As Integer = 0, PointSize As Float = 1)
+
+    Dim i As Integer
+    Dim r As Float, g As Float, b As Float
+
+    'If gbcolor > 0 Then Stop
+    r = (Shr(Colour, 16) And 255) / 256
+    g = (Shr(Colour, 8) And 255) / 256
+    b = (Colour And 255) / 256
+
+    For i = 0 To fPoints.Max Step 2
+        VBOCurrent.VertexPoints.Add(fPoints[i])         'X
+        VBOCurrent.VertexPoints.Add(fPoints[i + 1])     'Y
+        VBOCurrent.VertexPoints.Add(0)                   'Z
+
+        VBOCurrent.ColorsPoints.Add(r)                    'R
+        VBOCurrent.ColorsPoints.Add(g)                    'G
+        VBOCurrent.ColorsPoints.Add(b)                    'B
+
+    Next
+
+End
+
 '' Dibuja un seria de polilinea
-Fast Unsafe Public Function PolygonFilled(vertices As Float[], Optional colour As Integer = 0, FillColor As Integer = 0, LineWIdth As Float = 1, dashes As Float[])
+Public Function PolygonFilled(vertices As Float[], Optional colour As Integer = 0, FillColor As Integer = 0, LineWIdth As Float = 1, dashes As Float[])
 
     Dim i As Integer
 
@@ -2753,19 +2778,14 @@ End
 '' Dibuja un seria de polilinea
 Fast Unsafe Public Function Polygon(vertices As Float[], Optional colour As Integer = 0, LineWIdth As Float = 1, dashes As Float[])
 
-    Dim i As Integer
+    DrawLines(vertices.colour, LineWIdth, dashes)
 
-    'glColorRGB(colour)
-    ' TODO: gl.LineWIdth(LineWIdth) ' obsoleto en WebGL
+    ' ademas la union
 
-    ' TODO: gl.Begin(gl.LINE_LOOP)
-
-    For i = 0 To vertices.Max Step 2
-        glColorRGB(colour)
-        gl.Vertex2f(vertices[i], vertices[i + 1])
-
-    Next
-    ' gl.end
+    VBOCurrent.Vertex.Add(vertices[0])
+    VBOCurrent.Vertex.Add(vertices[1])
+    VBOCurrent.Vertex.Add(0)
+    glColorRGB(colour,, False)
 
 End
 '' Dibuja un arco, suponiendo que el centro esta en 0,0 (despues de un Translate())
@@ -4125,7 +4145,7 @@ End
 '
 ' End Sub
 
-Public Sub DEPRE_GLQuadColor4F(p1 As Punto3d, p2 As Punto3d, p3 As Punto3d, p4 As Punto3d, Optional c1 As Integer, c2 As Integer, c3 As Integer, c4 As Integer)
+Public Sub Quad3D(p1 As Punto3d, p2 As Punto3d, p3 As Punto3d, p4 As Punto3d, Optional c1 As Integer, c2 As Integer, c3 As Integer, c4 As Integer)
 
     ' Quad esta obsoleto , reemplazo por dos triangulos
 
@@ -4142,5 +4162,28 @@ Public Sub DEPRE_GLQuadColor4F(p1 As Punto3d, p2 As Punto3d, p3 As Punto3d, p4 A
     Vertex3D(p4, c4)
 
     gl.end
+
+End
+
+Public Sub Quad(fPoints As Float[], Colour As Integer, FillColor As Integer)
+
+    If fPoints.Count <> 8 Then Return
+
+    DrawTriangles(fPoints, FillColor, FillColor)
+    PolyLines(fPoints, colour)
+
+End
+
+Public Sub BeginVBO(v As Vbo)
+
+    If IsNull(VBOLast) Then VBOLast = v Else VBOLast = VBOCurrent
+    VBOCurrent = v
+
+End
+
+Public Sub EndVBO()
+
+    VBOCurrent = VBOLast
+    VBOCurrent.SendBuffersToGPU()
 
 End

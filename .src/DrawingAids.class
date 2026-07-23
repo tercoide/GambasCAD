@@ -48,6 +48,35 @@ Public trabajoYteclado As String
 Public txtSnapTo As String
 Public txtFrom As String
 
+' 2026 VBO para esta parte
+Public GridVBO As VBO
+Public TextVBO As VBO
+Public PoiVBO As VBO
+
+Public Sub PoiCook()
+
+    PoiVBO = New VBO
+    glx.BeginVBO(PoiVBO)
+
+    Select gcd.Drawing.iEntity[2]
+        Case gcd.poiMIdPoint
+            glx.Quad([gcd.Drawing.iEntity[0] - gcd.Metros(4), gcd.Drawing.iEntity[1], gcd.Drawing.iEntity[0], gcd.Drawing.iEntity[1] + gcd.Metros(4), gcd.Drawing.iEntity[0] + gcd.Metros(4), gcd.Drawing.iEntity[1], gcd.Drawing.iEntity[0], gcd.Drawing.iEntity[1] - gcd.Metros(4)], Color.Blue, Color.Green)
+        Case gcd.poiQuadrant
+            glx.Quad([gcd.Drawing.iEntity[0] - gcd.Metros(6), gcd.Drawing.iEntity[1], gcd.Drawing.iEntity[0], gcd.Drawing.iEntity[1] + gcd.Metros(6), gcd.Drawing.iEntity[0] + gcd.Metros(6), gcd.Drawing.iEntity[1], gcd.Drawing.iEntity[0], gcd.Drawing.iEntity[1] - gcd.Metros(6)], Color.Cyan, Color.Cyan)
+
+        Case 0
+            ' nada
+        Case gcd.poiCenter, gcd.poiBasePoint
+
+            glx.CIRCLE([gcd.Drawing.iEntity[0], gcd.Drawing.iEntity[1]], gcd.Metros(4), Color.Cyan, True, False)
+
+        Case Else
+            glx.Rectangle2D(gcd.Drawing.iEntity[0] - gcd.Metros(4), gcd.Drawing.iEntity[1] - gcd.Metros(4), gcd.Metros(8), gcd.Metros(8), Color.Blue,,,, Color.Blue, 1)
+    End Select
+    glx.EndVBO()
+
+End
+
 Public Function CleanTexts()
 
     Helper.texto = ""
@@ -315,20 +344,21 @@ Public Sub RebuildGrid()
         If gcd.Pixels(espaciado) < 5 Then espaciado *= 10
     Loop Until Abs(gcd.Pixels(espaciado)) > 5
 
-    If Not gl.islist(gcd.Drawing.GLListGrid) Then gcd.Drawing.GLListGrid = gl.GenLists(1)
-    gl.NewList(gcd.Drawing.GLListGrid, gl.COMPILE)
-
+    GridVBO = New VBO
+    glx.BeginVBO(GridVBO)
     Select Case gcd.Drawing.GridStyle
         Case 0 ' puntos
-            gl.Begin(gl.POINTS)
-            glx.glColorRGB(Config.WhiteAndBlack)
+
+            Dim fpoints As New Float[]
+
             For y = y1 To y0 Step espaciado
                 For x = x0 To x1 Step espaciado
-                    gl.Vertex2f(x, y)
+                    fpoints.add(x)
+                    fpoints.add(y)
                 Next
             Next
 
-            gl.End
+            glx.Drawpoints(fpoints, Config.WhiteAndBlack)
 
         Case 1 ' cuadricula
 
@@ -341,62 +371,63 @@ Public Sub RebuildGrid()
             Next
 
     End Select
-    gl.EndList
 
     gcd.Drawing.GridCurentSpacing = espaciado
+
+    glx.EndVBO()
 
     ' aprovecho para recomponer las lineas de puntos
 
 End
 
-Public Sub DrawCaudricula()
-
-    ' crossing lines each gridspace and darker each 10m
-
-    Dim i, xgg, ygg, xg, yg As Single, espaciado As Single, starting As Single
-    Dim W, H As Integer
-
-    xg = gcd.xreal(0) ' Puntos reales aproximados al 0,0 de la pantalla
-    yg = gcd.Yreal(0)
-
-    xg = gcd.Near(xg) ' punto en mundo real ajustado a grid
-    yg = gcd.Near(yg)
-
-    xg = gcd.Xpix(xg) - espaciado * 2 ' punto inicial en la drawing area
-    yg = gcd.Ypix(yg) - espaciado * 2
-
-    xgg = xg
-    ygg = yg
-
-    W = fmain.GLArea1.W
-    H = fmain.GLArea1.H
-
-    starting = yg ' guardo el Y inicial
-
-    If Not gl.islist(gcd.Drawing.GLListGrid) Then gcd.Drawing.GLListGrid = gl.GenLists(1)
-    gl.NewList(gcd.Drawing.GLListGrid, gl.COMPILE)
-
-    ' lineas finas
-    Do ' lineas horizontales
-        If espaciado < 5 Then Break
-        glx.DrawLines([xg, yg, xg + W + espaciado, yg], Color.Gray, 1)
-        yg += espaciado - 0.5
-
-    Loop Until yg > (H + espaciado * 2)
-
-    xg = xgg
-    yg = ygg
-    Do ' verticales
-        If espaciado < 5 Then Break
-        glx.DrawLines([xg, yg, xg, yg + H + espaciado], Color.Gray, 1)
-        xg += espaciado - 0.5
-    Loop Until xg > (W + espaciado * 2)
-
-    ' lineas gruesas
-
-    gl.EndList
-
-End
+' Public Sub DrawCaudricula()
+'
+'     ' crossing lines each gridspace and darker each 10m
+'
+'     Dim i, xgg, ygg, xg, yg As Single, espaciado As Single, starting As Single
+'     Dim W, H As Integer
+'
+'     xg = gcd.xreal(0) ' Puntos reales aproximados al 0,0 de la pantalla
+'     yg = gcd.Yreal(0)
+'
+'     xg = gcd.Near(xg) ' punto en mundo real ajustado a grid
+'     yg = gcd.Near(yg)
+'
+'     xg = gcd.Xpix(xg) - espaciado * 2 ' punto inicial en la drawing area
+'     yg = gcd.Ypix(yg) - espaciado * 2
+'
+'     xgg = xg
+'     ygg = yg
+'
+'     W = fmain.GLArea1.W
+'     H = fmain.GLArea1.H
+'
+'     starting = yg ' guardo el Y inicial
+'
+'     If Not gl.islist(gcd.Drawing.GLListGrid) Then gcd.Drawing.GLListGrid = gl.GenLists(1)
+'     gl.NewList(gcd.Drawing.GLListGrid, gl.COMPILE)
+'
+'     ' lineas finas
+'     Do ' lineas horizontales
+'         If espaciado < 5 Then Break
+'         glx.DrawLines([xg, yg, xg + W + espaciado, yg], Color.Gray, 1)
+'         yg += espaciado - 0.5
+'
+'     Loop Until yg > (H + espaciado * 2)
+'
+'     xg = xgg
+'     yg = ygg
+'     Do ' verticales
+'         If espaciado < 5 Then Break
+'         glx.DrawLines([xg, yg, xg, yg + H + espaciado], Color.Gray, 1)
+'         xg += espaciado - 0.5
+'     Loop Until xg > (W + espaciado * 2)
+'
+'     ' lineas gruesas
+'
+'     gl.EndList
+'
+' End
 
 ' Public Sub DrawPolygons() ' and other debugging stuff
 '
