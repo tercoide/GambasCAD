@@ -102,15 +102,10 @@ Public InmediateModeRequired As Boolean
 Public VBO_present As Boolean = False   ' si tenemos VBO que dibujar
 
 ' VBO
-Public VBO_Id As Integer                'Current VBO buffer
+
 Public VBOCurrent As VBO                ' Current VBO version moderna
 Public VBOLast As VBO                   ' para nuevo buffer
-Public VBOs As New Collection           ' de VBOs con una Id string
-Public VBO_vertex As New Collection
-Public VBO_colors As New Collection
-Public VBO_normals As New Collection
-Public VBO_pixels As New Collection
-Public VBO_Primitive As New Collection
+
 '
 ' Copyright (C) Ing Martin P Cristia
 '
@@ -1711,7 +1706,7 @@ Public Extern glGetProgramInfoLog(program As Integer, BufSize As Integer, length
 Public Extern glGetShaderiv(shader As Integer, iPname As Integer, params As Integer[])
 Public Extern glGetShaderInfoLog(shader As Integer, BufSize As Integer, legth As Integer[], infolog As String)
 Public Extern glGetShaderSource(shader As Integer, BufSize As Integer, legth As Integer[], source As String)
-Public Extern glGetUniformLocation(program As Integer, name As String)
+Public Extern glGetUniformLocation(program As Integer, name As String) As Integer
 Public Extern glGetUniformfv(program As Integer, location As Integer, params As Single[])
 Public Extern glGetUniformiv(program As Integer, location As Integer, params As Integer[])
 Public Extern glGetVertexAttribdv(iIndex As Integer, iPname As Integer, params As Float[])
@@ -2061,7 +2056,7 @@ Public Extern glValIdateProgram(program As Integer)
 ' Public Extern glVertexAttribL2dv(iIndex As Integer, const as float * v)
 ' Public Extern glVertexAttribL3dv(iIndex As Integer, const as float * v)
 ' Public Extern glVertexAttribL4dv(iIndex As Integer, const as float * v)
-' Public Extern glVertexAttribLPointer(iIndex As Integer, size as integer, iType As Integer, stride as integer, const * pointer)
+Public Extern glVertexAttribLPointer(iIndex As Integer, size As Integer, iType As Integer, stride As Integer, i As Pointer)
 ' Public Extern glGetVertexAttribLdv(iIndex As Integer, iPname As Integer, as float * params)
 ' Public Extern glViewportArrayv(GLuint first, iSize as Integer, const GLsingle * v)
 ' Public Extern glViewportIndexedf(iIndex As Integer, GLsingle x, GLsingle y, GLsingle w, GLsingle h)
@@ -2547,6 +2542,14 @@ Public Extern glVertexPointer(size As Integer, type As Integer, strIde As Long, 
 Public Extern glNormalPointer(type As Integer, strIde As Long, data As Pointer)
 Public Extern glTexCoordPointer(size As Integer, type As Integer, strIde As Long, data As Pointer)
 Public Extern glColorPointer(size As Integer, type As Integer, strIde As Long, data As Pointer)
+Public Extern glVertexAttrib3f(iIndex As Integer, x As Single, y As Single, z As Single)
+
+Public Extern glBindVertexArray(array As Integer)
+
+Public Extern glDeleteVertexArrays(n As Integer, arrays As Pointer)
+Public Extern glGenVertexArrays(n As Integer, arrays As Pointer)
+
+Public Extern glVertexAttribPointer(iIndex As Integer, size As Integer, iType As Integer, normalized As Boolean, stride As Integer, ipointer As Pointer)
 
 Public Sub Resize(drwContext As Object) ' only glArea for now
 
@@ -2589,7 +2592,7 @@ Public Sub Resize(drwContext As Object) ' only glArea for now
 
 End
 
-Public Sub Init(drwContext As Object) ' only glArea for now
+Public Sub Init(drwContext As Object, Optional ClearColor As Integer) ' only glArea for now
 
     'Resize(drwContext)
     Debug "Init OpenGL"
@@ -2628,14 +2631,13 @@ Public Sub Rectangle2D(x1 As Float, y1 As Float, w As Float, h As Float, Optiona
 
     Dim c2, c3, c4 As Integer
     Dim flxVertex As New Float[]
+
     ' Quad esta obsoleto , reemplazo por dos triangulos
     If mode = 0 Or mode = 1 Then
 
         If colour2 = -14 Then c2 = colour1 Else c2 = colour2
         If colour3 = -14 Then c3 = colour1 Else c3 = colour3
         If colour4 = -14 Then c4 = colour1 Else c4 = colour4
-
-        ' TODO: gl.begin(gl.TRIANGLES)
 
         Vertex2D(x1, y1, colour1)
         Vertex2D(x1 + w, y1, c2)
@@ -2644,8 +2646,6 @@ Public Sub Rectangle2D(x1 As Float, y1 As Float, w As Float, h As Float, Optiona
         Vertex2D(x1, y1, colour1)
         Vertex2D(x1 + w, y1 + h, c4)
         Vertex2D(x1, y1 + h, c3)
-
-        'gl.end
 
     End If
 
@@ -2664,10 +2664,9 @@ Public Sub Rombo2D(x1 As Float, y1 As Float, side As Float, Optional ColorLeft A
 
     Dim flxVertex As New Float[]
     ' Quad esta obsoleto , reemplazo por dos triangulos
+
     side /= 2
     If mode = 0 Or mode = 1 Then
-
-        ' TODO: gl.begin(gl.TRIANGLES)
 
         Vertex2D(x1 - side, y1, ColorLeft)
         Vertex2D(x1, y1 + side, ColorLeft)
@@ -2676,8 +2675,6 @@ Public Sub Rombo2D(x1 As Float, y1 As Float, side As Float, Optional ColorLeft A
         Vertex2D(x1 + side, y1, ColorRigth)
         Vertex2D(x1, y1 + side, ColorRigth)
         Vertex2D(x1, y1 - side, ColorRigth)
-
-        ' gl.end
 
     End If
 
@@ -3050,6 +3047,22 @@ Fast Unsafe Public Sub glColorRGB(gbColor As Integer, Optional alpha As Float = 
         VBOCurrent.Colors.Add(g)                    'G
         VBOCurrent.Colors.Add(b)                    'B
     End If
+
+End
+
+Public Function glColorGb(gbColor As Integer, Optional alpha As Float = -1)
+    ' set the color to GL
+
+    Dim r, g, b, a As Float
+
+    a = 1 - Color.GetAlpha(gbColor) / 255
+    r = (Shr(gbColor, 16) And 255) / 255
+    g = (Shr(gbColor, 8) And 255) / 255
+    b = (gbColor And 255) / 255
+
+    If alpha > 0 Then a = alpha
+
+    gl.Color4f(r, g, b, a)
 
 End
 
@@ -3894,13 +3907,49 @@ Public Sub DEPRE_TexturedTriangle2D(x1 As Float, y1 As Float, x2 As Float, y2 As
 
 End
 
+Public Function CreateVAO(vertices As Float[], colors As Float[], Optional usage As Integer = gl.STATIC_DRAW) As Integer[]
+
+    Dim hVAO, hColors, hVertex As Integer ' la handle
+
+    glGenVertexArrays(1, VarPtr(hVAO))
+    glBindVertexArray(hVAO)
+    ' ==========================================
+    ' BUFFER 1: Vertex Positions (Location 0)
+    ' ==========================================
+    GlGenBuffers(1, VarPtr(hVertex))
+    GlBindBuffer(Gl.ARRAY_BUFFER, hVertex)
+    GlBufferData(Gl.ARRAY_BUFFER, Vertices.Count * SizeOf(Vertices.Type), vertices.Data, usage)
+
+    ' Stride is 0 (tightly packed), offset is 0
+    GlVertexAttribPointer(0, 3, gl.DOUBLE, Gl.FALSE, 0, 0)
+    GlEnableVertexAttribArray(0)
+
+    ' ==========================================
+    ' BUFFER 2: Vertex Colors (Location 1)
+    ' ==========================================
+    GlGenBuffers(1, VarPtr(hColors))
+    GlBindBuffer(Gl.ARRAY_BUFFER, hColors)
+    GlBufferData(Gl.ARRAY_BUFFER, colors.Count * SizeOf(colors.Type), colors.Data, usage)
+
+    ' Stride is 0 (tightly packed), offset is 0
+    GlVertexAttribPointer(1, 3, gl.DOUBLE, Gl.FALSE, 0, 0)
+    GlEnableVertexAttribArray(1)
+
+    ' Isolate states
+    GlBindBuffer(Gl.ARRAY_BUFFER, 0)
+    GlBindVertexArray(0)
+
+    Return [hVAO, hVertex, hColors]
+
+End
+
 Public Function createVBO(data As Pointer, dataSizeBytes As Integer, usage As Integer) As Integer
 
     Dim e, Id As Integer = 0 ' 0 Is Reserved, glGenBuffersARB()will Return non - zero id If success
     Dim iParams As New Integer[1]
 
-    glGenBuffers(1, VarPtr(Id))                                      'Create a vbo
-    glBindBuffer(ARRAY_BUFFER, Id)                                   'activate vbo id To Use
+    glGenBuffers(1, VarPtr(Id))                                      'Create a VBO
+    glBindBuffer(ARRAY_BUFFER, Id)                                   'activate VBO id To Use
     glBufferData(ARRAY_BUFFER, dataSizeBytes, data, usage)           'upload data To video card
     e = glGetError()
 
@@ -3938,6 +3987,50 @@ Public Function LoadShader(sVertexShaderFile As String, sFragmentShaderFile As S
     '
     '   Return 0
     ' End If
+    'Dim vsSource, fsSource As String
+
+    Dim vsSource As String = "#version 330\n" &
+        "layout (location = 0) in vec3 position;\n" &
+        "layout (location = 1) in vec3 color;\n" &
+        "layout (location = 2) in vec3 normal;\n" &
+        "out vec3 vColor;\n" &
+        "out vec3 vNormal;\n" &
+        "void main() {\n" &
+        "    vColor = color;\n" &
+        "    vNormal = normal;\n" &
+        "    gl_Position = vec4(position, 1.0);\n" &
+        "}\n"
+
+    Dim fsSource As String = "#version 330\n" &
+        "in vec3 vColor;\n" &
+        "in vec3 vNormal;\n" &
+        "out vec4 fragColor;\n" &
+        "uniform vec2 uMouseNdc;\n" &
+        "uniform int uBlend;\n" &
+        "float sign2d(vec2 p1, vec2 p2, vec2 p3) {\n" &
+        "    return (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y);\n" &
+        "}\n" &
+        "bool pointInTriangle(vec2 pt, vec2 v1, vec2 v2, vec2 v3) {\n" &
+        "    float d1 = sign2d(pt, v1, v2);\n" &
+        "    float d2 = sign2d(pt, v2, v3);\n" &
+        "    float d3 = sign2d(pt, v3, v1);\n" &
+        "    bool hasNeg = (d1 < 0.0) || (d2 < 0.0) || (d3 < 0.0);\n" &
+        "    bool hasPos = (d1 > 0.0) || (d2 > 0.0) || (d3 > 0.0);\n" &
+        "    return !(hasNeg && hasPos);\n" &
+        "}\n" &
+        "void main() {\n" &
+        "    vec2 a = vec2(0.0, 0.5);\n" &
+        "    vec2 b = vec2(-0.5, -0.5);\n" &
+        "    vec2 c = vec2(0.5, -0.5);\n" &
+        "    float nLight = max(dot(normalize(vNormal), vec3(0.0, 0.0, 1.0)), 0.2);\n" &
+        "    bool mouseInTriangle = pointInTriangle(uMouseNdc, a, b, c);\n" &
+        "    if (uBlend == 1 || mouseInTriangle) {\n" &
+        "        fragColor = vec4(1.0, 0.0, 0.0, 1.0);\n" &
+        "    } else {\n" &
+        "        fragColor = vec4(vColor * nLight, 1.0);\n" &
+        "    }\n" &
+        "}\n"
+    ' SI SACO AL VECTOR nLight, SE VE MAS COLORES
 
     If Not Exist(sVertexShaderFile) Then
         Debug "No existe el Vertex Shader"
@@ -3963,9 +4056,12 @@ Public Function LoadShader(sVertexShaderFile As String, sFragmentShaderFile As S
     iVerShaderID = gl.CreateShader(gl.VERTEX_SHADER)
     If iVerShaderID = 0 Then Stop
     ' ' set the source code
-    Gl.ShaderSource(iVerShaderID, sShader)
+    Gl.ShaderSource(iVerShaderID, vsSource) ' Conv(sShader, "UTF-8", "ASCII") & Chr(0))
     ' ' compile
     gl.CompileShader(iVerShaderID)
+
+    ' after compile vertex shader
+    Debug "Vertex log: "; gl.GetShaderInfoLog(iVerShaderID)
 
     sShader = ""
     f = Open sFragmentShaderFile For Input
@@ -3981,18 +4077,27 @@ Public Function LoadShader(sVertexShaderFile As String, sFragmentShaderFile As S
     iFraShaderID = gl.CreateShader(gl.FRAGMENT_SHADER)
     If iFRaShaderID = 0 Then Stop
     ' ' set the source code
-    Gl.ShaderSource(iFraShaderID, sShader)
+    Gl.ShaderSource(iFraShaderID, fsSource) ' Conv(sShader, "UTF-8", "ASCII") & Chr(0))
     ' ' compile
     gl.CompileShader(iFraShaderID)
+
+    ' after compile fragment shader
+    Debug "Fragment log: "; gl.GetShaderInfoLog(iFraShaderID)
 
     ishaderProgram = gl.CreateProgram()
     gl.AttachShader(ishaderProgram, iVerShaderID)
     gl.AttachShader(ishaderProgram, iFraShaderID)
+    GlBindAttribLocation(ishaderProgram, 0, "position")
+    GlBindAttribLocation(ishaderProgram, 1, "color")
+    GlBindAttribLocation(ishaderProgram, 2, "normal")
     gl.LinkProgram(ishaderProgram)
 
-    '
-    Debug gl.GetShaderInfoLog(ishaderProgram)
-    '
+    ' program link log (NOT GetShaderInfoLog)
+    Debug "Program log: "; gl.GetProgramInfoLog(iShaderProgram)
+
+    Dim uBlendLoc As Integer
+    uBlendLoc = glx.glGetUniformLocation(iShaderProgram, "uBlend")
+    Debug "uBlend loc: "; uBlendLoc
     ' ' una vez complilados, no se necesitan mas
     '
     gl.DeleteShader(iVerShaderID)
@@ -4174,7 +4279,7 @@ Public Sub Quad(fPoints As Float[], Colour As Integer, FillColor As Integer)
 
 End
 
-Public Sub BeginVBO(v As Vbo)
+Public Sub BeginVBO(v As VBO)
 
     If IsNull(VBOLast) Then VBOLast = v Else VBOLast = VBOCurrent
     VBOCurrent = v
@@ -4183,7 +4288,7 @@ End
 
 Public Sub EndVBO()
 
-    VBOCurrent = VBOLast
     VBOCurrent.SendBuffersToGPU()
+    VBOCurrent = VBOLast
 
 End

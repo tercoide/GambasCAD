@@ -1,0 +1,157 @@
+' Gambas class file
+
+' Describe un VBO
+
+' lines
+Public Vertex As New Float[]
+Public Colors As New Float[]
+
+' triangles
+Public VertexTriangle As New Float[]
+Public ColorsTriangle As New Single[]
+
+' points
+Public VertexPoints As New Float[]
+Public ColorsPoints As New Single[]
+
+Public Normals As New Single[]
+Public TextureUV As New Single[]
+
+Public IdNormals As Integer
+
+Public IdColors As Integer
+Public IdVertex As Integer
+
+Public IdColorsPoints As Integer
+Public IdVertexPoints As Integer
+
+Public IdColorsTriangle As Integer
+Public IdVertexTriangle As Integer
+
+Public UseNormals As Boolean = False
+Public UseTexture As Boolean = False
+
+Public SelectedDraw As Boolean
+Public HoveredDraw As Boolean
+Public SelectedVertexOffset As Integer
+Public SelectedVertexTriangleOffset As Integer
+Public SelectedVertexCount As Integer
+Public SelectedVertexTriangleCount As Integer
+
+Public Sub _new()
+
+    Vertex = [
+        0.0, 0.5, 0.0,  ' Top Vertex Position
+        -0.5, -0.5, 0.0,  ' Bottom Left Position
+        0.5, -0.5, 0.0   ' Bottom Right Position
+
+    ]
+
+    colors = [
+        1.0, 0.0, 0.0,    ' Top Vertex Color (Red)
+        0.0, 1.0, 0.0,    ' Bottom Left Color (Green)
+        0.0, 0.0, 1.0     ' Bottom Right Color (Blue)
+    ]
+
+End
+
+Public Sub _free()
+
+    If glx.glIsBuffer(IdVertex) Then glx.glDeleteBuffers(1, VarPtr(IdVertex))
+    If glx.glIsBuffer(IdColors) Then glx.glDeleteBuffers(1, VarPtr(IdColors))
+
+    If glx.glIsBuffer(IdVertexTriangle) Then glx.glDeleteBuffers(1, VarPtr(IdVertexTriangle))
+    If glx.glIsBuffer(IdColorsTriangle) Then glx.glDeleteBuffers(1, VarPtr(IdColorsTriangle))
+
+    If glx.glIsBuffer(IdVertexpoints) Then glx.glDeleteBuffers(1, VarPtr(IdVertexPoints))
+    If glx.glIsBuffer(IdColorsPoints) Then glx.glDeleteBuffers(1, VarPtr(IdColorsPoints))
+
+End
+
+Public Sub Clear()
+
+    If glx.glIsBuffer(IdVertex) Then glx.glDeleteBuffers(1, VarPtr(IdVertex))
+    If glx.glIsBuffer(IdColors) Then glx.glDeleteBuffers(1, VarPtr(IdColors))
+
+    If glx.glIsBuffer(IdVertexTriangle) Then glx.glDeleteBuffers(1, VarPtr(IdVertexTriangle))
+    If glx.glIsBuffer(IdColorsTriangle) Then glx.glDeleteBuffers(1, VarPtr(IdColorsTriangle))
+
+    If glx.glIsBuffer(IdVertexPoints) Then glx.glDeleteBuffers(1, VarPtr(IdVertexPoints))
+    If glx.glIsBuffer(IdColorsPoints) Then glx.glDeleteBuffers(1, VarPtr(IdColorsPoints))
+
+    colors.Clear
+    Vertex.Clear
+
+    ColorsTriangle.Clear
+    VertexTriangle.Clear
+
+    ColorsPoints.Clear
+    VertexPoints.Clear
+
+    Normals.Clear
+    TextureUV.Clear
+
+    _new
+
+End
+
+Public Sub SendBuffersToGPU(Optional mode As Integer = glx.STATIC_DRAW)
+
+    ' IdVertex = glx.createVBO(Vertex.Data, Vertex.Count * SizeOf(Vertex.Type), mode)
+    ' IdColors = glx.createVBO(colors.Data, colors.Count * SizeOf(colors.Type), mode)
+    ' IdVertexTriangle = glx.createVBO(VertexTriangle.Data, VertexTriangle.Count * SizeOf(VertexTriangle.Type), mode)
+    ' IdColorsTriangle = glx.createVBO(ColorsTriangle.Data, ColorsTriangle.Count * SizeOf(ColorsTriangle.Type), mode)
+    ' IdVertexPoints = glx.createVBO(VertexPoints.Data, VertexPoints.Count * SizeOf(VertexPoints.Type), mode)
+    ' IdColorsPoints = glx.createVBO(ColorsPoints.Data, ColorsPoints.Count * SizeOf(ColorsPoints.Type), mode)
+
+    ' ====== Init (una sola vez) ======
+
+    Dim LocPos As Integer = 0
+    Dim LocColor As Integer = 1
+
+    _free
+
+    ' test
+
+    ' VBO posiciones (double)
+    ' ===== VBO posiciones =====
+    glx.glGenBuffers(1, VarPtr(IdVertex))
+    glx.glBindBuffer(gl.ARRAY_BUFFER, IdVertex)
+    glx.glBufferData(
+        gl.ARRAY_BUFFER,
+        Vertex.Count * SizeOf(Vertex.Type),   ' 8 bytes por Double
+        Vertex.data,
+        gl.STATIC_DRAW)
+
+    ' VBO colores (single)
+    glx.glGenBuffers(1, VarPtr(IdColors))
+    glx.glBindBuffer(gl.ARRAY_BUFFER, IdColors)
+    glx.glBufferData(
+        gl.ARRAY_BUFFER,
+        Colors.Count * SizeOf(Colors.Type),   ' 8 bytes por Double
+        Colors.data,
+        gl.STATIC_DRAW)
+
+    glx.glBindBuffer(gl.ARRAY_BUFFER, 0)
+
+End
+
+Public Sub Draw()
+
+    glx.glBindBuffer(gl.ARRAY_BUFFER, IdVertex)
+    glx.glVertexAttribLPointer(0, 3, gl.DOUBLE, 0, 0)  ' <- para float / GL.DOUBLE
+    glx.glEnableVertexAttribArray(0)
+
+    glx.glBindBuffer(gl.ARRAY_BUFFER, IdColors)
+    glx.glVertexAttribLPointer(1, 3, gl.DOUBLE, 0, 0)
+    glx.glEnableVertexAttribArray(1)
+
+    glx.glColorGb(Color.red)
+
+    glx.glDrawArrays(gl.LINES, 0, Vertex.Count \ 3)
+    ' glx.glDisableVertexAttribArray(2)
+    glx.glDisableVertexAttribArray(1)
+    glx.glDisableVertexAttribArray(0)
+    glx.glBindBuffer(Gl.ARRAY_BUFFER, 0)
+
+End

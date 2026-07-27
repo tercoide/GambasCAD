@@ -198,7 +198,7 @@ End
 '' Borra la lista anterior y genera una nueva
 Public Sub glGenBuffers(Optional eEntity As Entity = Null)
 
-    Dim i, iVbo As Integer, e As Entity
+    Dim i, iVBO As Integer, e As Entity
 
     If eEntity Then
 
@@ -408,11 +408,11 @@ Public Sub glGenDrawListSel()
 
     Dim e As Entity
 
-    gcd.Drawing.Sheet.EntitiesSelectedVbo = New VBO
+    gcd.Drawing.Sheet.EntitiesSelectedVBO = New VBO
     For Each e In gcd.Drawing.Sheet.EntitiesSelected
         Gcd.CCC[e.gender].DrawSelected(e)
     Next
-    gcd.Drawing.Sheet.EntitiesSelectedVbo.SendBuffersToGPU()
+    gcd.Drawing.Sheet.EntitiesSelectedVBO.SendBuffersToGPU()
 
 End
 
@@ -516,7 +516,7 @@ End
 
 ' Generates a GL list for the selected
 '' Mode: 0=Selected version 1=Normal version
-Public Sub glGenDrawVbo(Optional aLayer As Layer)
+Public Sub glGenDrawVBO(Optional aLayer As Layer)
 
     Dim i As Integer
     Dim e As Entity, s As Sheet
@@ -861,7 +861,7 @@ Public Function DeleteSelected() As Integer
     '   we also need to regenerate the drawing list
     For Each lay In gcd.Drawing.Layers
         If lay.Visible And lay.flgForRegen Then
-            glGenDrawVbo(lay)
+            glGenDrawVBO(lay)
             lay.flgForRegen = False
         End If
 
@@ -1624,5 +1624,34 @@ Public Sub exportstl()
     Next
 
     stl.SaveSTL(gcd.Drawing.Sheet.model3d, gcd.Drawing.FileName & ".stl")
+
+End
+
+Public Sub VBOEntityStart(e As Entity)
+
+    e.glVboVertexOffset = e.pLayer.VBO.Vertex.Count
+    e.glVboTrianglesOffset = e.pLayer.VBO.VertexTriangle.Count
+    e.glVboPointsOffset = e.pLayer.VBO.VertexPoints.Count
+
+End
+
+Public Sub VboEntityDone(e As Entity)
+
+    e.glVboVertexCount = e.pLayer.VBO.Vertex.Count - e.glVboVertexOffset
+    e.glVboTrianglesCount = e.pLayer.VBO.VertexTriangle.Count - e.glVboTrianglesOffset
+    e.glVboPointsCount = e.pLayer.VBO.VertexPoints.Count - e.glVboPointsOffset
+
+End
+
+' indica al VBO que parte dibujar para el HighLigth
+Public Sub VboEntitySetHighligth(e As Entity)
+
+    e.pLayer.VBO.SelectedVertexCount = e.glVboVertexCount
+    e.pLayer.VBO.SelectedVertexTriangleCount = e.glVboTrianglesCount
+    e.pLayer.VBO.SelectedVertexPointsCount = e.glVboPointsCount
+
+    e.pLayer.VBO.SelectedVertexOffset = e.glVboVertexOffset
+    e.pLayer.VBO.SelectedVertexTriangleOffset = e.glVboTrianglesOffset
+    e.pLayer.VBO.SelectedVertexPointsOffset = e.glVboPointsOffset
 
 End

@@ -4,18 +4,18 @@
 
 ' lines
 Public Vertex As New Float[]
-Public Colors As New Float[]
+Public Colors As New Single[]
 
 ' triangles
 Public VertexTriangle As New Float[]
-Public ColorsTriangle As New Float[]
+Public ColorsTriangle As New Single[]
 
 ' points
 Public VertexPoints As New Float[]
-Public ColorsPoints As New Float[]
+Public ColorsPoints As New Single[]
 
-Public Normals As New Float[]
-Public TextureUV As New Float[]
+Public Normals As New Single[]
+Public TextureUV As New Single[]
 
 Public IdNormals As Integer
 
@@ -30,6 +30,15 @@ Public IdVertexTriangle As Integer
 
 Public UseNormals As Boolean = False
 Public UseTexture As Boolean = False
+
+Public SelectedDraw As Boolean
+Public HoveredDraw As Boolean
+Public SelectedVertexOffset As Integer
+Public SelectedVertexTriangleOffset As Integer
+Public SelectedVertexPointsOffset As Integer
+Public SelectedVertexCount As Integer
+Public SelectedVertexTriangleCount As Integer
+Public SelectedVertexPointsCount As Integer
 
 Public Sub _new()
 
@@ -87,48 +96,81 @@ End
 
 Public Sub Draw()
 
-    ' -------lines----------------------------------------------------
-
     glx.glEnableClientState(glx.VERTEX_ARRAY)
     glx.glEnableClientState(glx.COLOR_ARRAY)
+
+    '--------HIGHLIGHTING-------------------------------------------------
+    If HoveredDraw Then
+
+        Dim s As String = "uBlend"
+        glx.glUniform1i(glx.glGetUniformLocation(gcd.Drawing.Model.GlShaderId, s), 1)
+
+        glx.glBindBuffer(gl.ARRAY_BUFFER, IdVertex)
+        glx.glVertexPointer(3, gl.DOUBLE, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+
+        ' glx.glBindBuffer(gl.ARRAY_BUFFER, IdColors)
+        ' glx.glColorPointer(3, gl.Float, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+        GL.Enable(GL.BLEND)
+        GL.BlendFunc(GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA)
+        glx.glColorGb(Config.ColorForSelected, 0.55)
+
+        glx.glDrawArrays(gl.LINES, SelectedVertexOffset / 3, SelectedVertexCount / 3)  ' es /3 porque hay 3 coordenadas por vertice
+
+        glx.glBindBuffer(gl.ARRAY_BUFFER, IdVertexTriangle)
+        glx.glVertexPointer(3, gl.DOUBLE, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+
+        ' glx.glBindBuffer(gl.ARRAY_BUFFER, IdColorsTriangle)
+        ' glx.glColorPointer(3, gl.Float, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+
+        glx.glDrawArrays(gl.TRIANGLES, SelectedVertexTriangleOffset, SelectedVertexTriangleCount / 3)
+
+        ' '--------points--------------------------------------------
+        glx.glBindBuffer(gl.ARRAY_BUFFER, IdVertexpoints)
+        glx.glVertexPointer(3, gl.DOUBLE, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+
+        ' glx.glBindBuffer(gl.ARRAY_BUFFER, IdColorsPoints)
+        ' glx.glColorPointer(3, gl.Float, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+
+        glx.glDrawArrays(gl.POINTS, SelectedVertexPointsOffset, SelectedVertexPointsCount / 3)
+
+        gl.Disable(gl.BLEND)
+    End If
+
+    gl.Uniform1i(gl.GetUniformLocation(gcd.Drawing.Model.GlShaderId, "uBlend"), 0)
+    HoveredDraw = False
+    SelectedDraw = False
 
     glx.glBindBuffer(gl.ARRAY_BUFFER, IdVertex)
     glx.glVertexPointer(3, gl.DOUBLE, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
 
     glx.glBindBuffer(gl.ARRAY_BUFFER, IdColors)
-    glx.glColorPointer(3, gl.DOUBLE, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+    glx.glColorPointer(3, gl.Float, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
 
-    glx.glDrawArrays(gl.LINES, 0, Vertex.Count / 2)
-    glx.glDisableClientState(glx.VERTEX_ARRAY)
-    glx.gldisableClientState(glx.COLOR_ARRAY)
+    glx.glDrawArrays(gl.LINES, 0, Vertex.Count / 3)
 
-    '--------triangles--------------------------------------------
-
-    glx.glEnableClientState(glx.VERTEX_ARRAY)
-    glx.glEnableClientState(glx.COLOR_ARRAY)
+    '
+    ' '--------triangles--------------------------------------------
 
     glx.glBindBuffer(gl.ARRAY_BUFFER, IdVertexTriangle)
     glx.glVertexPointer(3, gl.DOUBLE, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
 
     glx.glBindBuffer(gl.ARRAY_BUFFER, IdColorsTriangle)
-    glx.glColorPointer(3, gl.DOUBLE, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+    glx.glColorPointer(3, gl.Float, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
 
-    glx.glDrawArrays(gl.TRIANGLES, 0, VertexTriangle.Count / 2)
-    glx.glDisableClientState(glx.VERTEX_ARRAY)
-    glx.gldisableClientState(glx.COLOR_ARRAY)
+    glx.glDrawArrays(gl.TRIANGLES, 0, VertexTriangle.Count / 3)
 
-    '--------points--------------------------------------------
-
-    glx.glEnableClientState(glx.VERTEX_ARRAY)
-    glx.glEnableClientState(glx.COLOR_ARRAY)
-
+    ' '--------points--------------------------------------------
     glx.glBindBuffer(gl.ARRAY_BUFFER, IdVertexpoints)
     glx.glVertexPointer(3, gl.DOUBLE, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
 
     glx.glBindBuffer(gl.ARRAY_BUFFER, IdColorsPoints)
-    glx.glColorPointer(3, gl.DOUBLE, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+    glx.glColorPointer(3, gl.Float, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
 
-    glx.glDrawArrays(gl.POINTS, 0, VertexPoints.Count / 2)
+    glx.glDrawArrays(gl.POINTS, 0, VertexPoints.Count / 3)
+
+    '---------limpieza----------------------------------------------
+    glx.glBindBuffer(gl.ARRAY_BUFFER, 0)
+
     glx.glDisableClientState(glx.VERTEX_ARRAY)
     glx.gldisableClientState(glx.COLOR_ARRAY)
 
