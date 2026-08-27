@@ -192,24 +192,38 @@ Public Sub PrepareGlList(x As Float, y As Float)
 
     Dim e As Entity
 
-    gl.PushMatrix
-    gl.NewList(gcd.Drawing.GlListEntitiesSelected, gl.COMPILE)                      ' genero los graficos dentro de la lista
-    gl.Translatef(-x, -y, 0)
-    gl.Translatef(gcd.Drawing.Sheet.PanBaseRealX, gcd.Drawing.Sheet.PanBaseRealY, 0)
-    For Each E In gcd.Drawing.Sheet.EntitiesSelected
-        gl.CallList(E.glDrwList)
+    ' gl.PushMatrix
+    ' gl.NewList(gcd.Drawing.GlListEntitiesSelected, gl.COMPILE)                      ' genero los graficos dentro de la lista
+    ' gl.Translatef(-x, -y, 0)
+    ' gl.Translatef(gcd.Drawing.Sheet.PanBaseRealX, gcd.Drawing.Sheet.PanBaseRealY, 0)
+    ' For Each E In gcd.Drawing.Sheet.EntitiesSelected
+    '     gl.CallList(E.glDrwList)
+    ' Next
+    ' gl.EndList
+    ' gl.PopMatrix
+
+    gcd.Drawing.Sheet.EntitiesSelectedVBO = New VBO
+    glx.VBOCurrent = gcd.Drawing.Sheet.EntitiesSelectedVBO
+    For Each e In gcd.Drawing.Sheet.EntitiesSelected
+        gcd.CCC[e.Gender].Translate(e, -x, -y)
+        Gcd.CCC[e.gender].Draw(e)
+        gcd.CCC[e.Gender].Translate(e, x, y)
     Next
-    gl.EndList
-    gl.PopMatrix
+    gcd.Drawing.Sheet.EntitiesSelectedVBO.SendBuffersToGPU()
 
 End
 
 Public Sub Draw()
 
-    gl.PushMatrix
+    gl.PushMatrix()
+    gl.Translatef(Me.SelStartXr, Me.SelStartYr, 0)
+    gcd.Drawing.Sheet.EntitiesSelectedVBO.Draw(Color.red)
+    gl.PopMatrix()
+
+    gl.PushMatrix()
     gl.Translatef(Me.glTranslate[0], Me.glTranslate[1], Me.glTranslate[2])
     gl.Scalef(Me.glScale[0], Me.glScale[1], Me.glScale[2])
-    gl.CallList(gcd.Drawing.GlListEntitiesSelected)
-    gl.PopMatrix
+    gcd.Drawing.Sheet.EntitiesSelectedVBO.Draw()
+    gl.PopMatrix()
 
 End
