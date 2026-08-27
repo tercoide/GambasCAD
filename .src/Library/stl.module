@@ -1,1 +1,410 @@
-../../../stl-viewer-dynamicGL/.src/3d/stl.module
+' Gambas module file
+
+Public Function LoadSTL(sFileName As String) As Model3d
+
+    Dim s As String, f As File, stlmodel As Model3d
+
+    f = Open sFileName For Input
+
+    Line Input #f, s   ' ignoro la primer linea por si alguno llamo "solid" pero es binario
+    Line Input #f, s   ' la segunda debe leerse "facet" si es ASCII
+    Close #f
+    If Left(Trim(s), 5) = "facet" Then
+
+        stlmodel = LoadAsciiSTL2(sFileName)
+
+    Else
+
+        stlmodel = LoadBinarySTL2(sFileName)
+
+    Endif
+    GetLimits(stlmodel)
+    GenerateWireframe(stlmodel)
+    GenerateTexture(stlmodel)
+
+    stlmodel.CG.Add((stlmodel.limits[3] + stlmodel.limits[0]) / 2)
+    stlmodel.CG.Add((stlmodel.limits[4] + stlmodel.limits[1]) / 2)
+    stlmodel.CG.Add((stlmodel.limits[5] + stlmodel.limits[2]) / 2)
+
+    If (stlmodel.limits[3] - stlmodel.limits[0]) > stlmodel.fMaxDim Then stlmodel.fMaxDim = (stlmodel.limits[3] - stlmodel.limits[0])
+    If (stlmodel.limits[4] - stlmodel.limits[1]) > stlmodel.fMaxDim Then stlmodel.fMaxDim = (stlmodel.limits[4] - stlmodel.limits[1])
+    If (stlmodel.limits[5] - stlmodel.limits[2]) > stlmodel.fMaxDim Then stlmodel.fMaxDim = (stlmodel.limits[5] - stlmodel.limits[2])
+
+    Return stlmodel
+
+End
+
+Private Function LoadBinarySTL2(sFileName As String) As Model3d
+    ' UINT8[80]    – Header                 -     80 bytes
+    ' UINT32       – Number of triangles    -      4 bytes
+    ' foreach triangle                      - 50 bytes:
+    '     REAL32[3] – Normal vector             - 12 bytes
+    '     REAL32[3] – Vertex 1                  - 12 bytes
+    '     REAL32[3] – Vertex 2                  - 12 bytes
+    '     REAL32[3] – Vertex 3                  - 12 bytes
+    '     UINT16    – Attribute byte count      -  2 bytes
+    ' end
+
+    Dim stlmodel As New Model3d
+    Dim f As File
+    Dim s As String
+    Dim iTriangles As Integer, i, i2, in2, it2, if2 As Integer
+    Dim gSingle As Single, yByte As Byte
+
+    f = Open sFileName For Input
+    f.ByteOrder = gb.LittleEndian
+
+    Read #f, s, 80          ' header, se ignora
+    stlmodel.Description = s
+    Read #f, iTriangles
+
+    ' Para evitar usar .Add redimensiono que es mas rapido
+    stlmodel.xyzVertex.Resize(iTriangles * 3 * 3)
+    stlmodel.xyzNormals.Resize(iTriangles * 3 * 3)
+    stlmodel.bFlags.Resize(iTriangles * 2)
+    For i = 1 To iTriangles
+        For i2 = 1 To 3
+            Read #f, gSingle
+            stlmodel.xyzNormals[in2] = gSingle
+            Inc in2
+        Next
+        ' completo los normales
+        For i2 = 1 To 6
+            stlmodel.xyzNormals[in2] = stlmodel.xyzNormals[in2 - 3]
+            Inc in2
+        Next
+
+        For i2 = 1 To 9
+            Read #f, gSingle
+            stlmodel.xyzVertex[it2] = gSingle
+            Inc it2
+        Next
+
+        For i2 = 1 To 2
+
+            Read #f, yByte
+            stlmodel.bFlags[if2] = yByte
+            Inc if2
+        Next
+    Next
+
+    f.Close
+
+    Return stlmodel
+
+End
+
+Private Function LoadAsciiSTL2(sFileName As String) As Model3d
+    ' solid name
+    ' where name is an optional string (though if name is omitted there must still be a space after solid). The remainder of the line is ignored and is sometimes used to store metadata (e.g., filename, author, modification date, etc).[11] The file continues with any number of triangles, each represented as follows:[12]
+    '
+    ' facet normal ni nj nk
+    '     outer loop
+    '         vertex v1x v1y v1z
+    '         vertex v2x v2y v2z
+    '         vertex v3x v3y v3z
+    '     endloop
+    ' endfacet
+    ' where each n or v is a floating-point number in sign-mantissa-e-sign-exponent format, e.g., 2.648000e-002. The file concludes with
+    '
+    ' endsolid name
+
+    Dim stlmodel As New Model3d
+    Dim f As File
+    Dim s As String, sp As String[]
+    Dim iTriangles As Integer, i As Integer
+    Dim gSingle As Single, yByte As Byte
+
+    f = Open sFileName For Input
+    f.ByteOrder = gb.LittleEndian
+
+    Line Input #f, s           ' header, se ignora
+    stlmodel.Description = s
+    Do
+
+        Line Input #f, s
+        sp = Split(s, " ", "", True)
+        Select Case sp[0]
+            Case "facet"
+                stlmodel.xyzNormals.Add(CFloat(sp[2]))
+                stlmodel.xyzNormals.Add(CFloat(sp[3])) ' vertice 1
+                stlmodel.xyzNormals.Add(CFloat(sp[4]))
+                ' completo
+                stlmodel.xyzNormals.Add(CFloat(sp[2]))
+                stlmodel.xyzNormals.Add(CFloat(sp[3]))' vertice 2
+                stlmodel.xyzNormals.Add(CFloat(sp[4]))
+
+                stlmodel.xyzNormals.Add(CFloat(sp[2]))
+                stlmodel.xyzNormals.Add(CFloat(sp[3]))' vertice 3
+                stlmodel.xyzNormals.Add(CFloat(sp[4]))
+            Case "outer"
+                Line Input #f, s
+                sp = Split(s, " ", "", True)                        'vertex v1x v1y v1z
+                stlmodel.xyzVertex.Add(CFloat(sp[1]))
+                stlmodel.xyzVertex.Add(CFloat(sp[2]))
+                stlmodel.xyzVertex.Add(CFloat(sp[3]))
+
+                Line Input #f, s
+                sp = Split(s, " ", "", True)                        'vertex v1x v1y v1z
+                stlmodel.xyzVertex.Add(CFloat(sp[1]))
+                stlmodel.xyzVertex.Add(CFloat(sp[2]))
+                stlmodel.xyzVertex.Add(CFloat(sp[3]))
+
+                Line Input #f, s
+                sp = Split(s, " ", "", True)                        'vertex v1x v1y v1z
+                stlmodel.xyzVertex.Add(CFloat(sp[1]))
+                stlmodel.xyzVertex.Add(CFloat(sp[2]))
+                stlmodel.xyzVertex.Add(CFloat(sp[3]))
+
+            Case "endloop"
+                ' nada
+            Case "endfacet"
+
+            Case "endsolid"
+
+                Break
+
+        End Select
+
+    Loop Until Eof(f)
+
+    f.Close
+
+    Return stlmodel
+
+End
+
+'' Devuelve un array con Xmin,Ymin,Zmin,Xmax,Ymax,Zmax
+Public Sub GetLimits(stlModel As Model3d)
+
+    Dim i, i2, iv2 As Integer
+
+    stlModel.limits.insert([1e10, 1e10, 1e10, -1e10, -1e10, -1e10])       'Xmin,Ymin,Zmin,Xmax,Ymax,Zmax inicializados con valores altos
+
+    For i = 1 To stlModel.xyzVertex.Count / 9 ' n tringulos
+
+        For i2 = 1 To 3 ' vertices
+            ' X
+            If stlModel.limits[0] > stlModel.xyzVertex[iv2] Then stlModel.limits[0] = stlModel.xyzVertex[iv2]
+            If stlModel.limits[3] < stlModel.xyzVertex[iv2] Then stlModel.limits[3] = stlModel.xyzVertex[iv2]
+
+            Inc iv2
+            ' Y
+            If stlModel.limits[1] > stlModel.xyzVertex[iv2] Then stlModel.limits[1] = stlModel.xyzVertex[iv2]
+            If stlModel.limits[4] < stlModel.xyzVertex[iv2] Then stlModel.limits[4] = stlModel.xyzVertex[iv2]
+
+            Inc iv2
+            ' Z
+            If stlModel.limits[2] > stlModel.xyzVertex[iv2] Then stlModel.limits[2] = stlModel.xyzVertex[iv2]
+            If stlModel.limits[5] < stlModel.xyzVertex[iv2] Then stlModel.limits[5] = stlModel.xyzVertex[iv2]
+            Inc iv2
+        Next
+    Next
+
+End
+
+'' Genera el wireframe basandose en caras triangulares
+Public Sub GenerateWireframe(stlModel As Model3d)
+
+    Dim iw, i, i2, iv2 As Integer
+
+    stlModel.xyzWireframe.Clear
+    stlModel.xyzWireframe.Resize(stlModel.xyzVertex.Count / 9 * 3 * 2 * 3)
+
+    For i = 1 To stlModel.xyzVertex.Count / 9 ' n tringulos
+
+        ' linea 1
+        stlModel.xyzWireframe[iw] = stlModel.xyzVertex[iv2] ' X1
+        Inc iw
+        Inc iv2
+
+        stlModel.xyzWireframe[iw] = stlModel.xyzVertex[iv2] ' Y1
+        Inc iw
+        Inc iv2
+
+        stlModel.xyzWireframe[iw] = stlModel.xyzVertex[iv2] ' Z1
+        Inc iw
+        Inc iv2
+
+        stlModel.xyzWireframe[iw] = stlModel.xyzVertex[iv2] ' X2
+        Inc iw
+        Inc iv2
+
+        stlModel.xyzWireframe[iw] = stlModel.xyzVertex[iv2] ' Y2
+        Inc iw
+        Inc iv2
+
+        stlModel.xyzWireframe[iw] = stlModel.xyzVertex[iv2] ' Z2
+        Inc iw
+        Inc iv2
+
+        ' linea 2
+        iv2 -= 6
+        stlModel.xyzWireframe[iw] = stlModel.xyzVertex[iv2] ' X1
+        Inc iw
+        Inc iv2
+
+        stlModel.xyzWireframe[iw] = stlModel.xyzVertex[iv2] ' Y1
+        Inc iw
+        Inc iv2
+
+        stlModel.xyzWireframe[iw] = stlModel.xyzVertex[iv2] ' Z1
+        Inc iw
+        Inc iv2
+
+        iv2 += 3
+        stlModel.xyzWireframe[iw] = stlModel.xyzVertex[iv2] ' X3
+        Inc iw
+        Inc iv2
+
+        stlModel.xyzWireframe[iw] = stlModel.xyzVertex[iv2] ' Y3
+        Inc iw
+        Inc iv2
+
+        stlModel.xyzWireframe[iw] = stlModel.xyzVertex[iv2] ' Z3
+        Inc iw
+        Inc iv2
+
+        ' linea 3
+        iv2 -= 6
+        stlModel.xyzWireframe[iw] = stlModel.xyzVertex[iv2] ' X2
+        Inc iw
+        Inc iv2
+
+        stlModel.xyzWireframe[iw] = stlModel.xyzVertex[iv2] ' Y2
+        Inc iw
+        Inc iv2
+
+        stlModel.xyzWireframe[iw] = stlModel.xyzVertex[iv2] ' Z2
+        Inc iw
+        Inc iv2
+
+        stlModel.xyzWireframe[iw] = stlModel.xyzVertex[iv2] ' X3
+        Inc iw
+        Inc iv2
+
+        stlModel.xyzWireframe[iw] = stlModel.xyzVertex[iv2] ' Y3
+        Inc iw
+        Inc iv2
+
+        stlModel.xyzWireframe[iw] = stlModel.xyzVertex[iv2] ' Z3
+        Inc iw
+        Inc iv2
+
+    Next
+
+End
+
+'' Genera el wireframe basandose en caras triangulares
+Public Sub GenerateTexture(stlModel As Model3d)
+
+    Dim iw, i, i2, iv2 As Integer
+
+    stlModel.uvTextures.Clear
+    stlModel.uvTextures.Resize(stlModel.xyzVertex.Count / 9 * 6)
+
+    For i = 1 To stlModel.xyzVertex.Count / 9 ' n tringulos
+
+        ' Vertice 1
+        ' u
+        stlModel.uvTextures[iv2] = 0
+        Inc iv2
+        ' v
+        stlModel.uvTextures[iv2] = 0
+        Inc iv2
+
+        ' Vertice 2
+        ' u
+        stlModel.uvTextures[iv2] = 1
+        Inc iv2
+        ' v
+        stlModel.uvTextures[iv2] = 1
+        Inc iv2
+
+        ' Vertice 3
+        ' u
+        stlModel.uvTextures[iv2] = 1
+        Inc iv2
+        ' v
+        stlModel.uvTextures[iv2] = 0
+        Inc iv2
+
+    Next
+
+End
+'' Devuelve la lado mas largo de todos los tirangulos del STL
+
+Public Function GetLargestSide(stlModel As Model3d) As Float
+
+    Dim i, i2, iv2 As Integer
+    Dim l, l1, l2, l3 As Float
+
+    For i = 1 To stlModel.xyzVertex.Count / 9 ' n tringulos
+        iv2 = (i - 1) * 9
+        l1 = puntos.Distance3D(stlModel.xyzVertex[iv2], stlModel.xyzVertex[iv2 + 1], stlModel.xyzVertex[iv2 + 2], stlModel.xyzVertex[iv2 + 3], stlModel.xyzVertex[iv2 + 4], stlModel.xyzVertex[iv2 + 5])
+        l2 = puntos.Distance3D(stlModel.xyzVertex[iv2], stlModel.xyzVertex[iv2 + 1], stlModel.xyzVertex[iv2 + 2], stlModel.xyzVertex[iv2 + 6], stlModel.xyzVertex[iv2 + 7], stlModel.xyzVertex[iv2 + 8])
+        l3 = puntos.Distance3D(stlModel.xyzVertex[iv2 + 6], stlModel.xyzVertex[iv2 + 7], stlModel.xyzVertex[iv2 + 8], stlModel.xyzVertex[iv2 + 3], stlModel.xyzVertex[iv2 + 4], stlModel.xyzVertex[iv2 + 5])
+
+        If l < l1 Then l = l1
+        If l < l2 Then l = l2
+        If l < l3 Then l = l3
+
+    Next
+    Return l
+
+End
+
+Public Sub SaveSTL(stl As Model3d, sFilename As String)
+
+    ' UINT8[80]    – Header                 -     80 bytes
+    ' UINT32       – Number of triangles    -      4 bytes
+    ' foreach triangle                      - 50 bytes:
+    '     REAL32[3] – Normal vector             - 12 bytes
+    '     REAL32[3] – Vertex 1                  - 12 bytes
+    '     REAL32[3] – Vertex 2                  - 12 bytes
+    '     REAL32[3] – Vertex 3                  - 12 bytes
+    '     UINT16    – Attribute byte count      -  2 bytes
+    ' end
+
+    Dim f As File
+    Dim s As String
+    Dim iTriangles As Integer, i, i2, in2, it2, if2 As Integer
+    Dim gSingle As Single, yByte As Byte
+
+    f = Open sFileName For Output Create
+    f.ByteOrder = gb.LittleEndian
+    iTriangles = stl.xyzNormals.Count / 9
+    Write #f, stl.Description, 80         ' header, se ignora
+
+    Write #f, iTriangles As Integer
+
+    ' Para evitar usar .Add redimensiono que es mas rapido
+
+    For i = 1 To iTriangles
+        For i2 = 1 To 3
+            Write #f, stl.xyzNormals[in2] As Single
+
+            Inc in2
+        Next
+
+        in2 += 6
+        For i2 = 1 To 9
+            Write #f, stl.xyzVertex[it2] As Single
+
+            Inc it2
+        Next
+
+        For i2 = 1 To 2
+
+            'Write #f, stl.bFlags[if2] As Byte
+            Write #f, 0 As Byte
+
+            Inc if2
+        Next
+    Next
+
+    f.Close
+
+    Return
+
+End
