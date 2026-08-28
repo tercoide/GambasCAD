@@ -3515,98 +3515,14 @@ End
 '' Debe estar definida la Font con nombre y altura
 ''
 'Fast Unsafe
-Public Function DrawText(UTFstring As String, posX As Float, posY As Float, Optional angle As Float = 0, textH As Float = 1, colour As Integer = -14, linewIdth As Float = 1, rectW As Float = 0, rectH As Float = 0, alignHoriz As Integer = 0, alignVert As Integer = 0) As Boolean
-
-    Dim i, iii, i2, UTFcode, LetterIndex As Integer, Xadvance As Float
-    Dim fArcParams As New Single[]
-    Dim Glyps, Bulges As New Single[]
-    Dim TGlyps, TBulges As Single[][]
-    Dim Ang, m1, m2, b, bx, by, mx, my, ang1, lt, alpha As Single
-    Dim iBulge As Integer
-
-    gl.PushMatrix                                                               ' para evitar peleas, guardo la matriz de trnasformacion
-    gl.Translatef(posX, posY, 0)
-    gl.Rotatef(angle, 0, 0, 1)                                                  ' en grados
-    gl.Scalef(textH * FontScale, textH * FontScale, 1)
+Public Function DrawText(UTFstring As String, posX As Float, posY As Float, colour As Integer, textH As Float, Optional angle As Float = 0, fItalic As Float = 0, linewIdth As Float = 1, rectW As Float = 0, rectH As Float = 0, alignHoriz As Integer = 0, alignVert As Integer = 0) As Boolean
 
     Dim fGlyphs As Float[]
-    fGlyphs = DrawTextPoly(UTFstring, textH, angle, 0, 1)
-    DrawLines(fGlyphs, colour)
 
-    ' For i = 1 To String.Len(UTFstring)                                                 ' para cada letra
-    '     UTFcode = String.Code(UTFstring, i)                                     ' obtengo el UTF code
-    '     If UTFcode = 32 Then                                                    ' es un espacio
-    '         gl.Translatef(ActualFont.WordSpacing, 0, 0)                       ' muevo el puntero a la siguiente posicion
-    '     Else
-    '         ' DEPRE LetterIndex = GetCodeIndex(ActualFont, UTFcode)                     ' obtengo el indice de la letra
-    '         If ActualFont.Letter.Exist(UTFcode) Then
-    '             TGlyps = ActualFont.Letter[UTFcode].FontGlyps
-    '             TBulges = ActualFont.Letter[UTFcode].FontBulges
-    '
-    '         Else If UnicodeFont.Letter.Exist(UTFcode) Then ' is unicode
-    '             TGlyps = UnicodeFont.Letter[UTFcode].FontGlyps
-    '             TBulges = UnicodeFont.Letter[UTFcode].FontBulges
-    '
-    '         Else
-    '             ' descarto la letra
-    '             Continue
-    '
-    '         End If
-    '
-    '         ' con bulges
-    '         '============================================================================
-    '         iBulge = 0
-    '
-    '         For Each Glyps In TGlyps
-    '             Bulges = TBulges[iBulge]
-    '
-    '             For i2 = 0 To Glyps.Count / 2 - 2
-    '
-    '                 ' no todos los tramos pueden tener bulges
-    '                 If Abs(Bulges[i2 + 1]) > 0.001 Then
-    '                     ' ' FIXME: arc problem
-    '                     ' Continue
-    '                     ang1 = Ang(Glyps[(i2 + 1) * 2] - Glyps[i2 * 2], Glyps[(i2 + 1) * 2 + 1] - Glyps[i2 * 2 + 1])    ' angulo del tramo
-    '                     Lt = puntos.distancia(Glyps[i2 * 2], Glyps[i2 * 2 + 1], Glyps[(i2 + 1) * 2], Glyps[(i2 + 1) * 2 + 1])
-    '                     If Lt = 0 Then Continue
-    '                     mx = (Glyps[(i2 + 1) * 2] + Glyps[i2 * 2]) / 2          ' punto medio del tramo
-    '                     my = (Glyps[(i2 + 1) * 2 + 1] + Glyps[i2 * 2 + 1]) / 2
-    '                     B = Bulges[i2 + 1] * Lt / 2
-    '                     If Bulges[i2 + 1] < 0 Then alpha = Pi / 2 Else alpha = -Pi / 2
-    '                     bx = mx + B * Cos(ang1 + alpha)                             ' Tercer punto del Bulge
-    '                     by = my + B * Sin(ang1 + alpha)
-    '
-    '                     ' aqui podria usar una rutina de arco entre 3 puntos
-    '                     fArcParams = puntos.Arc3Point(Glyps[i2 * 2], Glyps[i2 * 2 + 1], bx, by, Glyps[(i2 + 1) * 2], Glyps[(i2 + 1) * 2 + 1])
-    '                     ' traslado el centro
-    '                     'If (Bulges[i2 + 1] > 0) Then Swap fArcParams[3], fArcParams[4]
-    '
-    '                     gl.Translatef(fArcParams[0], fArcParams[1], 0)
-    '
-    '                     ARC(fArcParams[2], fArcParams[3], fArcParams[4],, colour)
-    '                     gl.Translatef(-fArcParams[0], -fArcParams[1], 0)
-    '                     fArcParams = Null
-    '
-    '                 Else    ' dibujo la linea normalmente
-    '
-    '                     drawLines([Glyps[i2 * 2], Glyps[i2 * 2 + 1], Glyps[(i2 + 1) * 2], Glyps[(i2 + 1) * 2 + 1]], Colour)
-    '                 End If
-    '
-    '             Next
-    '             For iii = 0 To Glyps.Max Step 2  ' calculo cuanto tiene que avanzar el puntero
-    '                 If Glyps[iii] > Xadvance Then Xadvance = Glyps[iii]
-    '             Next
-    '
-    '             Inc iBulge
-    '         Next
-    '         gl.Translatef(Xadvance + ActualFont.LetterSpacing, 0, 0)                                       ' muevo el puntero a la siguiente posicion
-    '         'Debug Xadvance
-    '         Xadvance = 0
-    '         '================================================================================
-    '
-    '     End If
-    ' Next
-    gl.PopMatrix
+    fGlyphs = DrawTextPoly(UTFstring, textH, angle, fItalic)
+    puntos.Translate(fGlyphs, posX, posY)
+
+    DrawLines(fGlyphs, colour)
 
 End
 
@@ -3705,9 +3621,11 @@ Fast Unsafe Public Function DrawTextPoly(UTFstring As String, Optional textH As 
     puntos.Scale(flxAnswer, textH * FontScale * fScaleX, textH * FontScale)
 
     If sItalicAngle <> 0 Then
+        Dim fItalic As Float
+        fItalic = Sin(Rad(sItalicAngle))
 
         For iii = 0 To flxAnswer.Max - 1 Step 2
-            flxAnswer[iii] += flxAnswer[iii + 1] * Sin(Rad(sItalicAngle))
+            flxAnswer[iii] += flxAnswer[iii + 1] * fItalic
         Next
 
     Endif
@@ -4279,8 +4197,9 @@ Public Sub Quad(fPoints As Float[], Colour As Integer, FillColor As Integer)
 
 End
 
-Public Sub BeginVBO(v As VBO)
+Public Sub BeginVBO(v As VBO, Optional NewData As Boolean = False)
 
+    If NewData Then v.Clear
     If IsNull(VBOLast) Then VBOLast = v Else VBOLast = VBOCurrent
     VBOCurrent = v
 
