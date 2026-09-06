@@ -21,6 +21,15 @@ Public sActionParams As String[]
 
 Public Sub FileNew()
 
+    ' primero intentamos abrir un archivo minimo
+    If FileOpen(Config.dirTemplates &/ "minimal-2010.dxf") = 0 Then
+
+        gcd.Drawing.FileName = "<new>"
+        fmain.tabDrawings.Current.Text = "<new>"
+
+        Return ' todo bien, nada mas por hacer
+    End If
+
     ' Vamos a tratar de armar todo para que se pueda dibujar, sin necesidad de cargar un DXF base.
     Dim NewDrawing As Drawing
     Dim k As String
@@ -81,7 +90,8 @@ Public Sub FileSave(Optional sFile As String = "")
 
 End
 
-Public Sub FileOpen(Optional sFile As String = "")
+' Abre un archivo, lo agrega a la lista de Drawings. Devuelve 0 sin no hubo errores.
+Public Function FileOpen(Optional sFile As String = "") As Integer
 
     Dim NewDrawing As Drawing
     Dim s As Sheet
@@ -125,7 +135,7 @@ Public Sub FileOpen(Optional sFile As String = "")
                         Message.Error(("There was an error opening the file"))
                         NewDrawing = Null
                         gcd.Drawing = gcd.Drawings[gcd.Drawings.Last]
-                        Return
+                        Return 1
                     Endif
 
                     gcd.Drawings.Add(NewDrawing)
@@ -159,7 +169,7 @@ Public Sub FileOpen(Optional sFile As String = "")
                     If fDxf = "" Then
                         Message(("Can't open file: Error On conversion"))
                         Try fmain.GLArea1.Enabled = True
-                        Return
+                        Return 1
                     Endif
 
                     GoSub LoadDXF
@@ -198,7 +208,7 @@ Public Sub FileOpen(Optional sFile As String = "")
 
     Dec Application.Busy
 
-    Return
+    Return 0
 
 LoadDXF:
     Inc Application.Busy
@@ -215,7 +225,7 @@ LoadDXF:
         Message.Error(("There was an error opening the file"))
         NewDrawing = Null
         gcd.Drawing = gcd.Drawings.Last
-        Return
+        Return 1
     Endif
     gcd.debugInfo("DXF read",,, True, True)
     ' If NewDrawing.Headers.FINGERPRINTGUID = "" Then

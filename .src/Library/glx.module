@@ -2687,11 +2687,14 @@ Public Sub Rombo2D(x1 As Float, y1 As Float, side As Float, Optional ColorLeft A
 End
 
 '' Dibuja un serie de lineas
+'Fast Unsafe
 Public Function DrawLines(fVertices As Float[], Optional colour As Integer = 0, LineWIdth As Float = 1, dashes As Float[] = [])
 
     Dim i As Integer
     Dim r As Float, g As Float, b As Float
-    Dim Vertices As Float[]
+    Dim Vertices, fPoints As Float[]
+    Dim x0, y0 As Float
+    Dim dashed As Boolean
 
     'If gbcolor > 0 Then Stop
     r = (Shr(Colour, 16) And 255) / 256
@@ -2700,23 +2703,47 @@ Public Function DrawLines(fVertices As Float[], Optional colour As Integer = 0, 
 
     If fvertices.Count < 2 Then Return
     If dashes.Count > 0 Then
+        dashed = True
         Vertices = puntos.DashedLineStrip(fvertices, dashes, 1)
+
     Else
 
         Vertices = fvertices
 
     Endif
 
+    ' puntos.Add2DPointsTo3DArray(vertices, VBOCurrent.Vertex)
+    ' puntos.AddColorsTo3DArray(VBOCurrent.Colors, CInt(vertices.Count / 2), r, g, b)
+
     For i = 0 To vertices.Max Step 2
+
+        If i > 0 Then
+            If (x0 = vertices[i]) And (y0 = vertices[i + 1]) Then ' es un punto
+                If IsNull(fPoints) Then fPoints = New Float[]
+                fPoints.Add(x0)
+                fPoints.Add(y0)
+                dashed = True
+            End If
+        Endif
+
         VBOCurrent.Vertex.Add(vertices[i])         'X
         VBOCurrent.Vertex.Add(vertices[i + 1])     'Y
         VBOCurrent.Vertex.Add(0)                   'Z
+
+        x0 = vertices[i]
+        y0 = vertices[i + 1]
 
         VBOCurrent.Colors.Add(r)                    'R
         VBOCurrent.Colors.Add(g)                    'G
         VBOCurrent.Colors.Add(b)                    'B
 
     Next
+
+    If dashed Then
+        If fPoints.Count > 0 Then
+            Drawpoints(fPoints, colour, linewIdth)
+        Endif
+    End If
 
 End
 
@@ -2775,7 +2802,7 @@ End
 '' Dibuja un seria de polilinea
 Fast Unsafe Public Function Polygon(vertices As Float[], Optional colour As Integer = 0, LineWIdth As Float = 1, dashes As Float[])
 
-    DrawLines(vertices.colour, LineWIdth, dashes)
+    DrawLines(vertices, colour, LineWIdth, dashes)
 
     ' ademas la union
 

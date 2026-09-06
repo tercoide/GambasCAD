@@ -31,10 +31,10 @@
 
 Create Static       ' This two preposition are the same as creating a module instead of a
 Create Private      ' class in Gambas.
-Fast Unsafe        ' alwways set this after debugging
+'Fast Unsafe        ' alwways set this after debugging
 Public HookSize As Integer = 16                       ' for use with poi
 Public NumericTolerance As Float = 1e-7
-
+Private UseAddMethod As Boolean = True
 Public Const pi2 As Float = 6.28318530717959
 
 '' Returns center, radious, start angle, length of an arc defined by 3 given points
@@ -1672,7 +1672,7 @@ Public Function DashedLineStrip(flxStrip As Float[], flxDash As Float[], Optiona
             If bSkip Then
                 bSkip = False
                 fOffset += fTrame
-                fOffset = Utils.fMod(fOffset, fDashTotal)
+                fOffset = fMod(fOffset, fDashTotal)
                 Continue
             Else
                 bSkip = True
@@ -1771,5 +1771,94 @@ Public Function ExtendLine2D(p0 As Punto2d, p1 As Punto2d, l As Float) As Punto2
     Endif
 
     Return p
+
+End
+
+Public Function Create3dPointsFrom2dArray(flxPoints As Float[], Optional zValue As Float = 0) As Float[]
+
+    Dim flx3D As New Float[]
+    Dim i, i2 As Integer
+
+    flx3D.Resize(Int(flxPoints.Count / 2) * 3)
+    For i = 0 To flxPoints.Max Step 2
+        flx3D[i2] = flxPoints[i]
+        Inc i2
+        flx3D[i2] = flxPoints[i + 1]
+        Inc i2
+        flx3D[i2] = zValue
+        Inc i2
+    Next
+
+    Return flx3d
+
+End
+
+Public Sub Add2DPointsTo3DArray(flxPoints As Float[], flx3D As Float[], Optional zValue As Float = 0)
+
+    Dim i, i2 As Integer
+
+    If UseAddMethod Then
+
+        For i = 0 To flxPoints.Max Step 2
+            flx3D.Add(flxPoints[i])
+
+            flx3D.Add(flxPoints[i + 1])
+
+            flx3D.Add(zValue)
+
+        Next
+
+    Else
+        i2 = flx3D.Count
+        flx3D.Resize(flx3D.count + Int(flxPoints.Count / 2) * 3)
+
+        For i = 0 To flxPoints.Max Step 2
+            flx3D[i2] = flxPoints[i]
+            Inc i2
+            flx3D[i2] = flxPoints[i + 1]
+            Inc i2
+            flx3D[i2] = zValue
+            Inc i2
+        Next
+    End If
+
+End
+
+Public Sub AddColorsTo3DArray(flxRGB As Float[], nPoints As Integer, r As Float, g As Float, b As Float)
+
+    Dim i, i2 As Integer
+
+    If UseAddMethod Then
+        For i = 0 To nPoints
+            flxRGB.Add(r)
+            flxRGB.Add(g)
+            flxRGB.Add(b)
+        Next
+
+    Else
+        i2 = flxRGB.Count
+        flxRGB.Resize(flxRGB.Count + nPoints * 3)
+
+        For i = 0 To nPoints
+            flxRGB[i2] = r
+            i2 += 1
+            flxRGB[i2] = g
+            i2 += 1
+            flxRGB[i2] = b
+            i2 += 1
+        Next
+    End If
+
+End
+
+'' Equivale a Mod pero para numeros FLoat
+Public Sub fMod(fNumber As Float, fDivi As Float) As Float
+
+    Dim n As Integer
+
+    If fDivi = 0 Then Return 0
+
+    n = CInt(fNumber / fDivi)
+    Return fNumber - fDivi * n
 
 End
