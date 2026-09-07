@@ -49,6 +49,7 @@
 '               handle = hObject1
 '               owner  = HO
 
+Public LogRead As Boolean = False
 Public LoadingPercent As Single
 Private LoadLastPercent As Single
 Private LoadTotalBytes As Integer
@@ -283,7 +284,17 @@ End
 
 Private Sub ReadData()
 
-    Line Input #fp, lpcode
+    lpcode = ""
+    lpvalue = ""
+
+    Do
+        Line Input #fp, lpcode
+        If lpcode = "" Then
+            If Eof(fp) Then Return
+        Else
+            Break
+        Endif
+    Loop
     Line Input #fp, lpValue
 
     LoadedBytes += Len(lpcode)
@@ -296,12 +307,12 @@ Private Sub ReadData()
     lpvalue = Trim$(lpvalue)
 
     ' updating percentage
-
     LoadingPercent = LoadedBytes / LoadTotalBytes
-
-    If LoadingPercent - LoadLastPercent > 0.01 Then
-        gcd.debugInfo("Loging file " & CInt(LoadingPercent * 100) & "%", True, True)
-        LoadLastPercent = LoadingPercent
+    If LogRead Then
+        If LoadingPercent - LoadLastPercent > 0.01 Then
+            gcd.debugInfo("Loging file " & CInt(LoadingPercent * 100) & "%", True, True)
+            LoadLastPercent = LoadingPercent
+        End If
     End If
 
 End
@@ -631,6 +642,8 @@ Private Sub Load5Entities(cEntities As Collection)
 
         If cEntity.Exist(dxf.codid) Then
             sKey = cEntity[dxf.codid]
+        Else
+            skey = ""
         End If
         If sKey = "" Then
 
@@ -2094,21 +2107,23 @@ Public Sub ReadLayers(cLaydata As Collection, drw As Drawing)
 
     ' ' primero eliminamos lo q haya
     Drw.Layers.Clear
-    For Each cLay As Collection In cLayData["TABLES"]["LAYER"]
-        hLay = New Layer
-        hLay.Name = cLay[dxf.codName]
-        hLay.id = cLay[dxf.codid]
-        hLay.Visible = CInt(cLay[dxf.codColor]) >= 0
-        hLay.Colour = Abs(CInt(cLay[dxf.codColor]))
-        hLay.LineType = drw.LineTypes[UCase(cLay[Me.codLType])]
-        If IsNull(hLay.LineType) Then hLay.LineType = drw.LineTypes[drw.LineTypes.First]
+    If Not IsNull(cLayData["TABLES"]["LAYER"]) Then
+        For Each cLay As Collection In cLayData["TABLES"]["LAYER"]
+            hLay = New Layer
+            hLay.Name = cLay[dxf.codName]
+            hLay.id = cLay[dxf.codid]
+            hLay.Visible = CInt(cLay[dxf.codColor]) >= 0
+            hLay.Colour = Abs(CInt(cLay[dxf.codColor]))
+            hLay.LineType = drw.LineTypes[UCase(cLay[Me.codLType])]
+            If IsNull(hLay.LineType) Then hLay.LineType = drw.LineTypes[drw.LineTypes.First]
 
-        Try hLay.LineWt = cLay["370"]       ' algunos dxf no traen esta info
-        If hLay.LineWt = 0 Then hLay.LineWt = 1
+            Try hLay.LineWt = cLay["370"]       ' algunos dxf no traen esta info
+            If hLay.LineWt = 0 Then hLay.LineWt = 1
 
-        If hLay.id = "" Then hLay.id = gcd.NewId()
-        Drw.Layers.Add(hLay, hLay.Name)
-    Next
+            If hLay.id = "" Then hLay.id = gcd.NewId()
+            Drw.Layers.Add(hLay, hLay.Name)
+        Next
+    End If
 
     ' es inaceptable no tener al menos un layrr
     If drw.Layers.Count = 0 Then
@@ -2169,8 +2184,18 @@ Public Sub ReadStyles(cData As Collection, drw As Drawing)
 
         Next
 
-        drw.CurrTextStyle = Drw.TextStyles[Drw.TextStyles.First]
+    Else
+        Dim ts As New TextStyle
+        ts.FontName = "romans"
+        ts.name = "standard"
+        ts.sFont_3 = "romans"
+        ts.FixedH_40 = 0.10
+        ts.Id = 50
+        drw.TextStyles.Add(ts, ts.name)
+        drw.CurrTextStyle = ts
+
     End If
+    drw.CurrTextStyle = Drw.TextStyles[Drw.TextStyles.First]
 
     ' Leo lo styles de dimensiones
     If cData["TABLES"].Exist("DIMSTYLE") Then
@@ -2214,9 +2239,16 @@ Public Sub ReadStyles(cData As Collection, drw As Drawing)
             If hdim.name <> "" Then Drw.DimStyles.Add(hdim, hdim.name)
 
         Next
+    Else
+        Dim DS As New DimStyle
+        DS.id = "40" 'gcd.NewHandle(d)
+        ds.name = "standard"
 
-        drw.CurrDimStyle = Drw.DimStyles[Drw.DimStyles.First]
+        drw.CurrDimStyle = ds
+        Drw.DimStyles.Add(ds, ds.name)                ' Agrego un DimStyle
+
     End If
+    drw.CurrDimStyle = Drw.DimStyles[Drw.DimStyles.First]
 
 End
 
@@ -2231,43 +2263,45 @@ Public Sub ReadLTypes(cData As Collection, drw As Drawing)
 
     ' primero eliminamos lo q haya
     Drw.LineTypes.Clear
-    For Each c As Collection In cData["TABLES"]["LTYPE"]
-        hlty = New LineType
-        hlty.Name = UCase(c[dxf.codName])
-        hlty.Description = c["3"]
-        If c.Exist("5") Then hlty.id = c["5"]
-        If hLty.id = "" Then hLty.id = gcd.NewId()
-        Try hlty.nTrames = CInt(c["73"])
-        If hlty.nTrames > 0 Then hlty.Length = CFloat(dxf.ReadCodeFromCol(c, 40))
-        i = 0
-        For t = 1 To hlty.nTrames
+    If Not IsNull(cData["TABLES"]["LTYPE"]) Then
+        For Each c As Collection In cData["TABLES"]["LTYPE"]
+            hlty = New LineType
+            hlty.Name = UCase(c[dxf.codName])
+            hlty.Description = c["3"]
+            If c.Exist("5") Then hlty.id = c["5"]
+            If hLty.id = "" Then hLty.id = gcd.NewId()
+            Try hlty.nTrames = CInt(c["73"])
+            If hlty.nTrames > 0 Then hlty.Length = CFloat(dxf.ReadCodeFromCol(c, 40))
+            i = 0
+            For t = 1 To hlty.nTrames
 
-            r = dxf.ReadCodeFromCol(c, 49, True)
-            hlty.TrameLength.Add(CFloat(r))
-            ri = CInt(dxf.ReadCodeFromCol(c, 74, True,, 0))
-            hlty.TrameType.Add(ri)
-            Select Case ri
-                Case 0
-                    ' nada
-                Case Else
-                    If (ri And 1) = 1 Then AbsoluteRotation = True Else absoluterotation = False
-                    If (ri And 2) = 2 Then IsText = True Else IsText = False
-                    If (ri And 4) = 4 Then IsShape = True Else IsShape = False
-                    hlty.TrameData.Add(dxf.ReadCodeFromCol(c, 75, True))
-                    hlty.TrameStyle.Add(dxf.ReadCodeFromCol(c, 340, True))
-                    hlty.TrameScale.Add(dxf.ReadCodeFromCol(c, 46, True))
-                    hlty.TrameRotation.Add(dxf.ReadCodeFromCol(c, 50, True))
-                    hlty.TrameOffX.Add(dxf.ReadCodeFromCol(c, 44, True))
-                    hlty.TrameStyle.Add(dxf.ReadCodeFromCol(c, 45, True))
-                    hlty.TrameData.Add(dxf.ReadCodeFromCol(c, 9, True))
+                r = dxf.ReadCodeFromCol(c, 49, True)
+                hlty.TrameLength.Add(CFloat(r))
+                ri = CInt(dxf.ReadCodeFromCol(c, 74, True,, 0))
+                hlty.TrameType.Add(ri)
+                Select Case ri
+                    Case 0
+                        ' nada
+                    Case Else
+                        If (ri And 1) = 1 Then AbsoluteRotation = True Else absoluterotation = False
+                        If (ri And 2) = 2 Then IsText = True Else IsText = False
+                        If (ri And 4) = 4 Then IsShape = True Else IsShape = False
+                        hlty.TrameData.Add(dxf.ReadCodeFromCol(c, 75, True))
+                        hlty.TrameStyle.Add(dxf.ReadCodeFromCol(c, 340, True))
+                        hlty.TrameScale.Add(dxf.ReadCodeFromCol(c, 46, True))
+                        hlty.TrameRotation.Add(dxf.ReadCodeFromCol(c, 50, True))
+                        hlty.TrameOffX.Add(dxf.ReadCodeFromCol(c, 44, True))
+                        hlty.TrameStyle.Add(dxf.ReadCodeFromCol(c, 45, True))
+                        hlty.TrameData.Add(dxf.ReadCodeFromCol(c, 9, True))
 
-            End Select
+                End Select
+
+            Next
+
+            Drw.LineTypes.Add(hlty, hlty.Name)
 
         Next
-
-        Drw.LineTypes.Add(hlty, hlty.Name)
-
-    Next
+    End If
     If DRW.LineTypes.Count = 0 Then
         hlty = New LineType
         hlty.Name = "CONTINUOUS"
@@ -2303,7 +2337,7 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
         cTables = colData["TABLES"]
         If colData["TABLES"].Exist("BLOCK_RECORD") Then cBlockRecord = cTables["BLOCK_RECORD"]
     End If
-    If Not cBlocks Then Return
+    ' If Not cBlocks Then Return
     ' For Each colBlk In colData["TABLES"]["BLOCK_RECORD"]
     '     Dim newBlock As New Block
     '     newBlock.entities = New Collection
@@ -2319,41 +2353,42 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
     ' Next
     ' hay DXF sin TAbles
     If cTables Then
+        If Not IsNull(cBlocks)
+            For Each colBlk In cBlocks
+                newBlock = New Block
+                newBlock.id = colBlk[dxf.codid]
+                newBlock.entities = New Collection
+                newBlock.name = colBlk[dxf.codName]
+                newBlock.layer = colBlk[dxf.codLayer]
+                Try newBlock.x0 = colBlk[dxf.codX0]
+                Try newBlock.y0 = colBlk[dxf.codY0]
+                Try newBlock.z0 = colBlk[dxf.codZ0]
+                Try newBlock.flags = colBlk["70"]
 
-        For Each colBlk In cBlocks
-            newBlock = New Block
-            newBlock.id = colBlk[dxf.codid]
-            newBlock.entities = New Collection
-            newBlock.name = colBlk[dxf.codName]
-            newBlock.layer = colBlk[dxf.codLayer]
-            Try newBlock.x0 = colBlk[dxf.codX0]
-            Try newBlock.y0 = colBlk[dxf.codY0]
-            Try newBlock.z0 = colBlk[dxf.codZ0]
-            Try newBlock.flags = colBlk["70"]
-
-            If cBlockRecord Then
-                If cBlockRecord.Exist(colBlk["330"]) Then
-                    newBlock.idContainer = cBlockRecord[colBlk["330"]]["5"]
-                    newBlock.idAsociatedLayout = cBlockRecord[colBlk["330"]]["340"]
-                    ' If newBlock.idAsociatedLayout <> "0" Then
-                    '     hContainers.Add(newBlock, newBlock.idAsociatedLayout)
-                    ' Else
-                    hContainers.Add(newBlock, newBlock.idContainer)
-                    ' End If
+                If cBlockRecord Then
+                    If cBlockRecord.Exist(colBlk["330"]) Then
+                        newBlock.idContainer = cBlockRecord[colBlk["330"]]["5"]
+                        newBlock.idAsociatedLayout = cBlockRecord[colBlk["330"]]["340"]
+                        ' If newBlock.idAsociatedLayout <> "0" Then
+                        '     hContainers.Add(newBlock, newBlock.idAsociatedLayout)
+                        ' Else
+                        hContainers.Add(newBlock, newBlock.idContainer)
+                        ' End If
+                    End If
                 End If
-            End If
-            'If Left(newBlock.name, 1) = "*" Then    ' puede ser una Dim o una Sheet
-            ' If InStr(newBlock.name, "_Space") > 0 Then
-            '     ' es una sheet, que ya fue creada por ReadObjectsFromDXF
-            ' Else
+                'If Left(newBlock.name, 1) = "*" Then    ' puede ser una Dim o una Sheet
+                ' If InStr(newBlock.name, "_Space") > 0 Then
+                '     ' es una sheet, que ya fue creada por ReadObjectsFromDXF
+                ' Else
 
-            Drw.Blocks.Add(newBlock, newBlock.name)
+                Drw.Blocks.Add(newBlock, newBlock.name)
 
-            'Endif
+                'Endif
 
-            'Endif
+                'Endif
 
-        Next
+            Next
+        End If
     End If
     If (Drw.Blocks.Count = 0) Or Not Drw.Blocks.Exist("*Model_Space") Then ' agrego el Model
 
@@ -2395,16 +2430,18 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
         Next
     Next
 
-    For Each colBlk In cBlocks
+    If Not IsNull(cBlocks)
+        For Each colBlk In cBlocks
 
-        If colBlk.Exist("entities") Then
+            If colBlk.Exist("entities") Then
 
-            DXFtoEntity(colBlk["entities"], drw, drw.Blocks[colBlk["2"]])
+                DXFtoEntity(colBlk["entities"], drw, drw.Blocks[colBlk["2"]])
 
-        End If
-        Inc i
+            End If
+            Inc i
 
-    Next
+        Next
+    End If
 
 End
 
@@ -2469,6 +2506,7 @@ Public Sub DXFtoEntity(cDxfEntities As Collection, drw As Drawing, Optional bCon
                 t = Timer
 
                 entNueva = clsEntities.DXFImportToEntity(drw, e, IsDummy)
+                If entNueva.id = "" Then entNueva.id = gcd.NewId()
 
                 If IsNull(entNueva) Then Continue        ' si esta implementada, llenamos los datos
                 If entNueva.Gender = cadEndBlk.Gender Then Continue
