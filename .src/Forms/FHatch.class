@@ -18,7 +18,7 @@ Public Sub form_Open()
 
     If ComboBox1.Count = 0 Then
         Message.Error(("No hay ningun patron de relleno en la base de datos"))
-        Me.Close
+        Me.Close(0)
     Endif
 
 End
@@ -32,6 +32,8 @@ End
 Public Sub form_Show()
 
     ' necesito saber si estoy volviendo
+
+    If ComboBox1.Count = 0 Then Return 
     Opening = True
 
     If gcd.Drawing.LastScale = 0 Then gcd.Drawing.LastScale = 1
@@ -48,7 +50,7 @@ End
 Public Sub ComboBox1_Click()
 
     If Opening Then Return
-    If ComboBox1.Text = "SolId" Then
+    If ComboBox1.Text = "Solid" Then
         gcd.Drawing.LastHatch = ComboBox1.Index
         gcd.Drawing.LastHatchPattern = ComboBox1.Text
         gcd.Drawing.LastHatchFile = ComboBox1.Text
@@ -74,7 +76,7 @@ Public Sub ComboBox1_Click()
     h.Polylines.Add([0, 0, DrawingArea1.w, 0, DrawingArea1.w, DrawingArea1.h, 0, DrawingArea1.h, 0, 0])
     h.SeedPoints.Insert([0, 0])
 
-    cadHatchBuilder.MakePattern(eSampleHatch, UCase(ComboBox1.Text), CFloat(txtRotation.text), CFloat(txtScale.Text))
+    cadHatchBuilder.MakePattern(eSampleHatch, UCase(ComboBox1.Text), Utils.CPval(txtRotation.text), Utils.CPval(txtScale.Text))
     h.Levels.add(1)
     cadHatch.BuildGeometry(eSampleHatch)
 
@@ -97,7 +99,7 @@ Public Sub DrawingArea1_Draw()
 
     If Not eSampleHatch Then Return
 
-    If ComboBox1.Text = "SolId" Then
+    If ComboBox1.Text = "Solid" Then
         Paint.Brush = Paint.Color(gcd.gColor[gcd.Drawing.CurrColor])
         Paint.MoveTo(0, 0)
         Paint.Rectangle(0, 0, Paint.w, Paint.h)
@@ -111,12 +113,21 @@ Public Sub DrawingArea1_Draw()
 
     Endif
 
-    Paint.Translate(0, DrawingArea1.h)
+    
+    
+    ' si el hatch es demasiado denso, no vamos a dibujar nada
+    If eSampleHatch.PolyLine.Count > 10000 Then 
+        Paint.MoveTo(Paint.W / 4, Paint.H / 2)
+        'Paint.Scale(1, -1)
+        Paint.Text(("Too dense to show"), 0, Paint.H / 2, Paint.W, Paint.H / 5, Align.Center)
+        
+        Paint.Stroke
+        Else 
+            Paint.Translate(0, DrawingArea1.h)
     Paint.LineWIdth = 1 / fScale
     Paint.Scale(fScale, -fScale)
-
     cadHatch.Draw2(eSampleHatch)
-
+End If
 End
 
 Public Sub btnCAncel_Click()
@@ -196,6 +207,18 @@ End
 Public Sub btnAngleDown_Click()
 
     txtRotation.Text -= 15
+    ComboBox1_Click
+
+End
+
+Public Sub txtScale_Change()
+
+    ComboBox1_Click
+
+End
+
+Public Sub txtRotation_Change()
+
     ComboBox1_Click
 
 End
