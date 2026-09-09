@@ -41,6 +41,16 @@ Public MyLog As File
 Public Sub main()
 
     Dim sFile As String
+    
+     ' Necesitamos saber desde donde estamos corriendo
+    If Application.Path Like "/usr/bin*" Then       ' El programa se instalo desde un .deb o similar
+       DebugMode = False
+       gcd.dirResources = "/usr/share/gambascad"
+    Else                                            ' Estamos ejecutando desde Gambas
+       DebugMode = True
+       gcd.dirResources = Application.Path &/ "var"
+    Endif
+    
 
     ''TINCHO 2023.05.22 > Config.class implementation
     '' Estableciendo los parametros de configuración
@@ -59,7 +69,7 @@ Public Sub main()
     'Config.dirBlocks = Config.Root &/ "blocks"
     Config.dirPrintStyles = Config.Root &/ "printstyles"
     Config.dirPatterns = Config.Root &/ "patterns"
-    Config.dirResources = Config.Root &/ "resources"
+    
 
     If Config.SplitterH.Count = 0 Then
         Config.SplitterH = [144, 500, 144]
@@ -93,14 +103,7 @@ Public Sub main()
 
     ''TINCHO 2023.05.22 > Config.class implementation
     '' Anualdo: Los recursos se copiaran una unica vez, en la primera ejecucion, en el directorio del usuario.
-    ' necesitamo saber desde donde estamos corriendo
-    'If Application.Path Like "/usr/bin*" Then
-    '    DebugMode = False
-    '    gcd.dirResources = "/usr/share/gambascad"
-    'Else
-    '    DebugMode = True
-    '    gcd.dirResources = Application.Path
-    'Endif
+   
     ''TINCHO 2023.05.22 > Config.class implementation
 
     ' Inicializo el programa
@@ -158,9 +161,25 @@ End
 Public Sub Initialize()
 
     Dim aFile As String
-    Dim aDirs As String[] = [Config.dirResources &/ "minimal", Config.dirDwgIn, Config.dirDxfIn, Config.dirDwgOut, Config.dirDxfOut, Config.dirPrintStyles, Config.dirTemplates] ' , Config.dirPatterns]
+    Dim aDirs As String[] = [gcd.dirResources &/ "minimal", Config.dirDwgIn, Config.dirDxfIn, Config.dirDwgOut, Config.dirDxfOut, Config.dirPrintStyles, Config.dirTemplates] ' , Config.dirPatterns]
     Dim aTemp As String[] = [Config.dirDwgIn, Config.dirDxfIn, Config.dirDwgOut, Config.dirDxfOut, Config.dirPrintStyles, Config.dirTemplates] ', Config.dirPatterns]
     Dim sDir As String
+    
+    ' Resources:
+    ' 1-Los que usamos para correr el programa y no son modificables por el user:
+    '   Imagenes de los botones
+    '   Shaders
+    '   Imagen de la Splash form
+    '   Fuentes
+    '   Bloques basicos de las Dimensions
+    '   Templates minimos para "New"
+    
+    ' 2-Los que pueden ser ampliados po el User:
+    '   Fuentes LFF
+    '   Bloques
+    '   Texturas
+    '   Patrones de relleno
+    '   Templates
 
     '' TERCO lo siguiente me borra los patrones de Hatch, elimino esa parte
     ''TINCHO 2023.05.22 > Config.class implementation
@@ -237,7 +256,7 @@ Public Sub LoadPatterns()
     s = Dir(spd, "*.pat")
     If S.Count = 0 Then
         
-        s = Dir(Application.path &/ ".hidden/patterns", "*.pat")
+        s = Dir(gcd.dirResources &/ "patterns", "*.pat")
         If s.Count = 0 Then 
             gcd.debugInfo("No hay patrones de relleno",,, True)
         Else
@@ -245,7 +264,7 @@ Public Sub LoadPatterns()
             ' p = New HatchPattern
             ' Utils.LoadClass2(p, spd &/ sp)
             ' gcd.HatchPatterns.Add(p, p.Name)
-            Copy Application.path &/ ".hidden/patterns" &/ sp To spd &/ sp
+            Copy gcd.dirResources &/ "patterns" &/ sp To spd &/ sp
         Next
         End If
 
@@ -757,19 +776,19 @@ Public Sub LoadCursors()
     Dim c As Integer
     Dim sCursor As String
 
-    sCursor = dsk.Contrary(Application.Path &/ "svg/Cursors/cursor1.svg", "#0066b3", Config.ModelBackgroundColor)
+    sCursor = dsk.Contrary(gcd.dirResources &/ "svg/Cursors/cursor1.svg", "#0066b3", Config.ModelBackgroundColor)
     gcd.CursorCross = New Cursor(Image.FromString(sCursor).Stretch(48, 48).Picture, 24, 24)
 
-    sCursor = dsk.Contrary(Application.Path &/ "svg/Cursors/cursor2.svg", "#0066b3", Config.ModelBackgroundColor)
+    sCursor = dsk.Contrary(gcd.dirResources &/ "svg/Cursors/cursor2.svg", "#0066b3", Config.ModelBackgroundColor)
     gcd.CursorSelect = New Cursor(Image.FromString(sCursor).Stretch(48, 48).Picture, 24, 24)
 
-    sCursor = dsk.Contrary(Application.Path &/ "svg/Cursors/cursor3.svg", "#0066b3", Config.ModelBackgroundColor)
+    sCursor = dsk.Contrary(gcd.dirResources &/ "svg/Cursors/cursor3.svg", "#0066b3", Config.ModelBackgroundColor)
     gcd.CursorSelectAdd = New Cursor(Image.FromString(sCursor).Stretch(48, 48).Picture, 24, 24)
 
-    sCursor = dsk.Contrary(Application.Path &/ "svg/Cursors/cursor4.svg", "#0066b3", Config.ModelBackgroundColor)
+    sCursor = dsk.Contrary(gcd.dirResources &/ "svg/Cursors/cursor4.svg", "#0066b3", Config.ModelBackgroundColor)
     gcd.CursorSelectRem = New Cursor(Image.FromString(sCursor).Stretch(48, 48).Picture, 24, 24)
 
-    sCursor = dsk.Contrary(Application.Path &/ "svg/Cursors/cursor5.svg", "#0066b3", Config.ModelBackgroundColor)
+    sCursor = dsk.Contrary(gcd.dirResources &/ "svg/Cursors/cursor5.svg", "#0066b3", Config.ModelBackgroundColor)
     gcd.CursorSelectXchange = New Cursor(Image.FromString(sCursor).Stretch(48, 48).Picture, 24, 24)
 
 End
