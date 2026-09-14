@@ -22,15 +22,15 @@ Public sActionParams As String[]
 Public Sub FileNew()
 
     ' primero intentamos abrir un archivo minimoç
-    If Exist(Config.dirTemplates &/ "minimal-2010.dxf") Then 
-    If FileOpen(Config.dirTemplates &/ "minimal-2010.dxf") = 0 Then
+    If Exist(Config.dirTemplates &/ "minimal-2010.dxf") Then
+        If FileOpen(Config.dirTemplates &/ "minimal-2010.dxf") = 0 Then
 
-        gcd.Drawing.FileName = "<new>"
-        fmain.tabDrawings.Current.Text = "<new>"
+            gcd.Drawing.FileName = "<new>"
+            fmain.tabDrawings.Current.Text = "<new>"
 
-        Return ' todo bien, nada mas por hacer
-    End If
-    
+            Return ' todo bien, nada mas por hacer
+        End If
+
     End If
 
     ' Vamos a tratar de armar todo para que se pueda dibujar, sin necesidad de cargar un DXF base.
@@ -58,6 +58,7 @@ Public Sub FileNew()
     fmain.UpdateLineWtCombo
     fmain.UpdateLineTypeCombo
     fmain.UpdatDimTypeTypeCombo
+    fmain.UpdateLTypeMenu
     fmain.Text = f
     gcd.DrawingReady = True
 
@@ -151,6 +152,7 @@ Public Function FileOpen(Optional sFile As String = "") As Integer
                     fmain.UpdateLayersCombo
                     fmain.UpdateLineWtCombo
                     fmain.UpdateLineTypeCombo
+                    fmain.UpdateLTypeMenu
                     fmain.UpdatDimTypeTypeCombo
                     fmain.NewTabForDrawing(NewDrawing)
                     gcd.Regen()
@@ -471,11 +473,13 @@ Public Sub ActionActivate(sAction As String)
         Case "undo"
 
             gcd.Drawing.uUndo.DoUndo()
+            fmain.fp.FillProperties(gcd.Drawing.Sheet.EntitiesSelected)
             gcd.Regen
 
         Case "redo"
 
             gcd.Drawing.uUndo.DoRedo()
+            fmain.fp.FillProperties(gcd.Drawing.Sheet.EntitiesSelected)
             gcd.Regen
 
         Case "config"
@@ -673,12 +677,12 @@ Public Sub ActionActivate(sAction As String)
 
             sLayerName = Mid(sAction, 14)
 
-            ' mbtLayers.Text = sLayerName
-            ' iColor = gcd.Drawing.cLayers[sLayerName][dxf.codColor]
-            ' mbtLayers.Picture = paintPlus.picCirculito(8, gcd.gColor[iColor], Color.ButtonForeground)
-
             ' informamos
             gcd.Drawing.CurrLayer = gcd.GetLayer(sLayerName)
+
+            fmain.mbtLayers.Text = sLayerName
+            iColor = gcd.Drawing.CurrLayer.Colour
+            fmain.mbtLayers.Picture = paintPlus.picCirculito(8, gcd.gColor[iColor], Color.ButtonForeground)
 
             ' si tengo algo seleccionado, debo cambiar su color a este
             clsEntities.EditEntities("layer", gcd.Drawing.CurrLayer.name)
@@ -828,8 +832,7 @@ Public Sub ActionActivate(sAction As String)
             gcd.Drawing.Sheet.scene.ShowTexture = True
 
     End Select
-    
+
     If Left(sAction, 4) = "snap" Then gcd.SnapModeSaved = gcd.SnapMode
-    
 
 End
