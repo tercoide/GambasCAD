@@ -55,8 +55,8 @@ Public Sub FileNew()
     gcd.Regen()
 
     fmain.UpdateLayersCombo
-    fmain.UpdateLineWtCombo
-    fmain.UpdateLineTypeCombo
+    fmain.UpdateLWtMenu
+    'fmain.UpdateLineTypeCombo
     fmain.UpdatDimTypeTypeCombo
     fmain.UpdateLTypeMenu
     fmain.Text = f
@@ -150,7 +150,7 @@ Public Function FileOpen(Optional sFile As String = "") As Integer
                     Try gcd.Drawing.HandSeed = Val("&H" & gcd.Drawing.Headers.HandSeed)
 
                     fmain.UpdateLayersCombo
-                    fmain.UpdateLineWtCombo
+                    fmain.UpdateLWtMenu
                     'fmain.UpdateLineTypeCombo
                     fmain.UpdateLTypeMenu
                     fmain.UpdatDimTypeTypeCombo
@@ -244,8 +244,8 @@ LoadDXF:
     Try gcd.Drawing.HandSeed = Val("&H" & gcd.Drawing.Headers.HandSeed)
 
     fmain.UpdateLayersCombo
-    fmain.UpdateLineWtCombo
-    fmain.UpdateLineTypeCombo
+    fmain.UpdateLWtMenu
+    'fmain.UpdateLineTypeCombo
     fmain.UpdateLTypeMenu
     fmain.UpdatDimTypeTypeCombo
 
@@ -547,8 +547,8 @@ Public Sub ActionActivate(sAction As String)
                 If sWName = d.FileName Then
                     gcd.Drawing = d
                     gcd.UpdateLayersCombo
-                    gcd.UpdateLineWtCombo
-                    gcd.UpdateLineTypeCombo
+                    gcd.UpdateLWtMenu
+                    gcd.UpdateLTypeMenu
                     gcd.UpdatDimTypeTypeCombo
                     fmain.redraw
                     fmain.Text = f
@@ -714,14 +714,35 @@ Public Sub ActionActivate(sAction As String)
 
         Case Like "linewt_change_*"
 
-            gcd.Drawing.CurrLineWt = CInt(Mid(sAction, 15)) / 100
+            Dim lw As Integer = CInt(Mid(sAction, 15))
+            gcd.Drawing.CurrLineWt = lw
 
-            clsEntities.EditEntities("linewt", gcd.Drawing.CurrLineWt)
+            Dim imagen As Image = New Image(24, 24, Color.ButtonBackground)
+            Paint.Begin(imagen)
+            Paint.AntiAlias = True
+            Paint.Brush = Paint.Color(Color.ButtonForeground)
+            Paint.MoveTo(0, imagen.h / 2)
+            Paint.LineWIdth = lw * 3 / 100
+            If Paint.LineWIdth < 1 Then Paint.LineWIdth = 1
+            Paint.RelLineTo(imagen.w, 0)
+            Paint.Stroke
+            Paint.End
+
+            fMain.mbtLWt.Action = "linewt_change_" & CStr(lw)
+            fMain.mbtLWt.Picture = imagen.Picture
+            If lw = 0 Then
+                fMain.mbtLWt.Text = "ByLayer"
+            Else
+                fMain.mbtLWt.Text = Format(lw / 100, "0.00mm")
+            End If
+            clsEntities.EditEntities("linewidth", gcd.Drawing.CurrLineWt)
             clsEntities.DeSelection()
 
         Case Like "ltype_change_*"
 
             gcd.Drawing.CurrLineType = gcd.FindLType(Mid(sAction, 14))
+            If IsNull(gcd.Drawing.CurrLineType) Then gcd.Drawing.CurrLineType = gcd.Drawing.LineTypes[gcd.Drawing.LineTypes.First]
+
             fmain.mbtLTypes.Picture = gcd.Drawing.CurrLineType.NameAndPicture
 
             clsEntities.EditEntities("linetype", gcd.Drawing.CurrLineType)

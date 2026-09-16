@@ -164,8 +164,8 @@ Public Sub Run() As Boolean
     picLockedOff = Picture.Load(gcd.dirResources &/ "png" &/ "locked_off.png")
 
     ' acomodo el tamanio de los controles
-    Me.tblLineWt.w = 128
-    Me.tblLTypes.w = 128
+    Me.mbtLWt.W = 128
+    Me.mbtLTypes.w = 172
     Me.mbtColors.w = 32
     Me.cmbDimStyle.w = 128
     '    Me.grdLayers.w = 146
@@ -1353,35 +1353,43 @@ Public Sub UpdateLTypeMenu()
         End If
     Next
     mLType.Name = sName
+    Dim AnchoMenu As Integer = 50 'no se cuanto es
+    Dim nDashes As Float
     For Each aLType In gcd.Drawing.LineTypes
         m2 = New Menu(mLType)
         m2.name = aLType.Name
         m2.text = aLType.Name
         fAbs.Clear
-        Inc i
-        For i = 0 To aLType.TrameLength.Max
-            If aLType.TrameLength[i] = 0 Then
-                fAbs.Add(0.1) ' = Abs(d)
-            Else
-                fAbs.Add(Abs(aLType.TrameLength[i]) * 10 / aLType.Length) ' = Abs(d)
-            End If
-        Next
+        If aLType.Length > 0 Then
+            nDashes = fMain.mbtLTypes.w / aLType.Length / 8
+            ' If nDashes < 5 Then nDashes = 5
+            ' If nDashes > 10 Then nDashes = 10
+
+            Inc i
+            For i = 0 To aLType.TrameLength.Max
+                If aLType.TrameLength[i] = 0 Then
+                    fAbs.Add(1) ' = Abs(d)
+                Else
+                    fAbs.Add(Abs(aLType.TrameLength[i]) * nDashes)
+                End If
+            Next
+        End If
 
         ' primero agregamos la correspondiente a ByLayer
         imagen = New Image(fMain.mbtLTypes.w * 0.9, fMain.mbtLTypes.h * 0.9, fMain.mbtLTypes.Background)
 
         Paint.Begin(imagen)
         Paint.Brush = Paint.Color(Color.ButtonForeground)
-        Paint.AntiAlias = False
+        Paint.AntiAlias = True
         Paint.MoveTo(0, imagen.h * 0.8)
-        Paint.LineWIdth = 1
+        Paint.LineWIdth = 2
         Paint.Dash = fAbs
         Paint.RelLineTo(imagen.w, 0)
         Paint.Stroke
         Paint.Dash = Null
         ' Texto
         Paint.MoveTo(0, 0)
-        Paint.LineWIdth = 1
+        Paint.LineWIdth = 2
         Paint.Text(aLType.Name,,,, imagen.h * 0.5, Align.topLeft)
         Paint.Fill
         Paint.End
@@ -1393,7 +1401,7 @@ Public Sub UpdateLTypeMenu()
     Next
 
     mbtLTypes.Menu = sName
-
+    actions.ActionActivate("ltype_change_BYLAYER")
     Return
 
 End
@@ -1448,155 +1456,207 @@ Public Sub UpdateLayersCombo()
 
 End
 
-'' Should be called after updating layers
-Public Sub UpdateLineWtCombo()
+' '' Should be called after updating layers
+' Public Sub UpdateLineWtCombo()
+'
+'     Dim imagen As Image
+'
+'     Dim LW As Float
+'     Dim f As Float
+'
+'     ' lo vacio
+'
+'     fMain.tblLineWt.tbnChilds.Clear
+'
+'     ' primero agregamos la correspondiente a ByLayer
+'     imagen = New Image(fMain.tblLineWt.w * 0.9, fMain.tblLineWt.h * 0.9, fMain.tblLineWt.Background)
+'
+'     Paint.Begin(imagen)
+'     '  +------------------------------------+
+'     '  +   ---------------------  0.00mm    +
+'     '  +------------------------------------+
+'     Paint.Brush = Paint.Color(Color.ButtonForeground)
+'     Paint.MoveTo(0, imagen.h / 2)
+'     lw = gcd.Drawing.CurrLayer.LineWt '][dxf.codLWht] / 100 * 3
+'     Paint.LineWIdth = lw
+'     If Paint.LineWIdth < 1 Then Paint.LineWIdth = 1
+'     Paint.RelLineTo(imagen.w / 2, 0)
+'     Paint.Stroke
+'     Paint.MoveTo(imagen.w / 10 * 5.5, imagen.h * 0.1)
+'     Paint.LineWIdth = 1
+'     Paint.Text("ByLayer",,,, imagen.h * 0.6, Align.Left)
+'     Paint.Fill
+'     Paint.End
+'
+'     fMain.tblLineWt.AddToolButton("tbnLineWtByLayer",, imagen.Picture, "linewt_change_" & CStr(lw * 100))
+'
+'     ' ahora espesores especificos
+'     For f = 0.1 To 1.2 Step 0.1
+'         ' primero agregamos la correspondiente a ByLayer
+'         imagen = New Image(fMain.tblLineWt.w * 0.9, fMain.tblLineWt.h * 0.9, fMain.tblLineWt.Background)
+'
+'         Paint.Begin(imagen)
+'         Paint.AntiAlias = True
+'         '  +------------------------------------+
+'         '  +   ---------------------  0.00mm    +
+'         '  +------------------------------------+
+'         Paint.Brush = Paint.Color(Color.ButtonForeground)
+'         Paint.MoveTo(0, imagen.h / 2)
+'         lw = f * 3
+'         Paint.LineWIdth = lw
+'         If Paint.LineWIdth < 1 Then Paint.LineWIdth = 1
+'         Paint.RelLineTo(imagen.w / 2, 0)
+'         Paint.Stroke
+'         Paint.MoveTo(imagen.w / 10 * 5.5, imagen.h * 0.1)
+'         Paint.LineWIdth = 1
+'         Paint.Text(Format(f, "0.00mm"),,,, imagen.h * 0.6, Align.Left)
+'         Paint.Fill
+'         Paint.End
+'
+'         fMain.tblLineWt.AddToolButton("tbnLineWt" & CStr(f),, imagen.Picture, "linewt_change_" & CStr(lw * 100))
+'
+'     Next
+'
+'     '   test id[mm]
+'     ' # ¡DIV/0!	0	0
+'     ' 0, 05 1 0, 05
+'     ' 0, 09 2 0, 09
+'     ' 0, 1 3 0, 1
+'     ' 0, 13 4 0, 13
+'     ' 0, 15 5 0, 15
+'     ' 0, 18 6 0, 18
+'     ' 0, 2 7 0, 2
+'     ' 0, 25 8 0, 25
+'     ' 0, 3 9 0, 3
+'     ' 0, 35 10 0, 35
+'     ' 0, 4 11 0, 4
+'     ' 0, 45 12 0, 45
+'     ' 0, 5 13 0, 5
+'     ' 0, 53 14 0, 53
+'     ' 0, 6 15 0, 6
+'     ' 0, 65 16 0, 65
+'     ' 0, 7 17 0, 7
+'     ' 0, 8 18 0, 8
+'     ' 0, 9 19 0, 9
+'     ' 1 20 1
+'     ' 0, 4761904761905 21 1, 06
+'     ' 0, 9090909090909 22 1, 2
+'     ' 1, 304347826087 23 1, 4
+'     ' 1, 6666666666667 24 1, 58
+'     ' 2 25 2
+'     ' 	26 2, 11
+'     ' 	27
+'     ' 	28
+'     ' ByLayer 29
+'     ' ByBlock 30
+'     ' Default 31
+'
+' End
+
+Public Sub UpdateLWtMenu()
+
+    Dim i As Integer, d As Float
+    Dim sName As String = "_menuLWt"
+    Dim mLWt As New Menu(fMain), m2 As Menu
 
     Dim imagen As Image
+    Dim fAbs As New Float[]
+    Dim f, lw As Float
 
-    Dim LW As Float
-    Dim f As Float
-
-    ' lo vacio
-
-    fMain.tblLineWt.tbnChilds.Clear
-
-    ' primero agregamos la correspondiente a ByLayer
-    imagen = New Image(fMain.tblLineWt.w * 0.9, fMain.tblLineWt.h * 0.9, fMain.tblLineWt.Background)
-
-    Paint.Begin(imagen)
-    '  +------------------------------------+
-    '  +   ---------------------  0.00mm    +
-    '  +------------------------------------+
-    Paint.Brush = Paint.Color(Color.ButtonForeground)
-    Paint.MoveTo(0, imagen.h / 2)
-    lw = gcd.Drawing.CurrLayer.LineWt '][dxf.codLWht] / 100 * 3
-    Paint.LineWIdth = lw
-    If Paint.LineWIdth < 1 Then Paint.LineWIdth = 1
-    Paint.RelLineTo(imagen.w / 2, 0)
-    Paint.Stroke
-    Paint.MoveTo(imagen.w / 10 * 5.5, imagen.h * 0.1)
-    Paint.LineWIdth = 1
-    Paint.Text("ByLayer",,,, imagen.h * 0.6, Align.Left)
-    Paint.Fill
-    Paint.End
-
-    fMain.tblLineWt.AddToolButton("tbnLineWtByLayer",, imagen.Picture, "linewt_change_" & CStr(lw * 100))
+    For i = 0 To fMain.Menus.Count - 1
+        If fMain.Menus[i].Name = sName Then
+            fMain.Menus[i].Delete
+            Break
+        End If
+    Next
+    mLWt.Name = sName
+    Dim AnchoMenu As Integer = 50 'no se cuanto es
 
     ' ahora espesores especificos
-    For f = 0.1 To 1.2 Step 0.1
+    For f = 0 To 1.2 Step 0.1
         ' primero agregamos la correspondiente a ByLayer
-        imagen = New Image(fMain.tblLineWt.w * 0.9, fMain.tblLineWt.h * 0.9, fMain.tblLineWt.Background)
-
+        imagen = New Image(24, 24, fMain.mbtLWt.Background)
         Paint.Begin(imagen)
         Paint.AntiAlias = True
-        '  +------------------------------------+
-        '  +   ---------------------  0.00mm    +
-        '  +------------------------------------+
         Paint.Brush = Paint.Color(Color.ButtonForeground)
         Paint.MoveTo(0, imagen.h / 2)
         lw = f * 3
         Paint.LineWIdth = lw
         If Paint.LineWIdth < 1 Then Paint.LineWIdth = 1
-        Paint.RelLineTo(imagen.w / 2, 0)
-        Paint.Stroke
-        Paint.MoveTo(imagen.w / 10 * 5.5, imagen.h * 0.1)
-        Paint.LineWIdth = 1
-        Paint.Text(Format(f, "0.00mm"),,,, imagen.h * 0.6, Align.Left)
-        Paint.Fill
-        Paint.End
-
-        fMain.tblLineWt.AddToolButton("tbnLineWt" & CStr(f),, imagen.Picture, "linewt_change_" & CStr(lw * 100))
-
-    Next
-
-    '   test id[mm]
-    ' # ¡DIV/0!	0	0
-    ' 0, 05 1 0, 05
-    ' 0, 09 2 0, 09
-    ' 0, 1 3 0, 1
-    ' 0, 13 4 0, 13
-    ' 0, 15 5 0, 15
-    ' 0, 18 6 0, 18
-    ' 0, 2 7 0, 2
-    ' 0, 25 8 0, 25
-    ' 0, 3 9 0, 3
-    ' 0, 35 10 0, 35
-    ' 0, 4 11 0, 4
-    ' 0, 45 12 0, 45
-    ' 0, 5 13 0, 5
-    ' 0, 53 14 0, 53
-    ' 0, 6 15 0, 6
-    ' 0, 65 16 0, 65
-    ' 0, 7 17 0, 7
-    ' 0, 8 18 0, 8
-    ' 0, 9 19 0, 9
-    ' 1 20 1
-    ' 0, 4761904761905 21 1, 06
-    ' 0, 9090909090909 22 1, 2
-    ' 1, 304347826087 23 1, 4
-    ' 1, 6666666666667 24 1, 58
-    ' 2 25 2
-    ' 	26 2, 11
-    ' 	27
-    ' 	28
-    ' ByLayer 29
-    ' ByBlock 30
-    ' Default 31
-
-End
-
-Public Sub UpdateLineTypeCombo()
-
-    ' se define en DXF con los codigos:
-    ' 40 = largo total por tramo ( = suma de Abs(code 49) )
-    ' 73 = numero de elementos (linea,espacio, punto) = 0 si es continua
-    ' 49 = largo de cada elemento: 0 = dot, negativo = espacio, positivo = linea
-    Dim imagen As Image
-    Dim i As Integer
-    Dim lty As LineType
-    Dim d As Float
-    Dim sName As String = "_menuLType"
-
-    '  +------------------------------------+
-    '  + Phantom                            +
-    '  + -- - -- - -- - -- - -- - -- - --   +
-    '  +------------------------------------+
-
-    fMain.tblLTypes.tbnChilds.Clear
-
-    ' ahora espesores especificos
-    For Each lty In gcd.Drawing.LineTypes
-        Inc i
-        For Each d In lty.TrameLength
-            d = Abs(d)
-        Next
-
-        ' primero agregamos la correspondiente a ByLayer
-        imagen = New Image(fMain.tblLTypes.w * 0.9, fMain.tblLTypes.h * 0.9, fMain.tblLTypes.Background)
-
-        Paint.Begin(imagen)
-        Paint.Brush = Paint.Color(Color.ButtonForeground)
-        Paint.AntiAlias = True
-        Paint.MoveTo(0, imagen.h * 0.8)
-        Paint.LineWIdth = 1
-        Paint.Dash = lty.TrameLength
         Paint.RelLineTo(imagen.w, 0)
         Paint.Stroke
-        Paint.Dash = Null
-        ' Texto
-        Paint.MoveTo(0, 0)
-        Paint.LineWIdth = 1
-        Paint.Text(lty.Name,,,, imagen.h * 0.5, Align.topLeft)
-        Paint.Fill
         Paint.End
 
-        fMain.tblLTypes.AddToolButton("tbnLType" & CStr(i),, imagen.Picture, "ltype_change_" & lty.Name)
-
+        m2 = New Menu(mLWt)
+        m2.Action = "linewt_change_" & CStr(f * 100)
+        m2.Picture = imagen.Picture
+        If f = 0 Then
+            m2.Text = "ByLayer"
+        Else
+            m2.Text = Format(f, "0.00mm")
+        End If
     Next
-    gcd.Drawing.CurrLineType = gcd.Drawing.LineTypes[gcd.Drawing.LineTypes.First]
-    mbtLTypes.Picture = imagen.Picture
+
+    mbtLWt.Menu = sName
+
+    actions.ActionActivate("linewt_change_0")
+
+    Return
 
 End
+
+' Public Sub UpdateLineTypeCombo()
+'
+'     ' se define en DXF con los codigos:
+'     ' 40 = largo total por tramo ( = suma de Abs(code 49) )
+'     ' 73 = numero de elementos (linea,espacio, punto) = 0 si es continua
+'     ' 49 = largo de cada elemento: 0 = dot, negativo = espacio, positivo = linea
+'     Dim imagen As Image
+'     Dim i As Integer
+'     Dim lty As LineType
+'     Dim d As Float
+'     Dim sName As String = "_menuLType"
+'
+'     '  +------------------------------------+
+'     '  + Phantom                            +
+'     '  + -- - -- - -- - -- - -- - -- - --   +
+'     '  +------------------------------------+
+'
+'     fMain.tblLTypes.tbnChilds.Clear
+'
+'     ' ahora espesores especificos
+'     For Each lty In gcd.Drawing.LineTypes
+'         Inc i
+'         For Each d In lty.TrameLength
+'             d = Abs(d)
+'         Next
+'
+'         ' primero agregamos la correspondiente a ByLayer
+'         imagen = New Image(fMain.tblLTypes.w * 0.9, fMain.tblLTypes.h * 0.9, fMain.tblLTypes.Background)
+'
+'         Paint.Begin(imagen)
+'         Paint.Brush = Paint.Color(Color.ButtonForeground)
+'         Paint.AntiAlias = True
+'         Paint.MoveTo(0, imagen.h * 0.8)
+'         Paint.LineWIdth = 1
+'         Paint.Dash = lty.TrameLength
+'         Paint.RelLineTo(imagen.w, 0)
+'         Paint.Stroke
+'         Paint.Dash = Null
+'         ' Texto
+'         Paint.MoveTo(0, 0)
+'         Paint.LineWIdth = 1
+'         Paint.Text(lty.Name,,,, imagen.h * 0.5, Align.topLeft)
+'         Paint.Fill
+'         Paint.End
+'
+'         fMain.tblLTypes.AddToolButton("tbnLType" & CStr(i),, imagen.Picture, "ltype_change_" & lty.Name)
+'
+'     Next
+'     gcd.Drawing.CurrLineType = gcd.Drawing.LineTypes[gcd.Drawing.LineTypes.First]
+'     mbtLTypes.Picture = imagen.Picture
+'
+' End
 
 Public Sub tabDrawings_Click()
 
@@ -2234,16 +2294,16 @@ Public Sub tbvLayers_MouseUp()
             If iColor < 0 Then Return
             aLayer.Colour = iColor - 1
             tbvLayers[iRow, 0].Picture = paintPlus.picCirculito(8, gcd.GetGBColor(aLayer.Colour), Color.ButtonForeground)
-            fMain.grdLayers[0.0, 0.0].Picture = tbvLayers[iRow, 0].Picture
+            'fMain.grdLayers[0.0, 0.0].Picture = tbvLayers[iRow, 0].Picture
             clsEntities.glGenDrawVBO(aLayer)
 
         Case 4 ' nombre
             gcd.Drawing.CurrLayer = aLayer
-            fMain.grdLayers[0.0, 0.0].Picture = tbvLayers[iRow, 0].Picture
-            fMain.grdLayers[0, 4].Text = gcd.Drawing.CurrLayer.Name
-            fMain.grdLayers[0, 1].Picture = IIf(gcd.Drawing.CurrLayer.Visible, fLayersOnScreen.picVisibleOn, fLayersOnScreen.picVisibleOff)
-            fMain.grdLayers[0, 2].Picture = IIf(gcd.Drawing.CurrLayer.Frozen, fLayersOnScreen.picFrozenOn, fLayersOnScreen.picFrozenOff)
-            fMain.grdLayers[0, 3].Picture = IIf(gcd.Drawing.CurrLayer.Locked, fLayersOnScreen.picLockedOn, fLayersOnScreen.picLockedOff)
+            ' fMain.grdLayers[0.0, 0.0].Picture = tbvLayers[iRow, 0].Picture
+            ' fMain.grdLayers[0, 4].Text = gcd.Drawing.CurrLayer.Name
+            ' fMain.grdLayers[0, 1].Picture = IIf(gcd.Drawing.CurrLayer.Visible, fLayersOnScreen.picVisibleOn, fLayersOnScreen.picVisibleOff)
+            ' fMain.grdLayers[0, 2].Picture = IIf(gcd.Drawing.CurrLayer.Frozen, fLayersOnScreen.picFrozenOn, fLayersOnScreen.picFrozenOff)
+            ' fMain.grdLayers[0, 3].Picture = IIf(gcd.Drawing.CurrLayer.Locked, fLayersOnScreen.picLockedOn, fLayersOnScreen.picLockedOff)
             'Drawing.Hide
             If gcd.Drawing.Sheet.EntitiesSelected.Count > 0 Then
                 ' debo regenerar
@@ -2268,16 +2328,16 @@ Public Sub tbvLayers_MouseUp()
                 aLayer.Visible = Not aLayer.Visible
                 tbvLayers[iRow, 1].Picture = IIf(aLayer.Visible, picVisibleOn, picVisibleOff)
             End If
-            fMain.grdLayers[0, 1].Picture = IIf(gcd.Drawing.CurrLayer.Visible, fLayersOnScreen.picVisibleOn, fLayersOnScreen.picVisibleOff)
+            'fMain.grdLayers[0, 1].Picture = IIf(gcd.Drawing.CurrLayer.Visible, fLayersOnScreen.picVisibleOn, fLayersOnScreen.picVisibleOff)
             fMain.ReCollect()
         Case 2
             aLayer.Frozen = Not aLayer.Frozen
             tbvLayers[iRow, 2].Picture = IIf(aLayer.Frozen, picFrozenOn, picFrozenOff)
-            fMain.grdLayers[0, 2].Picture = IIf(gcd.Drawing.CurrLayer.Frozen, fLayersOnScreen.picFrozenOn, fLayersOnScreen.picFrozenOff)
+            'fMain.grdLayers[0, 2].Picture = IIf(gcd.Drawing.CurrLayer.Frozen, fLayersOnScreen.picFrozenOn, fLayersOnScreen.picFrozenOff)
         Case 3
             aLayer.Locked = Not aLayer.Locked
             tbvLayers[iRow, 3].Picture = IIf(aLayer.Locked, picLockedOn, picLockedOff)
-            fMain.grdLayers[0, 3].Picture = IIf(gcd.Drawing.CurrLayer.Locked, fLayersOnScreen.picLockedOn, fLayersOnScreen.picLockedOff)
+            'fMain.grdLayers[0, 3].Picture = IIf(gcd.Drawing.CurrLayer.Locked, fLayersOnScreen.picLockedOn, fLayersOnScreen.picLockedOff)
     End Select
 
     tbvLayers.Columns[0].EnsureVisible
