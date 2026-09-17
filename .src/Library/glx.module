@@ -2748,6 +2748,69 @@ Public Function DrawLines(fVertices As Float[], Optional colour As Integer = 0, 
 End
 
 '' Dibuja un serie de lineas
+'Fast Unsafe
+Public Function DrawLines3D(fVertices As Float[], Optional colour As Integer = 0, LineWIdth As Float = 1, dashes As Float[] = [])
+
+    Dim i As Integer
+    Dim r As Float, g As Float, b As Float
+    Dim Vertices, fPoints As Float[]
+    Dim x0, y0, z0 As Float
+    Dim dashed As Boolean
+
+    'If gbcolor > 0 Then Stop
+    r = (Shr(Colour, 16) And 255) / 256
+    g = (Shr(Colour, 8) And 255) / 256
+    b = (Colour And 255) / 256
+
+    If fvertices.Count < 2 Then Return
+    If dashes.Count > 0 Then
+
+        Vertices = puntos.DashedLineStrip(fvertices, dashes, 1)
+
+    Else
+
+        Vertices = fvertices
+
+    Endif
+
+    ' puntos.Add2DPointsTo3DArray(vertices, VBOCurrent.Vertex)
+    ' puntos.AddColorsTo3DArray(VBOCurrent.Colors, CInt(vertices.Count / 2), r, g, b)
+
+    For i = 0 To vertices.Max Step 3
+
+        If i > 0 Then
+            If (x0 = vertices[i]) And (y0 = vertices[i + 1]) And (z0 = vertices[i + 2]) Then ' es un punto
+                If IsNull(fPoints) Then fPoints = New Float[]
+                fPoints.Add(x0)
+                fPoints.Add(y0)
+                fPoints.Add(z0)
+                dashed = True
+            End If
+        Endif
+
+        VBOCurrent.Vertex.Add(vertices[i])         'X
+        VBOCurrent.Vertex.Add(vertices[i + 1])     'Y
+        VBOCurrent.Vertex.Add(vertices[i + 2])                   'Z
+
+        x0 = vertices[i]
+        y0 = vertices[i + 1]
+        z0 = vertices[i + 2]
+
+        VBOCurrent.Colors.Add(r)                    'R
+        VBOCurrent.Colors.Add(g)                    'G
+        VBOCurrent.Colors.Add(b)                    'B
+
+    Next
+
+    If dashed Then
+        If fPoints.Count > 0 Then
+            Drawpoints3D(fPoints, colour, linewIdth)
+        Endif
+    End If
+
+End
+
+'' Dibuja un serie de lineas
 Public Function Drawpoints(fPoints As Float[], Optional colour As Integer = 0, PointSize As Float = 1)
 
     Dim i As Integer
@@ -2762,6 +2825,30 @@ Public Function Drawpoints(fPoints As Float[], Optional colour As Integer = 0, P
         VBOCurrent.VertexPoints.Add(fPoints[i])         'X
         VBOCurrent.VertexPoints.Add(fPoints[i + 1])     'Y
         VBOCurrent.VertexPoints.Add(0)                   'Z
+
+        VBOCurrent.ColorsPoints.Add(r)                    'R
+        VBOCurrent.ColorsPoints.Add(g)                    'G
+        VBOCurrent.ColorsPoints.Add(b)                    'B
+
+    Next
+
+End
+
+'' Dibuja un serie de puntos 3D
+Public Function Drawpoints3D(fPoints As Float[], Optional colour As Integer = 0, PointSize As Float = 1)
+
+    Dim i As Integer
+    Dim r As Float, g As Float, b As Float
+
+    'If gbcolor > 0 Then Stop
+    r = (Shr(Colour, 16) And 255) / 256
+    g = (Shr(Colour, 8) And 255) / 256
+    b = (Colour And 255) / 256
+
+    For i = 0 To fPoints.Max Step 3
+        VBOCurrent.VertexPoints.Add(fPoints[i])         'X
+        VBOCurrent.VertexPoints.Add(fPoints[i + 1])     'Y
+        VBOCurrent.VertexPoints.Add(fPoints[i + 2])                   'Z
 
         VBOCurrent.ColorsPoints.Add(r)                    'R
         VBOCurrent.ColorsPoints.Add(g)                    'G
@@ -2802,9 +2889,13 @@ End
 '' Dibuja un seria de polilinea
 Fast Unsafe Public Function Polygon(vertices As Float[], Optional colour As Integer = 0, LineWIdth As Float = 1, dashes As Float[] = [])
 
-    DrawLines(vertices, colour, LineWIdth, dashes)
+    PolyLines(vertices, colour, LineWIdth, dashes)
 
     ' ademas la union
+    VBOCurrent.Vertex.Add(vertices[vertices.max - 1])
+    VBOCurrent.Vertex.Add(vertices[vertices.Max])
+    VBOCurrent.Vertex.Add(0)
+    glColorRGB(colour,, False)
 
     VBOCurrent.Vertex.Add(vertices[0])
     VBOCurrent.Vertex.Add(vertices[1])
@@ -4163,7 +4254,7 @@ Public Sub DEPRE_txtRendering2D(texto As String, x As Float, y As Float, Optiona
 
 End
 
-Public Sub DEPRE_DrawText3D(texto As String, pr As Punto3d, Optional Altura As Single = 12, Optional _color As Long = Color.Blue, Optional _BackColor As Long = -1, Optional centradoH As Integer = 0, Optional centradoV As Integer = 0)
+Public Sub DrawText3D(texto As String, pr As Punto3d, Optional Altura As Single = 12, Optional _color As Long = Color.Blue, Optional _BackColor As Long = -1, Optional centradoH As Integer = 0, Optional centradoV As Integer = 0)
 
     Dim x As Float, y As Float, z As Float
 
@@ -4199,19 +4290,13 @@ Public Sub Quad3D(p1 As Punto3d, p2 As Punto3d, p3 As Punto3d, p4 As Punto3d, Op
 
     ' Quad esta obsoleto , reemplazo por dos triangulos
 
-    gl.begin(gl.TRIANGLES)
-
     Vertex3D(p1, c1)
     Vertex3D(p2, c2)
     Vertex3D(p3, c3)
-    gl.End
 
-    gl.begin(gl.TRIANGLEs)
     Vertex3D(p1, c1)
     Vertex3D(p3, c3)
     Vertex3D(p4, c4)
-
-    gl.end
 
 End
 
