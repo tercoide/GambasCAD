@@ -4,7 +4,7 @@ A CAD made in Gambas programming language
 
 ## Screenshot
 
-<a href="https://github.com/tercoide/GambasCAD/blob/main/screenshot2.png" target="_blank"><img src="https://github.com/tercoide/GambasCAD/blob/main/screenshot1.png" alt="Screenshot" width="800" height="480" ></a>
+![alt text]([https://github.com/tercoide/GambasCAD/blob/main/screenshot2.png] "Screenshot")
 
 
 In order to open DWG files, one of these programs need to be installed in the system:
