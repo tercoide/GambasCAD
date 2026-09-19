@@ -45,6 +45,7 @@ Public MyPrinter As Printer
 Public ftring As New Float[]
 Public flxTrimmedLine As New Float[]
 Public GLArea1 As GLArea' = gcd.Drawing.Sheet.GlSheet
+Public glarea3D As GLArea
 
 Public tabViews As TabPanel
 
@@ -700,6 +701,31 @@ Public Sub GLArea1_MouseWheel()
 
 End
 
+Public Sub glArea3D_MouseWheel()
+
+    ' If Not gcd.drawingready Then Return
+    ' 2024
+
+    Dim factor As Float = (1 + 0.075 * Mouse.Delta)
+
+    gcd.Drawing.Sheet3D.camera.MouseWheel()
+    gcd.Drawing.Sheet3d.GLSheet.Refresh
+
+End
+
+Public Sub glarea3D_mouseDown()
+
+    gcd.Drawing.Sheet3D.camera.MouseDown()
+
+End
+
+Public Sub glarea3D_mousemove()
+
+    gcd.Drawing.Sheet3D.camera.MouseMove()
+    gcd.Drawing.Sheet3d.GLSheet.Refresh
+
+End
+
 ' Public Sub GLPaper_Draw()
 '
 '     Dim iParent As Integer
@@ -818,6 +844,178 @@ End
 '     ' Dec flgWheelCounter
 '
 ' End
+Public Sub glArea3D_draw()
+
+    Dim m As Model3d
+    Dim v As Single[]
+    Dim p1, p2, p3, p4 As New Punto3d
+    Dim gcolor As Integer
+
+    ' Borro la ventana
+    v = glx.GetColorRGBA(config.ModelBackgroundColor)
+
+    gl.ClearColor(v[0], v[1], v[2], v[3])
+
+    gl.Clear(gl.DEPTH_BUFFER_BIT Or gl.COLOR_BUFFER_BIT)
+    gl.Enable(gl.DEPTH_TEST)
+    gl.Enable(gl.SMOOTH)
+
+    ' Try m = m.fMaxDim
+    ' If m = 0 Then m = 1
+    ' antes de dibujar algo, tengo que establecer el tipo de projecccion Ortogonal o Perspectiva
+    gl.MatrixMode(gl.PROJECTION)
+    gl.LoadIdentity()
+
+    Glu.Perspective(45, Me.w / Me.h, 0.1, 1000)
+    'gl.Frustum(-glarea1.w / 2, glarea1.w / 2, -glarea1.h / 2, glarea1.h / 2, 2 * m, 100 * m)
+
+    gl.MatrixMode(gl.MODELVIEW)
+    gl.LoadIdentity()
+    'gl.Translatef(gcd.Drawing.Sheet3d.PanX, gcd.Drawing.Sheet3d.PanY, gcd.Drawing.Sheet3d.PanZ)
+    gl.Scalef(gcd.Drawing.Sheet3d.ScaleZoom, gcd.Drawing.Sheet3d.ScaleZoom, gcd.Drawing.Sheet3d.ScaleZoom)
+    gl.Rotatef(gcd.Drawing.Sheet3d.RotX, 1, 0, 0)
+    gl.Rotatef(gcd.Drawing.Sheet3d.RotY, 0, 1, 0)
+    gl.Rotatef(gcd.Drawing.Sheet3d.RotZ, 0, 0, 1)
+    'gl.Scalef(escala / 100, escala / 100, escala / 100)
+
+    Gl.Enable(Gl.NORMALIZE) ' esto sirve para normalizar los vectores normales , o sea que sean de largo = 1
+    ' gl.Translatef(0, 0, -m)
+    ' una vez ubicada la camara, roto el modelo
+    'gl.PushMatrix()                       ' guardo el estado actual de las transformaciones
+    ' gl.Scalef(Config.Zoom, Config.Zoom, Config.Zoom)
+
+    gcd.Drawing.Sheet3D.camera.render
+
+    ' GLSL
+    'gl.UseProgram(ShaderId)
+
+    For Each m In gcd.Drawing.Sheet3D.Models
+        gl.Rotatef(m.Rotation.x, 1, 0, 0)
+        gl.Rotatef(m.Rotation.y, 0, 1, 0)    ' roto el modelo segun cada eje
+        gl.Rotatef(m.Rotation.z, 0, 0, 1)
+
+        If m.ShowWireframe Then
+
+            gl.disable(gl.COLOR_MATERIAL)
+            gl.Disable(gl.TEXTURE_2D)
+            glx.glColorRGB(Color.Invert(m.colour))
+            glx.glBindBuffer(gl.ARRAY_BUFFER, m.VBO_Wireframe_ID)
+            glx.glVertexPointer(3, gl.FLOAT, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+            glx.glEnableClientState(glx.VERTEX_ARRAY)
+            glx.glDrawArrays(gl.LINES, 0, m.xyzWireframe.Count / 2)
+            glx.glDisableClientState(gl.VERTEX_ARRAY)
+
+        End If
+        If m.ShowColor Then
+
+            gl.disable(gl.COLOR_MATERIAL)
+            gl.Disable(gl.TEXTURE_2D)
+            'glx.glColorRGB(iColor)
+            glx.glEnableClientState(glx.VERTEX_ARRAY)
+
+            glx.glBindBuffer(gl.ARRAY_BUFFER, m.VBO_Vertex_ID)
+            glx.glVertexPointer(3, gl.FLOAT, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+
+            glx.glBindBuffer(gl.ARRAY_BUFFER, m.VBO_Color_ID)
+            glx.glColorPointer(3, gl.FLOAT, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+
+            glx.glDrawArrays(gl.TRIANGLES, 0, m.xyzVertex.Count / 3)
+            glx.glDisableClientState(gl.VERTEX_ARRAY)
+
+        Else If m.ShowMaterial Then
+            glx.SetGeneralLigths
+            gl.Enable(gl.COLOR_MATERIAL)        ' si usamos iluminacion, esto permite colorear (en caso contrario gl.COLOR no va a funcionar)
+
+            glx.glMaterial(Me.material)
+
+            'glx.glColorRGB(Me.Foreground)
+            glx.glEnableClientState(glx.VERTEX_ARRAY)
+            'glx.glEnableClientState(glx.COLOR_ARRAY)
+            'glx.glEnableClientState(glx.NORMAL_ARRAY)
+
+            glx.glBindBuffer(gl.ARRAY_BUFFER, m.VBO_Vertex_ID)
+            glx.glVertexPointer(3, gl.FLOAT, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+
+            ' glx.glBindBuffer(gl.ARRAY_BUFFER, m.VBO_Color_ID)
+            ' glx.glColorPointer(3, gl.FLOAT, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+
+            'glx.glBindBuffer(gl.ARRAY_BUFFER, m.VBO_Normal_ID)
+            'glx.glNormalPointer(gl.FLOAT, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+
+            glx.glDrawArrays(gl.TRIANGLES, 0, m.xyzVertex.Count / 3)
+            glx.glDisableClientState(gl.VERTEX_ARRAY)
+            'glx.gldisableClientState(glx.COLOR_ARRAY)
+            'glx.gldisableClientState(glx.NORMAL_ARRAY)
+
+        Else If m.ShowTexture Then
+            glx.SetGeneralLigths
+            If m.texture Then
+
+                gl.Disable(gl.COLOR_MATERIAL)        ' si usamos iluminacion, esto permite colorear (en caso contrario gl.COLOR no va a funcionar)
+                gl.Enable(GL.TEXTURE_2D)
+                glx.glEnableClientState(glx.VERTEX_ARRAY)
+                'glx.glEnableClientState(glx.COLOR_ARRAY) ' lo desactivo para que el color no se mezcle con la textura
+                glx.glEnableClientState(glx.NORMAL_ARRAY)
+                glx.glEnableClientState(glx.TEXTURE_COORD_ARRAY)
+                Gl.TexImage2D(m.texture)
+                ' sin esto la textura no se usa
+                Gl.TexParameteri(Gl.TEXTURE_2D, Gl.TEXTURE_MIN_FILTER, Gl.NEAREST)
+
+                Gl.TexParameteri(Gl.TEXTURE_2D, Gl.TEXTURE_MAG_FILTER, Gl.NEAREST)
+
+                gl.BindTexture(gl.TEXTURE_2D, m.hText[0])
+
+                glx.glBindBuffer(gl.ARRAY_BUFFER, m.VBO_Vertex_ID)
+                glx.glVertexPointer(3, gl.FLOAT, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+
+                ' lo siguiente era innecesario
+                ' glx.glBindBuffer(gl.ARRAY_BUFFER, m.VBO_Tex_ID)
+                ' glx.gluColorPointer(3, gl.FLOAT, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+
+                glx.glBindBuffer(gl.ARRAY_BUFFER, m.VBO_Normal_ID)
+                glx.glNormalPointer(gl.FLOAT, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+
+                glx.glBindBuffer(gl.ARRAY_BUFFER, m.VBO_Tex_ID)
+                glx.glTexCoordPointer(2, GL.FLOAT, 0, 0)
+
+                glx.glDrawArrays(gl.TRIANGLES, 0, m.xyzVertex.Count / 3)
+                glx.glDisableClientState(gl.VERTEX_ARRAY)
+                'glx.gldisableClientState(glx.COLOR_ARRAY)
+                glx.gldisableClientState(glx.NORMAL_ARRAY)
+                glx.gldisableClientState(glx.TEXTURE_COORD_ARRAY)
+
+                gl.Disable(GL.TEXTURE_2D)
+            End If
+
+        End If
+
+    Next
+
+    ' If gcd.Drawing.Sheet3D.GroundEnabled Then
+    '
+    '     p1.x = -100
+    '     p1.z = -100
+    '
+    '     p2.x = -100
+    '     p2.z = 100
+    '
+    '     p3.x = 100
+    '     p3.z = 100
+    '
+    '     p4.x = 100
+    '     p4.z = -100
+    '
+    '     gColor = Color.SetAlpha(gcd.Drawing.Sheet3d.GroundColor, gcd.Drawing.Sheet3d.GroundTrnasparency * 256)
+    '
+    '     glx.Quad3D(p1, p2, p3, p4, gcolor, gcolor, gcolor, gcolor)
+    '
+    ' Endif
+
+    If gcd.Drawing.Sheet3d.DrawGrid Then gcd.Drawing.Sheet3D.Grid3dVbo.Draw()
+
+    'gl.UseProgram(0)
+
+End
 
 Public Sub tabFile_MouseWheel()
 
@@ -974,10 +1172,10 @@ Public Sub form_KeyPress()
             ' ftring2 = puntos.LinePolyIntersection(¨, ne.p)
             ' Stop
 
-            Dim NE As New Entity
-            ne = cadLine.NewEntity([0, 0, 100, 0], True)
-            gcd.Drawing.Sheet.Entities.Add(ne, ne.id)
-            gcd.Regen
+            ' Dim NE As New Entity
+            ' ne = cadLine.NewEntity([0, 0, 100, 0], True)
+            ' gcd.Drawing.Sheet.Entities.Add(ne, ne.id)
+            ' gcd.Regen
 
         Case Key.F3  ' tecla reservada para Test de todo tipo
             Try gcd.debugInfo("-----------------------------------------------------------------------")
@@ -999,6 +1197,8 @@ Public Sub form_KeyPress()
             End If
 
         Case Key.f6
+
+            gcd.Drawing.Sheet3D.models.Add(stl.LoadSTL(User.Home &/ "Quo.stl"), "quo")
 
             ' gcd.DrawBounds = Not gcd.DrawBounds
             ' Me.redraw
@@ -1707,9 +1907,11 @@ Public Sub tabSheets_Click()
         gcd.Drawing.Sheet = Last.current.tag
 
         gcd.Drawing.LastLayer = gcd.Drawing.CurrLayer
-        If gcd.Drawing.Sheet.Is3D Then
-
+        If Last.current.tag.Is3D Then
+            gcd.Drawing.Sheet3D = Last.current.tag
+            drawingAids.RebuildGrid3D(gcd.Drawing.Sheet3D)
         Else
+            gcd.Drawing.Sheet = Last.current.tag
             Me.GLArea1 = gcd.Drawing.Sheet.GLSheet
             GLArea1.Enabled = True
             'Object.Attach(GLArea1, Me, "GLArea1")
@@ -1798,7 +2000,7 @@ End
 Public Function NewSheet(tabSheets As TabPanel, s As Sheet, Optional UseFirst As Boolean = False, Is3D As Boolean = False)
 
     Dim i As Integer
-    Dim glaFile2 As GLArea
+    Dim glaFile2, g As GLArea
     Dim scene As Scene3d
 
     InUse = True
@@ -1813,12 +2015,14 @@ Public Function NewSheet(tabSheets As TabPanel, s As Sheet, Optional UseFirst As
     tabSheets.Refresh
     If Is3D Then
 
-        scene = New Scene3d(tabSheets.Current) As "glScene3d"
-        scene.BackGroundColor = Config.ModelBackgroundColor
-        scene.Expand = True
-        scene.Tracking = True
-        scene.Mouse = Cursor.CrossHair
-        s.scene = scene
+        g = New GLArea(tabSheets.Current) As "glArea3D"
+        g.BackGround = Config.ModelBackgroundColor
+        g.Expand = True
+        g.Tracking = True
+        g.Mouse = Cursor.CrossHair
+        g.Refresh
+        s.GLSheet = g
+
     Else
 
         glArea1 = New GLArea(tabSheets.Current) As "glarea1"
@@ -2104,7 +2308,7 @@ Public Sub tmrSlash_Timer()
     End If
     If PromtSlash = "|" Then PromtSlash = "" Else PromtSlash = "|"
 
-    fMain.txtCommand.Text = " > " & SCB & sJO & ":" & KeysAccumulator & PromtSlash
+    fMain.txtCommand.Text = " > " & SCB & sJO & ":" & KeysAccumulator ' & PromtSlash
     fMain.txtCommand.Refresh
 
     ' BenchMArkInfo
@@ -2371,5 +2575,11 @@ Public Sub mbtLayers_Click()
     clsEntities.EditEntities("layer", gcd.Drawing.CurrLayer.name)
 
     clsEntities.DeSelection()
+
+End
+
+Public Sub txtCommand_Activate()
+
+    txtCommand.CursorAt(txtCommand.Text.Len)
 
 End

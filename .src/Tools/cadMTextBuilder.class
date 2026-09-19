@@ -29,6 +29,8 @@ Public RectSelected As Boolean
 Public UserResponse As Integer  ' 1 = Cancel ; 2 =
 Public sText As String
 Public eMtext As Entity
+Public fm As FMText
+Public PointOne As Boolean
 
 Public Function Start(Optional filename As Variant, _mode As Integer = 0) As Boolean
 
@@ -60,15 +62,43 @@ Public Function Start(Optional filename As Variant, _mode As Integer = 0) As Boo
 
                     eMtext = cadAttdef.NewEntity()
             End Select
-
-            fMText.Show
+            fM = New FMText(fMain.pnlToolBarRigth)
+            fm.Show()
+            ' fMText.Show
 
     End Select
 
 End
 
+Public Sub MouseDown()
+
+    ' If Mouse.Right Then
+    '
+    '     Return
+    ' End If
+    '
+    ' If Me.Active Then ' ya tengo un punto
+    '
+    '     Me.Active = False
+    '     Me.RectSelected = True
+    ' Else
+    '     Me.Active = True
+    '     Me.RectSelected = False
+    '     Me.SelStartXr = Me.LastX
+    '     Me.SelStartYr = Me.LastY
+    '
+    '     Me.SelEndXr = Me.SelStartXr
+    '     Me.SelEndyr = Me.SelStartYr
+    '
+    ' End If
+    ' eMtext.p[0] = Me.SelStartXr
+    ' eMtext.p[1] = Me.SelStartYr
+
+End
+
 Public Sub MouseUp()
 
+    Super.MouseUp()
     If Mouse.Right Then
         gcd.clsJob.KeyText("U")
         Return
@@ -78,6 +108,10 @@ Public Sub MouseUp()
 
         Me.Active = False
         Me.RectSelected = True
+        Me.SelEndXr = Me.LastX
+        Me.SelEndyr = Me.LastY
+        eMtext.fParam[cadMText.ipaRectangleWIdth] = puntos.distancia(Me.SelStartXr, Me.SelStartYr, Me.SelEndXr, Me.SelEndyr)
+        eMtext.fParam[cadMText.ipaTextAngle] = Ang(Me.SelEndXr - Me.SelStartXr, Me.SelendYr - Me.SelStartYr)
     Else
         Me.Active = True
         Me.RectSelected = False
@@ -86,10 +120,10 @@ Public Sub MouseUp()
 
         Me.SelEndXr = Me.SelStartXr
         Me.SelEndyr = Me.SelStartYr
+        eMtext.p[0] = Me.SelStartXr
+        eMtext.p[1] = Me.SelStartYr
 
     End If
-    eMtext.p[0] = Me.SelStartXr
-    eMtext.p[1] = Me.SelStartYr
 
 End
 
@@ -99,12 +133,14 @@ Public Sub MouseMove()
 
     If Me.Active Then
 
-        Me.SelEndXr = Me.LastX
-        Me.SelEndyr = Me.LastY
-
+        Me.SelEndXr = Me.MouseX
+        Me.SelEndyr = Me.MouseY
+        eMtext.fParam[cadMText.ipaRectangleWIdth] = puntos.distancia(Me.SelStartXr, Me.SelStartYr, Me.SelEndXr, Me.SelEndyr)
+        eMtext.fParam[cadMText.ipaTextAngle] = Ang(Me.SelEndXr - Me.SelStartXr, Me.SelendYr - Me.SelStartYr)
+        fM.txtRot.Text = Str(CInt(Deg(eMtext.fParam[cadMText.ipaTextAngle])))
+        fM.txtWidth.Text = Str(eMtext.fParam[cadMText.ipaRectangleWIdth])
     End If
-    eMtext.p[0] = Me.SelStartXr
-    eMtext.p[1] = Me.SelStartYr
+    gcd.redraw
 
 End
 
@@ -131,8 +167,13 @@ End
 Public Sub Draw()
 
     Dim fSide, fWidth, fPos As Float
+    Dim x0, y0, y1, x1 As Float
 
     fSide = gcd.Metros(8)
+    x0 = Me.SelStartXr
+    y0 = Me.SelStartYr
+    x1 = Me.SelEndXr
+    y1 = Me.SelEndYr
     ' Select Case StepsDone
     '     Case 0 ' nada aun
     fWidth = eMtext.fParam[cadMText.ipaRectangleWIdth]
@@ -145,10 +186,26 @@ Public Sub Draw()
             fPos = -fWidth
 
     End Select
-    glx.DrawLines([fPos + eMtext.p[0], eMtext.p[1], fPos + eMtext.p[0] + fWidth, eMtext.p[1]], Color.Blue)
-    glx.Rectangle2D(fPos + eMtext.p[0] - fSide / 2, eMtext.p[1] - fSide / 2, fSide, fside, Color.DarkBlue,,,, Color.DarkBlue, 1,, 1)
-    glx.Rectangle2D(fPos + eMtext.p[0] + fWidth - fSide / 2, eMtext.p[1] - fSide / 2, fSide, fside, Color.Cyan,,,, Color.DarkBlue, 1,, 1)
+
+    glx.BeginVBO(Me.VBO, True)
+    clsEntities.BuildGeometry(eMtext)
+    'glx.DrawLines([fPos + eMtext.p[0], eMtext.p[1], fPos + eMtext.p[0] + fWidth, eMtext.p[1]], Color.Blue)
+    glx.DrawLines([x0, y0, x1, y1], Color.Blue)
+    glx.Rectangle2D(x0 - fSide / 2, y0 - fSide / 2, fSide, fside, Color.DarkBlue,,,, Color.DarkBlue, 1,, 1)
+    glx.Rectangle2D(x1 - fSide / 2, y1 - fSide / 2, fSide, fside, Color.DarkBlue,,,, Color.DarkBlue, 1,, 1)
+
+    ' glx.Rectangle2D(fPos + eMtext.p[0] - fSide / 2, eMtext.p[1] - fSide / 2, fSide, fside, Color.DarkBlue,,,, Color.DarkBlue, 1,, 1)
+    '
+    ' glx.Rectangle2D(fPos + eMtext.p[0] + fWidth - fSide / 2, eMtext.p[1] - fSide / 2, fSide, fside, Color.Cyan,,,, Color.DarkBlue, 1,, 1)
+
+    If Me.Active Then
+        glx.DrawLines([Me.SelStartXr, Me.SelStartYr, Me.SelEndXr, Me.SelEndyr], Color.Purple)
+    Endif
     cadMText.Draw(eMtext)
+    'Me.VBO.SendBuffersToGPU()
+    glx.EndVBO()
+    Me.VBO.Draw()
+    DrawingAids.DrawSnapText()
     '     Case 1 ' ya ubique el punto inicial
     '         fWidth = gcd.Metros(30)
     '         glx.DrawLines([Me.SelStartXr, Me.SelStartYr, Me.SelEndXr + fWidth, Me.SelStartYr], Color.Blue)

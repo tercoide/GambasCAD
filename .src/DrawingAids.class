@@ -54,6 +54,13 @@ Public TextVBO As New VBO
 Public PoiVBO As New VBO
 Public fontvbo As New Vbo
 
+' VBO para el 3D
+Public Grid3dVbo As New VBO
+Public Poi3dVbo As New VBO
+Public OrbitHandlesVbo As New VBO
+Public AxisVbo As New VBO
+Public GroundVbo As New VBO
+
 '' Dibuja un recuadro con texto, similar a un formulario
 Public Sub DrawEntryBox(sTitle As String, sLines As String[], sEntryText As String[], iEntryPosition As Integer, xTop As Integer, yTop As Integer, Optional iWidth As Integer = 0, iHeight As Integer = 0, iBoxColor As Integer = Color.white, iBoxFill As Integer = Color.black, iTextColor As Integer = Color.gray, iEntryTextColor As Integer = Color.white)
 
@@ -372,6 +379,90 @@ Public Sub RebuildGrid()
             Next
 
             glx.Drawpoints(fpoints, Config.WhiteAndBlack)
+
+        Case 1 ' cuadricula
+
+            For y = y1 To y0 Step espaciado
+                glx.DrawLines([x0, y, x1, y], Color.Gray, 1)
+            Next
+
+            For x = x0 To x1 Step espaciado
+                glx.DrawLines([x, y0, x, y1], Color.Gray, 1)
+            Next
+
+    End Select
+
+    gcd.Drawing.GridCurentSpacing = espaciado
+
+    glx.EndVBO()
+
+    ' aprovecho para recomponer las lineas de puntos
+
+End
+
+Public Sub RebuildGrid3D(s3d As Sheet3D)
+
+    Dim x0, y0, x1, y1 As Float
+    Dim espaciado As Float
+    Dim x, y As Float
+
+    ' x0 = gcd.Near(gcd.Xreal(0))
+    ' Y0 = gcd.Near(gcd.Yreal(0))
+    ' x1 = gcd.Near(gcd.Xreal(fmain.GLArea1.W))
+    ' y1 = gcd.Near(gcd.Yreal(fmain.GLArea1.h))
+
+    x0 = -100
+    Y0 = -100
+    x1 = 100
+    y1 = 100
+
+    espaciado = 1 'gcd.Drawing.GridMinorSpacing
+
+    ' Do
+    '     If gcd.Pixels(espaciado) < 5 Then espaciado *= 10
+    ' Loop Until Abs(gcd.Pixels(espaciado)) > 5
+
+    glx.BeginVBO(s3d.Grid3dVbo, True)
+    Select Case gcd.Drawing.GridStyle
+        Case 0 ' puntos
+
+            Dim fpoints As New Float[]
+
+            ' Plano XY Z=0
+            For y = y0 To y1 Step espaciado
+                For x = x0 To x1 Step espaciado
+                    fpoints.add(x)
+                    fpoints.add(y)
+                    fpoints.Add(0)
+                Next
+            Next
+
+            glx.Drawpoints3d(fpoints, Color.red)
+
+            fpoints.Clear
+
+            ' Plano XZ Y=0
+            For y = y0 To y1 Step espaciado
+                For x = x0 To x1 Step espaciado
+                    fpoints.add(x)
+                    fpoints.add(0)
+                    fpoints.Add(y)
+                Next
+            Next
+
+            glx.Drawpoints3d(fpoints, Color.green)
+
+            fpoints.Clear
+            ' Plano YZ X=0
+            For y = y0 To y1 Step espaciado
+                For x = x0 To x1 Step espaciado
+                    fpoints.add(0)
+                    fpoints.add(y)
+                    fpoints.Add(x)
+                Next
+            Next
+
+            glx.Drawpoints3d(fpoints, Color.blue)
 
         Case 1 ' cuadricula
 

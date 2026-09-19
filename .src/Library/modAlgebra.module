@@ -60,6 +60,12 @@ Public Function Distancia(p1 As Punto3d, p2 As Punto3d) As Float
 
 End
 
+Public Function Dot(a As Punto3d, b As Punto3d) As Float
+
+    Return a.X * b.X + a.Y * b.Y + a.Z * b.Z
+
+End Function
+
 Public Function longitud(p1 As Punto3d) As Float
     'devuelve el largo del vector p1
 
@@ -89,12 +95,16 @@ Public Sub Main()
 
 End
 
-Public Sub Cross(vVector1 As Punto3d, vVector2 As Punto3d, ByRef vResult As Punto3d)
+Public Function Cross(vVector1 As Punto3d, vVector2 As Punto3d) As Punto3d
     'devuelve un vector que es perpendicular a los otros dos
+
+    Dim vResult As New Punto3d
 
     vResult.x = vVector1.y * vVector2.z - vVector1.z * vVector2.y
     vResult.y = vVector1.z * vVector2.x - vVector1.x * vVector2.z
     vResult.z = vVector1.x * vVector2.y - vVector1.y * vVector2.x
+
+    Return vResult
 
 End
 
@@ -155,6 +165,32 @@ Public Sub Sum3D(Destino As Punto3d, Origen As Punto3d, Origen2 As Punto3d)
 
 End
 
+' Sum = 0 , Rest = 1, Mult = 2
+Public Function Operate(Origen As Punto3d, Origen2 As Punto3d, Optional TypeOperation As Integer = 0) As Punto3d
+    ' copia el punto 3D
+
+    Dim destino As New Punto3d
+
+    If TypeOperation = 0 Then
+        Destino.x = Origen.x + Origen2.x
+        Destino.y = Origen.y + Origen2.y
+        Destino.z = Origen.z + Origen2.z
+
+    Else If TypeOperation = 1 Then
+        Destino.x = Origen.x - Origen2.x
+        Destino.y = Origen.y - Origen2.y
+        Destino.z = Origen.z - Origen2.z
+
+    Else If TypeOperation = 2 Then
+        Destino.x = Origen.x * Origen2.x
+        Destino.y = Origen.y * Origen2.y
+        Destino.z = Origen.z * Origen2.z
+
+    End If
+    Return destino
+
+End
+
 Public Sub Copy3D(Destino As Punto3d, Origen As Punto3d)
     ' copia el punto 3D
 
@@ -179,6 +215,18 @@ Public Sub Mult3D(Destino As Punto3d, valor As Float)
     Destino.x *= valor
     Destino.y *= valor
     Destino.z *= valor
+
+End
+
+Public Function Mult(Destino As Punto3d, valor As Float) As Punto3d
+    ' suma las coordenadas de destino a origen
+
+    Dim d As New Punto3d
+
+    d.x = Destino.x * valor
+    d.y = Destino.y * valor
+    d.z = Destino.z * valor
+    Return d
 
 End
 
@@ -341,5 +389,23 @@ Public Function AreaRomboide3D(p1 As Punto3d, p2 As Punto3d, p3 As Punto3d, p4 A
     ' Debug a1, a2, a3
 
     Return (a1 * a1 + a2 * a2 + a3 * a3) ^ 0.5
+
+End Function
+
+Public Function RayPlaneIntersection(ray As Ray, plane As Plane) As Punto3d
+
+    Dim hitPoint As Punto3d
+    Dim denominator As Float = Dot(plane.Normal, ray.Direction)
+
+    ' The ray is parallel to the plane
+    If Abs(denominator) < 0.00001 Then Return Null
+
+    Dim t As Float = Dot(Operate(plane.Point, ray.Origin, 1), plane.Normal) / denominator
+
+    ' Intersection is behind the camera
+    If t < 0.0 Then Return Null
+
+    hitPoint = Operate(ray.Origin, Mult(ray.Direction, t))
+    Return hitPoint
 
 End Function
