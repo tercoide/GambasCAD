@@ -1,0 +1,176 @@
+' Gambas module file
+
+' ObjLoader.module
+' Simple Wavefront .OBJ loader
+' Fills:
+'   vertex()  - Float array of vertex positions (x,y,z triplets)
+'   indices() - Integer array of triangle indices
+'   normals() - Float array of normals (x,y,z triplets), aligned to vertex()
+'   uv()      - Float array of texture coords (u,v pairs), aligned to vertex()
+
+Public vertex As Float[]      ' positions: x0,y0,z0, x1,y1,z1, ...
+Public indices As Integer[]   ' triangle indices into vertex/normals/uv
+Public normals As Float[]     ' normals: nx0,ny0,nz0, ...
+Public uv As Float[]          ' texcoords: u0,v0, u1,v1, ...
+
+Private hPositions As Float[]   ' raw v
+Private hNormals As Float[]     ' raw vn
+Private hUV As Float[]          ' raw vt
+
+' key = "posIdx/uvIdx/normIdx" -> output vertex index
+Private hCache As Collection
+
+Public Sub LoadObj(sPath As String) As Boolean
+
+    Dim sLine As String
+    Dim aTok As String[]
+    Dim hFile As File
+
+    vertex = New Float[]
+    indices = New Integer[]
+    normals = New Float[]
+    uv = New Float[]
+
+    hPositions = New Float[]
+    hNormals = New Float[]
+    hUV = New Float[]
+    hCache = New Collection
+
+    If Not Exist(sPath) Then
+        Error.Raise("File not found: " & sPath)
+        Return False
+    Endif
+
+    hFile = Open sPath For Input
+
+    While Not Eof(hFile)
+        Line Input #hFile, sLine
+        sLine = Trim(sLine)
+
+        If Len(sLine) = 0 Or Left(sLine, 1) = "#" Then Continue
+
+        aTok = Split(sLine, " ",, True)
+        If aTok.Count = 0 Then Continue
+
+        Select Case aTok[0]
+
+            Case "v"
+                hPositions.Add(CFloat(aTok[1]))
+                hPositions.Add(CFloat(aTok[2]))
+                hPositions.Add(CFloat(aTok[3]))
+
+            Case "vn"
+                hNormals.Add(CFloat(aTok[1]))
+                hNormals.Add(CFloat(aTok[2]))
+                hNormals.Add(CFloat(aTok[3]))
+
+            Case "vt"
+                hUV.Add(CFloat(aTok[1]))
+                hUV.Add(CFloat(aTok[2]))
+
+            Case "f"
+                ProcessFace(aTok)
+
+        End Select
+
+    Wend
+
+    Close #hFile
+    Return True
+
+End
+
+' Handles triangles and simple polygon faces (fan triangulation)
+Private Sub ProcessFace(aTok As String[])
+
+    Dim i As Integer
+    Dim aIdx As Integer[]
+
+    aIdx = New Integer[]
+
+    For i = 1 To aTok.Count - 1
+        aIdx.Add(ResolveVertex(aTok[i]))
+    Next
+
+    ' Fan triangulation: works for triangles and convex polygons
+    For i = 1 To aIdx.Count - 2
+        indices.Add(aIdx[0])
+        indices.Add(aIdx[i])
+        indices.Add(aIdx[i + 1])
+    Next
+
+End
+
+' token format: pos[/uv][/norm]  e.g. "3", "3/4", "3//5", "3/4/5"
+' obj indices are 1-based and may be negative (relative to end)
+Private Function ResolveVertex(sToken As String) As Integer
+
+    Dim aParts As String[]
+    Dim iPos As Integer, iUV As Integer, iNorm As Integer
+    Dim sKey As String
+    Dim iOutIdx As Integer
+    Dim px As Float, py As Float, pz As Float
+    Dim nx As Float, ny As Float, nz As Float
+    Dim tu As Float, tv As Float
+
+    aParts = Split(sToken, "/",, True)
+
+    iPos = CInt(aParts[0])
+    If iPos < 0 Then iPos = (hPositions.Count \ 3) + iPos + 1
+
+    iUV = 0
+    iNorm = 0
+
+    If aParts.Count >= 2 And Len(aParts[1]) > 0 Then
+        iUV = CInt(aParts[1])
+        If iUV < 0 Then iUV = (hUV.Count \ 2) + iUV + 1
+    Endif
+
+    If aParts.Count >= 3 And Len(aParts[2]) > 0 Then
+        iNorm = CInt(aParts[2])
+        If iNorm < 0 Then iNorm = (hNormals.Count \ 3) + iNorm + 1
+    Endif
+
+    sKey = iPos & "/" & iUV & "/" & iNorm
+
+    If hCache.Exist(sKey) Then
+        Return hCache[sKey]
+    Endif
+
+    ' Expand output arrays with a new combined vertex
+    px = hPositions[(iPos - 1) * 3]
+    py = hPositions[(iPos - 1) * 3 + 1]
+    pz = hPositions[(iPos - 1) * 3 + 2]
+    vertex.Add(px)
+    vertex.Add(py)
+    vertex.Add(pz)
+
+    If iNorm > 0 And hNormals.Count > 0 Then
+        nx = hNormals[(iNorm - 1) * 3]
+        ny = hNormals[(iNorm - 1) * 3 + 1]
+        nz = hNormals[(iNorm - 1) * 3 + 2]
+    Else
+        nx = 0
+        ny = 0
+        nz = 0
+    Endif
+    normals.Add(nx)
+    normals.Add(ny)
+    normals.Add(nz)
+
+    If iUV > 0 And hUV.Count > 0 Then
+        tu = hUV[(iUV - 1) * 2]
+        tv = hUV[(iUV - 1) * 2 + 1]
+    Else
+        tu = 0
+        tv = 0
+    Endif
+    uv.Add(tu)
+    uv.Add(tv)
+
+    iOutIdx = (vertex.Count \ 3) - 1
+    hCache[sKey] = iOutIdx
+
+    Return iOutIdx
+
+End

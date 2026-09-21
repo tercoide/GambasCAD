@@ -1,0 +1,105 @@
+' Gambas class file
+
+' Esta clase representa una cara plana en el espacio
+' Podria pensarse como una LWPolyline cerrada, pero no es alambrica sino llena.
+' El minimo numero de lados es 3. Si tiene mas lados, seran triangulados internamente creando mas lados invisibles.
+
+Inherits EntityBase
+Public Const Gender As String = "POLYFACE"
+Public Const DrawingOrder As Integer = 1        ' 1 = draws first
+Public Const CmdLineHelper As String = ("a polyline of segments")
+Public Const ParamType As String = "P+"                             ' that is Point, Point, Float; could be Color Text, etc
+Public Const ParamHelper As String = ("Next Point")      ' a little text that is shown at the prompt waiting for user input during build
+Public Const ParamDefault As String = "Close/Undo"
+Public Const ContextMenu As String = ("Close polyline;_CLOSE;;;Undo last point;_UNDO;;;End in last point;_END;;") ' el menu para el boton derecho, los comandos
+Public Const Is3D As Boolean = True
+Public f As Face
+
+Public Function NewEntity(Optional fPoints As Float[], bNewid As Boolean = False) As Entity
+
+    Dim e As New Entity
+
+    e = Super.NewEntity(fPoints, bNewid)
+    e.Gender = Me.Gender
+    e.pBlock = New Face
+
+    'e.pBlock.Parent = e
+
+    Return e
+
+End
+
+Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
+
+    f = eBuild.pBlock
+    Dim p As Punto3d
+    If f.vertex.Count = 0 Then
+
+        p = New Punto3d
+        f.vertex.Add(p)
+    End If
+    If vParam[0] = "point3d" Then
+
+        f.vertex.Last.x = vParam[1]
+        f.vertex.Last.y = vParam[2]
+        f.vertex.Last.z = vParam[3]
+
+        If definitive Then
+
+            p = New Punto3d(vParam[1], vParam[2], vParam[3])
+            f.vertex.Add(p)
+            Return True
+        End If
+
+    Else If vParam[0] = "text"
+
+        If vParam[1] = "_CLOSE" Then
+            If eBuild.P.Count > 4 Then eBuild.P.Remove(eBuild.P.Max - 1, 2)
+            eBuild.P.Add(eBuild.P[0])
+            eBuild.P.Add(eBuild.P[1])
+            eBuild.iParam[0] = 1
+            Inc gcd.StepsDone
+            Return True
+
+        Else If vParam[1] = "_UNDO" Then
+            If eBuild.P.Count > 4 Then eBuild.P.Remove(eBuild.P.Max - 1, 2)
+            eBuild.iParam[0] = 0
+            Return True
+        Else If vParam[1] = "_END" Then
+            If eBuild.P.Count > 4 Then eBuild.P.Remove(eBuild.P.Max - 1, 2)
+            Inc gcd.StepsDone
+            eBuild.iParam[0] = 0
+            Return True
+
+        Endif
+    End If
+
+End
+
+' '' Builds the geometry of the entity wthout drwing it
+' Public Function MakePolyLine(oE As Entity)
+'
+'     Dim o As Obj3d
+'
+'     o = oe.pBlock
+'     If IsNull(o) Then Return        ' error u objeto invalido
+'
+'     ' tengo que triangular?
+'     If o.index.Count > 3 Then 'hace falta triangular
+'
+' End
+
+Public Sub Draw(oE As Entity)
+
+    f = oe.pBlock
+    Dim fPoints As Float[]
+
+    If f.vertex.Count > 1 Then ' dibujo el contorno
+        fPoints = puntos.Create3dArray(f.vertex)
+        glx.DrawLines3D(fPoints, gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
+    End If
+    If f.vertex.Count > 3 Then ' dibujo el contorno
+        glx.DrawTriangles3D(oe.p, oe.PolyLine, gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer))
+    End If
+
+End

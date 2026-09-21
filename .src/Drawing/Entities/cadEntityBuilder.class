@@ -39,6 +39,8 @@ Public SelEndZr As Float
 
 Public LastX As Float               ' change in MouseMove/MouseUp
 Public LastY As Float
+Public LastZ As Float
+
 Public LastPoint As Boolean
 
 Public LastMouseX As Integer               ' change in MouseMove/MouseUp
@@ -181,8 +183,8 @@ End
 Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD en el evento FCAD_KeyPress cuando recibe una texto + <Enter>
 
     ' Lets see what are we expecting
-    Dim Xt, yt As Float, sText, ErrTxt As String, Relative As Boolean
-    Dim bResult As Boolean
+    Dim Xt, yt, zt As Float, sText, ErrTxt As String, Relative As Boolean
+    Dim bResult, Good As Boolean
 
     ' primero veo si el entorno nos pide algo
     Select Case UCase(EnteredText)
@@ -228,16 +230,26 @@ Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD
                 Endif
                 Xt = CFloat(Eval(Split(EnteredText, ",")[0]))
                 yt = CFloat(Eval(Split(EnteredText, ",")[1]))
+                If elem.Is3D Then zt = CFloat(Eval(Split(EnteredText, ",")[2]))
 
-                If Relative And (elem.P.count > 2) Then
+                ' If Relative And (elem.P.count > 2) Then
+                If Relative Then        '  this should work too
                     xt += Me.LastX
                     yt += Me.LastY
+                    zt += Me.LastZ
 
                 Endif
                 Me.LastX = xt
                 Me.LastY = yt
+                Me.LastZ = zt
 
-                If Gcd.CCC[elem.gender].NewParameter(elem, ["point", xt, yt], True) Then
+                If elem.Is3D Then
+                    good = Gcd.CCC[elem.gender].NewParameter(elem, ["point3d", xt, yt, zt], True)
+                Else
+                    good = Gcd.CCC[elem.gender].NewParameter(elem, ["point", xt, yt], True)
+
+                Endif
+                If Good Then
                     ' last point
                     gcd.Drawing.LastPoint.Clear
                     gcd.Drawing.LastPoint.Insert([xt, yt])
