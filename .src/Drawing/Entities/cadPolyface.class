@@ -46,12 +46,24 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
 
         If definitive Then
 
-            p = New Punto3d(vParam[1], vParam[2], vParam[3])
+            p = New Punto3d(f.vertex.Last.x, f.vertex.Last.y, f.vertex.Last.z)
+            f.vertex.Add(p)
+            Return True
+        End If
+    Else If vParam[0] = "point" Then
+
+        f.vertex.Last.x = vParam[1]
+        f.vertex.Last.y = vParam[2]
+        f.vertex.Last.z = 0
+
+        If definitive Then
+
+            p = New Punto3d(f.vertex.Last.x, f.vertex.Last.y, f.vertex.Last.z)
             f.vertex.Add(p)
             Return True
         End If
 
-    Else If vParam[0] = "text"
+    Else If vParam[0] = "text" Then
 
         If vParam[1] = "_CLOSE" Then
             If eBuild.P.Count > 4 Then eBuild.P.Remove(eBuild.P.Max - 1, 2)
@@ -66,9 +78,14 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
             eBuild.iParam[0] = 0
             Return True
         Else If vParam[1] = "_END" Then
-            If eBuild.P.Count > 4 Then eBuild.P.Remove(eBuild.P.Max - 1, 2)
+            f.vertex.Last.x = f.vertex.First.x
+            f.vertex.Last.y = f.vertex.First.y
+            f.vertex.Last.z = f.vertex.First.z
+
+            vParam.Clear
+            vParam.Add("FINISH")
             Inc gcd.StepsDone
-            eBuild.iParam[0] = 0
+
             Return True
 
         Endif
@@ -90,6 +107,29 @@ End
 ' End
 
 Public Sub Draw(oE As Entity)
+
+    f = oe.pBlock
+    Dim fPoints As Float[]
+    Dim fColor4 As Integer
+    Dim bIntersects As Boolean
+    If f.vertex.Count > 1 Then ' dibujo el contorno
+        fPoints = puntos.RemoveAxis(puntos.Create3dArray(f.vertex))    ' paso de Punto3D a XYZ triplets
+        bIntersects = puntos.IsPoligonSelfIntersecting(fPoints)
+        If bIntersects Then
+            fColor4 = Color.RGB(255, 0, 100, 100)
+        Else
+            fColor4 = gcd.GetGBColor(oE.Colour, oe.pLayer)
+
+        End If
+        glx.PolyLines(fPoints, fColor4, gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
+    End If
+    If (f.vertex.Count >= 3) And Not bIntersects Then ' dibujo el contorno
+        glx.DrawTriangles(puntos.PolygonTriangulation(fPoints), Color.Darker(gcd.GetGBColor(oE.Colour, oe.pLayer)), gcd.GetLineWt(oE.LineWIdth, oe.pLayer))
+    End If
+
+End
+
+Public Sub Draw3d(oE As Entity)
 
     f = oe.pBlock
     Dim fPoints As Float[]

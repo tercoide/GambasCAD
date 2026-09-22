@@ -1,0 +1,155 @@
+' Gambas class file
+
+' GambasCAD
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+
+' Tool maintained by Terco
+Inherits ToolsBase
+Create Static
+Public Const Gender As String = "AREA"
+
+Private Poli As New Float[]
+Private fArea As Float
+Private fPerim As Float
+
+Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer = 0) As Boolean
+    ' Llamada por FCAD al inicio de la aplicacion de esta herramienta
+
+    ' Aprovechamos para establecer los helpers (comentarios de ayuda en pantalla)
+    Me.PointsDone = 0
+    Me.PointsTotal = 1e10
+
+    Me.Prompt = ("mark points")
+    poli.Clear
+    Poli.Add(0)
+    Poli.Add(0)
+
+    Me.Active = True
+
+    gcd.Drawing.Sheet.GlSheet.PopupMenu = ""
+    fmain.PopupMenu = ""
+
+End
+
+Public Function MouseUp()
+
+    If Mouse.Left Then
+
+        Inc Me.PointsDone
+
+        Poli[Poli.max - 1] = Me.SelEndXr
+        Poli[Poli.max] = Me.SelEndYr
+
+        Poli.Add(Me.SelEndXr)
+        Poli.Add(Me.SelEndYr)
+    Else
+        Me.Finish
+    End If
+
+End
+
+Public Sub MouseMove()
+
+    Dim X, Y As Float
+    ' we are waiting for a point
+
+    If Poli.Count = 0 Then Return
+
+    X = gcd.Near(gcd.Xreal(mouse.x))
+    Y = gcd.Near(gcd.Yreal(mouse.y))
+
+    ' yo soy el responsable de chequear POI
+    If Not gcd.flgSearchingPOI Then
+        gcd.Drawing.iEntity = clsMouseTracking.CheckBestPOI(X, Y)
+
+        If (gcd.Drawing.iEntity[2] > 0) Then
+
+            ' esto re enganchado
+
+            X = gcd.Drawing.iEntity[0]
+            Y = gcd.Drawing.iEntity[1]
+        End If
+    End If
+
+    Me.SelEndXr = X
+    Me.SelEndyr = Y
+
+    Poli[Poli.max - 1] = Me.SelEndXr
+    Poli[Poli.max] = Me.SelEndYr
+
+    If Me.PointsDone > 2 Then
+
+        fArea = puntos.PoligonArea(poli)
+        fPerim = puntos.PoligonLength(poli)
+        Me.Prompt = ("Area") & " = " & Format(fArea, Config.FormatInquiries) & " - " & ("Perimeter") & " = " & Format(fPerim, Config.FormatInquiries)
+
+    Endif
+
+    gcd.Redraw
+    ' fMain.regen
+
+End
+
+Public Sub Draw()               ' called by gcd.CurrDrawing.drwArea_Draw
+
+    Dim fColor4 As Integer
+    ' testing
+    ' poli.Clear
+    ' poli.Insert([0, 0, 0, 10, 10, 10, 10, 0, 8, 0, 8, 8, 2, 8, 2, 0])
+    '
+    ' Print "inside?", puntos.InsideTriangle([10, 10], [8, 0], [8, 8], [2, 8])
+    '
+    ' Print "inside nuevo?", puntos.IsPointInTri([10, 10], [8, 0], [8, 8], [2, 8])
+    '
+    ' Print "inside2?", puntos.InsideTriangle([0.0, 0.0], [0, 10], [10, 10], [2, 8])
+    ' Print "insidenuevo 2?", puntos.IsPointInTri([0.0, 0.0], [0, 10], [10, 10], [2, 8])
+    glx.zLevel = 0.1
+    If puntos.IsPoligonSelfIntersecting(poli) Then
+        fColor4 = Color.RGB(255, 0, 100, 100)
+    Else
+        fColor4 = Color.RGB(0, 100, 255, 100)
+
+    End If
+    glx.DrawTriangles(puntos.PolygonTriangulation(Poli), fColor4, fColor4)
+    glx.zLevel = 0
+    glx.Polygon(Poli, Color.blue, 1)
+
+End
+
+Public Sub Finish()
+
+    If Me.PointsDone > 2 Then
+
+        If poli.Count > 6 Then poli.Resize(poli.Count - 2)
+
+        fArea = puntos.PoligonArea(poli)
+        fPerim = puntos.PoligonLength(poli)
+
+        gcd.debugInfo(("Area") & " = " & Format(fArea, Config.FormatInquiries),, True)
+        gcd.debugInfo(("Perimeter") & " = " & Format(fPerim, Config.FormatInquiries),, True)
+
+        Debug "Segun Puntos ", fArea
+
+    Endif
+    poli.Clear
+
+    Super.Finish()
+
+End

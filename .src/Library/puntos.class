@@ -1964,19 +1964,53 @@ Public Function ExtendLine2D(p0 As Punto2d, p1 As Punto2d, l As Float) As Punto2
 
 End
 
-Public Function Create3dPointsFrom2dArray(flxPoints As Float[], Optional zValue As Float = 0) As Float[]
+'' Create a 3D Xi Yi Zi from a 2D XY array.
+'' If AxisPair = 0 then Z = fValue
+'' If AxisPair = 1 then Y = fValue and Zi = Y
+'' If AxisPair = 2 then X = fValue and Zi = X
+'' If Flip then -X (or -Y) is used
+Public Function Create3dXYZFrom2dXY(flxPoints As Float[], Optional fValue As Float = 0, AxisPair As Integer = 0, FlipX As Boolean = False, FlipY As Boolean = False) As Float[]
 
     Dim flx3D As New Float[]
     Dim i, i2 As Integer
+    Dim Fx As Integer = 1
+    Dim Fy As Integer = 1
+
+    If FlipX Then Fx = -1
+    If FlipY Then Fy = -1
 
     flx3D.Resize(Int(flxPoints.Count / 2) * 3)
     For i = 0 To flxPoints.Max Step 2
-        flx3D[i2] = flxPoints[i]
+        If AxisPair <= 1 Then
+            flx3D[i2] = flxPoints[i] * Fx
+
+        Else
+            flx3D[i2] = fValue
+
+        End If
         Inc i2
-        flx3D[i2] = flxPoints[i + 1]
+
+        If AxisPair = 0 Or AxisPair = 2 Then
+            flx3D[i2] = flxPoints[i + 1] * Fy
+
+        Else
+            flx3D[i2] = fValue
+
+        End If
         Inc i2
-        flx3D[i2] = zValue
+
+        If AxisPair = 1 Then
+            flx3D[i2] = flxPoints[i + 1] * Fy
+
+        Else If AxisPair = 2 Then
+            flx3D[i2] = flxPoints[i] * Fx
+        Else
+
+            flx3D[i2] = fValue
+
+        End If
         Inc i2
+
     Next
 
     Return flx3d
@@ -2067,5 +2101,24 @@ Public Function Create3dArray(p3dPoints As Punto3d[]) As Float[]
         i += 3
     Next
     Return fPoints
+
+End
+
+'' Create a 2D array froma 3D array by removing an axis:
+'' 0 for X removal
+'' 1 for Y removal
+'' 2 for Z removal
+Public Function RemoveAxis(fPoints As Float[], Optional Axis As Integer = 2) As Float[]
+
+    Dim i As Integer
+    Dim fResult As New Float[]
+
+    For i = 0 To fPoints.Max Step 3
+        If Axis <> 0 Then fResult.Add(fPoints[i])
+        If Axis <> 1 Then fResult.Add(fPoints[i + 1])
+        If Axis <> 2 Then fResult.Add(fPoints[i + 2])
+
+    Next
+    Return fResult
 
 End
