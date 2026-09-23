@@ -1,0 +1,113 @@
+' Gambas class file
+
+Inherits CadPolyface
+Public Const Gender As String = "PARALLELEPIPED"
+Public Const ParamType As String = "FP+"
+Public Const ParamHelper As String = "Heigth;Next Point"      ' a little text that is shown at the prompt waiting for user input during build
+
+Public zLevel As Float = 0
+
+Public Function NewEntity(Optional fPoints As Float[], bNewid As Boolean = False) As Entity
+
+    Dim e As New Entity
+
+    e = Super.NewEntity(fPoints, bNewid)
+    e.Gender = Me.Gender
+
+    e.pBlock = New PoliFace
+    Me.f = New Face
+    e.pBlock.Faces.Add(Me.f)
+
+    Return e
+
+End
+
+Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
+
+    Dim ok As Boolean
+
+    ok = Super.NewParameter(eBuild, vParam, Definitive)
+
+    If vParam[0] = "float" Then
+
+        If definitive Then
+            zLevel = vParam[1]
+            Inc gcd.StepsDone
+            Return True
+        End If
+
+    End If
+
+    Return ok
+
+End
+
+' This function will return False if the element couldn't be created for some reason: bad or incomple user input
+' True means all is good, False will instruct the clsENTITYBUILDER to delete it
+Public Sub Finish(e As Entity) As Boolean
+
+    Dim iCaras As Integer
+    Dim i As Integer
+    Dim f1, f2, fRect As Face
+    Dim x As Face[]
+    Dim p, p2 As Punto3d
+
+    Dim pPolygon As Punto3d[]
+    Dim i2 As Integer
+
+    x = e.pBlock.faces
+
+    f1 = x[0]
+
+    ' primero replicamos los puntos de la cara a la altura indicada
+    f2 = New Face
+    For Each p In f1.vertex
+        p2 = gcd.NewVertex(p.x, p.y, zLevel)
+        f2.vertex.Add(p2)
+    Next
+
+    x.Add(f2)                                       ' Agregamos la tapa
+
+    ' ahora creamos las caras rectangulares
+    For i = 0 To f1.vertex.Max
+        i2 = i + 1
+        If i2 = f1.vertex.Count Then i2 = 0
+        fRect = New Face
+        fRect.vertex.Add(f1[i])
+        fRect.vertex.Add(f1[i2])
+        fRect.vertex.Add(f2[i2])
+        fRect.vertex.Add(f2[i])
+        x.Add(fRect)
+
+    Next
+    e.Generated = True
+
+End
+
+Public Sub Draw(oE As Entity)
+
+    Dim fPoints As Float[]
+    Dim fColor4 As Integer
+    Dim bIntersects As Boolean
+    Dim f As Face
+
+    ' If Not oe.Generated Then
+    '     Super.Draw(oe)
+    '     Return
+    ' Endif
+
+    For Each f In oe.pBlock.faces
+
+        If f.vertex.Count > 1 Then ' dibujo el contorno
+            fPoints = puntos.RemoveAxis(puntos.Create3dArray(f.vertex))    ' paso de Punto3D a XYZ triplets
+
+            fColor4 = gcd.GetGBColor(oE.Colour, oe.pLayer)
+
+            glx.PolyLines(fPoints, fColor4, gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
+        End If
+        If (f.vertex.Count >= 3) And Not bIntersects Then ' dibujo el contorno
+            glx.DrawTriangles(puntos.PolygonTriangulation(fPoints), Color.Darker(gcd.GetGBColor(oE.Colour, oe.pLayer)), gcd.GetLineWt(oE.LineWIdth, oe.pLayer))
+        End If
+    Next
+
+End

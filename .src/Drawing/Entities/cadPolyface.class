@@ -13,7 +13,7 @@ Public Const ParamHelper As String = ("Next Point")      ' a little text that is
 Public Const ParamDefault As String = "Close/Undo"
 Public Const ContextMenu As String = ("Close polyline;_CLOSE;;;Undo last point;_UNDO;;;End in last point;_END;;") ' el menu para el boton derecho, los comandos
 Public Const Is3D As Boolean = True
-Public f As Face
+Public f As New Face
 
 Public Function NewEntity(Optional fPoints As Float[], bNewid As Boolean = False) As Entity
 
@@ -23,19 +23,23 @@ Public Function NewEntity(Optional fPoints As Float[], bNewid As Boolean = False
     e.Gender = Me.Gender
     e.pBlock = New Face
 
-    'e.pBlock.Parent = e
-
     Return e
 
 End
 
 Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
 
-    f = eBuild.pBlock
     Dim p As Punto3d
-    If f.vertex.Count = 0 Then
 
-        p = New Punto3d
+    If eBuild.Gender = Gender Then ' es polyface
+        f = eBuild.pBlock
+    Else
+
+        f = eBuild.pBlock.faces[0]
+    End If
+
+    If f.vertex.Count = 0 Then
+        p = gcd.NewVertex(0, 0, 0)
         f.vertex.Add(p)
     End If
     If vParam[0] = "point3d" Then
@@ -46,7 +50,7 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
 
         If definitive Then
 
-            p = New Punto3d(f.vertex.Last.x, f.vertex.Last.y, f.vertex.Last.z)
+            p = gcd.NewVertex(f.vertex.Last.x, f.vertex.Last.y, f.vertex.Last.z, True)
             f.vertex.Add(p)
             Return True
         End If
@@ -58,7 +62,7 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
 
         If definitive Then
 
-            p = New Punto3d(f.vertex.Last.x, f.vertex.Last.y, f.vertex.Last.z)
+            p = gcd.NewVertex(f.vertex.Last.x, f.vertex.Last.y, f.vertex.Last.z, True)
             f.vertex.Add(p)
             Return True
         End If
@@ -82,8 +86,8 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
             f.vertex.Last.y = f.vertex.First.y
             f.vertex.Last.z = f.vertex.First.z
 
-            vParam.Clear
-            vParam.Add("FINISH")
+            ' vParam.Clear
+            ' vParam.Add("FINISH")
             Inc gcd.StepsDone
 
             Return True
@@ -108,7 +112,8 @@ End
 
 Public Sub Draw(oE As Entity)
 
-    f = oe.pBlock
+    If oe.Gender = Gender Then f = oe.pBlock Else f = oe.pBlock[0]
+    If IsNull(f) Then Return
     Dim fPoints As Float[]
     Dim fColor4 As Integer
     Dim bIntersects As Boolean
@@ -141,5 +146,13 @@ Public Sub Draw3d(oE As Entity)
     If f.vertex.Count > 3 Then ' dibujo el contorno
         glx.DrawTriangles3D(oe.p, oe.PolyLine, gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer))
     End If
+
+End
+
+Public Sub Finish(e As Entity) As Boolean
+
+    Super.Finish(e)
+
+    e.pBlock = f
 
 End
