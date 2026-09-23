@@ -2886,7 +2886,7 @@ Public Function PolygonFilled(vertices As Float[], Optional colour As Integer = 
 
 End
 
-'' Dibuja un seria de polilinea
+'' Dibuja un polilinea cerrada
 Fast Unsafe Public Function Polygon(vertices As Float[], Optional colour As Integer = 0, LineWIdth As Float = 1, dashes As Float[] = [])
 
     PolyLines(vertices, colour, LineWIdth, dashes)
@@ -2988,12 +2988,15 @@ Fast Unsafe Public Function ArcPoly(xCenter As Float, yCenter As Float, radio As
 
 End
 
-Public Function PolyLines(fVertices As Float[], Optional colour As Integer = 0, LineWIdth As Float = 1, dashes As Float[] = [])
+Public Function PolyLines(fVertices As Float[], Optional colour As Integer = 0, LineWIdth As Float = 1, dashes As Float[] = [], Is3D As Boolean = False)
 
     Dim i As Integer
     Dim vertices As New Float[]
     Dim r As Float, g As Float, b As Float
     Dim x0, y0 As Float
+    Dim iStep As Integer
+
+    If Is3D Then iStep = 3 Else iStep = 2
 
     r = (Shr(Colour, 16) And 255) / 256
     g = (Shr(Colour, 8) And 255) / 256
@@ -3011,35 +3014,42 @@ Public Function PolyLines(fVertices As Float[], Optional colour As Integer = 0, 
 
     Endif
 
-    VBOCurrent.Vertex.Add(vertices[0])         'X
-    VBOCurrent.Vertex.Add(vertices[1])     'Y
-    VBOCurrent.Vertex.Add(0)                   'Z
+    VBOCurrent.Vertex.Add(vertices[0])                                                              'X
+    VBOCurrent.Vertex.Add(vertices[1])                                                              'Y
+    If Is3D Then VBOCurrent.Vertex.Add(vertices[2]) Else VBOCurrent.Vertex.Add(0)                   'Z
 
     VBOCurrent.Colors.Add(r)                    'R
     VBOCurrent.Colors.Add(g)                    'G
     VBOCurrent.Colors.Add(b)                    'B
 
-    For i = 2 To vertices.Max - 2 Step 2
+    For i = iStep To vertices.Max - iStep Step iStep
         VBOCurrent.Vertex.Add(vertices[i])         'X
         VBOCurrent.Vertex.Add(vertices[i + 1])     'Y
-        VBOCurrent.Vertex.Add(0)                   'Z
+        If Is3D Then VBOCurrent.Vertex.Add(vertices[i + 2]) Else VBOCurrent.Vertex.Add(0)                   'Z
 
         VBOCurrent.Colors.Add(r)                    'R
         VBOCurrent.Colors.Add(g)                    'G
         VBOCurrent.Colors.Add(b)                    'B
 
-        VBOCurrent.Vertex.Add(vertices[i])         'X
-        VBOCurrent.Vertex.Add(vertices[i + 1])     'Y
-        VBOCurrent.Vertex.Add(0)                   'Z
+        VBOCurrent.Vertex.Add(vertices[i])                                                                  'X
+        VBOCurrent.Vertex.Add(vertices[i + 1])                                                              'Y
+        If Is3D Then VBOCurrent.Vertex.Add(vertices[i + 2]) Else VBOCurrent.Vertex.Add(0)                   'Z
 
         VBOCurrent.Colors.Add(r)                    'R
         VBOCurrent.Colors.Add(g)                    'G
         VBOCurrent.Colors.Add(b)                    'B
 
     Next
-    VBOCurrent.Vertex.Add(vertices[vertices.Max - 1])         'X
-    VBOCurrent.Vertex.Add(vertices[vertices.max])     'Y
-    VBOCurrent.Vertex.Add(0)                   'Z
+
+    If Is3D Then
+        VBOCurrent.Vertex.Add(vertices[vertices.Max - 2])           'X
+        VBOCurrent.Vertex.Add(vertices[vertices.Max - 1])           'Y
+        VBOCurrent.Vertex.Add(vertices[vertices.max])               'Z
+    Else
+        VBOCurrent.Vertex.Add(vertices[vertices.Max - 1])           'X
+        VBOCurrent.Vertex.Add(vertices[vertices.max])               'Y
+        VBOCurrent.Vertex.Add(0)                                    'Z
+    End If
 
     VBOCurrent.Colors.Add(r)                    'R
     VBOCurrent.Colors.Add(g)                    'G
@@ -3079,7 +3089,7 @@ Fast Unsafe Public Function DrawTriangles(vertices As Float[], Optional colour A
 
 End
 
-Fast Unsafe Public Function DrawTriangles3D(vertices3D As Float[], faces As Float[], Optional colour As Integer = 0, FillColor As Integer = 0, LineWIdth As Float = 1)
+Fast Unsafe Public Function DrawTriangles3D(vertices3D As Float[], Optional colour As Integer = 0, FillColor As Integer = 0, LineWIdth As Float = 1)
 
     Dim i As Integer
 
@@ -3091,11 +3101,11 @@ Fast Unsafe Public Function DrawTriangles3D(vertices3D As Float[], faces As Floa
 
     ' TODO: gl.LineWIdth(LineWIdth) ' obsoleto en WebGL
 
-    For i = 0 To faces.max Step 3
+    For i = 0 To vertices3D.max Step 3
 
-        VBOCurrent.VertexTriangle.Add(vertices3d[faces[i]])
-        VBOCurrent.VertexTriangle.Add(vertices3d[faces[i + 1]])
-        VBOCurrent.VertexTriangle.Add(vertices3d[faces[i + 2]])
+        VBOCurrent.VertexTriangle.Add(vertices3d[i])
+        VBOCurrent.VertexTriangle.Add(vertices3d[i + 1])
+        VBOCurrent.VertexTriangle.Add(vertices3d[i + 2])
 
         VBOCurrent.ColorsTriangle.Add(r)                    'R
         VBOCurrent.ColorsTriangle.Add(g)                    'G

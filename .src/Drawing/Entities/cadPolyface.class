@@ -86,6 +86,7 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
             f.vertex.Last.y = f.vertex.First.y
             f.vertex.Last.z = f.vertex.First.z
 
+            f.vertex.Remove(f.vertex.Max)
             ' vParam.Clear
             ' vParam.Add("FINISH")
             Inc gcd.StepsDone
@@ -117,6 +118,8 @@ Public Sub Draw(oE As Entity)
     Dim fPoints As Float[]
     Dim fColor4 As Integer
     Dim bIntersects As Boolean
+    Dim pTriangles As Punto3d
+    Dim fTriangles As Float[]
     If f.vertex.Count > 1 Then ' dibujo el contorno
         fPoints = puntos.RemoveAxis(puntos.Create3dArray(f.vertex))    ' paso de Punto3D a XYZ triplets
         bIntersects = puntos.IsPoligonSelfIntersecting(fPoints)
@@ -126,10 +129,15 @@ Public Sub Draw(oE As Entity)
             fColor4 = gcd.GetGBColor(oE.Colour, oe.pLayer)
 
         End If
-        glx.PolyLines(fPoints, fColor4, gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
+        glx.Polygon(fPoints, fColor4, gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
     End If
     If (f.vertex.Count >= 3) And Not bIntersects Then ' dibujo el contorno
-        glx.DrawTriangles(puntos.PolygonTriangulation(fPoints), Color.Darker(gcd.GetGBColor(oE.Colour, oe.pLayer)), gcd.GetLineWt(oE.LineWIdth, oe.pLayer))
+        'pTriangles = puntos.PolygonTriangulation3D(f.vertex)
+        fTriangles = puntos.PolygonTriangulation3D(f.vertex) ' puntos.Create3dArray(pTriangles)
+        If f.vertex.Count = 4 Then
+            fColor4 = 0
+        End If
+        glx.DrawTriangles3D(fTriangles, Color.Darker(gcd.GetGBColor(oE.Colour, oe.pLayer)), gcd.GetLineWt(oE.LineWIdth, oe.pLayer))
     End If
 
 End
