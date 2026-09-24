@@ -119,29 +119,55 @@ End
 ' This function will return False if the element couldn't be created for some reason: bad or incomple user input
 ' True means all is good, False will instruct the clsENTITYBUILDER to delete it
 
-Public Sub Finish(e As Entity) As Boolean
+Public Sub Finish(oe As Entity) As Boolean
 
     Dim iCaras As Integer
     Dim i As Integer
     Dim f1, f2, fRect As Face
-    Dim x As Face[]
+    Dim F As Face[]
     Dim p, p2 As Punto3d
 
     Dim pPolygon As Punto3d[]
     Dim i2 As Integer
 
-    x = e.pBlock.faces
+    F = oe.pBlock.faces
+    ' base
 
-    f1 = x[0]
+    Dim x, y, theta, angle_increment As Float
+    Dim iTramos As Integer
+
+    iTramos = oE.fParam[0] * 2 * Pi / gcd.metros(Config.ArcDensity)
+
+    If iTramos < 6 Then iTramos = 18
+    If iTramos > 64 Then iTramos = 64
+    angle_increment = 2 * Pi / iTramos
+
+    oE.polyline.Clear
+    f1 = New Face
+    For theta = 0 To 2 * Pi Step angle_increment
+        ' el punto considerando 0,0 al centro
+        p = New Punto3d
+        p.x = oE.p[0] + oE.fParam[0] * Cos(theta)
+        p.y = oE.p[1] + oE.fParam[0] * Sin(theta)
+        p.z = 0
+        f1.vertex.Add(p)
+
+    Next
+    p = New Punto3d
+    p.x = oE.p[0] + oE.fParam[0]
+    p.y = oE.p[1]
+    f1.vertex.Add(p)
+
+    F.Add(f1)
 
     ' primero replicamos los puntos de la cara a la altura indicada
     f2 = New Face
     For Each p In f1.vertex
-        p2 = gcd.NewVertex(p.x, p.y, Me.zLevel)
+        p2 = gcd.NewVertex(p.x, p.y, oE.fParam[1])
         f2.vertex.Add(p2)
     Next
 
-    x.Add(f2)                                       ' Agregamos la tapa
+    f.Add(f2)
 
     ' ahora creamos las caras rectangulares
     For i = 0 To f1.vertex.Max
@@ -152,35 +178,9 @@ Public Sub Finish(e As Entity) As Boolean
         fRect.vertex.Add(f1.vertex[i2])
         fRect.vertex.Add(f2.vertex[i2])
         fRect.vertex.Add(f2.vertex[i])
-        x.Add(fRect)
+        f.Add(fRect)
 
     Next
-    e.Generated = True
-
-    ' Dim x, y, theta, angle_increment As Float
-    ' Dim iTramos As Integer
-    '
-    ' ' If oe.id = "DB8C" Then Stop
-    ' iTramos = oE.fParam[0] * 2 * Pi / gcd.metros(Config.ArcDensity)
-    '
-    ' If iTramos < 6 Then iTramos = 18
-    ' If iTramos > 360 Then iTramos = 360
-    ' angle_increment = 2 * Pi / iTramos
-    '
-    ' oE.polyline.Clear
-    '
-    ' For theta = 0 To 2 * Pi Step angle_increment
-    '     ' el punto considerando 0,0 al centro
-    '     x = oE.p[0] + oE.fParam[0] * Cos(theta)
-    '     y = oE.p[1] + oE.fParam[0] * Sin(theta)
-    '     oE.polyline.Add(x)
-    '     oE.polyline.Add(y)
-    '
-    ' Next
-    ' x = oE.p[0] + oE.fParam[0]
-    ' y = oE.p[1]
-    '
-    ' oE.polyline.Add(x)
-    ' oE.polyline.Add(y)
+    oe.Generated = True
 
 End

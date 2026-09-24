@@ -42,6 +42,48 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
 
 End
 
+' This function will return False if the element couldn't be created for some reason: bad or incomple user input
+' True means all is good, False will instruct the clsENTITYBUILDER to delete it
+Public Sub Finish(e As Entity) As Boolean
+
+    Dim iCaras As Integer
+    Dim i As Integer
+    Dim f1, f2, fRect As Face
+    Dim x As Face[]
+    Dim p, p2 As Punto3d
+
+    Dim pPolygon As Punto3d[]
+    Dim i2 As Integer
+
+    x = e.pBlock.faces
+
+    f1 = x[0]
+
+    ' primero replicamos los puntos de la cara a la altura indicada
+    f2 = New Face
+    For Each p In f1.vertex
+        p2 = gcd.NewVertex(p.x, p.y, zLevel)
+        f2.vertex.Add(p2)
+    Next
+
+    x.Add(f2)                                       ' Agregamos la tapa
+
+    ' ahora creamos las caras rectangulares
+    For i = 0 To f1.vertex.Max
+        i2 = i + 1
+        If i2 = f1.vertex.Count Then i2 = 0
+        fRect = New Face
+        fRect.vertex.Add(f1.vertex[i])
+        fRect.vertex.Add(f1.vertex[i2])
+        fRect.vertex.Add(f2.vertex[i2])
+        fRect.vertex.Add(f2.vertex[i])
+        x.Add(fRect)
+
+    Next
+    e.Generated = True
+
+End
+
 Public Sub Draw(oE As Entity)
 
     Dim fPoints As Float[]

@@ -1,0 +1,70 @@
+' Gambas class file
+
+Public Target As New Punto3d(0.0, 0.0, 0.0)
+Public Radius As Single = 5.0
+Public Yaw As Single = -90.0
+Public Pitch As Single = 0.0
+
+' Sensibilidades para suavizar el movimiento
+Public OrbitSensitivity As Single = 0.2
+Public PanSensitivity As Single = 0.01
+Public ZoomSensitivity As Single = 0.5
+' Limites para evitar comportamiento extraño
+Public MinRadius As Single = 1.0
+Public MaxRadius As Single = 50.0
+
+Public Function GetViewMatrix() As Matrix4
+    ' Limitar el cabeceo (Pitch) para evitar voltear la cámara por completo
+
+    If Pitch > 89.0 Then Pitch = 89.0
+    If Pitch < -89.0 Then Pitch = -89.0
+
+    Dim yawRad As Single = Rad(Yaw)
+    Dim pitchRad As Single = Rad(Pitch)
+
+    ' Calcular el vector de desplazamiento desde el objetivo
+    Dim offset As Punto3d
+    offset.X = CSingle(Cos(yawRad) * Cos(pitchRad))
+    offset.Y = CSingle(Sin(pitchRad))
+    offset.Z = CSingle(Sin(yawRad) * Cos(pitchRad))
+
+    Dim cameraPosition As Punto3d = Target + (offset * Radius)
+    Dim up As New Punto3d(0.0, 1.0, 0.0)
+
+    Return Matrix4.LookAt(cameraPosition, Target, up)
+
+End Function
+
+''' <dt>Procesa el giro (Órbita) con el botón izquierdo</dt>
+Public Sub Orbit(deltaX As Single, deltaY As Single)
+
+    Yaw += deltaX * OrbitSensitivity
+    Pitch -= deltaY * OrbitSensitivity ' Invertido para que se mueva de forma natural con el arrastre
+
+End Sub
+
+''' <dt>Procesa el paneo (Desplazamiento horizontal/vertical) con el botón derecho</dt>
+Public Sub Pan(deltaX As Single, deltaY As Single)
+    ' Calculamos los vectores directores locales de la cámara para saber hacia dónde es "su" izquierda y "su" arriba
+
+    Dim yawRad As Single = Rad(Yaw)
+    Dim forward As New Punto3d(CSingle(Cos(yawRad)), 0.0, CSingle(Sin(yawRad)))
+    Dim right As Punto3d = modAlgebra.Normalizar(modAlgebra.Cross(forward, punto3d.UnitY))
+    Dim up As New Punto3d(0, 1, 0)
+
+    ' Mover el punto objetivo de la cámara
+    Target += right * (-deltaX * PanSensitivity * (Radius * 0.2))
+    Target += up * (deltaY * PanSensitivity * (Radius * 0.2))
+
+End Sub
+
+''' <dt>Procesa el zoom con la rueda del ratón</dt>
+Public Sub Zoom(deltaWheel As Single)
+    ' Al restar, mover la rueda hacia adelante reduce el radio (acerca la cámara)
+
+    Radius -= deltaWheel * ZoomSensitivity
+    ' Restringir el radio a los límites establecidos
+    If Radius < MinRadius Then Radius = MinRadius
+    If Radius > MaxRadius Then Radius = MaxRadius
+
+End Sub

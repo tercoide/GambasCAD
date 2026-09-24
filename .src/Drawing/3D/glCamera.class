@@ -1,29 +1,31 @@
 ' Gambas class file
 
+' Gambas class file
+
 ' Una GL Utilities para Gambas:
 
 ' Adaptado para Gambas3 por Martin Cristia
 
-'  Camera With OpenGL
+'  Camera With OpenGL - Orbit & Pan version
 '
-'  March, 13 th, 2003
-'
-'  This tutorial was written by Philipp Crocoll
-'  Contact:
-' philipp.crocoll@web.de
-' www.codecolony.de
+'  Based on the original tutorial by Philipp Crocoll (2003)
+'  Orbit/Pan/Zoom added by Copilot for GambasCAD
 
-' * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * /
-
-' Public camera As Camera
-' ' Represents a camera position
-
-Public Position As New Punto3d
-Public ViewDir As New Punto3d
+Public Position As New Punto3d      ' eye position
+Public ViewDir As New Punto3d       ' normalized forward vector (Target - Position)
 Public RightVector As New Punto3d
 Public UpVector As New Punto3d
 Public Rotated As New Punto3d
-Public ViewPoint As New Punto3d
+Public ViewPoint As New Punto3d     ' = Target, kept for backward compatibility
+
+' --- Orbit camera state ---
+Public Target As New Punto3d        ' point the camera orbits/looks at
+Public Distance As Float = 100      ' distance from Position to Target
+Public Yaw As Float = 0             ' degrees, rotation around world Y
+Public Pitch As Float = 20          ' degrees, elevation angle
+Public MinPitch As Float = -89
+Public MaxPitch As Float = 89
+Public MinDistance As Float = 0.01
 
 Public PIdiv180 As Float = Pi / 180
 
@@ -45,28 +47,168 @@ Public projMatrix As New Float[16]
 
 Public vp As New Integer[4]
 
+' Mouse sensitivity, tune to taste
+Public OrbitSpeed As Float = 0.4      ' degrees per pixel
+Public PanSpeed As Float = 1.0        ' factor applied to distance-scaled pan
+Public ZoomSpeed As Float = 0.1       ' fraction of distance per wheel notch
+
 Public Sub _new()
 
-    position.x = 50 'WorldCgX
-    position.y = 50 ' WorldCgY
-    position.z = 50 'WorldCgZ + WorldMax
+    Target.x = WorldCgX
+    Target.y = WorldCgY
+    Target.z = WorldCgZ
 
-    ViewDir.x = 0.0
-    ViewDir.y = 0.0
-    ViewDir.z = -1.0
-
-    RightVector.x = 1.0
-    RightVector.y = 0.0
-    RightVector.z = 0.0
+    Distance = WorldMax
+    Yaw = 45
+    Pitch = 20
 
     UpVector.x = 0.0
     UpVector.y = 1.0
     UpVector.z = 0.0
 
-    ' Only To be sure:
     Rotated.X = 0
     Rotated.Y = 0
     Rotated.Z = 0.0
+
+    UpdateFromOrbit()
+
+End
+
+'' Recomputes Position, ViewDir, RightVector from Target/Distance/Yaw/Pitch
+Public Sub UpdateFromOrbit()
+
+    Dim yawRad As Float = Yaw * PIdiv180
+    Dim pitchRad As Float = Pitch * PIdiv180
+    Dim cp As Float = Cos(pitchRad)
+
+    ' spherical -> cartesian offset from target
+    Position.x = Target.x + Distance * cp * Sin(yawRad)
+    Position.y = Target.y + Distance * Sin(pitchRad)
+    Position.z = Target.z + Distance * cp * Cos(yawRad)
+
+    ViewDir.x = Target.x - Position.x
+    ViewDir.y = Target.y - Position.y
+    ViewDir.z = Target.z - Position.z
+    modAlgebra.Normalizar(ViewDir)
+
+    ' keep a stable world-up based right/up pair (avoids roll/gimbal drift)
+    Dim worldUp As New Punto3d
+    worldUp.x = 0
+    worldUp.y = 1
+    worldUp.z = 0
+
+    RightVector = modAlgebra.Cross(ViewDir, worldUp)
+    modAlgebra.Normalizar(RightVector)
+
+    UpVector = modAlgebra.Cross(RightVector, ViewDir)
+    modAlgebra.Normalizar(UpVector)
+
+End
+
+'' Orbits the camera around Target. dYaw/dPitch in degrees.
+Public Sub Orbit(dYaw As Float, dPitch As Float)
+
+    Yaw += dYaw
+    Pitch += dPitch
+
+    If Pitch > MaxPitch Then Pitch = MaxPitch
+    If Pitch < MinPitch Then Pitch = MinPitch
+
+    UpdateFromOrbit()
+
+End
+
+'' Pans Target (and therefore Position) along screen right/up axes.
+'' dxScreen/dyScreen are typically mouse deltas in pixels.
+Public Sub Pan(dxScreen As Float, dyScreen As Float)
+
+    Dim scale As Float = Distance * PanSpeed * 0.002 ' keeps pan feel independent of zoom level
+
+    Dim offset As New Punto3d
+
+    offset.x = -RightVector.x * dxScreen * scale + UpVector.x * dyScreen * scale
+    offset.y = -RightVector.y * dxScreen * scale + UpVector.y * dyScreen * scale
+    offset.z = -RightVector.z * dxScreen * scale + UpVector.z * dyScreen * scale
+
+    modAlgebra.Add3D(Target, offset)
+
+    UpdateFromOrbit()
+
+End
+
+'' Zooms by moving Position toward/away from Target (dollying),
+'' i.e. changing Distance. Positive delta = zoom in.
+Public Sub Zoom(delta As Float)
+
+    Distance *= (1 - delta * ZoomSpeed)
+    If Distance < MinDistance Then Distance = MinDistance
+
+    UpdateFromOrbit()
+
+End
+
+Public Sub Render()
+
+    ' The point at which the camera looks:
+    ViewPoint.x = Target.x
+    ViewPoint.y = Target.y
+    ViewPoint.z = Target.z
+
+    glu.LookAt(Position.x, Position.y, Position.z,
+        ViewPoint.x, ViewPoint.y, ViewPoint.z,
+        UpVector.x, UpVector.y, UpVector.z)
+
+    modelMatrix = gl.GetFloatv(GL.MODELVIEW_MATRIX)
+    projMatrix = gl.GetFloatv(GL.PROJECTION_MATRIX)
+    vp = gl.GetIntegerv(GL.VIEWPORT_)
+
+End
+
+Public Sub MouseDown()
+
+    MouseX = Mouse.X
+    MouseY = Mouse.Y
+
+End
+
+Public Sub MouseMove()
+
+    Dim deltaX As Integer
+    Dim deltaY As Integer
+
+    deltaX = Mouse.X - MouseX
+    deltaY = Mouse.Y - MouseY
+
+    If Mouse.Left And Not Mouse.Right Then
+
+        ' Orbit: horizontal drag = yaw, vertical drag = pitch
+        Orbit(deltaX * OrbitSpeed, deltaY * OrbitSpeed)
+
+    Else If Mouse.Right And Not Mouse.Left Then
+
+        ' Pan (previously "move position") \u2014 now pans the orbit target
+        Pan(deltaX, deltaY)
+
+    Else If Mouse.Middle Then
+
+        ' Middle-drag also pans (common CAD convention)
+        Pan(deltaX, deltaY)
+
+    Else If Mouse.Left And Mouse.Right Then
+
+        ' Both buttons: dolly zoom based on vertical drag
+        Zoom(-deltaY * 0.05)
+
+    Endif
+
+    MouseX = Mouse.X
+    MouseY = Mouse.y
+
+End
+
+Public Sub MouseWheel()
+
+    Zoom(Mouse.Delta)
 
 End
 
@@ -134,21 +276,21 @@ Public Sub RotateZ(Angle As Float)
 
 End
 
-Public Sub Render()
-    ' The point at which the camera looks:
-
-    modAlgebra.Sum3D(ViewPoint, position, ViewDir)
-
-    ' As We know the up vector, we can easily Use gluLookAt:
-    glu.LookAt(position.x, position.y, position.z,
-        ViewPoint.x, ViewPoint.y, ViewPoint.z,
-        UpVector.x, UpVector.y, UpVector.z)
-    ' guardo las matrices
-    modelMatrix = gl.GetFloatv(GL.MODELVIEW_MATRIX)
-    projMatrix = gl.GetFloatv(GL.PROJECTION_MATRIX)
-    vp = gl.GetIntegerv(GL.VIEWPORT_)
-
-End
+' Public Sub Render()
+'     ' The point at which the camera looks:
+'
+'     modAlgebra.Sum3D(ViewPoint, position, ViewDir)
+'
+'     ' As We know the up vector, we can easily Use gluLookAt:
+'     glu.LookAt(position.x, position.y, position.z,
+'         ViewPoint.x, ViewPoint.y, ViewPoint.z,
+'         UpVector.x, UpVector.y, UpVector.z)
+'     ' guardo las matrices
+'     modelMatrix = gl.GetFloatv(GL.MODELVIEW_MATRIX)
+'     projMatrix = gl.GetFloatv(GL.PROJECTION_MATRIX)
+'     vp = gl.GetIntegerv(GL.VIEWPORT_)
+'
+' End
 
 Public Sub MoveForward(Distance As Float)
 
@@ -186,60 +328,53 @@ Public Sub MoveUpward(Distance As Float)
 
 End
 
-Public Sub MouseDown()
+' Public Sub MouseMove()
+'
+'     Dim deltaX As Integer
+'     Dim deltaY As Integer
+'     Dim dY As Float
+'     Dim dX As Float
+'     Dim aVertical, aHorizontal As Float
+'
+'     deltaX = Mouse.X - MouseX
+'     deltaY = Mouse.Y - MouseY
+'
+'     If Mouse.Left And Not Mouse.Right Then              ' cambio la direccion de la camara
+'
+'         ' supongo que el user esta a 0.5m de la pantalla
+'         ' una pantalla 15.6" tiene aprox 0.3m de alto y 0.4m de ancho
+'         ' entonces la distancia recorrida por el mouse entre clicks es
+'         dY = deltaY / Screen.h * 0.3
+'         dX = deltaX / Screen.w * 0.4
+'
+'         ' los angulos en grados
+'         aVertical = ATan(dy / 0.5) / PIdiv180
+'         aHorizontal = ATan(dx / 0.5) / PIdiv180
+'
+'         ' Entonces puedo cambiar la direccion de la camara
+'
+'         RotateX(aVertical)
+'         RotateY(aHorizontal)
+'
+'     Else If Mouse.Right And Not Mouse.Left Then        ' Muevo la posicion de la camara
+'
+'         dY = deltaY / Screen.h * WorldMax
+'         dX = deltaX / Screen.w * WorldMax
+'
+'         MoveUpward(dy)
+'         StrafeRight(-dx)
+'
+'     Else If Mouse.Left And Mouse.Right              ' TODO: Implementar Orbit
+'
+'     Endif
+'
+'     MouseX = Mouse.X
+'     MouseY = Mouse.y
+'
+' End
 
-    MouseX = Mouse.X
-    MouseY = Mouse.Y
-
-End
-
-Public Sub MouseMove()
-
-    Dim deltaX As Integer
-    Dim deltaY As Integer
-    Dim dY As Float
-    Dim dX As Float
-    Dim aVertical, aHorizontal As Float
-
-    deltaX = Mouse.X - MouseX
-    deltaY = Mouse.Y - MouseY
-
-    If Mouse.Left And Not Mouse.Right Then              ' cambio la direccion de la camara
-
-        ' supongo que el user esta a 0.5m de la pantalla
-        ' una pantalla 15.6" tiene aprox 0.3m de alto y 0.4m de ancho
-        ' entonces la distancia recorrida por el mouse entre clicks es
-        dY = deltaY / Screen.h * 0.3
-        dX = deltaX / Screen.w * 0.4
-
-        ' los angulos en grados
-        aVertical = ATan(dy / 0.5) / PIdiv180
-        aHorizontal = ATan(dx / 0.5) / PIdiv180
-
-        ' Entonces puedo cambiar la direccion de la camara
-
-        RotateX(aVertical)
-        RotateY(aHorizontal)
-
-    Else If Mouse.Right And Not Mouse.Left Then        ' Muevo la posicion de la camara
-
-        dY = deltaY / Screen.h * WorldMax
-        dX = deltaX / Screen.w * WorldMax
-
-        MoveUpward(dy)
-        StrafeRight(-dx)
-
-    Else If Mouse.Left And Mouse.Right              ' TODO: Implementar Orbit
-
-    Endif
-
-    MouseX = Mouse.X
-    MouseY = Mouse.y
-
-End
-
-Public Sub MouseWheel()
-
-    moveforward(-Mouse.Delta * WorldMax / 20) ' no se de donde sale el 20
-
-End
+' Public Sub MouseWheel()
+'
+'     moveforward(-Mouse.Delta * WorldMax / 20) ' no se de donde sale el 20
+'
+' End
