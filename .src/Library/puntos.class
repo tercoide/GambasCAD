@@ -2385,3 +2385,104 @@ End
 Public Function PolyFaceToTriangles(pFace As Punto3d[]) As Float[]
 
 End
+
+''' <summary>
+''' Convierte ángulos Yaw, Pitch y Roll (en grados) a un Cuaternión.
+''' </summary>
+Public Function AngulosACuaternion(YawDeg As Float, PitchDeg As Float, RollDeg As Float) As Quaternion
+
+    Dim q As New Quaternion
+    Dim yaw As Float = Rad(YawDeg) * 0.5
+    Dim pitch As Float = Rad(PitchDeg) * 0.5
+    Dim roll As Float = Rad(RollDeg) * 0.5
+
+    Dim cy As Float = Cos(yaw)
+    Dim sy As Float = Sin(yaw)
+    Dim cp As Float = Cos(pitch)
+    Dim sp As Float = Sin(pitch)
+    Dim cr As Float = Cos(roll)
+    Dim sr As Float = Sin(roll)
+
+    ' Combinación de rotaciones (Orden: Yaw -> Pitch -> Roll)
+    q.W = cy * cp * cr + sy * sp * sr
+    q.X = cy * cp * sr - sy * sp * cr
+    q.Y = cy * sp * cr + sy * cp * sr
+    q.Z = sy * cp * cr - cy * sp * sr
+
+    Return q
+
+End Function
+
+''' <summary>
+''' Rota un punto 3D utilizando un cuaternión de orientación.
+''' </summary>
+Public Function RotarPunto(Punto As Punto3D, Q As Quaternion) As Punto3D
+
+    Dim Resultado As New Punto3D
+    Dim tx, ty, tz As Float
+
+    ' Fórmulas optimizadas q * p * q_invertido para vectores 3D
+    tx = 2.0 * (Q.Y * Punto.Z - Q.Z * Punto.Y)
+    ty = 2.0 * (Q.Z * Punto.X - Q.X * Punto.Z)
+    tz = 2.0 * (Q.X * Punto.Y - Q.Y * Punto.X)
+
+    Resultado.X = Punto.X + Q.W * tx + (Q.Y * tz - Q.Z * ty)
+    Resultado.Y = Punto.Y + Q.W * ty + (Q.Z * tx - Q.X * tz)
+    Resultado.Z = Punto.Z + Q.W * tz + (Q.X * ty - Q.Y * tx)
+
+    Return Resultado
+
+End Function
+
+''' <summary>
+''' Rota un punto 3D utilizando un cuaternión de orientación.
+''' </summary>
+Public Sub RotateP3(Punto As Punto3D, Q As Quaternion)
+
+    Dim tx, ty, tz As Float
+
+    ' Fórmulas optimizadas q * p * q_invertido para vectores 3D
+    tx = 2.0 * (Q.Y * Punto.Z - Q.Z * Punto.Y)
+    ty = 2.0 * (Q.Z * Punto.X - Q.X * Punto.Z)
+    tz = 2.0 * (Q.X * Punto.Y - Q.Y * Punto.X)
+
+    punto.X = Punto.X + Q.W * tx + (Q.Y * tz - Q.Z * ty)
+    punto.Y = Punto.Y + Q.W * ty + (Q.Z * tx - Q.X * tz)
+    punto.Z = Punto.Z + Q.W * tz + (Q.X * ty - Q.Y * tx)
+
+End
+
+''' <summary>
+''' Rota un punto 3D utilizando un cuaternión de orientación.
+''' </summary>
+Public Sub RotatePoints3DFromBase(pPoints As Punto3D[], pBase As Punto3d, Q As Quaternion)
+
+    Dim Punto As Punto3D
+    Dim tx, ty, tz As Float
+
+    For Each punto In pPoints
+
+        punto.x -= pbase.x
+        punto.y -= pbase.y
+        punto.z -= pbase.z
+
+        ' Fórmulas optimizadas q * p * q_invertido para vectores 3D
+        tx = 2.0 * (Q.Y * Punto.Z - Q.Z * Punto.Y)
+        ty = 2.0 * (Q.Z * Punto.X - Q.X * Punto.Z)
+        tz = 2.0 * (Q.X * Punto.Y - Q.Y * Punto.X)
+
+        ' Resultado.X = Punto.X + Q.W * tx + (Q.Y * tz - Q.Z * ty)
+        ' Resultado.Y = Punto.Y + Q.W * ty + (Q.Z * tx - Q.X * tz)
+        ' Resultado.Z = Punto.Z + Q.W * tz + (Q.X * ty - Q.Y * tx)
+
+        Punto.X = Punto.X + Q.W * tx + (Q.Y * tz - Q.Z * ty)
+        Punto.Y = Punto.Y + Q.W * ty + (Q.Z * tx - Q.X * tz)
+        Punto.Z = Punto.Z + Q.W * tz + (Q.X * ty - Q.Y * tx)
+
+        punto.x += pbase.x
+        punto.y += pbase.y
+        punto.z += pbase.z
+
+    Next
+
+End

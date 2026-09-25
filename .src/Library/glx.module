@@ -106,6 +106,8 @@ Public VBO_present As Boolean = False   ' si tenemos VBO que dibujar
 Public VBOCurrent As VBO                ' Current VBO version moderna
 Public VBOLast As VBO                   ' para nuevo buffer
 
+Public Plane2D As Integer = 0 ''Set screen 2D left to right and bottom to top axis 0 = default X+Y+, 1=X+Z-, 2=Z-Y+
+
 '
 ' Copyright (C) Ing Martin P Cristia
 '
@@ -2811,6 +2813,98 @@ Public Function DrawLines3D(fVertices As Float[], Optional colour As Integer = 0
 End
 
 '' Dibuja un serie de lineas
+'Fast Unsafe
+Public Function DrawCubic(pCenter As Punto3d, fWidth As Float, fHeight As Float, fDeph As Float, FillColor As Integer, Optional ContourColor As Integer = 0, fYaw As Float = 0, fPitch As Float = 0, fRoll As Float = 0)
+
+    Dim i As Integer
+    Dim r As Float, g As Float, b As Float
+    Dim Vertices, fPoints As Float[]
+    Dim x0, y0, z0 As Float
+    Dim dashed As Boolean
+    Dim p3d As New Punto3d[]
+    Dim cara1 As New Punto3d[]
+    Dim cara2 As New Punto3d[]
+    Dim cara3 As New Punto3d[]
+    Dim cara4 As New Punto3d[]
+    Dim cara5 As New Punto3d[]
+    Dim cara6 As New Punto3d[]
+
+    Dim p As Punto3d
+    'If gbcolor > 0 Then Stop
+    r = (Shr(FillColor, 16) And 255) / 256
+    g = (Shr(FillColor, 8) And 255) / 256
+    b = (FillColor And 255) / 256
+
+    ' Cara superior
+    p = New Punto3d
+    p.x = pCenter.x - fWIdth / 2
+    p.y = pCenter.y + fHeight / 2
+    p.z = pCenter.z - fDeph / 2
+    p3d.Add(p)
+    p = New Punto3d
+    p.x = pCenter.x + fWIdth / 2
+    p.y = pCenter.y + fHeight / 2
+    p.z = pCenter.z - fDeph / 2
+    p3d.Add(p)
+    p = New Punto3d
+    p.x = pCenter.x + fWIdth / 2
+    p.y = pCenter.y + fHeight / 2
+    p.z = pCenter.z + fDeph / 2
+    p3d.Add(p)
+    p = New Punto3d
+    p.x = pCenter.x + fWIdth / 2
+    p.y = pCenter.y + fHeight / 2
+    p.z = pCenter.z + fDeph / 2
+    p3d.Add(p)
+
+    ' Cara inferior
+    p = New Punto3d
+    p.x = pCenter.x - fWIdth / 2
+    p.y = pCenter.y - fHeight / 2
+    p.z = pCenter.z - fDeph / 2
+    p3d.Add(p)
+    p = New Punto3d
+    p.x = pCenter.x + fWIdth / 2
+    p.y = pCenter.y - fHeight / 2
+    p.z = pCenter.z - fDeph / 2
+    p3d.Add(p)
+    p = New Punto3d
+    p.x = pCenter.x + fWIdth / 2
+    p.y = pCenter.y - fHeight / 2
+    p.z = pCenter.z + fDeph / 2
+    p3d.Add(p)
+    p = New Punto3d
+    p.x = pCenter.x + fWIdth / 2
+    p.y = pCenter.y - fHeight / 2
+    p.z = pCenter.z + fDeph / 2
+    p3d.Add(p)
+
+    cara1.Insert([p3d[0], p3d[1], p3d[2], p3d[3]])
+    cara2.Insert([p3d[4], p3d[5], p3d[6], p3d[7]])
+
+    cara3.Insert([p3d[0], p3d[1], p3d[4], p3d[5]])
+    cara4.Insert([p3d[2], p3d[3], p3d[6], p3d[7]])
+
+    cara5.Insert([p3d[0], p3d[3], p3d[7], p3d[4]])
+    cara6.Insert([p3d[1], p3d[2], p3d[6], p3d[7]])
+
+    Dim q As New Quartenion
+
+    q = puntos.AngulosACuaternion(fYaw, fPitch, fRoll)
+    For Each p In p3d
+        puntos.RotateP3(p, q)
+    Next
+
+    Polygon(puntos.Create3dArray(cara1), ContourColor,,, True)
+    Polygon(puntos.Create3dArray(cara2), ContourColor,,, True)
+    Polygon(puntos.Create3dArray(cara3), ContourColor,,, True)
+    Polygon(puntos.Create3dArray(cara4), ContourColor,,, True)
+    Polygon(puntos.Create3dArray(cara5), ContourColor,,, True)
+    Polygon(puntos.Create3dArray(cara6), ContourColor,,, True)
+
+End
+
+'' Dibuja un serie de lineas
 Public Function Drawpoints(fPoints As Float[], Optional colour As Integer = 0, PointSize As Float = 1)
 
     Dim i As Integer
@@ -2858,48 +2952,27 @@ Public Function Drawpoints3D(fPoints As Float[], Optional colour As Integer = 0,
 
 End
 
-'' Dibuja un seria de polilinea
-Public Function PolygonFilled(vertices As Float[], Optional colour As Integer = 0, FillColor As Integer = 0, LineWIdth As Float = 1, dashes As Float[])
-
-    Dim i As Integer
-
-    'glColorRGB(colour)
-    ' TODO: gl.LineWIdth(LineWIdth) ' obsoleto en WebGL
-
-    If dashes Then
-        gl.LineStipple(LineStippleScales[dashes], LineStipples[dashes])
-        gl.Enable(GL.LINE_STIPPLE)
-    Else
-
-        gl.Disable(GL.LINE_STIPPLE)
-
-    Endif
-
-    ' TODO: gl.Begin(gl.POLYGON)
-
-    For i = 0 To vertices.Max Step 2
-        glColorRGB(colour)
-        gl.Vertex2f(vertices[i], vertices[i + 1])
-
-    Next
-    ' gl.end
-
-End
-
 '' Dibuja un polilinea cerrada
-Fast Unsafe Public Function Polygon(vertices As Float[], Optional colour As Integer = 0, LineWIdth As Float = 1, dashes As Float[] = [])
+Fast Unsafe Public Function Polygon(vertices As Float[], Optional colour As Integer = 0, LineWIdth As Float = 1, dashes As Float[] = [], Is3D As Boolean = False)
 
-    PolyLines(vertices, colour, LineWIdth, dashes)
+    PolyLines(vertices, colour, LineWIdth, dashes, Is3D)
 
     ' ademas la union
-    VBOCurrent.Vertex.Add(vertices[vertices.max - 1])
-    VBOCurrent.Vertex.Add(vertices[vertices.Max])
-    VBOCurrent.Vertex.Add(0)
+    If Is3D Then
+        VBOCurrent.Vertex.Add(vertices[vertices.Max - 2])           'X
+        VBOCurrent.Vertex.Add(vertices[vertices.Max - 1])           'Y
+        VBOCurrent.Vertex.Add(vertices[vertices.max])               'Z
+    Else
+        VBOCurrent.Vertex.Add(vertices[vertices.Max - 1])           'X
+        VBOCurrent.Vertex.Add(vertices[vertices.max])               'Y
+        VBOCurrent.Vertex.Add(0)                                    'Z
+    End If
+
     glColorRGB(colour,, False)
 
     VBOCurrent.Vertex.Add(vertices[0])
     VBOCurrent.Vertex.Add(vertices[1])
-    VBOCurrent.Vertex.Add(0)
+    If Is3D Then VBOCurrent.Vertex.Add(vertices[2]) Else VBOCurrent.Vertex.Add(0)
     glColorRGB(colour,, False)
 
 End
