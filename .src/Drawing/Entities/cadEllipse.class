@@ -25,9 +25,9 @@ Inherits EntityBase
 Public Const Gender As String = "ELLIPSE"
 Public Const PointsToDraw As Integer = 1             ' minimal point requered for drawing something usefull
 Public Const CmdLineHelper As String = ("Draw an ellipse")
-Public Const ParamType As String = "PPRRR"
-Public Const ParamHelper As String = "Start point;Major Radious;Minor/Major;Start;End"      ' a little text that is shown at the prompt waiting for user input during build
-Public Const ParamDefault As String = " ;  ;0.5;0;360"
+Public Const ParamType As String = "PCenter"
+Public Const ParamHelper As String = "center"      ' a little text that is shown at the prompt waiting for user input during build
+Public Const ParamDefault As String = "0.0,0.0"
 
 ' vars creadas en finish
 
@@ -44,17 +44,19 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
     Dim f As Float
     Dim ip As Integer
 
-    If gcd.StepsDone = 0 Then
+    If Me.ExpectedParam = "center" Then
 
-        If vParam[0] <> "point" Then Return gcd.StepsDone
+        If vParam[0] <> "point" Then Return ""
 
         Try eBuild.P[0] = vParam[1]
         Try eBuild.P[1] = vParam[2]
         eBuild.P[2] = eBuild.P[0]
         eBuild.P[3] = eBuild.P[1]
-        If definitive Then Return True
-
-    Else If gcd.StepsDone = 1 Then
+        If definitive Then
+            Me.ExpectedParam = "axis"
+            Return "PAxis"
+        End If
+    Else If Me.ExpectedParam = "axis" Then
 
         If vParam[0] <> "point" Then Return False
 
@@ -63,9 +65,13 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
         eBuild.fParam[0] = 0.5
         eBuild.fParam[1] = 0
         eBuild.fParam[2] = 360
-        If definitive Then Return True
+        If definitive Then
 
-    Else If gcd.StepsDone = 2 Then   ' recibimos la relacion de minor/major
+            Me.ExpectedParam = "relation"
+            Return "RMinor/Major relation"
+        End If
+
+    Else If Me.ExpectedParam = "relation" Then   ' recibimos la relacion de minor/major
 
         If vParam[0] = "point" Then  ' vino como un punto, entonces la calculo de otra manera
 
@@ -76,27 +82,45 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
             eBuild.fParam[0] = vParam[1]
 
         Else
-            Return False
+            Return ""
         End If
 
-        If definitive Then Return True
+        If definitive Then
+            Me.ExpectedParam = "start"
+            Return "AStart angle"
+        End If
 
-    Else If gcd.StepsDone = 3 Or gcd.StepsDone = 4 Then    ' recibimos el angulo inicial
-
-        If gcd.StepsDone = 3 Then ip = 1 Else ip = 2
+    Else If Me.ExpectedParam = "start" Then    ' recibimos el angulo inicial
 
         If vParam[0] = "float" Then  ' vino como un punto, entonces la calculo de otra manera
-            eBuild.fParam[ip] = vParam[1]
+            eBuild.fParam[1] = vParam[1]
 
         Else If vParam[0] = "point" Then
             f = Ang(vParam[1] - eBuild.P[0], vParam[2] - eBuild.P[1])
             f *= 180 / Pi
-            eBuild.fParam[ip] = f
+            eBuild.fParam[1] = f
         Else
-            Return False
+            Return ""
         End If
 
-        If definitive Then Return True
+        If definitive Then
+            Me.ExpectedParam = "end"
+            Return "AEnd angle"
+        End If
+    Else If Me.ExpectedParam = "end" Then    ' recibimos el angulo inicial
+
+        If vParam[0] = "float" Then  ' vino como un punto, entonces la calculo de otra manera
+            eBuild.fParam[1] = vParam[1]
+
+        Else If vParam[0] = "point" Then
+            f = Ang(vParam[1] - eBuild.P[0], vParam[2] - eBuild.P[1])
+            f *= 180 / Pi
+            eBuild.fParam[1] = f
+        Else
+            Return ""
+        End If
+
+        If definitive Then Return "_END"
 
     Else
         Return False

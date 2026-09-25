@@ -26,12 +26,12 @@ Inherits CadLWpolyline
 Public Const Gender As String = "POLYGON"
 Public Const DrawingOrder As Integer = 1        ' 1 = draws first
 Public Const CmdLineHelper As String = ("a polygon")
-Public Const ParamType As String = "FPL"
-Public Const ParamHelper As String = "SIdes;Start point;End point"
+Public Const ParamType As String = "FSides"
+Public Const ParamHelper As String = "sides"
 Public Const GAMBASCADENTITY As String = "EntityBase"
 Public Const USEWITH As String = "ENTITYBUILDER"
 Public Const PointsToDraw As Integer = 1             ' minimal point requered for drawing something usefull
-Public Const ParamDefault As String = "5; ; "
+Public Const ParamDefault As String = "5"
 Public Const StretchAble As Boolean = True           ' Si lo puedo deformar
 
 ' The entity handler receives a user action, and returns the number of expected parameter
@@ -41,29 +41,36 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
     Dim f As Float
     Dim ip As Integer
 
-    If gcd.StepsDone = 0 Then                    ' lados
+    If Me.ExpectedParam = "sides" Then                    ' lados
         If vParam[0] <> "float" Then Return
 
         eBuild.iParam[0] = vParam[1]
         eBuild.fParam.Add(0)
-        If definitive Then Return True
 
-    Else If gcd.StepsDone = 1 Then               ' centro del poligono
+        If definitive Then
+
+            Me.ExpectedParam = "center"
+            Return "PCenter"
+        End If
+
+    Else If Me.ExpectedParam = "center" Then               ' centro del poligono
 
         If vParam[0] <> "point" Then Return
 
         Try eBuild.P[0] = vParam[1]
         Try eBuild.P[1] = vParam[2]
 
-        If definitive Then Return True
-
-    Else If gcd.StepsDone = 2 Then               ' lados
+        If definitive Then
+            Me.ExpectedParam = "radius"
+            Return "LRadius"
+        End If
+    Else If Me.ExpectedParam = "radius" Then               ' lados
 
         If vParam[0] <> "float" Then Return False
 
         eBuild.fParam[0] = vParam[1]
 
-        If definitive Then Return True
+        If definitive Then Return "_END"
 
     Else
         Return False

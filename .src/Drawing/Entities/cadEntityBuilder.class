@@ -147,7 +147,7 @@ Public Function Start(Optional ElemToBuild As Variant, Optional Mode As Integer 
     ' get the helper list, and parameter types from the element
     Try Paramhelperlist = Split(Gcd.CCC[elem.gender].ParamHelper, ";")                      ' optional
     Try Paramdefault = Split(Gcd.CCC[elem.gender].ParamDefault, ";")                        ' optional
-
+    Gcd.CCC[elem.gender].ExpectedParam = Gcd.CCC[elem.gender].ParamHelper
     'NextParamType = UCase(Mid(Gcd.CCC[elem.gender].ParamType, Gcd.StepsDone + 1, 1))
     NextParamType = UCase(Left(Gcd.CCC[elem.gender].ParamType, 1))
 
@@ -185,7 +185,7 @@ End
 Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD en el evento FCAD_KeyPress cuando recibe una texto + <Enter>
 
     ' Lets see what are we expecting
-    Dim Xt, yt, zt As Float, sText, ErrTxt As String, Relative As Boolean
+    Dim Xt, yt, zt, f As Float, sText, ErrTxt As String, Relative As Boolean
     Dim bResult, Good As Boolean
     Dim ClassAnswer As String           ' 2026 respuesta de la clase estilo 'XSiguiente punto' donde la primer letra es el tipo de parametro esperado
 
@@ -247,9 +247,9 @@ Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD
                 Me.LastZ = zt
 
                 If elem.Is3D Then
-                    good = Gcd.CCC[elem.gender].NewParameter(elem, ["point3d", xt, yt, zt], True)
+                    GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point3d", xt, yt, zt], True))
                 Else
-                    good = Gcd.CCC[elem.gender].NewParameter(elem, ["point", xt, yt], True)
+                    GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point", xt, yt], True))
 
                 Endif
                 If Good Then
@@ -297,11 +297,13 @@ Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD
             errtxt = "enter a valId text size"
 
             If EnteredText = "" Or EnteredText = "U" Then
-                Try bResult = Gcd.CCC[elem.gender].NewParameter(elem, ["float", ParamDefault[gcd.StepsDone]], True)
+                GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["float", ParamDefault[gcd.StepsDone]], True))
 
             Else
 
-                bResult = GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["float", CFloat(EnteredText)], True))
+                Try f = CFloat(EnteredText)
+
+                bResult = GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["float", f], True))
 
             Endif
 
@@ -389,7 +391,7 @@ Public Sub MouseMove()
 
         ' return the angle from horizontal to us
         f = puntos.distancia(gcd.Xreal(LastMouseX), gcd.Yreal(LastMouseY), Me.LastX, Me.lastY)
-
+        'Stop
         getAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["float", f]))
 
         gcd.redraw

@@ -25,46 +25,56 @@ Inherits CadLWPolyline
 Public Const Gender As String = "SOLID"
 Public Const PointsToDraw As Integer = 0             ' minimal point requered for drawing something usefull
 Public Const CmdLineHelper As String = ("Solid")
-Public Const ParamType As String = "PPPP"                             ' that is Point, Point, Float; could be Color Text, etc
-Public Const ParamHelper As String = "First Point;Next Point;Next Point;Last Point"      ' a little text that is shown at the prompt waiting for user input during build
+Public Const ParamType As String = "PPoint"                             ' that is Point, Point, Float; could be Color Text, etc
+Public Const ParamHelper As String = "point"      ' a little text that is shown at the prompt waiting for user input during build
 Public Const TotalPoints As Integer = 4
+
+Public iPoint As Integer
 
 ' The entity handler receives a user action, and returns the number of expected parameter
 ' If definitive = true, means the parameter is set
 Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As String
 
     If vParam[0] <> "point" Then Return False
+    If Me.ExpectedParam = "point" Then
+        'If gcd.StepsDone = 0 Then
+        Try eBuild.P[gcd.StepsDone * 2] = vParam[1]
+        Try eBuild.P[gcd.StepsDone * 2 + 1] = vParam[2]
+        If gcd.StepsDone < 3 Then
+            eBuild.P[(gcd.StepsDone + 1) * 2] = eBuild.P[0]
+            eBuild.P[(gcd.StepsDone + 1) * 2 + 1] = eBuild.P[1]
+        End If
+        If definitive Then
 
-    If gcd.StepsDone = 0 Then
-        Try eBuild.P[0] = vParam[1]
-        Try eBuild.P[1] = vParam[2]
-        eBuild.P[2] = eBuild.P[0]
-        eBuild.P[3] = eBuild.P[1]
-        If definitive Then Return True
-    Else If gcd.StepsDone = 1 Then
-
-        Try eBuild.P[2] = vParam[1]
-        Try eBuild.P[3] = vParam[2]
-        eBuild.P[4] = eBuild.P[0]
-        eBuild.P[5] = eBuild.P[1]
-
-        If definitive Then Return True
-
-    Else If gcd.StepsDone = 2 Then
-
-        Try eBuild.P[4] = vParam[1]
-        Try eBuild.P[5] = vParam[2]
-        eBuild.P[6] = eBuild.P[0]
-        eBuild.P[7] = eBuild.P[1]
-
-        If definitive Then Return True
-    Else If gcd.StepsDone = 3 Then
-
-        Try eBuild.P[6] = vParam[1]
-        Try eBuild.P[7] = vParam[2]
-        If definitive Then Return True
-
+            If gcd.StepsDone = 3 Then Return "_END"
+            Inc gcd.StepsDone
+            Return "PPoint"
+        End If
     Endif
+    ' Else If gcd.StepsDone = 1 Then
+    '
+    '     Try eBuild.P[2] = vParam[1]
+    '     Try eBuild.P[3] = vParam[2]
+    '     eBuild.P[4] = eBuild.P[0]
+    '     eBuild.P[5] = eBuild.P[1]
+    '
+    '     If definitive Then Return True
+    '
+    ' Else If gcd.StepsDone = 2 Then
+    '
+    '     Try eBuild.P[4] = vParam[1]
+    '     Try eBuild.P[5] = vParam[2]
+    '     eBuild.P[6] = eBuild.P[0]
+    '     eBuild.P[7] = eBuild.P[1]
+    '
+    '     If definitive Then Return True
+    ' Else If gcd.StepsDone = 3 Then
+    '
+    '     Try eBuild.P[6] = vParam[1]
+    '     Try eBuild.P[7] = vParam[2]
+    '     If definitive Then Return True
+
+    'Endif
 
 End
 

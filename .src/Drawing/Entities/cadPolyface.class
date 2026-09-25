@@ -8,8 +8,8 @@ Inherits EntityBase
 Public Const Gender As String = "POLYFACE"
 Public Const DrawingOrder As Integer = 1        ' 1 = draws first
 Public Const CmdLineHelper As String = ("a polyline of segments")
-Public Const ParamType As String = "P+"                             ' that is Point, Point, Float; could be Color Text, etc
-Public Const ParamHelper As String = ("Next Point")      ' a little text that is shown at the prompt waiting for user input during build
+Public Const ParamType As String = "PPoint"                             ' that is Point, Point, Float; could be Color Text, etc
+Public Const ParamHelper As String = ("point")      ' a little text that is shown at the prompt waiting for user input during build
 Public Const ParamDefault As String = "Close/Undo"
 Public Const ContextMenu As String = ("Close polyline;_CLOSE;;;Undo last point;_UNDO;;;End in last point;_END;;") ' el menu para el boton derecho, los comandos
 Public Const Is3D As Boolean = True
@@ -42,58 +42,59 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
         p = gcd.NewVertex(0, 0, 0)
         f.vertex.Add(p)
     End If
-    If vParam[0] = "point3d" Then
+    If Me.ExpectedParam = "point"
+        If vParam[0] = "point3d" Then
 
-        f.vertex.Last.x = vParam[1]
-        f.vertex.Last.y = vParam[2]
-        f.vertex.Last.z = vParam[3]
+            f.vertex.Last.x = vParam[1]
+            f.vertex.Last.y = vParam[2]
+            f.vertex.Last.z = vParam[3]
 
-        If definitive Then
+            If definitive Then
 
-            p = gcd.NewVertex(f.vertex.Last.x, f.vertex.Last.y, f.vertex.Last.z, True)
-            f.vertex.Add(p)
-            Return True
+                p = gcd.NewVertex(f.vertex.Last.x, f.vertex.Last.y, f.vertex.Last.z, True)
+                f.vertex.Add(p)
+                Return "point"
+            End If
+        Else If vParam[0] = "point" Then
+
+            f.vertex.Last.x = vParam[1]
+            f.vertex.Last.y = vParam[2]
+            f.vertex.Last.z = 0
+
+            If definitive Then
+
+                p = gcd.NewVertex(f.vertex.Last.x, f.vertex.Last.y, f.vertex.Last.z, True)
+                f.vertex.Add(p)
+                Return "PPoint"
+            End If
+
+        Else If vParam[0] = "text" Then
+
+            If vParam[1] = "_CLOSE" Then
+                If eBuild.P.Count > 4 Then eBuild.P.Remove(eBuild.P.Max - 1, 2)
+                eBuild.P.Add(eBuild.P[0])
+                eBuild.P.Add(eBuild.P[1])
+                eBuild.iParam[0] = 1
+
+                Return True
+
+            Else If vParam[1] = "_UNDO" Then
+                If eBuild.P.Count > 4 Then eBuild.P.Remove(eBuild.P.Max - 1, 2)
+                eBuild.iParam[0] = 0
+                Return True
+            Else If vParam[1] = "_END" Then
+                f.vertex.Last.x = f.vertex.First.x
+                f.vertex.Last.y = f.vertex.First.y
+                f.vertex.Last.z = f.vertex.First.z
+
+                f.vertex.Remove(f.vertex.Max)
+                ' vParam.Clear
+                ' vParam.Add("FINISH")
+
+                Return "_END"
+
+            Endif
         End If
-    Else If vParam[0] = "point" Then
-
-        f.vertex.Last.x = vParam[1]
-        f.vertex.Last.y = vParam[2]
-        f.vertex.Last.z = 0
-
-        If definitive Then
-
-            p = gcd.NewVertex(f.vertex.Last.x, f.vertex.Last.y, f.vertex.Last.z, True)
-            f.vertex.Add(p)
-            Return True
-        End If
-
-    Else If vParam[0] = "text" Then
-
-        If vParam[1] = "_CLOSE" Then
-            If eBuild.P.Count > 4 Then eBuild.P.Remove(eBuild.P.Max - 1, 2)
-            eBuild.P.Add(eBuild.P[0])
-            eBuild.P.Add(eBuild.P[1])
-            eBuild.iParam[0] = 1
-            Inc gcd.StepsDone
-            Return True
-
-        Else If vParam[1] = "_UNDO" Then
-            If eBuild.P.Count > 4 Then eBuild.P.Remove(eBuild.P.Max - 1, 2)
-            eBuild.iParam[0] = 0
-            Return True
-        Else If vParam[1] = "_END" Then
-            f.vertex.Last.x = f.vertex.First.x
-            f.vertex.Last.y = f.vertex.First.y
-            f.vertex.Last.z = f.vertex.First.z
-
-            f.vertex.Remove(f.vertex.Max)
-            ' vParam.Clear
-            ' vParam.Add("FINISH")
-            Inc gcd.StepsDone
-
-            Return True
-
-        Endif
     End If
 
 End
