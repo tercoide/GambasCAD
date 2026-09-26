@@ -70,6 +70,7 @@ Public LastEntity As Entity
 Public XYreal As Float[]
 
 Public VBO As New VBO
+Public comm As New Communications
 
 Public Const ContextMenu As String = ("Cancel;_CANCEL;;") ' el menu para el boton derecho, los comendos en mayusculas NO se traducen
 
@@ -149,7 +150,7 @@ Public Function Start(Optional ElemToBuild As Variant, Optional Mode As Integer 
     Try Paramdefault = Split(Gcd.CCC[elem.gender].ParamDefault, ";")                        ' optional
     Gcd.CCC[elem.gender].ExpectedParam = Gcd.CCC[elem.gender].ParamHelper
     'NextParamType = UCase(Mid(Gcd.CCC[elem.gender].ParamType, Gcd.StepsDone + 1, 1))
-    NextParamType = UCase(Left(Gcd.CCC[elem.gender].ParamType, 1))
+    NextParamType = Gcd.CCC[elem.gender].ParamType
 
     'DrawingAIds.CmdLineHelperNext = ParamHelperList[Gcd.StepsDone]
 
@@ -166,8 +167,8 @@ Public Function Start(Optional ElemToBuild As Variant, Optional Mode As Integer 
     'If Utils.MenuMaker(fMain, "mEntityBuilder", Gcd.CCC[elem.gender].ContextMenu & Me.ContextMenu) Then fMain.GLArea1.PopupMenu = "mEntityBuilder" Else Stop
 
     fMain.KeysAccumulator = ""
-    Me.prompt = Gcd.CCC[elem.gender].prompt
-    Me.prompt = Mid(Gcd.CCC[elem.gender].ParamType, 2)
+    Me.prompt = "Draw " & Gcd.CCC[elem.gender].prompt
+    'Me.prompt = Mid(Gcd.CCC[elem.gender].ParamType, 2)
     gcd.DrawHoveredEntity = False
 
 End
@@ -216,7 +217,7 @@ Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD
 
     Select Case NextParamType
 
-        Case "P", "+", "M"
+        Case "point", "M", "point3d"
             errtxt = ", expected a valId point like 12.4,9.5  or @12.34,10.5"
             ' lets filter
             EnteredText = Trim$(UCase$(EnteredText))
@@ -277,24 +278,20 @@ Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD
             '
             ' Else
             '
+        Case "vec3"          ' un vector representando 3 ejes: v1,v2,v3
+            Try Xt = CFloat(Eval(Split(EnteredText, ",")[0]))
+            Try yt = CFloat(Eval(Split(EnteredText, ",")[1]))
+            Try zt = CFloat(Eval(Split(EnteredText, ",")[2]))
 
-        Case "T"
+            GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["vec3", xt, yt, zt], True))
+
+        Case "text"
             errtxt = ", expected text, not a point"
-            ' its a valid input?
-            If EnteredText = "" Then
-
-                sText = ParamDefault[gcd.StepsDone]
-
-            Else
-
-                sText = EnteredText
-
-            End If
 
             GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["text", sText], True))
 
-        Case "F", "A", "L", "R"                ' Float, Mixed, Angle, Longitud
-            errtxt = "enter a valId text size"
+        Case "float", "angle", "lenght", "rectangle"                ' Float, Mixed, Angle, Longitud
+            errtxt = "enter a valid text size"
 
             If EnteredText = "" Or EnteredText = "U" Then
                 GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["float", ParamDefault[gcd.StepsDone]], True))
@@ -307,7 +304,7 @@ Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD
 
             Endif
 
-        Case "C"                                ' color
+        Case "color"                                ' color
             If Dialog.SelectColor() Then
                 elem.fParam[iFloat] = CFloat(Dialog.Color)
                 Inc iFloat
@@ -361,13 +358,13 @@ Public Sub MouseMove()
 
     ' pero veo si tengo un POI
 
-    If InStr("LAPRM", NextParamType) = 0 Then Return ' we are expecting a parameter
+    'If InStr("LAPRM", NextParamType) = 0 Then Return ' we are expecting a parameter
 
     ' a very special case
     If elem.Gender = "SPLINE" And (Me.iPoints <> elem.P.Count / 2 - 1) Then Inc iPoints
 
     ' if we expect a parameter, it will be passed
-    If NextParamType = "A" Then
+    If NextParamType = "angle" Then
 
         ' return the angle from horizontal to us
         f = Ang(gcd.Xreal(LastMouseX) - Me.LastX, gcd.Yreal(LastMouseY) - Me.lastY)
@@ -379,7 +376,7 @@ Public Sub MouseMove()
         Return              ' nothing more to do here
     End If
 
-    If NextParamType = "R" Then
+    If NextParamType = "rectangle" Then
 
         GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point", x, y]))
         gcd.redraw
@@ -387,7 +384,7 @@ Public Sub MouseMove()
         Return              ' nothing more to do here
     End If
 
-    If NextParamType = "L" Then
+    If NextParamType = "lenght" Then
 
         ' return the angle from horizontal to us
         f = puntos.distancia(gcd.Xreal(LastMouseX), gcd.Yreal(LastMouseY), Me.LastX, Me.lastY)
@@ -424,9 +421,16 @@ Public Sub MouseMove()
 
     End If
 
-    GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point", x, y]))
-    ' LastMouseX = Mouse.X
-    ' LastMouseY = Mouse.Y
+    If NextParamType = "point" Then
+
+        GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point", x, y], False))
+
+    Else If NextParamType = "point3d" Then
+        Dim p As Punto3d
+        p = glx.XYZ(x, y)
+
+        GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point3d", p.x, p.y, p.z], False))
+    End If
 
     gcd.redraw
 
@@ -447,10 +451,10 @@ Public Sub MouseUp()
     End If
 
     DrawingAIds.ErrorMessage = ""
-    If InStr("LAPRM", NextParamType) = 0 Then Return ' we are expecting a parameter
+    'If InStr("LAPRM", NextParamType) = 0 Then Return ' we are expecting a parameter
 
     ' if we expect a parameter, it will be passed
-    If NextParamType = "A" Then
+    If NextParamType = "angle" Then
 
         ' return the angle from horizontal to us
         f = Ang(gcd.Xreal(mouse.x) - Me.LastX, gcd.Yreal(mouse.y) - Me.lastY)
@@ -461,7 +465,7 @@ Public Sub MouseUp()
         Return              ' nothing more to do here
     End If
 
-    If NextParamType = "R" Then
+    If NextParamType = "rectangle" Then
 
         If GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point", gcd.Xreal(mouse.x), gcd.Yreal(mouse.y)], True)) Then
 
@@ -474,7 +478,7 @@ Public Sub MouseUp()
         Return
     End If
 
-    If NextParamType = "L" Then
+    If NextParamType = "lenght" Then
 
         ' return the angle from horizontal to us
         f = puntos.distancia(gcd.Xreal(mouse.x), gcd.Yreal(mouse.y), Me.LastX, Me.lastY)
@@ -518,13 +522,19 @@ Public Sub MouseUp()
     LastY = Y
     LastPoint = True
 
-    If GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point", x, y], True)) Then
+    If NextParamType = "point" Then
 
-        ' last point
-        gcd.Drawing.LastPoint.Clear
-        gcd.Drawing.LastPoint.Insert([x, y])
+        GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point", x, y], True))
 
+    Else If NextParamType = "point3d" Then
+        Dim p As Punto3d
+        p = glx.XYZ(x, y)
+
+        GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point3d", p.x, p.y, p.z], True))
     End If
+    ' last point
+    gcd.Drawing.LastPoint.Clear
+    gcd.Drawing.LastPoint.Insert([x, y])
 
     gcd.redraw
 
@@ -642,15 +652,14 @@ Public Sub KeyDown(iCode As Integer)
 
 End
 
-Public Function GetAnswer(Answer As String) As Boolean
+Public Function GetAnswer(Answer As Communications) As Boolean
 
-    If Answer = "" Then Return False ' Bad input: the class did not like the input from the user
+    If IsNull(Answer) Then Return False
 
-    If Answer = "_END" Then Me.Finish()
-    If Answer = "_CANCEL" Then Me.Cancel()
-
-    NextParamType = Left(Answer, 1)
-    Me.prompt = Mid(Answer, 2)
+    If Answer.Command = "END" Then Me.Finish()
+    If Answer.Command = "CANCEL" Then Me.Cancel()
+    NextParamType = Answer.ParamType
+    Me.prompt = Answer.Prompt
 
     Return True                     ' the class enjoyed the user input
 

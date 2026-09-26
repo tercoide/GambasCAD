@@ -7,11 +7,11 @@
 Inherits EntityBase
 Public Const Gender As String = "POLYFACE"
 Public Const DrawingOrder As Integer = 1        ' 1 = draws first
-Public Const CmdLineHelper As String = ("a polyline of segments")
-Public Const ParamType As String = "PPoint"                             ' that is Point, Point, Float; could be Color Text, etc
+Public Const CmdLineHelper As String = ("a polyface of segments: First point: ")
+Public Const ParamType As String = "point3d"                             ' that is Point, Point, Float; could be Color Text, etc
 Public Const ParamHelper As String = ("point")      ' a little text that is shown at the prompt waiting for user input during build
 Public Const ParamDefault As String = "Close/Undo"
-Public Const ContextMenu As String = ("Close polyline;_CLOSE;;;Undo last point;_UNDO;;;End in last point;_END;;") ' el menu para el boton derecho, los comandos
+Public Const ContextMenu As String = ("Close polyline;_CLOSE;;;Undo last point;_UNDO;;;End in last point;_ENDP;;") ' el menu para el boton derecho, los comandos
 Public Const Is3D As Boolean = True
 Public f As New Face
 
@@ -27,10 +27,12 @@ Public Function NewEntity(Optional fPoints As Float[], bNewid As Boolean = False
 
 End
 
-Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As String
+Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Communications
 
     Dim p As Punto3d
+    Dim comm As New Communications
 
+    'If Definitive Then Stop
     If eBuild.Gender = Gender Then ' es polyface
         f = eBuild.pBlock
     Else
@@ -49,49 +51,35 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
             f.vertex.Last.y = vParam[2]
             f.vertex.Last.z = vParam[3]
 
-            If definitive Then
+            If Definitive Then
 
                 p = gcd.NewVertex(f.vertex.Last.x, f.vertex.Last.y, f.vertex.Last.z, True)
+
+                p = New Punto3d
                 f.vertex.Add(p)
-                Return "point"
-            End If
-        Else If vParam[0] = "point" Then
 
-            f.vertex.Last.x = vParam[1]
-            f.vertex.Last.y = vParam[2]
-            f.vertex.Last.z = 0
+                comm.Prompt = "Next point"
+                comm.ParamType = "point3d"
+                comm.Options.Add("End")
+                comm.Options.Add("Close")
 
-            If definitive Then
-
-                p = gcd.NewVertex(f.vertex.Last.x, f.vertex.Last.y, f.vertex.Last.z, True)
-                f.vertex.Add(p)
-                Return "PPoint"
+                Return comm
             End If
 
         Else If vParam[0] = "text" Then
 
-            If vParam[1] = "_CLOSE" Then
-                If eBuild.P.Count > 4 Then eBuild.P.Remove(eBuild.P.Max - 1, 2)
-                eBuild.P.Add(eBuild.P[0])
-                eBuild.P.Add(eBuild.P[1])
-                eBuild.iParam[0] = 1
-
-                Return True
-
-            Else If vParam[1] = "_UNDO" Then
-                If eBuild.P.Count > 4 Then eBuild.P.Remove(eBuild.P.Max - 1, 2)
-                eBuild.iParam[0] = 0
-                Return True
-            Else If vParam[1] = "_END" Then
+            If vParam[1] = "_UNDO" Then
+                f.vertex.Remove(f.vertex.Max)
+                Return comm
+            Else If vParam[1] = "_ENDP" Or vParam[1] = "_CLOSE" Then
                 f.vertex.Last.x = f.vertex.First.x
                 f.vertex.Last.y = f.vertex.First.y
                 f.vertex.Last.z = f.vertex.First.z
-
                 f.vertex.Remove(f.vertex.Max)
-                ' vParam.Clear
+                comm.Command = "END"
                 ' vParam.Add("FINISH")
 
-                Return "_END"
+                Return comm
 
             Endif
         End If
@@ -116,21 +104,21 @@ Public Sub Draw(oE As Entity)
 
     If oe.Gender = Gender Then f = oe.pBlock Else f = oe.pBlock[0]
     If IsNull(f) Then Return
-    Dim fPoints As Float[]
+    Dim fPoints, fPoints2 As Float[]
     Dim fColor4 As Integer
     Dim bIntersects As Boolean
     Dim pTriangles As Punto3d
     Dim fTriangles As Float[]
     If f.vertex.Count > 1 Then ' dibujo el contorno
-        fPoints = puntos.RemoveAxis(puntos.Create3dArray(f.vertex))    ' paso de Punto3D a XYZ triplets
-        bIntersects = puntos.IsPoligonSelfIntersecting(fPoints)
+        fPoints = puntos.Create3dArray(f.vertex)    ' paso de Punto3D a XYZ triplets
+        bIntersects = puntos.IsPoligonSelfIntersecting3D(f.vertex)
         If bIntersects Then
             fColor4 = Color.RGB(255, 0, 100, 100)
         Else
             fColor4 = gcd.GetGBColor(oE.Colour, oe.pLayer)
 
         End If
-        glx.Polygon(fPoints, fColor4, gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
+        glx.Polygon(fPoints, fColor4, gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength, True)
     End If
     If (f.vertex.Count >= 3) And Not bIntersects Then ' dibujo el contorno
         'pTriangles = puntos.PolygonTriangulation3D(f.vertex)
