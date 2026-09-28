@@ -376,7 +376,7 @@ Public Sub MouseMove()
         Return              ' nothing more to do here
     End If
 
-    If NextParamType = "rectangle" Then
+    If NextParamType = "relation" Then
 
         GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point", x, y]))
         gcd.redraw
@@ -465,7 +465,7 @@ Public Sub MouseUp()
         Return              ' nothing more to do here
     End If
 
-    If NextParamType = "rectangle" Then
+    If NextParamType = "relation" Then
 
         If GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point", gcd.Xreal(mouse.x), gcd.Yreal(mouse.y)], True)) Then
 
@@ -528,6 +528,7 @@ Public Sub MouseUp()
 
     Else If NextParamType = "point3d" Then
         Dim p As Punto3d
+
         p = glx.XYZ(x, y)
 
         GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point3d", p.x, p.y, p.z], True))
@@ -652,14 +653,26 @@ Public Sub KeyDown(iCode As Integer)
 
 End
 
-Public Function GetAnswer(Answer As Communications) As Boolean
+Public Function GetAnswer(Answer As Object) As Boolean
+
+    Dim v As Variant
 
     If IsNull(Answer) Then Return False
+    If answer Is Collection Then
+        For Each v In answer
+            If answer.key = "command" And v = "end" Then Me.Finish()
+            If answer.key = "command" And v = "cancel" Then Me.Cancel()
+            If answer.key = "prompt" Then Me.prompt = v
+            If answer.key = "nextparamtype" Then Me.NextParamType = v
+            If answer.key = "next" Then Me.NextParamType = v
+        Next
 
-    If Answer.Command = "END" Then Me.Finish()
-    If Answer.Command = "CANCEL" Then Me.Cancel()
-    NextParamType = Answer.ParamType
-    Me.prompt = Answer.Prompt
+    Else If answer Is Communications Then
+        If Answer.Command = "end" Then Me.Finish()
+        If Answer.Command = "cancel" Then Me.Cancel()
+        Me.NextParamType = Answer.ParamType
+        Me.prompt = Answer.Prompt
+    End If
 
     Return True                     ' the class enjoyed the user input
 

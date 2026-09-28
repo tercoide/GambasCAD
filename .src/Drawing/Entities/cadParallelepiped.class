@@ -23,7 +23,7 @@ Public Function NewEntity(Optional fPoints As Float[], bNewid As Boolean = False
 
 End
 
-Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Communications
+Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Variant
 
     Dim ok As Communications
 
@@ -41,6 +41,21 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
                 eBuild.fParam.Add(vParam[3])        'Z
 
                 zLevel = vParam[1]
+                ok = New Communications
+                Me.ExpectedParam = "base"
+                ok.ParamType = "float"
+                ok.Prompt = "Base factor"
+
+                Return ok
+            End If
+        End If
+    End If
+
+    If Me.ExpectedParam = "base" Then
+        If vParam[0] = "float" Then
+            If Definitive Then
+
+                eBuild.fParam.Add(vParam[1])        'base1/base2 factor: 1=equal 0=base2 is a point
                 ok = New Communications
                 Me.ExpectedParam = "point"
                 ok.ParamType = "point3d"
@@ -62,24 +77,44 @@ Public Sub Finish(e As Entity) As Boolean
     Dim iCaras As Integer
     Dim i As Integer
     Dim f1, f2, fRect As Face
-    Dim x As Face[]
     Dim p, p2 As Punto3d
 
     Dim pPolygon As Punto3d[]
     Dim i2 As Integer
 
-    x = e.pBlock.faces
+    f1 = e.pBlock.faces[0]
+    Dim pCG, pCG2 As New Punto3d
+    pCG = puntos.CenterGravity3dP(f1.vertex)                    ' obtengo el centro de la forma
+    pCG2.x = pcg.x + e.fParam[0]                                ' el CG de la otra tapa, dezplazado
+    pCG2.y = pcg.y + e.fParam[1]
+    pCG2.z = pcg.z + e.fParam[2]
 
-    f1 = x[0]
+    Dim factor As Float = e.fParam[3]
+    Dim fx, fy, fz As Float
+    ' el factor de reduccion se aplica a los ejes 2D, pero no al eje que define la altura del paraleleppipedo
 
+    ' necesito saber en que plano estamos trabajando
+    If glx.Plane2D = Planes.XZ Then
+        fx = factor
+        fy = 1
+        fz = factor
+    Else If glx.Plane2D = Planes.XY Then
+        fx = factor
+        fy = factor
+        fz = 1
+    Else If glx.Plane2D = Planes.YZ Then
+        fx = 1
+        fy = factor
+        fz = factor
+    Endif
     ' primero replicamos los puntos de la cara a la altura indicada
     f2 = New Face
     For Each p In f1.vertex
-        p2 = gcd.NewVertex(p.x + e.fParam[0], p.y + e.fParam[1], p.z + e.fParam[2])
+        p2 = gcd.NewVertex(pcg2.x + (p.x - pCG.x) * fx, pCG2.y + (p.y - pCG.y) * fy, pCG2.z + (p.z - pCG.z) * fz)
         f2.vertex.Add(p2)
     Next
 
-    x.Add(f2)                                       ' Agregamos la tapa
+    e.pBlock.faces.Add(f2)                                       ' Agregamos la tapa
 
     ' ahora creamos las caras rectangulares
     For i = 0 To f1.vertex.Max
@@ -90,7 +125,7 @@ Public Sub Finish(e As Entity) As Boolean
         fRect.vertex.Add(f1.vertex[i2])
         fRect.vertex.Add(f2.vertex[i2])
         fRect.vertex.Add(f2.vertex[i])
-        x.Add(fRect)
+        e.pBlock.faces.Add(fRect)
 
     Next
     e.Generated = True
@@ -168,12 +203,12 @@ Public Sub Draw(oE As Entity)
             '     fColor4 = 0
             ' End If
             '            If fTriangles.Count = 0 Then Stop
-            glx.DrawTriangles3D(fTriangles, Color.Darker(gcd.GetGBColor(oE.Colour, oe.pLayer)), gcd.GetLineWt(oE.LineWIdth, oe.pLayer))
+            If oe.pLayer.ShowMode = ShowModes.ShowColors Then glx.DrawTriangles3D(fTriangles, Color.Darker(gcd.GetGBColor(oE.Colour, oe.pLayer)), gcd.GetLineWt(oE.LineWIdth, oe.pLayer))
         End If
 
     Next
 
-    DrawWireFrame(oe)
+    If oe.pLayer.ShowWireframe Then DrawWireFrame(oe)
 
 End
 

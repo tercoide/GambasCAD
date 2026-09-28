@@ -25,10 +25,10 @@ Inherits EntityBase
 
 Public Const Gender As String = "LWPOLYLINE"
 Public Const PointsToDraw As Integer = 0             ' minimal point requered for drawing something usefull
-Public Const CmdLineHelper As String = ("LWPOLYLINE")
-Public Const ParamType As String = "PPoint"                             ' that is Point, Point, Float; could be Color Text, etc
+Public Const CmdLineHelper As String = ("draw a LWPOLYLINE: first point")
+Public Const ParamType As String = "point"                             ' that is Point, Point, Float; could be Color Text, etc
 Public Const ParamHelper As String = "point"      ' a little text that is shown at the prompt waiting for user input during build
-Public Const ParamDefault As String = "Close/Undo"
+Public Const ParamDefault As String = ""
 Public Const ContextMenu As String = ("Close polyline;_CLOSE;;;Undo last point;_UNDO;;;End in last point;_END;;") ' el menu para el boton derecho, los comandos en mayusculas NO se traducen
 
 Public Const totalpoints As Integer = 1
@@ -41,16 +41,16 @@ Public iContext As Integer = 0 ' var local para usar Draw2 con Draw
 
 ' The entity handler receives a user action, and returns the number of expected parameter
 ' If definitive = true, means the parameter is set
-Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Communications
+Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Variant
 
-    If vParam[0] = "point3d" Or vParam[0] = "point" Then
+    If vParam[0] = "point" Then
 
         eBuild.P[eBuild.P.Max - 1] = vParam[1]
         eBuild.P[eBuild.P.Max] = vParam[2]
 
         If Definitive Then
             eBuild.P.Insert(eBuild.P.Copy(eBuild.P.Max - 1, 2))
-            Return "PPoint"
+            Return ["prompt": "next point"]
         End If
 
     Else If vParam[0] = "text" Then
@@ -61,17 +61,17 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
             eBuild.P.Add(eBuild.P[1])
             eBuild.iParam[0] = 1
             Inc gcd.StepsDone
-            Return "_END"
+            Return ["command": "end"]
 
         Else If vParam[1] = "_UNDO" Then
             If eBuild.P.Count > 4 Then eBuild.P.Remove(eBuild.P.Max - 1, 2)
             eBuild.iParam[0] = 0
-            Return "PPoint"
+            Return ["prompt": "next point"]
         Else If vParam[1] = "_END" Then
             If eBuild.P.Count > 4 Then eBuild.P.Remove(eBuild.P.Max - 1, 2)
             Inc gcd.StepsDone
             eBuild.iParam[0] = 0
-            Return "_END"
+            Return ["command": "end"]
 
         Endif
     End If
