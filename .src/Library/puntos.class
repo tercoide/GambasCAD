@@ -2559,3 +2559,67 @@ Public Function IsClockwise(Polygon As Float[]) As Boolean
     Return (Suma > 0)
 
 End Function
+
+' Retorna un punto3d si hay intersección, o Null si no la hay.
+Public Function RayTriangleIntersection(RayOrigin As Punto3d, RayDirection As Punto3d, V0 As Punto3d, V1 As Punto3d, V2 As Punto3d) As Punto3d
+
+    Dim Edge1, Edge2, H, S, Q As Punto3d
+    Dim A, F, U, V, T As Float
+    Dim EPSILON As Float = 0.0000001
+    Dim IntersectionPoint As New Punto3d
+
+    ' Encontrar vectores para los dos bordes que comparten V0
+    Edge1.X = V1.X - V0.X
+    Edge1.Y = V1.Y - V0.Y
+    Edge1.Z = V1.Z - V0.Z
+
+    Edge2.X = V2.X - V0.X
+    Edge2.Y = V2.Y - V0.Y
+    Edge2.Z = V2.Z - V0.Z
+
+    ' Calcular el producto vectorial (Cross Product) de RayDirection y Edge2
+    H.X = (RayDirection.Y * Edge2.Z) - (RayDirection.Z * Edge2.Y)
+    H.Y = (RayDirection.Z * Edge2.X) - (RayDirection.X * Edge2.Z)
+    H.Z = (RayDirection.X * Edge2.Y) - (RayDirection.Y * Edge2.X)
+
+    ' Calcular el producto escalar (Dot Product) de Edge1 y H
+    A = (Edge1.X * H.X) + (Edge1.Y * H.Y) + (Edge1.Z * H.Z)
+
+    ' Si A es cercano a cero, el rayo es paralelo al triángulo
+    If A > -EPSILON And A < EPSILON Then Return Null
+
+    F = 1.0 / A
+
+    ' Calcular la distancia desde V0 al origen del rayo
+    S.X = RayOrigin.X - V0.X
+    S.Y = RayOrigin.Y - V0.Y
+    S.Z = RayOrigin.Z - V0.Z
+
+    ' Calcular el parámetro U y probar los límites
+    U = F * ((S.X * H.X) + (S.Y * H.Y) + (S.Z * H.Z))
+    If U < 0.0 Or U > 1.0 Then Return Null
+
+    ' Preparar para calcular el parámetro V
+    Q.X = (S.Y * Edge1.Z) - (S.Z * Edge1.Y)
+    Q.Y = (S.Z * Edge1.X) - (S.X * Edge1.Z)
+    Q.Z = (S.X * Edge1.Y) - (S.Y * Edge1.X)
+
+    ' Calcular el parámetro V y probar los límites
+    V = F * ((RayDirection.X * Q.X) + (RayDirection.Y * Q.Y) + (RayDirection.Z * Q.Z))
+    If V < 0.0 Or (U + V) > 1.0 Then Return Null
+
+    ' Calcular T (la distancia en el rayo donde ocurre la intersección)
+    T = F * ((Edge2.X * Q.X) + (Edge2.Y * Q.Y) + (Edge2.Z * Q.Z))
+
+    ' Si T > EPSILON, el rayo intersecta el triángulo de frente
+    If T > EPSILON Then
+        IntersectionPoint.X = RayOrigin.X + RayDirection.X * T
+        IntersectionPoint.Y = RayOrigin.Y + RayDirection.Y * T
+        IntersectionPoint.Z = RayOrigin.Z + RayDirection.Z * T
+        Return IntersectionPoint
+    Else
+        ' Hay una intersección de línea, pero no de rayo (está detrás del origen)
+        Return Null
+    Endif
+
+End

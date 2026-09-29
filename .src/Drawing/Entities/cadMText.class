@@ -22,7 +22,7 @@
 Create Static
 ' Fast
 Inherits EntityBase
-Public Const USEWITH As String = "MTEXTBUILDER"
+'Public Const USEWITH As String = "MTEXTBUILDER"
 Public Const Gender As String = "MTEXT"
 Public Const DrawingOrder As Integer = 100 ' 1 a 32.724 esto debe Drawse primero y ser sobreescrito por el resto
 Public Const PointsToDraw As Integer = 1             ' minimal point requered for drawing something usefull
@@ -116,16 +116,19 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
     Dim f As Float
     Dim ip As Integer
 
-    If gcd.StepsDone = 0 Then  '  posicion
+    If Me.ExpectedParam = "start" Then  '  posicion
 
         If vParam[0] <> "point" Then Return
 
         Try eBuild.P[0] = vParam[1]
         Try eBuild.P[1] = vParam[2]
 
-        If Definitive Then Return ["prompt": "angle", "next": "float"]
+        If Definitive Then
+            Me.ExpectedParam = "angle"
+            Return ["prompt": "angle", "next": "float"]
+        End If
 
-    Else If gcd.StepsDone = 1 Then ' angulo del texto
+    Else If Me.ExpectedParam = "angle" Then ' angulo del texto
 
         If vParam[0] <> "float" Then Return
 
@@ -133,23 +136,28 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
         eBuild.fParam[Me.ipaAttchmPoint] = 0
         eBuild.fParam[Me.ipaDrawingDirec] = 0
 
-        If Definitive Then Return ["prompt": "angle", "next": "float"]
+        If Definitive Then
+            Me.ExpectedParam = "height"
+            Return ["prompt": "height", "next": "float"]
+        End If
 
-    Else If gcd.StepsDone = 2 Then   ' altura
+    Else If Me.ExpectedParam = "height" Then   ' altura
 
         If vParam[0] <> "float" Then Return
 
         eBuild.fParam[Me.ipaTextHeight] = vParam[1]
 
-        If Definitive Then Return True
-
-    Else If gcd.StepsDone = 3 Then    ' texto
+        If Definitive Then
+            Me.ExpectedParam = "text"
+            Return ["prompt": "text", "next": "text"]
+        End If
+    Else If Me.ExpectedParam = "text" Then    ' texto
 
         If vParam[0] <> "text" Then Return
 
         eBuild.sParam[Me.sdaText] = vParam[1]
 
-        If Definitive Then Return True
+        If Definitive Then Return ["command": "end"]
 
     Else
         Return False

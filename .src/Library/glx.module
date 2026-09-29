@@ -3094,7 +3094,7 @@ Public Function PolyLines(fVertices As Float[], Optional colour As Integer = 0, 
     Dim r As Float, g As Float, b As Float
     Dim x0, y0, z0 As Float
     Dim iStep As Integer
-    Dim p As Punto3d
+    Dim p As New Punto3d
 
     If Is3D Then iStep = 3 Else iStep = 2
 
@@ -3115,21 +3115,31 @@ Public Function PolyLines(fVertices As Float[], Optional colour As Integer = 0, 
     Endif
 
     ' Punto inicial
-    p = XYZ(vertices[0], vertices[1])
-    ' Select Case Plane2D
-    '     Case 0      ' plano X+Y+
-    VBOCurrent.Vertex.Add(p.x)         'X
-    VBOCurrent.Vertex.Add(p.y)     'Y
-    VBOCurrent.Vertex.Add(p.z)
+    If Is3D Then
+
+        VBOCurrent.Vertex.Add(Vertices[0])         'X
+        VBOCurrent.Vertex.Add(Vertices[1])     'Y
+        VBOCurrent.Vertex.Add(Vertices[2])
+    Else                                            ' paso de 2D a 3D segun el plano de trabajo
+        p = XYZ(vertices[0], vertices[1])
+        VBOCurrent.Vertex.Add(p.x)         'X
+        VBOCurrent.Vertex.Add(p.y)     'Y
+        VBOCurrent.Vertex.Add(p.z)
+    End If
 
     VBOCurrent.Colors.Add(r)                    'R
     VBOCurrent.Colors.Add(g)                    'G
     VBOCurrent.Colors.Add(b)                    'B
 
     For i = iStep To vertices.Max - iStep Step iStep
-        p = XYZ(vertices[i], vertices[i + 1])
-        ' Select Case Plane2D
-        '     Case 0      ' plano X+Y+
+        If Is3D Then
+            p.x = vertices[i]
+            p.y = vertices[i + 1]
+            p.z = vertices[i + 2]
+        Else
+            p = XYZ(vertices[i], vertices[i + 1])
+        Endif
+
         VBOCurrent.Vertex.Add(p.x)         'X
         VBOCurrent.Vertex.Add(p.y)     'Y
         VBOCurrent.Vertex.Add(p.z)
@@ -3148,7 +3158,13 @@ Public Function PolyLines(fVertices As Float[], Optional colour As Integer = 0, 
 
     Next
 
-    p = XYZ(vertices[vertices.max - 1], vertices[vertices.max])
+    If Is3D Then
+        p.x = vertices[vertices.Max - 2]
+        p.y = vertices[vertices.max - 1]
+        p.z = vertices[vertices.Max]
+    Else
+        p = XYZ(vertices.max - 1, vertices.max)
+    Endif
 
     VBOCurrent.Vertex.Add(p.x)         'X
     VBOCurrent.Vertex.Add(p.y)     'Y
@@ -3197,7 +3213,7 @@ Fast Unsafe Public Function DrawTriangles(vertices As Float[], Optional colour A
 
 End
 
-Fast Unsafe Public Function DrawTriangles3D(vertices3D As Float[], Optional colour As Integer = 0, FillColor As Integer = 0, LineWIdth As Float = 1)
+Fast Unsafe Public Function DrawTriangles3D(vertices3D As Float[], colour As Integer)
 
     Dim i As Integer
 
