@@ -1,6 +1,6 @@
 ' Gambas class file
 
-Inherits CadPolyface
+Inherits CadMesh
 Public Const Gender As String = "PARALLELEPIPED"
 Public Const CmdLineHelper As String = ("a parallelepiped from a polyface base: Height vector:")
 Public Const ParamType As String = "vec3"
@@ -8,24 +8,25 @@ Public Const ParamHelper As String = "height"      ' a little text that is shown
 
 Public zLevel As Float = 0
 
-Public Function NewEntity(Optional fPoints As Float[], bNewid As Boolean = False) As Entity
-
-    Dim e As New Entity
-
-    e = Super.NewEntity(fPoints, bNewid)
-    e.Gender = Me.Gender
-
-    e.pBlock = New PoliFace
-    Me.f = New Face
-    e.pBlock.Faces.Add(Me.f)
-
-    Return e
-
-End
+' Public Function NewEntity(Optional fPoints As Float[], bNewid As Boolean = False) As Entity
+'
+'     Dim e As New Entity
+'     Dim f As Face
+'
+'     e = Super.NewEntity(fPoints, bNewid)
+'     e.Gender = Me.Gender
+'
+'     e.pBlock = New PoliFace
+'     f = New Face
+'     e.pBlock.Faces.Add(f)
+'
+'     Return e
+'
+' End
 
 Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Variant
 
-    Dim ok As Communications
+    Dim ok As Variant
 
     ok = Super.NewParameter(eBuild, vParam, definitive)
 
@@ -72,7 +73,20 @@ End
 
 ' This function will return False if the element couldn't be created for some reason: bad or incomple user input
 ' True means all is good, False will instruct the clsENTITYBUILDER to delete it
-Public Sub Finish(e As Entity) As Boolean
+
+Public Sub Finish(oe As Entity) As Boolean
+
+    Dim f As Face
+
+    For Each f In oe.pBlock.faces
+        gcd.Drawing.Sheet.Faces.Add(f, f.Id)
+
+    Next
+
+End
+
+' '' Builds the geometry of the entity wthout drwing it
+Public Function MakePolyLine(E As Entity)
 
     Dim iCaras As Integer
     Dim i As Integer
@@ -82,7 +96,11 @@ Public Sub Finish(e As Entity) As Boolean
     Dim pPolygon As Punto3d[]
     Dim i2 As Integer
 
+    If e.fParam.Count < 4 Then Return
+    If e.pBlock.faces.count = 0 Then Return
+
     f1 = e.pBlock.faces[0]
+    If f1.Id = "" Then Return  ' la base no esta terminada
     Dim pCG, pCG2 As New Punto3d
     pCG = puntos.CenterGravity3dP(f1.vertex)                    ' obtengo el centro de la forma
     pCG2.x = pcg.x + e.fParam[0]                                ' el CG de la otra tapa, dezplazado
@@ -109,6 +127,7 @@ Public Sub Finish(e As Entity) As Boolean
     Endif
     ' primero replicamos los puntos de la cara a la altura indicada
     f2 = New Face
+    f2.colour = e.Colour
     For Each p In f1.vertex
         p2 = gcd.NewVertex(pcg2.x + (p.x - pCG.x) * fx, pCG2.y + (p.y - pCG.y) * fy, pCG2.z + (p.z - pCG.z) * fz)
         f2.vertex.Add(p2)
@@ -121,6 +140,7 @@ Public Sub Finish(e As Entity) As Boolean
         i2 = i + 1
         If i2 = f1.vertex.Count Then i2 = 0
         fRect = New Face
+        fRect.colour = e.Colour
         fRect.vertex.Add(f1.vertex[i])
         fRect.vertex.Add(f1.vertex[i2])
         fRect.vertex.Add(f2.vertex[i2])
@@ -129,47 +149,7 @@ Public Sub Finish(e As Entity) As Boolean
 
     Next
     e.Generated = True
-
-End
-
-'' Builds the geometry of the entity wthout drwing it
-Public Function MakePolyLine(E As Entity)
-
-    Return
-    Dim iCaras As Integer
-    Dim i As Integer
-    Dim f1, f2, fRect As Face
-    Dim x As Face[]
-    Dim p, p2 As Punto3d
-
-    Dim pPolygon As Punto3d[]
-    Dim i2 As Integer
-
-    x = e.pBlock.faces
-
-    f1 = x[0]
-
-    ' primero replicamos los puntos de la cara a la altura indicada
-    f2 = New Face
-    For Each p In f1.vertex
-        p2 = gcd.NewVertex(p.x + e.fParam[0], p.y + e.fParam[1], p.z + e.fParam[2])
-        f2.vertex.Add(p2)
-    Next
-
-    x.Add(f2)                                       ' Agregamos la tapa
-
-    ' ahora creamos las caras rectangulares
-    For i = 0 To f1.vertex.Max
-        i2 = i + 1
-        If i2 = f1.vertex.Count Then i2 = 0
-        fRect = New Face
-        fRect.vertex.Add(f1.vertex[i])
-        fRect.vertex.Add(f1.vertex[i2])
-        fRect.vertex.Add(f2.vertex[i2])
-        fRect.vertex.Add(f2.vertex[i])
-        x.Add(fRect)
-
-    Next
+    '
 
 End
 
@@ -182,51 +162,9 @@ Public Sub Draw(oE As Entity)
     Dim pTriangles As Punto3d
     Dim fTriangles As Float[]
 
-    ' If Not oe.Generated Then
-    '     Super.Draw(oe)
-    '     Return
-    ' Endif
-
     For Each f In oe.pBlock.faces
 
-        ' If f.vertex.Count > 1 Then ' dibujo el contorno
-        '     fPoints = puntos.RemoveAxis(puntos.Create3dArray(f.vertex))    ' paso de Punto3D a XYZ triplets y le saco el Z
-        '
-        '     fColor4 = gcd.GetGBColor(oE.Colour, oe.pLayer)
-        '
-        '     glx.Polygon(fPoints, fColor4, gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
-        ' End If
-        If (f.vertex.Count >= 3) And Not bIntersects Then ' dibujo el contorno
-            'pTriangles = puntos.PolygonTriangulation3D(f.vertex)
-            fTriangles = puntos.PolygonTriangulation3D(f.vertex) ' puntos.Create3dArray(pTriangles)
-            ' If f.vertex.Count = 4 Then
-            '     fColor4 = 0
-            ' End If
-            '            If fTriangles.Count = 0 Then Stop
-            If oe.pLayer.ShowMode = ShowModes.ShowColors Then glx.DrawTriangles3D(fTriangles, Color.Darker(gcd.GetGBColor(oE.Colour, oe.pLayer)), gcd.GetLineWt(oE.LineWIdth, oe.pLayer))
-        End If
-
-    Next
-
-    If oe.pLayer.ShowWireframe Then DrawWireFrame(oe)
-
-End
-
-Public Sub DrawWireFrame(e As Entity)
-
-    Dim fPoints As Float[]
-    Dim fColor4 As Integer
-    Dim bIntersects As Boolean
-    Dim f As Face
-
-    ' If Not oe.Generated Then
-    '     Super.Draw(oe)
-    '     Return
-    ' Endif
-    fColor4 = gcd.GetGBColor(e.Colour, e.pLayer)
-    For Each f In e.pBlock.faces
-
-        glx.PolyLines(puntos.Create3dArray(f.vertex), fColor4,,, True)
+        clsEntities.DrawFace(f, 0, 0, oe.pLayer.ShowWireframe)
 
     Next
 

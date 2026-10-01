@@ -5,7 +5,9 @@ Public Name As String                       '' Nombre visible en la tabstrip
 Public id As String                         '' the handle de este LAYOUT
 Public Block As Block                       '' el bloque asociado a esta hoja
 Public IsModel As Boolean                   '' si es Model, esta hoja no puede usarse para insertar Viewports de models
+
 Public Is3D As Boolean
+Public parent As Drawing
 Public PaperSizeW As Single = 420           '' mm
 Public PaperSizeH As Single = 297           '' mm
 Public BackGroundColor As Integer = Color.black       ''
@@ -40,14 +42,13 @@ Public Entities As New Collection                      '' Apunta a .BLock.entiti
 Public EntitiesSelected As New Collection
 Public EntitiesSelectedPrevious As New Collection
 Public EntitiesVisibles As New Collection
+Public EntitiesBase2D As New Collection                 '' Entidades de base para ayudar a dibujar
 
 Public SkipSearch As Entity                         '' entidad que no se tendran en cuenta en las busquedas
 ' Public EntitiesSelected As New Collection
 
 Public GLSheet As GLArea
-Public GlListAllEntities As Integer
-Public GlListEntitiesSelected As Integer
-Public GlList3D As Integer
+
 Public scene As Scene3d
 ' VBO buffers and Shaders
 Public GlShaderId As Integer
@@ -56,15 +57,58 @@ Public EntitiesSelectedVBO As New VBO
 Public Shown As Boolean ' esto podria ser una flag, determino si ya la mostre una vez
 
 Public Grips As New Grip[]
+Public models As New Collection
+' Ground
+Public GroundColor As Integer = Color.green
+Public GroundTrnasparency As Single       ' 0.0 - 1.0
+Public GroundGTexture As Image
+Public GroundEnabled As Boolean = True
+
+Public DrawGrid As Boolean = True
+
+' VBO para el 3D
+Public Grid3dVbo As New VBO
+Public Poi3dVbo As New VBO
+Public OrbitHandlesVbo As New VBO
+Public AxisVbo As New VBO
+Public GroundVbo As New VBO
+
+Public camera As New GlCamera
+
+Public Faces As New Collection                  ' all faces in the model3d are not Entities, some are part of primitives but in general of the model
 
 Public vertex As New Collection  ' xyz triplets de cada vertice
-
 Property Plane2D As Integer
 Private $plane2d As Integer
 
-Public Sub _new()
+Property level As Float
+Private $level As Float
 
-    Me.Plane2D = Planes.YZ'Config.Plane2D
+Property IsAuxiliar As Boolean                '' Si es parte de otro bloque/hoja
+Private $isauxiliar As Boolean
+Private $ismodel As Boolean
+
+Public Sub _new(name As String, parent As Drawing)
+
+    Me.Name = name
+    Me.parent = parent
+    Me.id = gcd.NewId()
+    Me.Block = New Block
+    Me.Plane2D = Config.Plane2D
+    Me.Is3D = parent.Is3D
+    If Me.Is3D Then
+        Me.ScaleZoom = 0.001
+        Me.RotY = 45
+    Endif
+
+    ' lo agrego a los bloques
+    Dim b As New Block
+    b.name = Me.Name
+    b.entities = New Collection
+    Me.Entities = b.entities
+    b.Sheet = Me
+    parent.Blocks.Add(b, b.name)
+    parent.Sheets.Add(Me, Me.id)
 
 End
 
@@ -93,5 +137,38 @@ Private Sub Plane2D_Write(Value As Integer)
             Me.RotZ = 0                                                         'Z- is Horizontal
     End Select
     glx.Plane2D = $plane2d
+    Config.Plane2D = $plane2d
+
+End
+
+Private Function level_Read() As Float
+
+    Return $level
+
+End
+
+Private Sub level_Write(Value As Float)
+
+    $level = value
+    glx.zLevel = value
+
+End
+
+Private Function IsAuxiliar_Read() As Boolean
+
+    Return $isauxiliar
+
+End
+
+Private Sub IsAuxiliar_Write(Value As Boolean)
+
+    $isauxiliar = value
+    If $isauxiliar Then
+        Me.Entities = parent.Model.Entities
+        Me.Block = parent.Model.Block
+        Me.Plane2D = Config.Plane2D
+        Me.ScaleZoom = 1
+
+    Endif
 
 End

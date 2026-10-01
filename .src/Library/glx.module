@@ -2971,6 +2971,8 @@ End
 '' Dibuja un polilinea cerrada
 Fast Unsafe Public Function Polygon(vertices As Float[], Optional colour As Integer = 0, LineWIdth As Float = 1, dashes As Float[] = [], Is3D As Boolean = False)
 
+    Dim p As Punto3d
+
     PolyLines(vertices, colour, LineWIdth, dashes, Is3D)
 
     ' ademas la union
@@ -2978,27 +2980,28 @@ Fast Unsafe Public Function Polygon(vertices As Float[], Optional colour As Inte
         VBOCurrent.Vertex.Add(vertices[vertices.Max - 2])           'X
         VBOCurrent.Vertex.Add(vertices[vertices.Max - 1])           'Y
         VBOCurrent.Vertex.Add(vertices[vertices.max])               'Z
-    Else
+        'Z
+    Else                                            ' paso de 2D a 3D segun el plano de trabajo
+        p = XYZ(vertices[vertices.Max - 1], vertices[vertices.Max])
+        VBOCurrent.Vertex.Add(p.x)         'X
+        VBOCurrent.Vertex.Add(p.y)     'Y
+        VBOCurrent.Vertex.Add(p.z)
 
-        ' Select Case Plane2D
-        '     Case 0      ' plano X+Y+
-        VBOCurrent.Vertex.Add(vertices[vertices.Max - 1])           'X
-        VBOCurrent.Vertex.Add(vertices[vertices.max])               'Y
-        VBOCurrent.Vertex.Add(0)                                    'Z
-        '     Case 1
-        '         VBOCurrent.Vertex.Add(vertices[vertices.Max - 1])           'X+
-        '
-        '         VBOCurrent.Vertex.Add(0)                                    'Y
-        '         VBOCurrent.Vertex.Add(-vertices[vertices.max])               'Z-
-        '
-        ' End Select
     End If
 
     glColorRGB(colour,, False)
 
-    VBOCurrent.Vertex.Add(vertices[0])
-    VBOCurrent.Vertex.Add(vertices[1])
-    If Is3D Then VBOCurrent.Vertex.Add(vertices[2]) Else VBOCurrent.Vertex.Add(0)
+    If Is3D Then
+        VBOCurrent.Vertex.Add(vertices[0])
+        VBOCurrent.Vertex.Add(vertices[1])
+        VBOCurrent.Vertex.Add(vertices[2])
+    Else
+
+        p = XYZ(vertices[0], vertices[1])
+        VBOCurrent.Vertex.Add(p.x)         'X
+        VBOCurrent.Vertex.Add(p.y)     'Y
+        VBOCurrent.Vertex.Add(p.z)
+    End If
     glColorRGB(colour,, False)
 
 End
@@ -3131,7 +3134,7 @@ Public Function PolyLines(fVertices As Float[], Optional colour As Integer = 0, 
     VBOCurrent.Colors.Add(g)                    'G
     VBOCurrent.Colors.Add(b)                    'B
 
-    For i = iStep To vertices.Max - iStep Step iStep
+    For i = iStep To vertices.Max - iStep + 1 Step iStep
         If Is3D Then
             p.x = vertices[i]
             p.y = vertices[i + 1]
@@ -3163,7 +3166,7 @@ Public Function PolyLines(fVertices As Float[], Optional colour As Integer = 0, 
         p.y = vertices[vertices.max - 1]
         p.z = vertices[vertices.Max]
     Else
-        p = XYZ(vertices.max - 1, vertices.max)
+        p = XYZ(vertices[vertices.max - 1], vertices[vertices.Max])
     Endif
 
     VBOCurrent.Vertex.Add(p.x)         'X
@@ -3422,28 +3425,20 @@ Fast Unsafe Public Sub Vertex2D(x2d As Float, y2d As Float, Optional colour As I
     '     '2020 el color va primero
     ' '
 
-    Dim x0, y0, z0 As Float
+    Dim p As Punto3d
 
     glColorRGB(colour,, Triangles)
-    ' Select Case Plane2D
-    '     Case 0      ' plano X+Y+
-    x0 = x2d                                                         'X
-    y0 = y2d                                                              'Y
-    z0 = 0                                                             'Z
-    '     Case 1
-    '         x0 = x2d                                                              'X
-    '         y0 = 0                                                             'Y
-    '         z0 = -y2d                                                              'Z-
-    ' End Select
+    p = XYZ(x2d, y2d)                                                         'X
+
     If Triangles Then
-        VBOCurrent.VertexTriangle.Add(x0)
-        VBOCurrent.VertexTriangle.Add(y0)
-        VBOCurrent.VertexTriangle.Add(z0)
+        VBOCurrent.VertexTriangle.Add(p.x)
+        VBOCurrent.VertexTriangle.Add(p.y)
+        VBOCurrent.VertexTriangle.Add(p.z)
 
     Else
-        VBOCurrent.Vertex.Add(x0)
-        VBOCurrent.Vertex.Add(y0)
-        VBOCurrent.Vertex.Add(z0)
+        VBOCurrent.Vertex.Add(p.x)
+        VBOCurrent.Vertex.Add(p.y)
+        VBOCurrent.Vertex.Add(p.z)
 
     Endif
 
@@ -4487,7 +4482,7 @@ Public Sub SetGeneralLigths()
 End
 
 '' Converts a 2D point to a 3D point acording the working 2D plane
-Public Function XYZ(x2D As Float, y2D As Float, Optional fLevel As Float = 0) As Punto3d
+Public Function XYZ(x2D As Float, y2D As Float, Optional fLevel As Float = zlevel) As Punto3d
 
     Dim p As New Punto3d
 

@@ -2384,18 +2384,18 @@ End
 '' 0 for X removal
 '' 1 for Y removal
 '' 2 for Z removal   <---Default
-Public Function RemoveAxisP3(p3 As Punto3d, Optional Axis As Integer = 2) As Punto2d
+Public Function RemoveAxisP3(p3 As Punto3d[], Optional Axis As Integer = 2) As Float[]
 
     Dim i As Integer
-    Dim p2 As New Punto2d
+    Dim f2 As New Float[]
 
-    If Axis <> 0 Then p2.x = p3.x
-    If Axis <> 1 Then p2.y = p3.y
-    If Axis <> 2 Then
-        If Axis = 0 Then p2.x = p3.z Else p2.y = p3.z
-    End If
+    For i = 0 To p3.Max
 
-    Return p2
+        f2.Add(p3[i].x)
+        If Axis <> 1 Then f2.Add(p3[i].y)
+        If Axis <> 2 Then f2.Add(p3[i].z)
+    Next
+    Return f2
 
 End
 
@@ -2620,6 +2620,119 @@ Public Function RayTriangleIntersection(RayOrigin As Punto3d, RayDirection As Pu
     Else
         ' Hay una intersección de línea, pero no de rayo (está detrás del origen)
         Return Null
+    Endif
+
+End
+
+' Returns [hit(0/1), hitX, hitY, hitZ, t]
+' Ray: O + t*D, t >= 0
+Public Function RayPolygonIntersection3D(rayO As Punto3D, rayD As Punto3D, pPolygon As Punto3D[], pIntersection As Punto3d) As Boolean
+
+    Dim n As Integer
+    Dim p0, p1, p2, hit As Punto3D
+    Dim e1x, e1y, e1z As Float
+    Dim e2x, e2y, e2z As Float
+    Dim nx, ny, nz As Float
+    Dim ndotd As Float
+    Dim t As Float
+    Dim wx, wy, wz As Float
+    Dim hx, hy, hz As Float
+    Dim i As Integer
+    Dim axis As Integer
+    Dim fPoly2D As New Float[]
+    Dim hp2x, hp2y As Float
+
+    n = pPolygon.Count
+    If n < 3 Then Return False
+
+    ' Find first non-colinear triple to define plane
+    p0 = pPolygon[0]
+    For i = 1 To n - 2
+        p1 = pPolygon[i]
+        p2 = pPolygon[i + 1]
+
+        e1x = p1.x - p0.x
+        e1y = p1.y - p0.y
+        e1z = p1.z - p0.z
+        e2x = p2.x - p0.x
+        e2y = p2.y - p0.y
+        e2z = p2.z - p0.z
+
+        ' normal = e1 x e2
+        nx = e1y * e2z - e1z * e2y
+        ny = e1z * e2x - e1x * e2z
+        nz = e1x * e2y - e1y * e2x
+
+        If Abs(nx) > NumericTolerance Or Abs(ny) > NumericTolerance Or Abs(nz) > NumericTolerance Then
+            Exit
+        Endif
+    Next
+
+    ' Degenerate polygon (all colinear or repeated)
+    If Abs(nx) <= NumericTolerance And Abs(ny) <= NumericTolerance And Abs(nz) <= NumericTolerance Then
+        Return False
+    Endif
+
+    ' Intersect ray with plane
+    ndotd = nx * rayD.x + ny * rayD.y + nz * rayD.z
+    If Abs(ndotd) <= NumericTolerance Then
+        ' Ray parallel to plane (including contained case)
+        Return False
+    Endif
+
+    wx = p0.x - rayO.x
+    wy = p0.y - rayO.y
+    wz = p0.z - rayO.z
+
+    t = (nx * wx + ny * wy + nz * wz) / ndotd
+    If t < 0 Then Return [0, 0, 0, 0, -1]
+
+    ' 3D hit point
+    hx = rayO.x + t * rayD.x
+    hy = rayO.y + t * rayD.y
+    hz = rayO.z + t * rayD.z
+
+    ' Project polygon + hit point to 2D by dropping dominant normal axis
+    ' (best numeric stability)
+    If Abs(nx) >= Abs(ny) And Abs(nx) >= Abs(nz) Then
+        axis = 0 ' drop X -> use YZ
+    Else If Abs(ny) >= Abs(nx) And Abs(ny) >= Abs(nz) Then
+        axis = 1 ' drop Y -> use XZ
+    Else
+        axis = 2 ' drop Z -> use XY
+    Endif
+
+    For i = 0 To n - 1
+        Select Case axis
+            Case 0
+                fPoly2D.Add(pPolygon[i].y)
+                fPoly2D.Add(pPolygon[i].z)
+            Case 1
+                fPoly2D.Add(pPolygon[i].x)
+                fPoly2D.Add(pPolygon[i].z)
+            Case 2
+                fPoly2D.Add(pPolygon[i].x)
+                fPoly2D.Add(pPolygon[i].y)
+        End Select
+    Next
+
+    Select Case axis
+        Case 0
+            hp2x = hy
+            hp2y = hz
+        Case 1
+            hp2x = hx
+            hp2y = hz
+        Case 2
+            hp2x = hx
+            hp2y = hy
+    End Select
+
+    If isInsIde(fPoly2D, hp2x, hp2y) Then
+        hit = New Punto3d(hx, hy, hz)
+        Return True
+    Else
+        Return False
     Endif
 
 End

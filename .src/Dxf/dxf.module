@@ -756,6 +756,7 @@ End
 Public Sub ReconstructHandles(drw As Drawing)
 
     Dim di As DictEntry, item As DictList, b As Block
+
     ' Empiezo por los Bloques importantes
     For Each b In drw.Blocks
         If b.name = "*Model_Space" Then
@@ -1743,6 +1744,7 @@ Private Function Save6Objects(drw As Drawing) As Boolean
     SaveCode(2, "OBJECTS")
     SaveCode(0, "DICTIONARY")                       ' Definiciones del diccionario
     SaveCode(5, drw.Dictionary.id)
+    If drw.Dictionary.id = "" Then Stop
     SaveCode(330, 0)
     SaveCode(100, "AcDbDictionary")
     SaveCode(280, 0)
@@ -1750,19 +1752,23 @@ Private Function Save6Objects(drw As Drawing) As Boolean
     For Each de In drw.Dictionary.Definitions
         SaveCode(3, de.name)
         SaveCode(350, de.id)
+        If de.id = "" Then Stop
     Next
 
     For Each de In drw.Dictionary.Definitions
 
         SaveCode(0, "DICTIONARY")
         SaveCode(5, de.id)
+        If de.id = "" Then Stop
         SaveCode(330, drw.Dictionary.id)
+        If drw.Dictionary.id = "" Then Stop
         SaveCode(100, "AcDbDictionary")
         'SaveCode(280, 0)
         SaveCode(281, 1)
         For Each dl As DictList In de.items
             SaveCode(3, dl.name)
             SaveCode(350, dl.idSoftOwner)
+            If dl.idSoftOwner = "" Then Stop
         Next
 
     Next
@@ -2326,7 +2332,7 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
     Dim hEnty As Variant, iEnty As Integer
     Dim cEnty As Variant[]
     Dim i As Integer
-    Dim S As New Sheet
+    Dim S As Sheet
     Dim newBlock As Block
     Dim hasBlocks, hasTables, hasBlockRecord, hasEntities As Boolean
     Dim cBlocks, cTables, cBlockRecord, cEntities As Collection
@@ -2407,13 +2413,11 @@ Public Sub ImportBlocksFromDXF(colData As Collection, drw As Drawing) ', obxEnti
     ' voy a hacer un chequeo final, porque algunos DXF vienen sin el bloque Model
     If Not Drw.Sheets.Exist("Model") Then
         ' creo la Sheet
-        S = New Sheet
-        s.Name = "Model"
+        S = New Sheet("Model", drw)
         s.IsModel = True
-        s.Block = Drw.Blocks["*Model_Space"]
-        s.id = Drw.Blocks["*Model_Space"].idAsociatedLayout
-        Drw.Sheets.Add(s, "Model")
-        drw.Sheet = s
+        ' s.Block = Drw.Blocks["*Model_Space"]
+        ' s.id = Drw.Blocks["*Model_Space"].idAsociatedLayout
+        ' drw.Sheet = s
         drw.Model = s
 
     End If
@@ -2630,11 +2634,11 @@ Public Function ReadObjectsFromDXF(cData As Collection, drw As Drawing)
         If cObject["0"] = "LAYOUT" Then
 
             Me.DigestColeccion(cObject, ByRef sClaves, ByRef sValues)
-            s = New Sheet
+            s = New Sheet("aux", drw)
             objLayout.importDXF(s, cObject)
             If s.name = "" Then s.name = s.pPrintStyle.ViewName
             If S.Name = "" Then s.name = "Sheet " & Str(drw.Sheets.Count)
-            drw.Sheets.Add(s, s.name)
+
             'Handle_Layout.Add(s.Name, s.id)
             'hContainers.Add(s.Entities, s.id)
             If LCase(s.Name) = "model" Then

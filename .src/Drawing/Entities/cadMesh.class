@@ -1,21 +1,248 @@
 ' Gambas class file
 
-' P[] son los vertices, puede haber vertices comunes pare varias caras.
-' iParam[] son las caras triangulares, donde si ambos indices son -negativos, esa arista no se dibuja en el wireframe
+' Esta clase representa una cara plana en el espacio
+' Podria pensarse como una LWPolyline cerrada, pero no es alambrica sino llena.
+' El minimo numero de lados es 3. Si tiene mas lados, seran triangulados internamente creando mas lados invisibles.
 
-Inherits CadLWPolyline
+Inherits EntityBase
+Public Const Gender As String = "MESH"
+    ""
+Public Const DrawingOrder As Integer = 1        ' 1 = draws first
+Public Const CmdLineHelper As String = ("a polyface of segments: First point: ")
+Public Const ParamType As String = "point3d"                             ' that is Point, Point, Float; could be Color Text, etc
+Public Const ParamHelper As String = "point"      ' a little text that is shown at the prompt waiting for user input during build
+Public Const ParamDefault As String = "Close/Undo"
+Public Const ContextMenu As String = ("Close polyline;_CLOSE;;;Undo last point;_UNDO;;;End in last point;_ENDP;;") ' el menu para el boton derecho, los comandos
 Public Const Is3D As Boolean = True
 
 Public Function NewEntity(Optional fPoints As Float[], bNewid As Boolean = False) As Entity
 
-    Dim e As Entity
+    Dim e As New Entity
+    Dim f As Face
 
     e = Super.NewEntity(fPoints, bNewid)
-    e.pBlock = New Obj3d
+    e.Gender = Me.Gender
+
+    e.pBlock = New PoliFace
+    f = New Face
+    e.pBlock.Faces.Add(f)
+
+    Return e
 
 End
 
-'' Builds the geometry of the entity wthout drwing it
-Public Function MakePolyLine(oE As Entity)
+Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Variant
+
+    Dim p As Punto3d
+    Dim comm As New Communications
+    Dim f As Face
+    ' ' 'If Definitive Then Stop
+    ' If eBuild.Gender = Gender Then ' es polyface
+    '     f = eBuild.pBlock
+    ' Else
+
+    f = eBuild.pBlock.faces[0]
+    ' End If
+
+    If f.vertex.Count = 0 Then
+        p = gcd.NewVertex(0, 0, 0)
+        f.vertex.Add(p)
+        f.colour = eBuild.Colour
+    End If
+    If Me.ExpectedParam = "point"
+        If vParam[0] = "point3d" Then
+
+            f.vertex.Last.x = vParam[1]
+            f.vertex.Last.y = vParam[2]
+            f.vertex.Last.z = vParam[3]
+
+            If Definitive Then
+
+                p = gcd.NewVertex(f.vertex.Last.x, f.vertex.Last.y, f.vertex.Last.z, True)
+
+                p = New Punto3d
+                f.vertex.Add(p)
+
+                comm.Prompt = "Next point"
+                comm.ParamType = "point3d"
+                comm.Options.Add("End")
+                comm.Options.Add("Close")
+
+                Return comm
+            End If
+
+        Else If vParam[0] = "text" Then
+
+            If vParam[1] = "_UNDO" Then
+                f.vertex.Remove(f.vertex.Max)
+                Return comm
+            Else If vParam[1] = "_ENDP" Or vParam[1] = "_CLOSE" Then
+                f.vertex.Last.x = f.vertex.First.x
+                f.vertex.Last.y = f.vertex.First.y
+                f.vertex.Last.z = f.vertex.First.z
+                f.vertex.Remove(f.vertex.Max)
+                f.Id = gcd.NewId()
+
+                Return ["command": "end"]
+
+            Endif
+        End If
+    End If
+
+End
+
+' '' Builds the geometry of the entity wthout drwing it
+' Public Function MakePolyLine(oE As Entity)
+'
+'     Dim o As Obj3d
+'
+'     o = oe.pBlock
+'     If IsNull(o) Then Return        ' error u objeto invalido
+'
+'     ' tengo que triangular?
+'     If o.index.Count > 3 Then 'hace falta triangular
+'
+' End
+
+Public Sub Draw(oE As Entity)
+
+    clsEntities.DrawFace(oe.pBlock.faces[0], 0,, True)
+
+End
+
+Public Sub DrawRemark(oE As Entity)
+
+    clsEntities.DrawFace(oe.pBlock.faces[0], 1,, True)
+
+End
+
+Public Sub Finish(e As Entity) As Boolean
+
+    gcd.Drawing.Sheet.Faces.Add(e.pBlock.faces[0], e.pBlock.faces[0].id)
+
+    Super.Finish(e)
+
+End
+
+'' Return if that position is over the entity within the tolerance
+Public Function OverMe(e As Entity, Xr As Float, Yr As Float, tolerance As Float) As Boolean
+
+    ' debo transformar la cara 3D en puntos 2D segun la proyeccion
+    Dim x, y As Integer
+    Dim rDist As Float
+
+    x = gcd.XPix(xr)            ' coordenadas de pantalla en pixeles
+    y = gcd.YPix(yr)
+
+    Dim ray As New Float[3]                             ' es un rayo que atraviesa la pantalla en la posicion del mouse
+    ray = glx.Get3DpointFromScreen(x, y)
+
+    Dim origen, direccion, hit As New Punto3d
+    origen.x = xr 'ray[0]
+    origen.y = yr' ray[1]
+    origen.z = 1'ray[2]               ' ??
+
+    direccion.x = 0                 ' Valores del 2D XY
+    direccion.y = 0
+    direccion.z = -1
+
+    Dim inside As Boolean
+    inside = puntos.RayPolygonIntersection3D(origen, direccion, e.pBlock.faces[0].vertex, hit)
+    If inside Then
+        Debug hit.x, hit.y, hit.z
+    Endif
+    'inside = puntos.RayConcavePolygonIntersect(origen, gcd.Drawing.Sheet.camera.ViewDir, e.pBlock.vertex, rDist)
+    'Return inside
+
+    If e.Polygon Then
+        If puntos.isInside(puntos.RemoveAxisP3(e.pBlock.faces[0].vertex), xr, yr) Then Return True
+    End If
+
+    Return False
+
+End
+
+Public Function SaveDxfData(e As Entity) As Boolean
+
+    Dim i, IMAX As Integer
+    Dim f As Face
+    Dim p, p2 As Punto3d
+    Dim loTengo As Boolean
+
+    ' stxExport.insert(["LWPOLYLINE", dxf.codEntity])
+    ' Los datos comunes a todas las entidades son guardados por la rutina que llama a esta
+    dxf.SaveCode("100", "AcDbSubMesh")
+    dxf.SaveCode("71", "2")                                         ' version de la entidad Mesh
+    dxf.SaveCode("72", "0")                                         ' bordes
+    dxf.SaveCode("91", "0")                                         ' Tipo de malla 0=facetada 1=suavizado 2=nose 3=nose
+
+    ' ahora van los vertices, pero la idea es no repetirlos, entonces hago una lista unica
+    Dim vertexlist As New Punto3d[]
+    For Each f In e.pBlock.faces
+        For Each p In f.vertex
+            For Each p2 In vertexlist
+                If p = p2 Then ' es el mismo vertex
+                    loTengo = True
+                    Break
+                End If
+
+            Next
+            If Not lotengo Then
+                vertexlist.Add(p)
+                lotengo = False
+            Endif
+        Next
+    Next
+    ' ahora que los recolecte, los guardo
+    dxf.SaveCode("92", Str(vertexlist.Count))
+    For Each p In vertexlist
+        dxf.SaveCode("10", p.x)
+        dxf.SaveCode("20", p.y)
+        dxf.SaveCode("30", p.z)
+    Next
+    dxf.SaveCode("93", e.pBlock.faces.count)
+    For Each f In e.pBlock.faces
+        dxf.SaveCode("94", f.vertex.Count)
+        For Each p In f.vertex                          ' busco el indice
+            For i = 0 To vertexlist.Max
+                If vertexlist[i] = p Then Break
+            Next
+            If i = vertexlist.count Then Stop
+            dxf.SaveCode("90", i + 1)                   ' guardo el indice (a partir de 1)
+        Next
+    Next
+
+End
+
+Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
+
+    Dim i, iv, nv, ifa, posv As Integer
+    Dim n, np, nf As Integer
+    Dim p As Punto3d
+    Dim f As Face
+
+    i = dxf.ReadCode(92, sClaves, sValues, n)                   ' nro de puntos
+    Dim p3d As New Punto3d[n]
+    For Each p In p3d
+        i = dxf.ReadCode(10, sClaves, sValues, p.x, i)          ' x y z
+        i = dxf.ReadCode(20, sClaves, sValues, p.y, i)
+        i = dxf.ReadCode(30, sClaves, sValues, p.z, i)
+    Next
+    i = dxf.ReadCode(93, sClaves, sValues, ByRef nf, i)          ' nro de caras
+    For ifa = 1 To nf
+        f = New Face
+        e.pBlock.faces.Add(f)
+        i = dxf.ReadCode(94, sClaves, sValues, ByRef nv, i)      ' nro de vertices en esta cara
+        For iv = 1 To n
+            i = dxf.ReadCode(94, sClaves, sValues, ByRef posv, i)  ' vertice
+            f.vertex.Add(p[posv])
+        Next
+    Next
+
+    Return True
+
+    ' catch
+
+    Return False
 
 End

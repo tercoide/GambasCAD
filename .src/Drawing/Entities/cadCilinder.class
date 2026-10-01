@@ -3,7 +3,7 @@
 Inherits CadParallelepiped
 Public Const Gender As String = "CILINDER"
 Public Const CmdLineHelper As String = ("Draws a cilinder: Height vector 3D")
-Public Const ParamType As String = "vec3"                             ' that is Point, Point, Float; could be Color Text, etc
+Public Const ParamType As String = "point3d"                             ' that is Point, Point, Float; could be Color Text, etc
 Public Const ParamHelper As String = "height"      ' a little text that is shown at the prompt waiting for user input during
 Public Const TotalParams As Integer = 3
 
@@ -13,27 +13,37 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
 
     Dim f As Float
     Dim ip As Integer
-    Dim ok As Communications
     Dim rta As New Collection
 
+    'If definitive Then Stop
     If Me.ExpectedParam = "height" Then
-        If vParam[0] = "vec3" Then
+        If vParam[0] = "point3d" Then
             If Definitive Then
 
                 eBuild.fParam.Clear
-                eBuild.fParam.Add(vParam[1])        'X
-                eBuild.fParam.Add(vParam[2])        'Y
-                eBuild.fParam.Add(vParam[3])        'Z
+                eBuild.fParam.Add(vParam[1])        ' X
+                eBuild.fParam.Add(vParam[2])        ' Y
+                eBuild.fParam.Add(vParam[3])        ' Z
+                eBuild.fParam.Add(0)                ' el factor de base es 0 en un cono
 
                 eBuild.fParam.Add(0)                ' radius
 
-                ok = New Communications
+                Me.ExpectedParam = "base"
+
+                Return ["prompt": "Base factor", "next": "float"]
+            End If
+        End If
+    End If
+
+    If Me.ExpectedParam = "base" Then
+        If vParam[0] = "float" Then
+            If Definitive Then
+
+                eBuild.fParam[3] = vParam[1]        'base1/base2 factor: 1=equal 0=base2 is a point
+
                 Me.ExpectedParam = "center"
-                ok.ParamType = "point3d"
-                ok.Prompt = "center of base"
-                rta = ["promt": "base center point", "paramtype": "point3d"]
-                Stop
-                Return ok
+
+                Return ["prompt": "base center point", "next": "point3d"]
             End If
         End If
     End If
@@ -41,17 +51,17 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
     If Me.ExpectedParam = "center"
         If vParam[0] = "point3d" Then
 
-            Try eBuild.P[0] = vParam[1]
-            Try eBuild.P[1] = vParam[2]
-            Try eBuild.P[3] = vParam[3]
+            eBuild.P.Clear
+            eBuild.P.Insert([0, 0, 0])
+
+            eBuild.P[0] = vParam[1]
+            eBuild.P[1] = vParam[2]
+            eBuild.P[2] = vParam[3]
             If Definitive Then
-                Stop
-                ok = New Communications
-                ok.Prompt = "radius of base"
-                ok.ParamType = "float"
+
                 Me.ExpectedParam = "radius"
 
-                Return ok
+                Return ["prompt": "radius", "next": "float"]
             End If
         End If
     End If
@@ -59,95 +69,20 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
     If Me.ExpectedParam = "radius" Then
         If vParam[0] = "float" Then
 
-            eBuild.fParam[3] = vParam[1]
+            eBuild.fParam[4] = vParam[1]
             If Definitive Then
+                eBuild.pBlock.Faces[0].Id = gcd.NewId()
 
-                ok = New Communications
-                ok.command = "END"
-
-                Return ok
+                Return ["command": "end"]
             End If
         End If
     End If
 
-    Return ok
+    Return
 
 End
 
 Public Sub makepolyline(oe As Entity)
-
-    Dim x, y, theta, angle_increment As Float
-    Dim iTramos As Integer
-
-    ' If oe.id = "DB8C" Then Stop
-    iTramos = oE.fParam[0] * 2 * Pi / gcd.metros(Config.ArcDensity)
-
-    If iTramos < 6 Then iTramos = 18
-    If iTramos > 360 Then iTramos = 360
-    angle_increment = 2 * Pi / iTramos
-
-    oE.polyline.Clear
-
-    For theta = 0 To 2 * Pi Step angle_increment
-        ' el punto considerando 0,0 al centro
-        x = oE.p[0] + oE.fParam[0] * Cos(theta)
-        y = oE.p[1] + oE.fParam[0] * Sin(theta)
-        oE.polyline.Add(x)
-        oE.polyline.Add(y)
-
-    Next
-    x = oE.p[0] + oE.fParam[0]
-    y = oE.p[1]
-
-    oE.polyline.Add(x)
-    oE.polyline.Add(y)
-
-End
-
-Public Sub Draw(oE As Entity)
-
-    Dim fPoints As Float[]
-    Dim fColor4 As Integer
-    Dim bIntersects As Boolean
-    Dim f As Face
-    Dim pTriangles As Punto3d
-    Dim fTriangles As Float[]
-
-    ' If Not oe.Generated Then
-    '     Super.Draw(oe)
-    '     Return
-    ' Endif
-
-    glx.PolyLines(oe.PolyLine, gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
-
-    For Each f In oe.pBlock.faces
-
-        If f.vertex.Count > 1 Then ' dibujo el contorno
-            fPoints = puntos.RemoveAxis(puntos.Create3dArray(f.vertex))    ' paso de Punto3D a XYZ triplets y le saco el Z
-
-            fColor4 = gcd.GetGBColor(oE.Colour, oe.pLayer)
-
-            glx.Polygon(fPoints, fColor4, gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
-        End If
-        If (f.vertex.Count >= 3) And Not bIntersects Then ' dibujo el contorno
-            'pTriangles = puntos.PolygonTriangulation3D(f.vertex)
-            fTriangles = puntos.PolygonTriangulation3D(f.vertex) ' puntos.Create3dArray(pTriangles)
-            If f.vertex.Count = 4 Then
-                fColor4 = 0
-            End If
-            '            If fTriangles.Count = 0 Then Stop
-            glx.DrawTriangles3D(fTriangles, Color.Darker(gcd.GetGBColor(oE.Colour, oe.pLayer)), gcd.GetLineWt(oE.LineWIdth, oe.pLayer))
-        End If
-
-    Next
-
-    cadParallelepiped.DrawWireFrame(oe)
-
-End
-' This function will return False if the element couldn't be created for some reason: bad or incomple user input
-' True means all is good, False will instruct the clsENTITYBUILDER to delete it
-
-Public Sub Finish(oe As Entity) As Boolean
 
     Dim iCaras As Integer
     Dim i As Integer
@@ -160,55 +95,35 @@ Public Sub Finish(oe As Entity) As Boolean
 
     F = oe.pBlock.faces
     ' base
-
+    If oe.P.Count < 3 Then Return
     Dim x, y, theta, angle_increment As Float
     Dim iTramos As Integer
 
-    iTramos = oE.fParam[0] * 2 * Pi / gcd.metros(Config.ArcDensity)
+    iTramos = oE.fParam[4] * 2 * Pi / gcd.metros(Config.ArcDensity)
 
     If iTramos < 6 Then iTramos = 18
     If iTramos > 64 Then iTramos = 64
     angle_increment = 2 * Pi / iTramos
 
-    oE.polyline.Clear
-    f1 = New Face
+    f1 = f[0]
+    f1.vertex.Clear
+    f1.colour = oe.Colour
     For theta = 0 To 2 * Pi Step angle_increment
         ' el punto considerando 0,0 al centro
+        p2 = glx.XYZ(oE.fParam[4] * Cos(theta), oE.fParam[4] * Sin(theta))
         p = New Punto3d
-        p.x = oE.p[0] + oE.fParam[0] * Cos(theta)
-        p.y = oE.p[1] + oE.fParam[0] * Sin(theta)
-        p.z = 0
+        p.x = oE.p[0] + p2.x
+        p.y = oE.p[1] + p2.y
+        p.z = oE.p[2] + p2.z
         f1.vertex.Add(p)
 
     Next
-    p = New Punto3d
-    p.x = oE.p[0] + oE.fParam[0]
-    p.y = oE.p[1]
-    f1.vertex.Add(p)
+    ' p = New Punto3d
+    ' p.x = oE.p[0] + oE.fParam[0]
+    ' p.y = oE.p[1]
+    ' f1.vertex.Add(p)
+    ' ahora que terminamos la cara le ponemos un Id
 
-    F.Add(f1)
-
-    ' primero replicamos los puntos de la cara a la altura indicada
-    f2 = New Face
-    For Each p In f1.vertex
-        p2 = gcd.NewVertex(p.x, p.y, oE.fParam[1])
-        f2.vertex.Add(p2)
-    Next
-
-    f.Add(f2)
-
-    ' ahora creamos las caras rectangulares
-    For i = 0 To f1.vertex.Max
-        i2 = i + 1
-        If i2 = f1.vertex.Count Then i2 = 0
-        fRect = New Face
-        fRect.vertex.Add(f1.vertex[i])
-        fRect.vertex.Add(f1.vertex[i2])
-        fRect.vertex.Add(f2.vertex[i2])
-        fRect.vertex.Add(f2.vertex[i])
-        f.Add(fRect)
-
-    Next
-    oe.Generated = True
+    Super.makepolyline(oe)
 
 End
