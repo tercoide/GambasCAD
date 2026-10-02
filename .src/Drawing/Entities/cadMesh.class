@@ -221,24 +221,33 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     Dim p As Punto3d
     Dim f As Face
 
-    i = dxf.ReadCode(92, sClaves, sValues, n)                   ' nro de puntos
+    'Stop
+    i = dxf.ReadCode(92, sClaves, sValues, ByRef n)                   ' nro de puntos
     Dim p3d As New Punto3d[n]
-    For Each p In p3d
-        i = dxf.ReadCode(10, sClaves, sValues, p.x, i)          ' x y z
-        i = dxf.ReadCode(20, sClaves, sValues, p.y, i)
-        i = dxf.ReadCode(30, sClaves, sValues, p.z, i)
+    For np = 0 To p3d.Max
+        p = New Punto3d
+        i = dxf.ReadCode(10, sClaves, sValues, ByRef p.x, i)          ' x y z
+        i = dxf.ReadCode(20, sClaves, sValues, ByRef p.y, i)
+        i = dxf.ReadCode(30, sClaves, sValues, ByRef p.z, i)
+        p3d[np] = p
     Next
     i = dxf.ReadCode(93, sClaves, sValues, ByRef nf, i)          ' nro de caras
+    e.pBlock.faces.clear
     For ifa = 1 To nf
         f = New Face
         e.pBlock.faces.Add(f)
+
+        F.Id = gcd.NewId()
         i = dxf.ReadCode(94, sClaves, sValues, ByRef nv, i)      ' nro de vertices en esta cara
         For iv = 1 To n
-            i = dxf.ReadCode(94, sClaves, sValues, ByRef posv, i)  ' vertice
-            f.vertex.Add(p[posv])
-        Next
-    Next
 
+            i = dxf.ReadCode(90, sClaves, sValues, ByRef posv, i)  ' vertice
+            Inc i
+            f.vertex.Add(p3d[posv - 1])
+        Next
+
+    Next
+    Stop
     Return True
 
     ' catch
