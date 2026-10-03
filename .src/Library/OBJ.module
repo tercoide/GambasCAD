@@ -1,0 +1,575 @@
+' Gambas module file
+
+' Gambas3 - Módulo de exportación OBJ con Grupos, Texturas Avanzadas y UVs
+' Requiere activar el componente gb.image para el manejo de colores
+
+Public Sub ExportarObjeto3D(RutaBase As String, ColeccionVertices As Collection, ColeccionCaras As Collection)
+
+    Dim hObj As File
+    Dim hMtl As File
+    Dim NombreArchivo As String = File.BaseName(RutaBase)
+    Dim RutaObj As String = RutaBase & ".obj"
+    Dim RutaMtl As String = RutaBase & ".mtl"
+
+    Dim VerticeGlobal As Variant
+    Dim Cara As Face
+    Dim i As Integer
+
+    Dim ColorActual As Long
+    Dim NombreMaterial As String
+    Dim GrupoActual As String = ""
+
+    ' Contadores globales de índices para el archivo OBJ
+    Dim MapaIndicesVertice As New Collection
+    Dim ContadorVertice As Integer = 1
+    Dim ContadorVT As Integer = 1
+    Dim ContadorVN As Integer = 1
+
+    ' Diccionario para mapear materiales del .mtl a sus propiedades (Color y Textura)
+    Dim DiccionarioMateriales As New Collection
+
+    ' =========================================================================
+    ' 1. CREACIÓN DEL ARCHIVO DE MATERIALES (.MTL)
+    ' =========================================================================
+    hMtl = Open RutaMtl For Create
+    Print #hMtl, "# Archivo de Materiales generado por Gambas3"
+    Print #hMtl, ""
+
+    For Each Cara In ColeccionCaras
+        ColorActual = Cara.color
+
+        ' El identificador único del material será el nombre de la textura (si tiene) o su color hex
+        If Cara.texture_name <> "" Then
+            NombreMaterial = "Mat_" & File.BaseName(Cara.texture_name)
+        Else
+            NombreMaterial = "Mat_Color_" & Hex$(ColorActual)
+        Endif
+
+        ' Si el material no se ha registrado en el archivo .mtl, lo configuramos
+        If Not DiccionarioMateriales.Exist(NombreMaterial) Then
+            Print #hMtl, "newmtl " & NombreMaterial
+            Print #hMtl, "Ka 1.0000 1.0000 1.0000"
+            ' Color difuso base
+            Print #hMtl, "Kd "; Format$(Color.Red(ColorActual) / 255, "0.0000"); " "; Format$(Color.Green(ColorActual) / 255, "0.0000"); " "; Format$(Color.Blue(ColorActual) / 255, "0.0000")
+            Print #hMtl, "Ks 0.2000 0.2000 0.2000" ' Brillo moderado para texturas
+            Print #hMtl, "d 1.0000"
+            Print #hMtl, "illum 2"
+
+            ' ASIGNACIÓN DE TEXTURA: Si la cara tiene textura, se vincula su imagen
+            If Cara.texture_name <> "" Then
+                Print #hMtl, "map_Kd " & Cara.texture_name
+            Endif
+
+            Print #hMtl, ""
+            DiccionarioMateriales.Add(True, NombreMaterial)
+        Endif
+    Next
+    Close #hMtl
+
+    ' =========================================================================
+    ' 2. CREACIÓN DEL ARCHIVO GEOMÉTRICO (.OBJ)
+    ' =========================================================================
+    hObj = Open RutaObj For Create
+    Print #hObj, "# Archivo Geométrico OBJ generado por Gambas3"
+    Print #hObj, "mtllib " & NombreArchivo & ".mtl"
+    Print #hObj, ""
+
+    ' PASO A: Guardar la lista de vértices espaciales globales
+    Print #hObj, "# Vértices Globales de la Escena"
+    For Each VerticeGlobal In ColeccionVertices
+        Print #hObj, "v " & Str$(VerticeGlobal.X) & " " & Str$(VerticeGlobal.Y) & " " & Str$(VerticeGlobal.Z)
+        Dim ClavePuntero As String = Str$(Pointer@(VerticeGlobal))
+        MapaIndicesVertice.Add(ContadorVertice, ClavePuntero)
+        ContadorVertice += 1
+    Next
+    Print #hObj, ""
+
+    ' PASO B: Procesar las caras de forma secuencial escribiendo sus UVs y Normales locales
+    Print #hObj, "# Definición de Polígonos con Mapeo y Normales"
+    For Each Cara In ColeccionCaras
+
+        ' Agrupación por capas/grupos ('g')
+        If Cara.Grupo <> GrupoActual Then
+            GrupoActual = Cara.Grupo
+            Print #hObj, "g " & Replace$(GrupoActual, " ", "_")
+        Endif
+
+        ' Asignar el material (con o sin textura) a este polígono
+        If Cara.texture_name <> "" Then
+            NombreMaterial = "Mat_" & File.BaseName(Cara.texture_name)
+        Else
+            NombreMaterial = "Mat_Color_" & Hex$(Cara.color)
+        Endif
+        Print #hObj, "usemtl " & NombreMaterial
+
+        ' 1. Escribir las coordenadas UV (vt) de esta cara en el flujo general del archivo
+        Dim IndicesVT_Cara As New Integer[]
+        For i = 0 To Cara.uvs.Max
+            Print #hObj, "vt " & Str$(Cara.uvs[i].X) & " " & Str$(Cara.uvs[i].Y) ' Usamos .X y .Y del Punto2D como U y V
+            IndicesVT_Cara.Add(ContadorVT)
+            ContadorVT += 1
+        Next
+
+        ' 2. Escribir los vectores Normales (vn) específicos de esta cara
+        Dim IndicesVN_Cara As New Integer[]
+        For i = 0 To Cara.normals.Max
+            Print #hObj, "vn " & Str$(Cara.normals[i].X) & " " & Str$(Cara.normals[i].Y) & " " & Str$(Cara.normals[i].Z)
+            IndicesVN_Cara.Add(ContadorVN)
+            ContadorVN += 1
+        Next
+
+        ' 3. Construir y guardar la línea de la cara combinando los tres índices: vértice/uv/normal
+        Dim CadenaCara As String = "f"
+
+        For i = 0 To Cara.vertices.Max
+            Dim ClaveBusqueda As String = Str$(Pointer@(Cara.vertices[i]))
+            Dim IdVertice As Integer = MapaIndicesVertice[ClaveBusqueda]
+            Dim IdUV As Integer = IndicesVT_Cara[i]
+            Dim IdNormal As Integer = IndicesVN_Cara[i]
+
+            ' Sintaxis OBJ estándar: vértice/textura/normal
+            CadenaCara &= " " & Str$(IdVertice) & "/" & Str$(IdUV) & "/" & Str$(IdNormal)
+        Next
+
+        Print #hObj, CadenaCara
+    Next
+
+    Close #hObj
+
+End
+
+' Calcula la normal de un triángulo formado por 3 objetos Punto3D
+Private Function CalcularNormalTriangulo(V0 As Punto3D, V1 As Punto3D, V2 As Punto3D) As Punto3D
+
+    Dim Normal As New Punto3D
+    Dim Ux, Uy, Uz As Float
+    Dim Vx, Vy, Vz As Float
+    Dim Longitud As Float
+
+    ' Vector U = V1 - V0
+    Ux = V1.X - V0.X
+    Uy = V1.Y - V0.Y
+    Uz = V1.Z - V0.Z
+
+    ' Vector V = V2 - V0
+    Vx = V2.X - V0.X
+    Vy = V2.Y - V0.Y
+    Vz = V2.Z - V0.Z
+
+    ' Fórmula del Producto Vectorial (Cruz)
+    Normal.X = (Uy * Vz) - (Uz * Vy)
+    Normal.Y = (Uz * Vx) - (Ux * Vz)
+    Normal.Z = (Ux * Vy) - (Uy * Vx)
+
+    ' Normalizar el vector (hacer que su longitud sea exactamente 1.0)
+    Longitud = Sqr((Normal.X ^ 2) + (Normal.Y ^ 2) + (Normal.Z ^ 2))
+
+    If Longitud > 0 Then
+        Normal.X /= Longitud
+        Normal.Y /= Longitud
+        Normal.Z /= Longitud
+    Else
+        ' En caso de un polígono degenerado (vértices superpuestos), normal por defecto hacia arriba
+        Normal.X = 0
+        Normal.Y = 1
+        Normal.Z = 0
+    Endif
+
+    Return Normal
+
+End
+
+' Gambas3 - Módulo de Importación Wavefront OBJ
+' Requiere activar los componentes gb.image y gb.util (para Split)
+' Vamos a interpretar el OBJ y adaptarlo a gbcad
+' Cada "Grupo" es una entidad nueva
+
+Public Sub ImportarObjeto3D(RutaObj As String, ColeccionVertices As Collection, ColeccionCaras As Collection)
+
+    Dim hFile As File
+    Dim Linea As String
+    Dim Componentes As String[]
+    Dim SubComponentes As String[]
+    Dim i As Integer
+
+    ' Listas temporales indexadas (en OBJ el primer elemento es el 1)
+    Dim ListaTemporalVertices As New Variant[]
+    Dim ListaTemporalVT As New Variant[]
+    Dim ListaTemporalVN As New Variant[]
+
+    ' Estados actuales durante la lectura secuencial
+    Dim GrupoActual As String = "Predeterminado"
+    Dim MaterialActual As String = ""
+    Dim ColorActual As Long = Color.White ' Color base por defecto
+    Dim TexturaActual As String = ""
+
+    ' Diccionario para mapear materiales del .mtl a sus propiedades (Color y Textura)
+    Dim DiccionarioMateriales As New Collection
+
+    Dim MisMateriales As Collection
+    ' Cargamos todos los materiales del archivo al iniciar el parser
+    DiccionarioMateriales = CargarArchivoMTL("")
+
+    ' =========================================================================
+    ' PASO 1: LEER EL ARCHIVO .MTL ASOCIADO (SI EXISTE)
+    ' =========================================================================
+    Dim RutaMtl As String = File.Dir(RutaObj) &/ File.BaseName(RutaObj) & ".mtl"
+
+    If Exist(RutaMtl) Then
+        Dim hMtl As File
+        Dim NombreMatBuscado As String = ""
+        Dim PropiedadesMat As Collection
+
+        hMtl = Open RutaMtl For Read
+        While Not Eof(hMtl)
+            Line Input #hMtl, Linea
+            Linea = Trim$(Linea)
+            If Linea = "" Or If Left$(Linea, 1) = "#" Then Continue
+
+            Componentes = Split(Linea, " ", "", True) ' True elimina espacios duplicados
+
+            Select Case Componentes[0]
+                Case "newmtl"
+                    NombreMatBuscado = Componentes[1]
+                    PropiedadesMat = New Collection
+                    PropiedadesMat["color"] = Color.White
+                    PropiedadesMat["texture"] = ""
+                    DiccionarioMateriales.Add(PropiedadesMat, NombreMatBuscado)
+                Case "Kd" ' Color difuso
+                    If NombreMatBuscado <> "" Then
+                        Dim r As Integer = CInt(Val(Componentes[1]) * 255)
+                        Dim g As Integer = CInt(Val(Componentes[2]) * 255)
+                        Dim b As Integer = CInt(Val(Componentes[3]) * 255)
+                        DiccionarioMateriales[NombreMatBuscado]["color"] = Color.RGB(r, g, b)
+                    Endif
+                Case "map_Kd" ' Archivo de textura
+                    If NombreMatBuscado <> "" Then
+                        ' Guardamos el nombre o ruta de la imagen
+                        DiccionarioMateriales[NombreMatBuscado]["texture"] = Componentes[1]
+                    Endif
+            End Select
+        Wend
+        Close #hMtl
+    Endif
+
+    ' Añadimos un elemento vacío en el índice 0 de las listas temporales
+    ' para que los índices del archivo OBJ (que empiezan en 1) coincidan perfectamente
+    ListaTemporalVertices.Add(Null)
+    ListaTemporalVT.Add(Null)
+    ListaTemporalVN.Add(Null)
+
+    ' =========================================================================
+    ' PASO 2: ANALIZAR Y CARGAR EL ARCHIVO GEOMÉTRICO (.OBJ)
+    ' =========================================================================
+    hFile = Open RutaObj For Read
+
+    While Not Eof(hFile)
+        Line Input #hFile, Linea
+        Linea = Trim$(Linea)
+
+        ' Ignorar líneas vacías o comentarios
+        If Linea = "" Or If Left$(Linea, 1) = "#" Then Continue
+
+        ' Dividir la línea por espacios en blanco eliminando espacios extra
+        Componentes = Split(Linea, " ", "", True)
+
+        Select Case Componentes[0]
+
+            Case "v" ' Vértice espacial (X, Y, Z)
+                ' Instanciamos tu objeto dinámico (Asumiendo que se llama Punto3D)
+                Dim NuevoVertice As New Punto3D
+                NuevoVertice.X = Val(Componentes[1])
+                NuevoVertice.Y = Val(Componentes[2])
+                NuevoVertice.Z = Val(Componentes[3])
+
+                ' Lo añadimos tanto a la colección global de salida como a nuestra lista de mapeo
+                ColeccionVertices.Add(NuevoVertice)
+                ListaTemporalVertices.Add(NuevoVertice)
+
+            Case "vt" ' Coordenada de textura UV (U, V)
+                ' Instanciamos tu objeto bidimensional (Asumiendo que se llama Punto2D)
+                Dim NuevaUV As New Punto2D
+                NuevaUV.X = Val(Componentes[1]) ' Coordenada U
+                NuevaUV.Y = Val(Componentes[2]) ' Coordenada V
+                ListaTemporalVT.Add(NuevaUV)
+
+            Case "vn" ' Vector normal (X, Y, Z)
+                Dim NuevaNormal As New Punto3D
+                NuevaNormal.X = Val(Componentes[1])
+                NuevaNormal.Y = Val(Componentes[2])
+                NuevaNormal.Z = Val(Componentes[3])
+                ListaTemporalVN.Add(NuevaNormal)
+
+            Case "g" ' Cambio de grupo
+                GrupoActual = Componentes[1]
+
+                ' ... (Dentro del bucle de lectura del archivo .obj) ...
+            Case "usemtl"
+                Dim NombreMat As String = Componentes
+
+                If MisMateriales.Exist(NombreMat) Then
+                    ' Vinculamos de forma directa la instancia completa de la clase a tu variable de estado
+                    Dim MaterialDeLaCara As Material = MisMateriales[NombreMat]
+                    Print "Aplicando material: "; MaterialDeLaCara.Name
+                    Print "Rugosidad asignada: "; MaterialDeLaCara.Roughness
+                    Print "Archivo de imagen cargado: "; MaterialDeLaCara.DiffuseMap
+                Endif
+
+                ' Case "usemtl" ' Cambio de material (Color/Textura)
+                '     MaterialActual = Componentes[1]
+                '     If DiccionarioMateriales.Exist(MaterialActual) Then
+                '         ColorActual = DiccionarioMateriales[MaterialActual]["color"]
+                '         TexturaActual = DiccionarioMateriales[MaterialActual]["texture"]
+                '     Endif
+
+            Case "f" ' Declaración de una Cara (Polígono N-gon)
+                Dim NuevaCara As New Face
+                NuevaCara.Grupo = GrupoActual
+                NuevaCara.color = ColorActual
+                NuevaCara.texture_name = TexturaActual
+
+                NuevaCara.vertex = New Punto3D[]
+                NuevaCara.uvs = New Punto2D[]
+                NuevaCara.normals = New Punto3D[]
+
+                ' Procesar cada tripleta (vértice/uv/normal)
+                For i = 1 To Componentes.Max
+                    SubComponentes = Split(Componentes[i], "/")
+
+                    ' 1. Vértice (Obligatorio)
+                    Dim IndiceV As Integer = CInt(Val(SubComponentes))
+                    NuevaCara.vertex.Add(ListaTemporalVertices[IndiceV])
+
+                    ' 2. UV (Opcional)
+                    If SubComponentes.Max >= 1 And If SubComponentes <> "" Then
+                        Dim IndiceVT As Integer = CInt(Val(SubComponentes))
+                        NuevaCara.uvs.Add(ListaTemporalVT[IndiceVT])
+                    Endif
+
+                    ' 3. Normal (Opcional - Si viene en el archivo se carga aquí)
+                    If SubComponentes.Max >= 2 And If SubComponentes <> "" Then
+                        Dim IndiceVN As Integer = CInt(Val(SubComponentes))
+                        NuevaCara.normals.Add(ListaTemporalVN[IndiceVN])
+                    Endif
+                Next
+
+                ' =========================================================================
+                ' AUTOCÁLCULO DE NORMALES (Si el archivo .obj no las traía)
+                ' =========================================================================
+                If NuevaCara.normals.Count = 0 Then
+                    ' Necesitamos al menos 3 vértices para definir un plano y calcular su normal
+                    If NuevaCara.vertex.Count >= 3 Then
+                        Dim NormalCalculada As Punto3D
+
+                        ' Calculamos la normal geométrica del polígono usando sus 3 primeros puntos
+                        NormalCalculada = CalcularNormalTriangulo(NuevaCara.vertex[0], NuevaCara.vertex[1], NuevaCara.vertex[2])
+
+                        ' Llenamos tu array 'normals' asignando esta normal a cada vértice del N-gon
+                        For i = 0 To NuevaCara.vertex.Max
+                            ' Creamos una nueva instancia para cada vértice para evitar problemas de referencia compartida
+                            Dim CopiaNormal As New Punto3D
+                            CopiaNormal.X = NormalCalculada.X
+                            CopiaNormal.Y = NormalCalculada.Y
+                            CopiaNormal.Z = NormalCalculada.Z
+                            NuevaCara.normals.Add(CopiaNormal)
+                        Next
+                    Endif
+                Endif
+                ' =========================================================================
+
+                ColeccionCaras.Add(NuevaCara)
+
+        End Select
+    Wend
+
+    Close #hFile
+
+End
+
+' Calcula la normal exacta de cualquier N-gon (convexo o cóncavo) usando el método de Newell
+Private Function CalcularNormalNewell(VerticesCara As Variant[]) As Punto3D
+
+    Dim Normal As New Punto3D
+    Dim i As Integer
+    Dim Siguiente As Integer
+    Dim V_Actual As Punto3D
+    Dim V_Siguiente As Punto3D
+    Dim Longitud As Float
+
+    ' Inicializar componentes en cero
+    Normal.X = 0
+    Normal.Y = 0
+    Normal.Z = 0
+
+    ' Recorrer todos los vértices del polígono de forma circular
+    For i = 0 To VerticesCara.Max
+        ' El siguiente vértice del bucle (si es el último, vuelve al primero)
+        Siguiente = (i + 1) Mod VerticesCara.Count
+
+        V_Actual = VerticesCara[i]
+        V_Siguiente = VerticesCara[Siguiente]
+
+        ' Fórmulas acumulativas de Newell
+        Normal.X += (V_Actual.Y - V_Siguiente.Y) * (V_Actual.Z + V_Siguiente.Z)
+        Normal.Y += (V_Actual.Z - V_Siguiente.Z) * (V_Actual.X + V_Siguiente.X)
+        Normal.Z += (V_Actual.X - V_Siguiente.X) * (V_Actual.Y + V_Siguiente.Y)
+    Next
+
+    ' Normalizar el vector resultante (llevar su longitud a 1.0)
+    Longitud = Sqr((Normal.X ^ 2) + (Normal.Y ^ 2) + (Normal.Z ^ 2))
+
+    If Longitud > 0 Then
+        Normal.X /= Longitud
+        Normal.Y /= Longitud
+        Normal.Z /= Longitud
+    Else
+        ' Si el polígono es una línea o está colapsado, apuntar por defecto al eje Y
+        Normal.X = 0
+        Normal.Y = 1
+        Normal.Z = 0
+    Endif
+
+    Return Normal
+
+End
+
+' Gambas3 - Rutina de carga para archivos .mtl estructurados
+' Requiere activar los componentes gb.image y gb.util
+
+Public Function CargarArchivoMTL(RutaMtl As String) As Collection
+
+    Dim hFile As File
+    Dim Linea As String
+    Dim Componentes As String[]
+
+    ' Esta colección almacenará todos los materiales indexados por su nombre único
+    Dim DiccionarioMateriales As New Collection
+    Dim MatActual As Material
+
+    ' Validar que el archivo realmente exista en el disco antes de abrirlo
+    If Not Exist(RutaMtl) Then
+        Print "Advertencia: Archivo de materiales no encontrado en " & RutaMtl
+        Return DiccionarioMateriales ' Devuelve la colección vacía para no romper el programa
+    Endif
+
+    hFile = Open RutaMtl For Read
+
+    While Not Eof(hFile)
+        Line Input #hFile, Linea
+        Linea = Trim$(Linea)
+
+        ' Ignorar líneas vacías o comentarios de texto
+        If Linea = "" Or If Left$(Linea, 1) = "#" Then Continue
+
+        ' Dividir la línea por espacios, el parámetro 'True' elimina espacios duplicados o tabuladores
+        Componentes = Split(Linea, " ", "", True)
+
+        Select Case Componentes
+
+                ' =====================================================================
+                ' 1. CONTROL DE MATERIALES (Inicio de bloque)
+                ' =====================================================================
+            Case "newmtl"
+                ' Instanciamos la clase que creamos
+                MatActual = New Material
+                ' El nombre del material es el resto de la cadena de esa línea
+                MatActual.Name = Componentes
+
+                ' Añadir el objeto material a la colección usando su nombre como clave de búsqueda
+                DiccionarioMateriales.Add(MatActual, MatActual.Name)
+
+                ' =====================================================================
+                ' 2. LECTURA DE COLORES BASE (Normalizados de 0.0-1.0 a RGB 0-255)
+                ' =====================================================================
+            Case "Kd" ' Color Difuso / Base
+                If MatActual Then
+                    MatActual.DiffuseColor = Color.RGB(CInt(Val(Componentes) * 255), CInt(Val(Componentes) * 255), CInt(Val(Componentes) * 255))
+                Endif
+
+            Case "Ka" ' Color Ambiental
+                If MatActual Then
+                    MatActual.AmbientColor = Color.RGB(CInt(Val(Componentes) * 255), CInt(Val(Componentes) * 255), CInt(Val(Componentes) * 255))
+                Endif
+
+            Case "Ks" ' Color Especular (Brillo)
+                If MatActual Then
+                    MatActual.SpecularColor = Color.RGB(CInt(Val(Componentes) * 255), CInt(Val(Componentes) * 255), CInt(Val(Componentes) * 255))
+                Endif
+
+            Case "Ke" ' Color Emisivo (Auto-iluminación)
+                If MatActual Then
+                    MatActual.EmissiveColor = Color.RGB(CInt(Val(Componentes) * 255), CInt(Val(Componentes) * 255), CInt(Val(Componentes) * 255))
+                Endif
+
+                ' =====================================================================
+                ' 3. PROPIEDADES ÓPTICAS Y DE SUPERFICIE CLÁSICAS
+                ' =====================================================================
+            Case "Ns" ' Exponente especular
+                If MatActual Then MatActual.Shininess = Val(Componentes)
+
+            Case "d"  ' Opacidad / Disolución
+                If MatActual Then MatActual.Opacity = Val(Componentes)
+
+            Case "Tr" ' Transparencia (Es el inverso exacto de la opacidad 'd')
+                If MatActual Then MatActual.Opacity = 1.0 - Val(Componentes)
+
+            Case "Ni" ' Índice de refracción
+                If MatActual Then MatActual.Refraction = Val(Componentes)
+
+            Case "illum" ' Modelo de iluminación
+                If MatActual Then MatActual.IllumModel = CInt(Val(Componentes))
+
+                ' =====================================================================
+                ' 4. EXTENSIONES MODERNAS PBR (Rugosidad y Metalicidad de Blender)
+                ' =====================================================================
+            Case "Pr" ' Rugosidad física (Roughness)
+                If MatActual Then MatActual.Roughness = Val(Componentes)
+
+            Case "Pm" ' Metalicidad física (Metallic)
+                If MatActual Then MatActual.Metallic = Val(Componentes)
+
+                ' =====================================================================
+                ' 5. CARGA Y LIMPIEZA DE MAPAS DE TEXTURAS (Clásicas y PBR)
+                ' =====================================================================
+            Case "map_Kd" ' Textura de Color Base
+                If MatActual Then MatActual.DiffuseMap = LimpiarRutaTextura(Componentes)
+
+            Case "map_Ks" ' Textura de Brillo Especular
+                If MatActual Then MatActual.SpecularMap = LimpiarRutaTextura(Componentes)
+
+            Case "map_Bump", "bump" ' Mapa de Relieve / Normales
+                If MatActual Then MatActual.BumpMap = LimpiarRutaTextura(Componentes)
+
+            Case "map_d" ' Mapa de Opacidad / Recorte Alpha
+                If MatActual Then MatActual.OpacityMap = LimpiarRutaTextura(Componentes)
+
+            Case "map_Pr" ' Mapa de Rugosidad PBR
+                If MatActual Then MatActual.RoughnessMap = LimpiarRutaTextura(Componentes)
+
+            Case "map_Pm" ' Mapa de Metalicidad PBR
+                If MatActual Then MatActual.MetallicMap = LimpiarRutaTextura(Componentes)
+
+        End Select
+    Wend
+
+    Close #hFile
+    ' Retornamos la colección completa indexada con todas las instancias cargadas
+    Return DiccionarioMateriales
+
+End
+
+' Función interna auxiliar para sanear rutas de texturas exportadas desde otros sistemas operativos
+Private Function LimpiarRutaTextura(RutaSucia As String) As String
+
+    Dim Resultado As String = RutaSucia
+
+    ' 1. Reemplazar barras invertidas de Windows (\) por barras normales de Linux (/)
+    Resultado = Replace$(Resultado, "\\", "/")
+
+    ' 2. Extraer única y exclusivamente el nombre del archivo con su extensión (.png, .jpg)
+    ' Esto destruye rutas absolutas inválidas del estilo "C:/Proyectos/3D/texturas/imagen.png"
+    Resultado = File.Name(Resultado)
+
+    Return Resultado
+
+End

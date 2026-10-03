@@ -425,25 +425,35 @@ End
 
 ' Generates a GL list for the selected
 '' Mode: 0=Selected version 1=Normal version
-Public Sub glGenDrawVBO(Optional aLayer As Layer)
+Public Sub glGenDrawVBO(Optional vLayerOrEntity As Variant)
 
     Dim i As Integer
-    Dim e As Entity, s As Sheet
+    Dim e As Entity, s As Sheet, aLayer As Layer
 
-    If aLayer Then
+    If vLayerOrEntity Then
 
-        aLayer.VBO.Clear
-        glx.VBOCurrent = aLayer.VBO
-        For Each s In gcd.Drawing.Sheets
+        If vLayerOrEntity Is Layer Then
+            aLayer = vLayerOrEntity
+            aLayer.VBO.Clear
+            glx.VBOCurrent = aLayer.VBO
+            For Each s In gcd.Drawing.Sheets
 
-            For Each e In s.Entities
+                For Each e In s.Entities
 
-                If e.pLayer = aLayer Then gcd.CCC[e.gender].Draw(e)
+                    If e.pLayer = aLayer Then gcd.CCC[e.gender].Draw(e)
+
+                Next
 
             Next
-        Next
 
-        aLayer.VBO.SendBuffersToGPU()
+            aLayer.VBO.SendBuffersToGPU()
+        Else If vLayerOrEntity Is Entity Then
+            aLayer = vLayerOrEntity.pLayer
+            glx.VBOCurrent = aLayer.VBO
+            gcd.CCC[vLayerOrEntity.gender].Draw(vLayerOrEntity)
+            aLayer.VBO.SendBuffersToGPU()
+
+        End If
 
     Else
         ' renuevo los VBO
@@ -1560,7 +1570,7 @@ Public Sub DrawFace(f As Face, Optional mode As Integer = 0, painting As Integer
     'If f.vertex.Count = 4 Then Stop
     If (f.vertex.Count >= 3) Then ' dibujo el contorno
 
-        fTriangles = puntos.PolygonTriangulation3D(f.vertex)
+        fTriangles = puntos.PolygonTriangulation3D(puntos.VertexToPunto3D(f.vertex))
 
         fColor4 = Color.Darker(fColor4)
         glx.DrawTriangles3D(fTriangles, Color.Darker(gcd.GetGBColor(f.Colour, f.pLayer)))

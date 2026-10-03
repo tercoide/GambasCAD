@@ -408,3 +408,90 @@ Public Sub SaveSTL(stl As Model3d, sFilename As String)
     Return
 
 End
+
+' Gambas3 - Módulo de exportación STL ASCII con Verificación de Orientación (Regla de la Mano Derecha)
+
+Public Sub ExportarMallaASTL(RutaArchivo As String, ColeccionCaras As Collection)
+
+    Dim hFile As File
+    Dim Cara As Face
+    Dim V0, V1, V2 As Punto3D
+    Dim Ux, Uy, Uz, Vx, Vy, Vz As Float
+    Dim NormalGeometricaX, NormalGeometricaY, NormalGeometricaZ As Float
+    Dim NormalAlmacenada As Punto3D
+    Dim ProductoEscalar As Float
+
+    ' Aseguramos que la extensión del archivo sea .stl
+    If File.Ext(RutaArchivo) <> "stl" Then RutaArchivo &= ".stl"
+
+    hFile = Open RutaArchivo For Create
+
+    ' Cabecera obligatoria STL ASCII
+    Print #hFile, "solid " & Replace$(File.BaseName(RutaArchivo), " ", "_")
+
+    For Each Cara In ColeccionCaras
+
+        ' Control preventivo de geometría triangular
+        If Cara.vertex.Count <> 3 Then
+            Error.Raise("Error STL: El formato STL solo admite caras triangulares. Se detecta cara con " & Str$(Cara.vertex.Count) & " vertices y fue descartada.")
+            Continue
+        Endif
+
+        ' Asignamos los 3 vértices actuales según tu orden original
+        V0 = Cara.vertex[0]
+        V1 = Cara.vertex[1]
+        V2 = Cara.vertex[2]
+
+        ' =========================================================================
+        ' RUTINA DE VERIFICACIÓN DE ORIENTACIÓN
+        ' =========================================================================
+        ' 1. Calcular el vector normal geométrico real usando el Producto Cruz de (V1-V0) x (V2-V0)
+        Ux = V1.X - V0.X
+        Uy = V1.Y - V0.Y
+        Uz = V1.Z - V0.Z
+
+        Vx = V2.X - V0.X
+        Vy = V2.Y - V0.Y
+        Vz = V2.Z - V0.Z
+
+        NormalGeometricaX = (Uy * Vz) - (Uz * Vy)
+        NormalGeometricaY = (Uz * Vx) - (Ux * Vz)
+        NormalGeometricaZ = (Ux * Vy) - (Uy * Vx)
+
+        ' 2. Comparar con la normal que tú tienes almacenada en la cara (usando Producto Escalar)
+        NormalAlmacenada = Cara.normals[0]
+        ProductoEscalar = (NormalGeometricaX * NormalAlmacenada.X) + (NormalGeometricaY * NormalAlmacenada.Y) + (NormalGeometricaZ * NormalAlmacenada.Z)
+
+        ' 3. Si el producto escalar es negativo, significa que los vectores apuntan a lados opuestos (> 90°).
+        ' Por ende, los vértices están invertidos (sentido horario).
+        Dim InvertirVertices As Boolean = False
+        If ProductoEscalar < 0 Then InvertirVertices = True
+
+        ' =========================================================================
+        ' ESCRITURA EN DISCO (Con corrección adaptativa)
+        ' =========================================================================
+        ' Escribimos la normal (siempre usamos tu normal almacenada oficial)
+        Print #hFile, "  facet normal " & Str$(NormalAlmacenada.X) & " " & Str$(NormalAlmacenada.Y) & " " & Str$(NormalAlmacenada.Z)
+        Print #hFile, "    outer loop"
+
+        If InvertirVertices Then
+            ' Si falla la verificación, intercambiamos el orden de escritura de V1 y V2
+            ' Esto voltea matemáticamente el sentido de horario a antihorario en el archivo final
+            Print #hFile, "      vertex " & Str$(V0.X) & " " & Str$(V0.Y) & " " & Str$(V0.Z)
+            Print #hFile, "      vertex " & Str$(V2.X) & " " & Str$(V2.Y) & " " & Str$(V2.Z) ' V2 pasa al segundo lugar
+            Print #hFile, "      vertex " & Str$(V1.X) & " " & Str$(V1.Y) & " " & Str$(V1.Z) ' V1 pasa al tercer lugar
+        Else
+            ' Si la verificación es correcta, respetamos tu orden secuencial nativo
+            Print #hFile, "      vertex " & Str$(V0.X) & " " & Str$(V0.Y) & " " & Str$(V0.Z)
+            Print #hFile, "      vertex " & Str$(V1.X) & " " & Str$(V1.Y) & " " & Str$(V1.Z)
+            Print #hFile, "      vertex " & Str$(V2.X) & " " & Str$(V2.Y) & " " & Str$(V2.Z)
+        Endif
+
+        Print #hFile, "    endloop"
+        Print #hFile, "  endfacet"
+    Next ' Fin del bucle principal
+
+    Print #hFile, "endsolid " & Replace$(File.BaseName(RutaArchivo), " ", "_")
+    Close #hFile
+
+End
