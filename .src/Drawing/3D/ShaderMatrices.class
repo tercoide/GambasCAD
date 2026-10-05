@@ -1,0 +1,71 @@
+' Gambas class file
+
+' Uploads column-major matrices to GLSL mat4 uniforms.
+
+Public Model As New Matrix4
+Public View As New Matrix4
+Public Projection As New Matrix4
+
+Public ModelUniform As String = "uModel"
+Public ViewUniform As String = "uView"
+Public ProjectionUniform As String = "uProjection"
+Public MVPUniform As String = "uMVP"
+
+Private $program As Integer
+Private $modelLocation As Integer = -1
+Private $viewLocation As Integer = -1
+Private $projectionLocation As Integer = -1
+Private $mvpLocation As Integer = -1
+
+Public Sub BindProgram(Program As Integer)
+
+    $program = Program
+
+    If $program <= 0 Then
+        $modelLocation = -1
+        $viewLocation = -1
+        $projectionLocation = -1
+        $mvpLocation = -1
+        Return
+    Endif
+
+    $modelLocation = glx.glGetUniformLocation($program, ModelUniform)
+    $viewLocation = glx.glGetUniformLocation($program, ViewUniform)
+    $projectionLocation = glx.glGetUniformLocation($program, ProjectionUniform)
+    $mvpLocation = glx.glGetUniformLocation($program, MVPUniform)
+
+End
+
+Public Sub Upload()
+
+    Dim viewModel As Matrix4
+    Dim mvp As Matrix4
+
+    If $program <= 0 Then Return
+
+    glx.glUseProgram($program)
+
+    UploadMatrix($modelLocation, Model)
+    UploadMatrix($viewLocation, View)
+    UploadMatrix($projectionLocation, Projection)
+
+    viewModel = View.Multiply(Model)
+    mvp = Projection.Multiply(viewModel)
+    UploadMatrix($mvpLocation, mvp)
+
+End
+
+Private Sub UploadMatrix(Location As Integer, Value As Matrix4)
+
+    Dim Data As New Single[16]
+    Dim i As Integer
+
+    If Location < 0 Then Return
+
+    For i = 0 To 15
+        Data[i] = Value.m[i]
+    Next
+
+    glx.glUniformMatrix4fv(Location, 1, 0, Data)
+
+End
