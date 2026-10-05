@@ -1,0 +1,731 @@
+' Gambas class file
+
+'
+' 4x4 matrix math for OpenGL.
+'
+' Storage is column-major:
+'
+'   index = column * 4 + row
+'
+' This is the same layout used by OpenGL.
+'
+' Matrix multiplication:
+'
+'   result = a * b
+'
+' Vectors are treated as column vectors:
+'
+'   result = matrix * vector
+
+Public m As New Float[16]
+
+Private Const EPSILON As Float = 0.000000000001
+
+Public Sub new()
+
+    SetIdentity()
+
+End
+
+' ------------------------------------------------------------------------
+' Basic matrix operations
+' ------------------------------------------------------------------------
+
+Public Sub SetZero()
+
+    Dim i As Integer
+
+    For i = 0 To 15
+        m[i] = 0
+    Next
+
+End
+
+Public Sub SetIdentity()
+
+    SetZero()
+
+    m[0] = 1
+    m[5] = 1
+    m[10] = 1
+    m[15] = 1
+
+End
+
+Public Function Clone() As Matrix4
+
+    Dim result As New Matrix4
+
+    result.CopyFrom(Me)
+
+    Return result
+
+End
+
+Public Sub CopyFrom(source As Matrix4)
+
+    Dim i As Integer
+
+    For i = 0 To 15
+        m[i] = source.m[i]
+    Next
+
+End
+
+Public Function GetValue(Row As Integer, Column As Integer) As Float
+
+    If Row < 0 Or Row > 3 Then Error.Raise("Matrix row out of range")
+    If Column < 0 Or Column > 3 Then Error.Raise("Matrix column out of range")
+
+    Return m[Column * 4 + Row]
+
+End
+
+Public Sub SetValue(Row As Integer, Column As Integer, Value As Float)
+
+    If Row < 0 Or Row > 3 Then Error.Raise("Matrix row out of range")
+    If Column < 0 Or Column > 3 Then Error.Raise("Matrix column out of range")
+
+    m[Column * 4 + Row] = Value
+
+End
+
+Public Function ToArray() As Float[]
+
+    Dim result As New Float[16]
+    Dim i As Integer
+
+    For i = 0 To 15
+        result[i] = m[i]
+    Next
+
+    Return result
+
+End
+
+Public Function AddMatrix(B As Matrix4) As Matrix4
+
+    Dim result As New Matrix4
+    Dim i As Integer
+
+    For i = 0 To 15
+        result.m[i] = m[i] + B.m[i]
+    Next
+
+    Return result
+
+End
+
+Public Function SubtractMatrix(B As Matrix4) As Matrix4
+
+    Dim result As New Matrix4
+    Dim i As Integer
+
+    For i = 0 To 15
+        result.m[i] = m[i] - B.m[i]
+    Next
+
+    Return result
+
+End
+
+Public Function MultiplyScalar(Value As Float) As Matrix4
+
+    Dim result As New Matrix4
+    Dim i As Integer
+
+    For i = 0 To 15
+        result.m[i] = m[i] * Value
+    Next
+
+    Return result
+
+End
+
+' Returns Me * B.
+Public Function Multiply(B As Matrix4) As Matrix4
+
+    Dim result As New Matrix4
+    Dim Row As Integer
+    Dim Column As Integer
+    Dim K As Integer
+
+    result.SetZero()
+
+    For Column = 0 To 3
+        For Row = 0 To 3
+
+            result.m[Column * 4 + Row] = 0
+
+            For K = 0 To 3
+                result.m[Column * 4 + Row] += m[K * 4 + Row] * B.m[Column * 4 + K]
+            Next
+
+        Next
+    Next
+
+    Return result
+
+End
+
+' Replaces this matrix with Me * B.
+Public Sub MultiplyInPlace(B As Matrix4)
+
+    Dim result As Matrix4
+
+    result = Multiply(B)
+    CopyFrom(result)
+
+End
+
+Public Function Transposed() As Matrix4
+
+    Dim result As New Matrix4
+    Dim Row As Integer
+    Dim Column As Integer
+
+    For Column = 0 To 3
+        For Row = 0 To 3
+            result.m[Column * 4 + Row] = m[Row * 4 + Column]
+        Next
+    Next
+
+    Return result
+
+End
+
+Public Sub TransposeInPlace()
+
+    Dim result As Matrix4
+
+    result = Transposed()
+    CopyFrom(result)
+
+End
+
+' ------------------------------------------------------------------------
+' Determinant and inverse
+' ------------------------------------------------------------------------
+
+Public Function Determinant() As Float
+
+    Dim a00 As Float = m[0]
+    Dim a01 As Float = m[4]
+    Dim a02 As Float = m[8]
+    Dim a03 As Float = m[12]
+
+    Dim a10 As Float = m[1]
+    Dim a11 As Float = m[5]
+    Dim a12 As Float = m[9]
+    Dim a13 As Float = m[13]
+
+    Dim a20 As Float = m[2]
+    Dim a21 As Float = m[6]
+    Dim a22 As Float = m[10]
+    Dim a23 As Float = m[14]
+
+    Dim a30 As Float = m[3]
+    Dim a31 As Float = m[7]
+    Dim a32 As Float = m[11]
+    Dim a33 As Float = m[15]
+
+    Return a00 * (a11 * (a22 * a33 - a23 * a32) - a12 * (a21 * a33 - a23 * a31) + a13 * (a21 * a32 - a22 * a31)) - a01 * (a10 * (a22 * a33 - a23 * a32) - a12 * (a20 * a33 - a23 * a30) + a13 * (a20 * a32 - a22 * a30)) + a02 * (a10 * (a21 * a33 - a23 * a31) - a11 * (a20 * a33 - a23 * a30) + a13 * (a20 * a31 - a21 * a30)) - a03 * (a10 * (a21 * a32 - a22 * a31) - a11 * (a20 * a32 - a22 * a30) + a12 * (a20 * a31 - a21 * a30))
+
+End
+
+' Attempts to calculate the inverse.
+' Returns False when the matrix is singular.
+Public Function TryInverse(ByRef Result As Matrix4) As Boolean
+
+    Dim a As New Float[32]
+    Dim Row As Integer
+    Dim Column As Integer
+    Dim K As Integer
+    Dim Pivot As Integer
+    Dim Best As Float
+    Dim Value As Float
+    Dim Temp1 As Float
+
+    ' Build an augmented matrix [this | identity].
+    For Row = 0 To 3
+
+        For Column = 0 To 3
+            a[Row * 8 + Column] = m[Column * 4 + Row]
+        Next
+
+        For Column = 0 To 3
+            If Row = Column Then
+                a[Row * 8 + 4 + Column] = 1
+            Else
+                a[Row * 8 + 4 + Column] = 0
+            Endif
+        Next
+
+    Next
+
+    ' Gauss-Jordan elimination.
+    For Column = 0 To 3
+
+        Pivot = Column
+        Best = Abs(a[Column * 8 + Column])
+
+        For Row = Column + 1 To 3
+            Value = Abs(a[Row * 8 + Column])
+
+            If Value > Best Then
+                Best = Value
+                Pivot = Row
+            Endif
+        Next
+
+        If Best < EPSILON Then Return False
+
+        ' Swap rows if necessary.
+        If Pivot <> Column Then
+            For K = 0 To 7
+                Temp1 = a[Column * 8 + K]
+                a[Column * 8 + K] = a[Pivot * 8 + K]
+                a[Pivot * 8 + K] = Temp
+            Next
+        Endif
+
+        ' Normalize pivot row.
+        Value = a[Column * 8 + Column]
+
+        For K = 0 To 7
+            a[Column * 8 + K] /= Value
+        Next
+
+        ' Eliminate the current column from all other rows.
+        For Row = 0 To 3
+
+            If Row = Column Then Continue
+
+            Value = a[Row * 8 + Column]
+
+            For K = 0 To 7
+                a[Row * 8 + K] -= Value * a[Column * 8 + K]
+            Next
+
+        Next
+
+    Next
+
+    If Result = Null Then Result = New Matrix4
+    Result.SetZero()
+
+    ' Copy inverse from the augmented matrix.
+    For Row = 0 To 3
+        For Column = 0 To 3
+            Result.m[Column * 4 + Row] = a[Row * 8 + 4 + Column]
+        Next
+    Next
+
+    Return True
+
+End
+
+Public Function Inverse() As Matrix4
+
+    Dim result As Matrix4
+
+    If Not TryInverse(result) Then Return Null
+
+    Return result
+
+End
+
+' ------------------------------------------------------------------------
+' Translation, rotation and scale
+' ------------------------------------------------------------------------
+
+Public Function Translation(X As Float, Y As Float, Z As Float) As Matrix4
+
+    Dim result As New Matrix4
+
+    result.m[12] = X
+    result.m[13] = Y
+    result.m[14] = Z
+
+    Return result
+
+End
+
+Public Function Scaling(X As Float, Y As Float, Z As Float) As Matrix4
+
+    Dim result As New Matrix4
+
+    result.m[0] = X
+    result.m[5] = Y
+    result.m[10] = Z
+
+    Return result
+
+End
+
+Public Function RotationX(AngleDegrees As Float) As Matrix4
+
+    Dim result As New Matrix4
+    Dim Angle As Float
+    Dim C As Float
+    Dim S As Float
+
+    Angle = AngleDegrees * Pi / 180
+    C = Cos(Angle)
+    S = Sin(Angle)
+
+    result.m[5] = C
+    result.m[9] = -S
+    result.m[6] = S
+    result.m[10] = C
+
+    Return result
+
+End
+
+Public Function RotationY(AngleDegrees As Float) As Matrix4
+
+    Dim result As New Matrix4
+    Dim Angle As Float
+    Dim C As Float
+    Dim S As Float
+
+    Angle = AngleDegrees * Pi / 180
+    C = Cos(Angle)
+    S = Sin(Angle)
+
+    result.m[0] = C
+    result.m[8] = S
+    result.m[2] = -S
+    result.m[10] = C
+
+    Return result
+
+End
+
+Public Function RotationZ(AngleDegrees As Float) As Matrix4
+
+    Dim result As New Matrix4
+    Dim Angle As Float
+    Dim C As Float
+    Dim S As Float
+
+    Angle = AngleDegrees * Pi / 180
+    C = Cos(Angle)
+    S = Sin(Angle)
+
+    result.m[0] = C
+    result.m[4] = -S
+    result.m[1] = S
+    result.m[5] = C
+
+    Return result
+
+End
+
+Public Function RotationAxis(AxisX As Float, AxisY As Float, AxisZ As Float, AngleDegrees As Float) As Matrix4
+
+    Dim result As New Matrix4
+    Dim Length As Float
+    Dim Angle As Float
+    Dim C As Float
+    Dim S As Float
+    Dim T As Float
+
+    Length = Sqr(AxisX * AxisX + AxisY * AxisY + AxisZ * AxisZ)
+
+    If Length < EPSILON Then Return result
+
+    AxisX /= Length
+    AxisY /= Length
+    AxisZ /= Length
+
+    Angle = AngleDegrees * Pi / 180
+    C = Cos(Angle)
+    S = Sin(Angle)
+    T = 1 - C
+
+    result.m[0] = T * AxisX * AxisX + C
+    result.m[4] = T * AxisX * AxisY - S * AxisZ
+    result.m[8] = T * AxisX * AxisZ + S * AxisY
+
+    result.m[1] = T * AxisX * AxisY + S * AxisZ
+    result.m[5] = T * AxisY * AxisY + C
+    result.m[9] = T * AxisY * AxisZ - S * AxisX
+
+    result.m[2] = T * AxisX * AxisZ - S * AxisY
+    result.m[6] = T * AxisY * AxisZ + S * AxisX
+    result.m[10] = T * AxisZ * AxisZ + C
+
+    Return result
+
+End
+
+' Convenience methods. They post-multiply this matrix.
+Public Sub Translate(X As Float, Y As Float, Z As Float)
+
+    MultiplyInPlace(Translation(X, Y, Z))
+
+End
+
+Public Sub Scale(X As Float, Y As Float, Z As Float)
+
+    MultiplyInPlace(Scaling(X, Y, Z))
+
+End
+
+Public Sub RotateX(AngleDegrees As Float)
+
+    MultiplyInPlace(RotationX(AngleDegrees))
+
+End
+
+Public Sub RotateY(AngleDegrees As Float)
+
+    MultiplyInPlace(RotationY(AngleDegrees))
+
+End
+
+Public Sub RotateZ(AngleDegrees As Float)
+
+    MultiplyInPlace(RotationZ(AngleDegrees))
+
+End
+
+Public Sub RotateAxis(AxisX As Float, AxisY As Float, AxisZ As Float, AngleDegrees As Float)
+
+    MultiplyInPlace(RotationAxis(AxisX, AxisY, AxisZ, AngleDegrees))
+
+End
+
+' ------------------------------------------------------------------------
+' Projection matrices
+' ------------------------------------------------------------------------
+
+Public Function Perspective(FieldOfViewDegrees As Float, Aspect As Float, NearPlane As Float, FarPlane As Float) As Matrix4
+
+    Dim result As New Matrix4
+    Dim F As Float
+    Dim Angle As Float
+
+    result.SetZero()
+
+    If Aspect = 0 Then Return result
+    If NearPlane = FarPlane Then Return result
+
+    Angle = FieldOfViewDegrees * Pi / 360
+    F = 1 / Tan(Angle)
+
+    result.m[0] = F / Aspect
+    result.m[5] = F
+    result.m[10] = (FarPlane + NearPlane) / (NearPlane - FarPlane)
+    result.m[11] = -1
+    result.m[14] = (2 * FarPlane * NearPlane) / (NearPlane - FarPlane)
+
+    Return result
+
+End
+
+Public Function Orthographic(Left As Float, Right As Float, Bottom As Float, Top As Float, NearPlane As Float, FarPlane As Float) As Matrix4
+
+    Dim result As New Matrix4
+
+    result.SetZero()
+
+    If Right = Left Then Return result
+    If Top = Bottom Then Return result
+    If FarPlane = NearPlane Then Return result
+
+    result.m[0] = 2 / (Right - Left)
+    result.m[5] = 2 / (Top - Bottom)
+    result.m[10] = -2 / (FarPlane - NearPlane)
+
+    result.m[12] = -(Right + Left) / (Right - Left)
+    result.m[13] = -(Top + Bottom) / (Top - Bottom)
+    result.m[14] = -(FarPlane + NearPlane) / (FarPlane - NearPlane)
+
+    result.m[15] = 1
+
+    Return result
+
+End
+
+' ------------------------------------------------------------------------
+' Camera matrix
+' ------------------------------------------------------------------------
+
+Public Function LookAt(EyeX As Float, EyeY As Float, EyeZ As Float, CenterX As Float, CenterY As Float, CenterZ As Float, UpX As Float, UpY As Float, UpZ As Float) As Matrix4
+
+    Dim result As New Matrix4
+
+    Dim Fx As Float
+    Dim Fy As Float
+    Dim Fz As Float
+
+    Dim Sx As Float
+    Dim Sy As Float
+    Dim Sz As Float
+
+    Dim Ux As Float
+    Dim Uy As Float
+    Dim Uz As Float
+
+    Dim Length As Float
+
+    ' Forward = center - eye.
+    Fx = CenterX - EyeX
+    Fy = CenterY - EyeY
+    Fz = CenterZ - EyeZ
+
+    Length = Sqr(Fx * Fx + Fy * Fy + Fz * Fz)
+
+    If Length < EPSILON Then Return result
+
+    Fx /= Length
+    Fy /= Length
+    Fz /= Length
+
+    ' Side = forward cross up.
+    Sx = Fy * UpZ - Fz * UpY
+    Sy = Fz * UpX - Fx * UpZ
+    Sz = Fx * UpY - Fy * UpX
+
+    Length = Sqr(Sx * Sx + Sy * Sy + Sz * Sz)
+
+    If Length < EPSILON Then Return result
+
+    Sx /= Length
+    Sy /= Length
+    Sz /= Length
+
+    ' Corrected up = side cross forward.
+    Ux = Sy * Fz - Sz * Fy
+    Uy = Sz * Fx - Sx * Fz
+    Uz = Sx * Fy - Sy * Fx
+
+    result.m[0] = Sx
+    result.m[4] = Sy
+    result.m[8] = Sz
+    result.m[12] = -(Sx * EyeX + Sy * EyeY + Sz * EyeZ)
+
+    result.m[1] = Ux
+    result.m[5] = Uy
+    result.m[9] = Uz
+    result.m[13] = -(Ux * EyeX + Uy * EyeY + Uz * EyeZ)
+
+    result.m[2] = -Fx
+    result.m[6] = -Fy
+    result.m[10] = -Fz
+    result.m[14] = Fx * EyeX + Fy * EyeY + Fz * EyeZ
+
+    result.m[3] = 0
+    result.m[7] = 0
+    result.m[11] = 0
+    result.m[15] = 1
+
+    Return result
+
+End
+
+' ------------------------------------------------------------------------
+' Vector transformations
+' ------------------------------------------------------------------------
+
+Public Function TransformPoint(X As Float, Y As Float, Z As Float) As Punto3d
+
+    Dim result As New Punto3d
+    Dim W As Float
+
+    result.x = m[0] * X + m[4] * Y + m[8] * Z + m[12]
+    result.y = m[1] * X + m[5] * Y + m[9] * Z + m[13]
+    result.z = m[2] * X + m[6] * Y + m[10] * Z + m[14]
+
+    W = m[3] * X + m[7] * Y + m[11] * Z + m[15]
+
+    If Abs(W) > EPSILON And W <> 1 Then
+        result.x /= W
+        result.y /= W
+        result.z /= W
+    Endif
+
+    Return result
+
+End
+
+Public Function TransformVector(X As Float, Y As Float, Z As Float) As Punto3d
+
+    Dim result As New Punto3d
+
+    result.x = m[0] * X + m[4] * Y + m[8] * Z
+    result.y = m[1] * X + m[5] * Y + m[9] * Z
+    result.z = m[2] * X + m[6] * Y + m[10] * Z
+
+    Return result
+
+End
+
+Public Function TransformPointObject(Point As Punto3d) As Punto3d
+
+    Return TransformPoint(Point.x, Point.y, Point.z)
+
+End
+
+Public Function TransformVectorObject(Vector As Punto3d) As Punto3d
+
+    Return TransformVector(Vector.x, Vector.y, Vector.z)
+
+End
+
+' ------------------------------------------------------------------------
+' Utility
+' ------------------------------------------------------------------------
+
+Public Function IsIdentity(Optional Tolerance As Float = 0.000001) As Boolean
+
+    Dim Identity As New Matrix4
+    Dim i As Integer
+
+    For i = 0 To 15
+        If Abs(m[i] - Identity.m[i]) > Tolerance Then Return False
+    Next
+
+    Return True
+
+End
+
+Public Function IsAffine() As Boolean
+
+    If Abs(m[3]) > EPSILON Then Return False
+    If Abs(m[7]) > EPSILON Then Return False
+    If Abs(m[11]) > EPSILON Then Return False
+    If Abs(m[15] - 1) > EPSILON Then Return False
+
+    Return True
+
+End
+
+Public Function ToString() As String
+
+    Dim Result As String
+    Dim Row As Integer
+    Dim Column As Integer
+
+    For Row = 0 To 3
+
+        For Column = 0 To 3
+            Result &= Format$(GetValue(Row, Column), "0.000000")
+
+            If Column < 3 Then
+                Result &= " "
+            Endif
+        Next
+
+        If Row < 3 Then
+            Result &= "\n"
+        Endif
+
+    Next
+
+    Return Result
+
+End

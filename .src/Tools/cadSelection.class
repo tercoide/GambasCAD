@@ -184,7 +184,6 @@ End
 
 Public Function MouseDown()
 
-    Dim i As Integer, e As Entity
 
     'Return
     If RectActive Then Return
@@ -304,7 +303,6 @@ End
 Public Sub MouseUp()
 
     Dim s, tipo As String
-    Dim t As Float = Timer
     Dim e As Entity
     Dim cSel As New Collection
 
@@ -630,7 +628,6 @@ End
 
 Public Sub MouseMove()
 
-    Dim g As Grip, e As Entity
 
     Me.SelEndX = mouse.X
     Me.SelEndy = mouse.Y
@@ -690,7 +687,7 @@ Public Sub MouseMove()
         ' B.4 ActionActive = 0: nada
 
         If gcd.Drawing.HoveredEntity Then
-            If Config.ShowEntityInspector Then FInspector.Run(gcd.Drawing.HoveredEntity)
+            If Config.ShowInspector Then FInspector.Run(gcd.Drawing.HoveredEntity)
         Else
             FInspector.Close()
         Endif
@@ -705,12 +702,15 @@ End
 Public Function KeyText(EnteredText As String)
 
     ' in this case, we try to run the command wich is a class
-    Dim o As Object, RunWith As String, c As Class
+    Dim o As Object
+    Dim chat As String[]
 
     EnteredText = UCase(Trim(EnteredText))
     If EnteredText = "" Then Return                                ' no BS here
+    chat = Split(EnteredText, " ")
 
-    Select Case EnteredText
+    ' FIXME: todo el codigo de procesameinto de comandos no deberia estar aqui. Mejor lugar es fMain o Actions
+    Select Case chat[0]
         Case "_CANCEL"
             Me.Cancel
         Case "R"
@@ -740,6 +740,15 @@ Public Function KeyText(EnteredText As String)
             gcd.Redraw
         Case "STL"
             clsEntities.ExportSTL
+        Case "PLANE"
+            If chat.Count < 2 Then Return
+            If chat[1] = "XY" Then gcd.Drawing.Sheet.Plane2D = Planes.XY
+            If chat[1] = "XZ" Then gcd.Drawing.Sheet.Plane2D = Planes.XZ
+            If chat[1] = "YZ" Then gcd.Drawing.Sheet.Plane2D = Planes.YZ
+            drawingAids.RebuildGrid3D(gcd.Drawing.Sheet, gcd.Drawing.Sheet.Plane2D = Planes.XY, gcd.Drawing.Sheet.Plane2D = Planes.XZ, gcd.Drawing.Sheet.Plane2D = Planes.YZ, True)
+        Case "LEVEL"
+
+            Try gcd.Drawing.Sheet.level = Val(chat[1])
 
         Case Else
             'o = cadDimension ' a test
@@ -750,7 +759,16 @@ Public Function KeyText(EnteredText As String)
             Endif
 
             If gcd.CCC.Exist(EnteredText) Then
+                ' If gcd.CCC[EnteredText].is3D Then
+                '     If gcd.Drawing.Sheet.Is3D Then
+                '         o = gcd.CCC[EnteredText]
+                '     Else
+                '         DrawingAIds.ErrorMessage = "3D entities are not allowed in 2D sheets"
+                '         Return
+                '     Endif
+                ' Else
                 o = gcd.CCC[EnteredText]
+                'Endif
             Else
 
                 DrawingAIds.ErrorMessage = "Command not recognized"
@@ -873,6 +891,9 @@ Public Sub Draw()
                 Else
                     clsEntities.VboEntitySetHighligth(gcd.Drawing.HoveredEntity)
                     gcd.Drawing.HoveredEntity.pLayer.VBO.HoveredDraw = True
+
+                    ' or
+                    clsEntities.DrawRemark(gcd.Drawing.HoveredEntity)
 
                 End If
 

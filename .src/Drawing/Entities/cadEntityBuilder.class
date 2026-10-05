@@ -39,6 +39,8 @@ Public SelEndZr As Float
 
 Public LastX As Float               ' change in MouseMove/MouseUp
 Public LastY As Float
+Public LastZ As Float
+
 Public LastPoint As Boolean
 
 Public LastMouseX As Integer               ' change in MouseMove/MouseUp
@@ -68,6 +70,7 @@ Public LastEntity As Entity
 Public XYreal As Float[]
 
 Public VBO As New VBO
+Public comm As New Communications
 
 Public Const ContextMenu As String = ("Cancel;_CANCEL;;") ' el menu para el boton derecho, los comendos en mayusculas NO se traducen
 
@@ -92,7 +95,6 @@ Public Function Start(Optional ElemToBuild As Variant, Optional Mode As Integer 
 
     ' limpiamos la seleccion
 
-    Dim IsSet As Boolean
 
     LastPoint = False
     clsEntities.DeSelection()
@@ -145,8 +147,10 @@ Public Function Start(Optional ElemToBuild As Variant, Optional Mode As Integer 
     ' get the helper list, and parameter types from the element
     Try Paramhelperlist = Split(Gcd.CCC[elem.gender].ParamHelper, ";")                      ' optional
     Try Paramdefault = Split(Gcd.CCC[elem.gender].ParamDefault, ";")                        ' optional
+    Gcd.CCC[elem.gender].ExpectedParam = Gcd.CCC[elem.gender].ParamHelper
+    'NextParamType = UCase(Mid(Gcd.CCC[elem.gender].ParamType, Gcd.StepsDone + 1, 1))
+    NextParamType = Gcd.CCC[elem.gender].ParamType
 
-    NextParamType = UCase(Mid(Gcd.CCC[elem.gender].ParamType, Gcd.StepsDone + 1, 1))
     'DrawingAIds.CmdLineHelperNext = ParamHelperList[Gcd.StepsDone]
 
     If mode >= 0 Then
@@ -162,8 +166,8 @@ Public Function Start(Optional ElemToBuild As Variant, Optional Mode As Integer 
     'If Utils.MenuMaker(fMain, "mEntityBuilder", Gcd.CCC[elem.gender].ContextMenu & Me.ContextMenu) Then fMain.GLArea1.PopupMenu = "mEntityBuilder" Else Stop
 
     fMain.KeysAccumulator = ""
-    Me.prompt = Gcd.CCC[elem.gender].prompt
-
+    Me.prompt = "Draw " & Gcd.CCC[elem.gender].prompt
+    'Me.prompt = Mid(Gcd.CCC[elem.gender].ParamType, 2)
     gcd.DrawHoveredEntity = False
 
 End
@@ -181,8 +185,8 @@ End
 Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD en el evento FCAD_KeyPress cuando recibe una texto + <Enter>
 
     ' Lets see what are we expecting
-    Dim Xt, yt As Float, sText, ErrTxt As String, Relative As Boolean
-    Dim bResult As Boolean
+    Dim Xt, yt, zt, f As Float, sText, ErrTxt As String, Relative As Boolean
+    Dim bResult, Good As Boolean
 
     ' primero veo si el entorno nos pide algo
     Select Case UCase(EnteredText)
@@ -211,7 +215,7 @@ Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD
 
     Select Case NextParamType
 
-        Case "P", "+", "M"
+        Case "point", "M", "point3d"
             errtxt = ", expected a valId point like 12.4,9.5  or @12.34,10.5"
             ' lets filter
             EnteredText = Trim$(UCase$(EnteredText))
@@ -221,32 +225,42 @@ Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD
             ' U = undo, delete last segment
             ' and others
 
-            If InStr("@0123456789.", sText) > 0 Then ' es un numero
+            If InStr("+-@0123456789.", sText) > 0 Then ' es un numero
                 If InStr(EnteredText, "@") > 0 Then    ' may be a point
                     Relative = True
                     EnteredText = Replace(EnteredText, "@", "")
                 Endif
                 Xt = CFloat(Eval(Split(EnteredText, ",")[0]))
                 yt = CFloat(Eval(Split(EnteredText, ",")[1]))
+                Try zt = CFloat(Eval(Split(EnteredText, ",")[2]))
 
-                If Relative And (elem.P.count > 2) Then
+                ' If Relative And (elem.P.count > 2) Then
+                If Relative Then        '  this should work too
                     xt += Me.LastX
                     yt += Me.LastY
+                    zt += Me.LastZ
 
                 Endif
                 Me.LastX = xt
                 Me.LastY = yt
+                Me.LastZ = zt
 
-                If Gcd.CCC[elem.gender].NewParameter(elem, ["point", xt, yt], True) Then
+                If elem.Is3D Then
+                    GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point3d", xt, yt, zt], True))
+                Else
+                    GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point", xt, yt], True))
+
+                Endif
+                If Good Then
                     ' last point
                     gcd.Drawing.LastPoint.Clear
                     gcd.Drawing.LastPoint.Insert([xt, yt])
-                    AdvanceStep
+
                 End If
 
             Else    ' es una letra
 
-                If Gcd.CCC[elem.gender].NewParameter(elem, ["text", EnteredText], True) Then AdvanceStep
+                GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["text", EnteredText], True))
 
             End If
 
@@ -262,55 +276,50 @@ Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD
             '
             ' Else
             '
+        Case "vec3"          ' un vector representando 3 ejes: v1,v2,v3
+            Try Xt = CFloat(Eval(Split(EnteredText, ",")[0]))
+            Try yt = CFloat(Eval(Split(EnteredText, ",")[1]))
+            Try zt = CFloat(Eval(Split(EnteredText, ",")[2]))
 
-        Case "T"
+            GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["vec3", xt, yt, zt], True))
+
+        Case "text"
             errtxt = ", expected text, not a point"
-            ' its a valid input?
-            If EnteredText = "" Then
 
-                sText = ParamDefault[gcd.StepsDone]
+            GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["text", sText], True))
 
-            Else
-
-                sText = EnteredText
-
-            End If
-
-            If Gcd.CCC[elem.gender].NewParameter(elem, ["text", sText], True) Then AdvanceStep
-
-        Case "F", "A", "L", "R"                ' Float, Mixed, Angle, Longitud
-            errtxt = "enter a valId text size"
+        Case "float", "angle", "lenght", "rectangle"                ' Float, Mixed, Angle, Longitud
+            errtxt = "enter a valid text size"
 
             If EnteredText = "" Or EnteredText = "U" Then
-                Try bResult = Gcd.CCC[elem.gender].NewParameter(elem, ["float", ParamDefault[gcd.StepsDone]], True)
+                GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["float", ParamDefault[gcd.StepsDone]], True))
 
             Else
 
-                bResult = Gcd.CCC[elem.gender].NewParameter(elem, ["float", CFloat(EnteredText)], True)
+                Try f = CFloat(EnteredText)
+
+                bResult = GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["float", f], True))
 
             Endif
 
-            If bResult Then AdvanceStep
-
-        Case "C"                                ' color
+        Case "color"                                ' color
             If Dialog.SelectColor() Then
                 elem.fParam[iFloat] = CFloat(Dialog.Color)
                 Inc iFloat
-                AdvanceStep
 
             Endif
             Key.Code
 
     End Select
 
-Finally
+    'Finally
     '
     Return
     '
-Catch
+    'Catch
     '
     '   ' unexpected input
-    DrawingAIds.ErrorMessage = ("Bad input" & ErrTxt)
+    '   DrawingAIds.ErrorMessage = ("Bad input" & ErrTxt)
 
 End
 
@@ -320,42 +329,12 @@ Public Sub KeyUp(iCode As Integer)
 
 End
 
-Public Sub AdvanceStep()
-
-    Inc gcd.StepsDone
-    If gcd.StepsDone = StepsTotal Then
-
-        Me.Finish
-    Else
-
-        ' prepare next stuff
-        '
-        NextParamType = UCase(Mid(Gcd.CCC[elem.gender].ParamType, gcd.StepsDone + 1, 1))
-        If NextParamType = "" Then NextParamType = "+"
-        If NextParamType = "+" Then ' add another point
-            Inc StepsTotal
-            NextParamType = "P"
-        Endif
-
-        'Try DrawingAIds.CmdLineHelperNext = ParamHelperList[gcd.StepsDone]          ' try in case of lack of desciption or keep last
-        If ParamDefault.Count > gcd.StepsDone Then                            ' not null
-            ParamDefault[gcd.StepsDone] = Trim$(ParamDefault[gcd.StepsDone])
-            'If ParamDefault[gcd.StepsDone] <> "" Then DrawingAIds.CmdLineHelperNext &= "[" & ParamDefault[gcd.StepsDone] & "]"           ' try in case of lack of desciption or keep last
-        End If
-        Me.MouseMove
-    Endif
-
-    fMain.KeysAccumulator = ""
-    Me.prompt = Gcd.CCC[elem.gender].prompt
-
-    gcd.redraw
-
-End
-
 Public Sub MouseMove()
 
     Dim X, Y, f As Float
     Dim MouseTry As Integer = -1000000
+    Dim Dx As Float
+    Dim Dy As Float
 
     Try MouseTry = Mouse.X
     If MouseTry >= 0 Then ' mouse is active
@@ -378,38 +357,40 @@ Public Sub MouseMove()
 
     ' pero veo si tengo un POI
 
-    If InStr("LAPRM", NextParamType) = 0 Then Return ' we are expecting a parameter
+    'If InStr("LAPRM", NextParamType) = 0 Then Return ' we are expecting a parameter
 
     ' a very special case
     If elem.Gender = "SPLINE" And (Me.iPoints <> elem.P.Count / 2 - 1) Then Inc iPoints
 
     ' if we expect a parameter, it will be passed
-    If NextParamType = "A" Then
+    If NextParamType = "angle" Then
 
         ' return the angle from horizontal to us
         f = Ang(gcd.Xreal(LastMouseX) - Me.LastX, gcd.Yreal(LastMouseY) - Me.lastY)
         f *= 180 / Pi
-        Gcd.CCC[elem.gender].NewParameter(elem, ["float", f])
+        fMain.txtCommand.Text = "angle = " & Str(f)
+        GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["float", f]))
 
         gcd.redraw
 
         Return              ' nothing more to do here
     End If
 
-    If NextParamType = "R" Then
+    If NextParamType = "relation" Then
 
-        Gcd.CCC[elem.gender].NewParameter(elem, ["point", x, y])
+        GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point", x, y]))
         gcd.redraw
 
         Return              ' nothing more to do here
     End If
 
-    If NextParamType = "L" Then
+    If NextParamType = "lenght" Then
 
         ' return the angle from horizontal to us
         f = puntos.distancia(gcd.Xreal(LastMouseX), gcd.Yreal(LastMouseY), Me.LastX, Me.lastY)
-
-        Gcd.CCC[elem.gender].NewParameter(elem, ["float", f])
+        fMain.txtCommand.Text = "d = " & Str(f)
+        'Stop
+        getAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["float", f]))
 
         gcd.redraw
 
@@ -441,9 +422,28 @@ Public Sub MouseMove()
 
     End If
 
-    Gcd.CCC[elem.gender].NewParameter(elem, ["point", x, y])
-    ' LastMouseX = Mouse.X
-    ' LastMouseY = Mouse.Y
+    Dx = X - lastx
+    Dy = Y - LastY
+
+    If LastPoint Then
+        If NextParamType = "point" Then
+            fMain.txtCommand.Text = "@" & Str(x - lastx) & "," & Str(y - lastY)
+        Else If NextParamType = "point3d" Then
+            fMain.txtCommand.Text = "@" & Str(x - lastx) & "," & Str(y - lastY)
+        End If
+
+    Endif
+
+    If NextParamType = "point" Then
+
+        GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point", x, y], False))
+
+    Else If NextParamType = "point3d" Then
+        Dim p As Punto3d
+        p = glx.XYZ(x, y)
+
+        GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point3d", p.x, p.y, p.z], False))
+    End If
 
     gcd.redraw
 
@@ -463,38 +463,39 @@ Public Sub MouseUp()
     End If
 
     DrawingAIds.ErrorMessage = ""
-    If InStr("LAPRM", NextParamType) = 0 Then Return ' we are expecting a parameter
+    'If InStr("LAPRM", NextParamType) = 0 Then Return ' we are expecting a parameter
 
     ' if we expect a parameter, it will be passed
-    If NextParamType = "A" Then
+    If NextParamType = "angle" Then
 
         ' return the angle from horizontal to us
         f = Ang(gcd.Xreal(mouse.x) - Me.LastX, gcd.Yreal(mouse.y) - Me.lastY)
         f *= 180 / Pi
-        If Gcd.CCC[elem.gender].NewParameter(elem, ["float", f], True) Then AdvanceStep
+        GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["float", f], True))
+
         gcd.redraw
         Return              ' nothing more to do here
     End If
 
-    If NextParamType = "R" Then
+    If NextParamType = "relation" Then
 
-        If Gcd.CCC[elem.gender].NewParameter(elem, ["point", gcd.Xreal(mouse.x), gcd.Yreal(mouse.y)], True) Then
+        If GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point", gcd.Xreal(mouse.x), gcd.Yreal(mouse.y)], True)) Then
 
             ' last point
             gcd.Drawing.LastPoint.Clear
             gcd.Drawing.LastPoint.Insert([gcd.Xreal(mouse.x), gcd.Yreal(mouse.y)])
-            AdvanceStep
+
         End If
         gcd.redraw
         Return
     End If
 
-    If NextParamType = "L" Then
+    If NextParamType = "lenght" Then
 
         ' return the angle from horizontal to us
         f = puntos.distancia(gcd.Xreal(mouse.x), gcd.Yreal(mouse.y), Me.LastX, Me.lastY)
 
-        If Gcd.CCC[elem.gender].NewParameter(elem, ["float", f], True) Then AdvanceStep
+        GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["float", f], True))
         gcd.redraw
         Return              ' nothing more to do here
 
@@ -533,13 +534,20 @@ Public Sub MouseUp()
     LastY = Y
     LastPoint = True
 
-    If Gcd.CCC[elem.gender].NewParameter(elem, ["point", x, y], True) Then
+    If NextParamType = "point" Then
 
-        ' last point
-        gcd.Drawing.LastPoint.Clear
-        gcd.Drawing.LastPoint.Insert([x, y])
-        AdvanceStep
+        GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point", x, y], True))
+
+    Else If NextParamType = "point3d" Then
+        Dim p As Punto3d
+
+        p = glx.XYZ(x, y)
+
+        GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point3d", p.x, p.y, p.z], True))
     End If
+    ' last point
+    gcd.Drawing.LastPoint.Clear
+    gcd.Drawing.LastPoint.Insert([x, y])
 
     gcd.redraw
 
@@ -576,7 +584,8 @@ End
 '' LLamada cuando se termina de dibujar una nueva entidad.
 Public Sub Finish() As Boolean
 
-    Dim eEndBlock As Entity
+
+    fMain.txtCommand.Text = ""
 
     ' La entidad se crea sin handle
     If elem.Id = "" Then elem.Id = gcd.NewId()
@@ -634,7 +643,7 @@ Public Sub Finish() As Boolean
     DrawingAIds.CleanTexts
 
     ' y renuevo la lista para este layer
-    clsEntities.glGenDrawVBO(elem.pLayer)
+    clsEntities.glGenDrawVBO(elem)
 
     gcd.redraw
 
@@ -642,6 +651,7 @@ End
 
 Public Sub Cancel()
 
+    fMain.txtCommand.Text = ""
     elem = Null
     gcd.clsJobPrevious = Me
     gcd.clsJob = cadSelection
@@ -654,5 +664,30 @@ End
 Public Sub KeyDown(iCode As Integer)
 
     If icode = Key.ControlKey Then gcd.Orthogonal = True
+
+End
+
+Public Function GetAnswer(Answer As Object) As Boolean
+
+    Dim v As Variant
+
+    If IsNull(Answer) Then Return False
+    If answer Is Collection Then
+        For Each v In answer
+            If answer.key = "command" And v = "end" Then Me.Finish()
+            If answer.key = "command" And v = "cancel" Then Me.Cancel()
+            If answer.key = "prompt" Then Me.prompt = v
+            If answer.key = "nextparamtype" Then Me.NextParamType = v
+            If answer.key = "next" Then Me.NextParamType = v
+        Next
+
+    Else If answer Is Communications Then
+        If Answer.Command = "end" Then Me.Finish()
+        If Answer.Command = "cancel" Then Me.Cancel()
+        Me.NextParamType = Answer.ParamType
+        Me.prompt = Answer.Prompt
+    End If
+
+    Return True                     ' the class enjoyed the user input
 
 End

@@ -109,6 +109,168 @@ Public Function Arc3Point(px1 As Float, py1 As Float, px2 As Float, py2 As Float
 
 End
 
+' '' return the size of the point cloud: sX, sY, sZ
+' Public Function PointCloudSize(fPoints3D As Float[]) As Float[]
+'
+'     Dim i As Integer
+'     Dim X0, Y0, Z0 As Float
+'     Dim X1, Y1, Z1 As Float
+'
+'     For i = 0 To fPoints3D.Max Step 3
+'         If fPoints3D[i] > x1
+'         Next
+'
+' End
+
+'' Returns n 3D triangles indexes from the points given i1,i2,i3-i1,i2,i3 and so on
+'' This routine does NOT checks if the points are coplanar. If they are not, result will be random.
+'' It also won't check if the indexes are repeated. I has to be a polygon3D.
+Public Function PolygonTriangulation3dI(fPoints3D As Float[], iIndex As Integer[]) As Integer[]
+
+    'Dim UsedTracts As New Boolean[]
+
+    Dim Intersec As New Float[]
+    Dim iNew As New Integer[]
+    Dim fPoly As New Float[]
+    Dim iTriangles As New Integer[]
+    Dim i, nAnterior As Integer
+    Dim PivotIzq, PivotDer, TestPoint As Integer
+    Dim MIdX, MIdY As Float
+    Dim fLimits As Float[]
+    Dim Lx As Float
+    Dim Ly As Float
+    Dim Lz As Float
+    Dim iDiscard As Integer
+    Dim iA As Integer
+    Dim iB As Integer
+
+    iNew.Insert(iIndex.Copy()) ' copio la fuente para no alterarla
+
+    ' el poligono va a tener Count/2 -1 tramos
+    ' La idea es tomar un tramo, comparar ambos puntos a la derecha e izquierda y
+    ' chequear si el triangulo formado esta dentro del poligono, en ese caso elimino el punto
+    ' pivot
+    If iIndex.Count <= 3 Then Return iIndex
+
+    ' ' verifico que no haya puntos coincidentes
+    ' For i = 0 To fPoly.Count / 2 - 2
+    '     If i >= fPoly.Count / 2 - 2 Then Break
+    '     If fPoly[i * 2] = fPoly[(i + 1) * 2] Then
+    '         If fPoly[i * 2 + 1] = fPoly[(i + 1) * 2 + 1] Then
+    '             'puntos coincidente
+    '             wasted = fPoly.Extract(i * 2, 2)
+    '         Endif
+    '     Endif
+    ' Next
+
+    ' determino cual eje descartar
+    fLimits = Limits3dI(fPoints3D, iIndex)
+    Lx = fLimits[3] - fLimits[0]
+    Ly = fLimits[4] - fLimits[1]
+    Lz = fLimits[5] - fLimits[2]
+    If (lx <= ly) And (lx <= lz) Then
+        iDiscard = 0
+        iA = 1
+        iB = 2
+    Else If (lz <= ly) And (lz <= lx) Then
+        iDiscard = 2
+        iA = 0
+        iB = 1
+    Else
+        iDiscard = 1
+        iA = 0
+        iB = 2
+    End If
+
+    ' verifico punto inicial y final
+    If iNew[0] = iNew[iIndex.Max - 1] Then
+        iNew.Remove(iNew.Max)
+    Endif
+
+    If inew.Count <= 3 Then Return iNew
+
+    ' debo reconstruir una poly 2D auxiliar
+    For i = 0 To iNew.Max
+        fPoly.Add(fPoints3D[iNew[i] * 3 + iA])
+        fPoly.Add(fPoints3D[iNew[i] * 3 + iB])
+    Next
+
+    Do
+
+        nAnterior = iNew.Count
+
+        i = 0
+        Do ' testeo
+            ' Tomo el primer tramo
+
+            PivotIzq = iNew[i]
+            PivotDer = iNew[i + 1]
+
+            ' pruebo a la derecha
+            If (i + 2) * 2 > iNew.max Then
+
+                TestPoint = iNew[0]
+            Else
+                TestPoint = inew[i + 2]
+            End If
+
+            MIdX = (fPoly[PivotIzq * 2] + fPoly[TestPoint * 2]) / 2
+            MIdY = (fPoly[PivotIzq * 2 + 1] + fPoly[TestPoint * 2 + 1]) / 2
+
+            If Me.isInsIde(fPoly, MIdX, MIdY) Then ' cumple la primer condicion
+
+                Intersec = Me.LinePolyIntersection2([fPoly[PivotIzq * 2], fPoly[PivotIzq * 2 + 1], fPoly[TestPoint * 2], fPoly[TestPoint * 2 + 1]], fPoly)
+
+                If Intersec.Count = 0 Then ' cumple la segunda
+                    ' se cumplen ambas condiciones, agrego el triangulo
+                    iTriangles.Insert([fPoly[PivotIzq * 2], fPoly[PivotIzq * 2 + 1], fPoly[PivotDer * 2], fPoly[PivotDer * 2 + 1], fPoly[TestPoint * 2], fPoly[TestPoint * 2 + 1]])
+
+                    ' Elimino el pivote derecho
+                    'NoUsados.Remove(i + 1)
+                    fPoly.Remove((i + 1) * 2, 2)
+
+                    Break
+                End If
+            End If
+
+            ' pruebo a la izq
+            ' TestIzq:
+            If i - 1 < 0 Then TestPoint = fPoly.Count / 2 - 1 Else TestPoint = i - 1
+
+            MIdX = (fPoly[PivotDer * 2] + fPoly[TestPoint * 2]) / 2
+            MIdY = (fPoly[PivotDer * 2 + 1] + fPoly[TestPoint * 2 + 1]) / 2
+
+            If Me.isInsIde(fPoly, MIdX, MIdY) Then ' cumple la primer condicion
+
+                Intersec = Me.LinePolyIntersection2([fPoly[PivotDer * 2], fPoly[PivotDer * 2 + 1], fPoly[TestPoint * 2], fPoly[TestPoint * 2 + 1]], fPoly)
+
+                If Intersec.Count = 0 Then ' cumple la segunda
+
+                    ' se cumplen ambas condiciones, agrego el triangulo
+                    iTriangles.Insert([fPoly[PivotIzq * 2], fPoly[PivotIzq * 2 + 1], fPoly[PivotDer * 2], fPoly[PivotDer * 2 + 1], fPoly[TestPoint * 2], fPoly[TestPoint * 2 + 1]])
+
+                    ' Elimino el pivote izq
+                    'NoUsados.Remove(i)
+                    fPoly.Remove(i * 2, 2)
+
+                    Break
+                End If
+            End If
+            Inc i
+
+        Loop Until i = fPoly.Count / 2 - 1
+
+        If nAnterior = iNew.Count Then Break ' no podemos formar mas triangulos
+
+    Loop ' Until fpoly.Count <= 8
+
+    ' agrego el ultimo triangulo
+    If iNew.Count = 3 Then iTriangles.Insert(fPoly.Copy())
+
+    Return iTriangles
+
+End
+
 '' Returns n 2D trianlges x0,y0,x1,y1,x2,y2 , x0,y0,x1,y1,x2,y2 and so on
 Public Function PolygonTriangulation(fPolygon As Float[]) As Float[]
 
@@ -144,7 +306,7 @@ Public Function PolygonTriangulation(fPolygon As Float[]) As Float[]
     If fPoly[0] = fPoly[fPoly.Max - 1] Then
         If fPoly[1] = fPoly[fPoly.Max] Then
 
-            'puntos coincidente
+            'puntos coincidentes
             wasted = fPoly.Extract(fPoly.Max - 1, 2)
 
         Endif
@@ -195,7 +357,7 @@ Public Function PolygonTriangulation(fPolygon As Float[]) As Float[]
             End If
 
             ' pruebo a la izq
-TestIzq:
+            ' TestIzq:
             If i - 1 < 0 Then TestPoint = fPoly.Count / 2 - 1 Else TestPoint = i - 1
 
             MIdX = (fPoly[PivotDer * 2] + fPoly[TestPoint * 2]) / 2
@@ -227,6 +389,187 @@ TestIzq:
 
     ' agrego el ultimo triangulo
     If fpoly.Count = 6 Then Triangles.Insert(fPoly.Copy())
+
+    Return Triangles
+
+End
+
+Public Function IsPoligonSelfIntersecting3D(pPolygon As Punto3d[]) As Boolean
+
+    Dim fPolyXY As New Float[]
+    Dim axis As Integer
+    Dim l As Punto3d
+
+    If pPolygon.Count <= 3 Then Return False
+
+    ' investigo cual eje descartar
+    l = Size3dP(pPolygon)
+    If l.x <= l.y And l.x <= l.z Then
+        axis = 0
+    Else If l.z <= l.y And l.z <= l.x Then
+        axis = 2
+    Else
+        axis = 1
+    End If
+
+    fPolyXY = RemoveAxis(Create3dArray(pPolygon), axis)
+
+    Return IsPoligonSelfIntersecting(fPolyXY)
+
+End
+
+'' Returns n 2D trianlges x0,y0,x1,y1,x2,y2 , x0,y0,x1,y1,x2,y2 and so on
+Public Function PolygonTriangulation3D(pPolygon As Punto3d[]) As Float[]
+
+    'Dim UsedTracts As New Boolean[]
+    Dim Intersec As New Float[]
+    Dim pPoly As New Punto3D[]
+    Dim fPolyXY As New Float[]
+    Dim pTriangles As New Punto3D[]
+    Dim Triangles As New Float[]
+    Dim i, iAnterior As Integer
+    Dim PivotIzq, PivotDer, TestPoint As Integer
+    Dim MIdX, MIdY As Float
+    Dim x0 As Float
+    Dim x1 As Float
+    Dim y0 As Float
+    Dim y1 As Float
+    Dim l As Punto3d
+    Dim axis As Integer
+
+    pPoly.Insert(pPolygon.Copy()) ' copio la fuente para no alterarla
+
+    ' investigo cual eje descartar
+    l = Size3dP(pPolygon)
+    If l.x <= l.y And l.x <= l.z Then
+        axis = 0
+    Else If l.z <= l.y And l.z <= l.x Then
+        axis = 2
+    Else
+        axis = 1
+    End If
+
+    ' el poligono va a tener Count/2 -1 tramos
+    ' La idea es tomar un tramo, comparar ambos puntos a la derecha e izquierda y
+    ' chequear si el triangulo formado esta dentro del poligono, en ese caso elimino el punto
+    ' pivot
+    If pPoly.Count <= 3 Then Return Create3dArray(pPoly)
+
+    ' ' verifico que no haya puntos coincidentes
+    ' For i = 0 To pPoly.Count / 2 - 2
+    '     If i >= pPoly.Count / 2 - 2 Then Break
+    '     If pPoly[i * 2] = pPoly[(i + 1) * 2] Then
+    '         If pPoly[i * 2 + 1] = pPoly[(i + 1) * 2 + 1] Then
+    '             'puntos coincidente
+    '             wasted = pPoly.Extract(i * 2, 2)
+    '         Endif
+    '     Endif
+    ' Next
+
+    ' ' verifico punto inicial y final
+    ' If pPoly[0] = pPoly[pPoly.Max - 1] Then
+    '     If pPoly[1] = pPoly[pPoly.Max] Then
+    '
+    '         'puntos coincidentes
+    '         wasted = pPoly.Extract(pPoly.Max - 1, 2)
+    '
+    '     Endif
+    ' Endif
+
+    Do
+        fPolyXY = RemoveAxis(Create3dArray(pPoly), axis)
+        iAnterior = pPoly.Count
+
+        i = 0
+        Do ' testeo
+            ' Tomo el primer tramo
+
+            PivotIzq = i
+            PivotDer = i + 1
+
+            ' pruebo a la derecha
+
+            'If pPoly.Count = 8 Then Stop
+
+            If (i + 2) > pPoly.max Then
+
+                TestPoint = 0
+            Else
+                TestPoint = i + 2
+            End If
+
+            x0 = fPolyXY[PivotIzq * 2]
+            x1 = fPolyXY[TestPoint * 2]
+            y0 = fPolyXY[PivotIzq * 2 + 1]
+            y1 = fPolyXY[TestPoint * 2 + 1]
+
+            MIdX = (x0 + x1) / 2
+            MIdY = (y0 + y1) / 2
+
+            If Me.isInsIde(fPolyXY, MIdX, MIdY) Then ' cumple la primer condicion
+
+                Intersec = Me.LinePolyIntersection2([x0, y0, x1, y1], fPolyXY)
+
+                If Intersec.Count = 0 Then ' cumple la segunda
+                    ' se cumplen ambas condiciones, agrego el triangulo
+                    pTriangles.Add(pPoly[PivotIzq])
+                    pTriangles.Add(pPoly[PivotDer])
+                    pTriangles.Add(pPoly[TestPoint])
+
+                    ' Elimino el pivote derecho
+                    pPoly.Remove(PivotDer)
+
+                    Break
+                End If
+            End If
+
+            ' pruebo a la izq
+            ' TestIzq:
+            If (i - 1) < 0 Then
+
+                TestPoint = pPoly.Max
+            Else
+                TestPoint = i - 1
+            End If
+
+            x0 = fPolyXY[PivotDer * 2]
+            x1 = fPolyXY[TestPoint * 2]
+            y0 = fPolyXY[PivotDer * 2 + 1]
+            y1 = fPolyXY[TestPoint * 2 + 1]
+
+            MIdX = (x0 + x1) / 2
+            MIdY = (y0 + y1) / 2
+
+            If Me.isInsIde(fPolyXY, MIdX, MIdY) Then ' cumple la primer condicion
+
+                Intersec = Me.LinePolyIntersection2([x0, y0, x1, y1], fPolyXY)
+
+                If Intersec.Count = 0 Then ' cumple la segunda
+
+                    ' se cumplen ambas condiciones, agrego el triangulo
+                    pTriangles.Add(pPoly[PivotIzq])
+                    pTriangles.Add(pPoly[PivotDer])
+                    pTriangles.Add(pPoly[TestPoint])
+
+                    ' Elimino el pivote derecho
+                    pPoly.Remove(PivotIzq)
+
+                    Break
+                End If
+            End If
+            Inc i
+
+        Loop Until i = pPoly.Count - 1
+
+        If iAnterior = pPoly.Count Then Break ' no podemos formar triangulos
+
+    Loop ' Until pPoly.Count <= 8
+
+    ' agrego el ultimo triangulo
+    If pPoly.Count = 3 Then pTriangles.Insert(pPoly.Copy())
+
+    Triangles = Create3dArray(pTriangles)
+    If IsNull(Triangles) Then Stop
 
     Return Triangles
 
@@ -304,9 +647,8 @@ End
 
 Public Function NearestToLine(Xp As Float, Yp As Float, X1 As Float, Y1 As Float, X2 As Float, Y2 As Float) As Float[]
 
-    Dim fRet As New Float[]
     Dim Xm, Ym As Float
-    Dim d, d1, dm, d2 As Float
+    Dim d1, d2 As Float
 
     ' Xm = (x2 + x1) / 2
     '
@@ -948,11 +1290,9 @@ Public Function SortLineSegments2(flxPoly As Float[]) As Float[]
 
     Dim i As Integer
 
-    Dim iInicial As Integer
-    Dim d1, d2, dx, dy, d As Float
-    Dim Swaped As Boolean
+    Dim dx, dy As Float
     Dim f, flxLim, flxRet, flxRet0, flxret2, flxSorted As New Float[]
-    Dim i2, iz As Integer
+    Dim i2 As Integer
 
     flxLim = Limits(flxPoly)
     dx = flxLim[2] - flxLim[0]
@@ -1079,8 +1419,8 @@ Public Function LinePolyIntersection(flxLine As Float[], flxPoly As Float[]) As 
     ' la polylinea se considera cerrada y de mas de 3 puntos, caso contrario se devuelve la linea sin cambios
     ' la linea es de dos puntos , si esta afuera de la polilinea, se devuelve un array vacio
     ' Chequeos previos:
-    Dim UsarUltimoPunto, FirstInsIde, LastInsIde As Boolean
-    Dim i, UltimoPunto As Integer
+    Dim FirstInsIde, LastInsIde As Boolean
+    Dim i As Integer
     Dim flxRta, flxInter As New Float[]
 
     If flxLine.Count <> 4 Then Return []
@@ -1600,6 +1940,127 @@ Public Function Limits(Points As Float[]) As Float[]
 
 End
 
+Public Function Limits3dI(Points As Float[], iIndex As Integer[]) As Float[]
+
+    Dim Xmenor, Ymenor, Zmenor, Xmayor, Ymayor, Zmayor As Float
+
+    If points.Count = 0 Then Return [0, 0, 0, 0, 0, 0]
+
+    Xmenor = 1e100
+    Ymenor = 1e100
+    Zmenor = 1e100
+    Xmayor = -1e100
+    Ymayor = -1e100
+    Zmayor = -1e100
+
+    Dim i As Integer
+
+    For i = 0 To iIndex.Max
+        If Xmenor > points[iIndex[i]] Then Xmenor = points[iIndex[i]]
+        If ymenor > points[points[iIndex[i]] + 1] Then ymenor = points[points[iIndex[i]] + 1]
+        If Zmenor > points[points[iIndex[i]] + 2] Then Zmenor = points[points[iIndex[i]] + 2]
+        If Xmayor < points[points[iIndex[i]]] Then Xmayor = points[points[iIndex[i]]]
+        If Ymayor < points[points[iIndex[i]] + 1] Then Ymayor = points[points[iIndex[i]] + 1]
+        If Zmayor < points[points[iIndex[i]] + 2] Then Zmayor = points[points[iIndex[i]] + 2]
+
+    Next
+    Return [Xmenor, ymenor, Zmenor, Xmayor, Ymayor, Zmayor]
+
+End
+
+Public Function Limits3d(points As Float[]) As Float[]
+
+    Dim Xmenor, Ymenor, Zmenor, Xmayor, Ymayor, Zmayor As Float
+
+    If Points.Count = 0 Then Return [0, 0, 0, 0, 0, 0]
+
+    Xmenor = 1e100
+    Ymenor = 1e100
+    Zmenor = 1e100
+    Xmayor = -1e100
+    Ymayor = -1e100
+    Zmayor = -1e100
+
+    Dim i As Integer
+
+    For i = 0 To Points.Max Step 3
+        If Xmenor > points[i] Then Xmenor = points[i]
+        If ymenor > points[i + 1] Then ymenor = points[i + 1]
+        If Zmenor > points[i + 2] Then Zmenor = points[i + 2]
+        If Xmayor < points[i] Then Xmayor = points[i]
+        If Ymayor < points[i + 1] Then Ymayor = points[i + 1]
+        If Zmayor < points[i + 2] Then Zmayor = points[i + 2]
+
+    Next
+    Return [Xmenor, ymenor, Zmenor, Xmayor, Ymayor, Zmayor]
+
+End
+
+Public Function Size3D(fPoints As Float[]) As Float[]
+
+    Dim fLimits As Float[]
+
+    fLimits = Limits3d(fPoints)
+    Return [fLimits[3] - fLimits[0], fLimits[4] - fLimits[1], fLimits[5] - fLimits[2]]
+
+End
+
+Public Function CenterGravity3dP(pPoints As Punto3d[]) As Punto3d
+
+    Dim fLimits As Float[]
+    Dim p As New Punto3d
+
+    fLimits = Limits3dp(pPoints)
+    p.x = (fLimits[3] + fLimits[0]) / 2
+    p.y = (fLimits[4] + fLimits[1]) / 2
+    p.z = (fLimits[5] + fLimits[2]) / 2
+
+    Return p
+
+End
+
+Public Function Limits3dP(Points As Punto3d[]) As Float[]
+
+    Dim Xmenor, Ymenor, Zmenor, Xmayor, Ymayor, Zmayor As Float
+
+    If Points.Count = 0 Then Return [0, 0, 0, 0, 0, 0]
+
+    Xmenor = 1e100
+    Ymenor = 1e100
+    Zmenor = 1e100
+    Xmayor = -1e100
+    Ymayor = -1e100
+    Zmayor = -1e100
+
+    Dim i As Integer
+
+    For i = 0 To Points.Max
+        If Xmenor > points[i].x Then Xmenor = points[i].x
+        If ymenor > points[i].y Then ymenor = points[i].y
+        If Zmenor > points[i].z Then Zmenor = points[i].z
+        If Xmayor < points[i].x Then Xmayor = points[i].x
+        If Ymayor < points[i].y Then Ymayor = points[i].y
+        If Zmayor < points[i].z Then Zmayor = points[i].z
+
+    Next
+    Return [Xmenor, ymenor, Zmenor, Xmayor, Ymayor, Zmayor]
+
+End
+
+Public Function Size3dP(pPoints As Punto3d[]) As Punto3d
+
+    Dim fLimits As Float[]
+    Dim l As New Punto3d
+
+    fLimits = Limits3dP(pPoints)
+    l.x = fLimits[3] - fLimits[0]
+    l.y = fLimits[4] - fLimits[1]
+    l.z = fLimits[5] - fLimits[2]
+
+    Return l
+
+End
+
 Public Sub LimitsMax(BasePoints As Float[], NewPoints As Float[])
 
     If NewPoints[0] < BasePoints[0] Then BasePoints[0] = NewPoints[0]
@@ -1612,12 +2073,11 @@ End
 '' Devuelve una linea de puntos confinada en los segmentos flxStrip, segun el patron estilo CAD flxDashes, usando el punto base.
 Public Function DashedLineStrip(flxStrip As Float[], flxDash As Float[], Optional fScale As Float = 1, fOffset As Float = 0, bInvertDashes As Boolean = False, bIntercalateLines As Boolean = False, fWIdth As Float = 1) As Float[]
 
-    Dim fTrame, fDashTotal, fDistance, DashLength, DashTrame As Float
-    Dim iPatternOffset, iPatternN As Integer
-    Dim ie, i, i2, AlPedo, Sirve, nTrames, iDashTrame As Integer
-    Dim flxDashes, flxTrimmedLine, flxPatternLimits, flxContorno, flxFirstPass, flxSecondPass, flxInter As New Float[]
-    Dim CosA, SinA, DashBaseX, DashBaseY, DashFinalX, DashFinalY As Float
-    Dim SeedX, SeedY, SeedIndex, CosB, SinB, TanB, CosAB, SinAB, TanAB, fAngle As Float
+    Dim fTrame, fDashTotal, DashTrame As Float
+    Dim i, i2, iDashTrame As Integer
+    Dim flxDashes, flxFirstPass As New Float[]
+    Dim DashBaseX, DashBaseY, DashFinalX, DashFinalY As Float
+    Dim CosB, SinB, fAngle As Float
     Dim X0, X1, Y0, Y1 As Float
     Dim DashCut As Float
     Dim bSpace, bSkip As Boolean
@@ -1774,19 +2234,53 @@ Public Function ExtendLine2D(p0 As Punto2d, p1 As Punto2d, l As Float) As Punto2
 
 End
 
-Public Function Create3dPointsFrom2dArray(flxPoints As Float[], Optional zValue As Float = 0) As Float[]
+'' Create a 3D Xi Yi Zi from a 2D XY array.
+'' If AxisPair = 0 then Z = fValue
+'' If AxisPair = 1 then Y = fValue and Zi = Y
+'' If AxisPair = 2 then X = fValue and Zi = X
+'' If Flip then -X (or -Y) is used
+Public Function Create3dXYZFrom2dXY(flxPoints As Float[], Optional fValue As Float = 0, AxisPair As Integer = 0, FlipX As Boolean = False, FlipY As Boolean = False) As Float[]
 
     Dim flx3D As New Float[]
     Dim i, i2 As Integer
+    Dim Fx As Integer = 1
+    Dim Fy As Integer = 1
+
+    If FlipX Then Fx = -1
+    If FlipY Then Fy = -1
 
     flx3D.Resize(Int(flxPoints.Count / 2) * 3)
     For i = 0 To flxPoints.Max Step 2
-        flx3D[i2] = flxPoints[i]
+        If AxisPair <= 1 Then
+            flx3D[i2] = flxPoints[i] * Fx
+
+        Else
+            flx3D[i2] = fValue
+
+        End If
         Inc i2
-        flx3D[i2] = flxPoints[i + 1]
+
+        If AxisPair = 0 Or AxisPair = 2 Then
+            flx3D[i2] = flxPoints[i + 1] * Fy
+
+        Else
+            flx3D[i2] = fValue
+
+        End If
         Inc i2
-        flx3D[i2] = zValue
+
+        If AxisPair = 1 Then
+            flx3D[i2] = flxPoints[i + 1] * Fy
+
+        Else If AxisPair = 2 Then
+            flx3D[i2] = flxPoints[i] * Fx
+        Else
+
+            flx3D[i2] = fValue
+
+        End If
         Inc i2
+
     Next
 
     Return flx3d
@@ -1860,5 +2354,400 @@ Public Sub fMod(fNumber As Float, fDivi As Float) As Float
 
     n = CInt(fNumber / fDivi)
     Return fNumber - fDivi * n
+
+End
+
+'' Creates a XYZ array from a Punto3D[]
+Public Function Create3dArray(p3dPoints As Variant[]) As Float[]
+
+    ' Dim vp As Punto3d
+    ' Dim ve As Vertex
+    Dim p As Variant
+    Dim fPoints As New Float[]
+    Dim i As Integer
+
+    ' If p3dPoints Is Punto3d Then
+    '     p = vp
+    ' Else
+    '     p = ve
+    ' Endif
+
+    fPoints.Resize(p3dPoints.Count * 3)
+    For Each p In p3dPoints
+        fPoints[i] = p.x
+        fPoints[i + 1] = p.y
+        fPoints[i + 2] = p.z
+        i += 3
+    Next
+    Return fPoints
+
+End
+
+Public Function VertexToPunto3D(vs As Vertex[]) As Punto3d[]
+
+    Dim pp As New Punto3d[]
+    Dim v As Vertex
+
+    For Each v In vs
+        pp.Add(v.pPunto3D)
+    Next
+    Return pp
+
+End
+
+'' Create a 2D point froma 3D point by removing an axis:
+'' 0 for X removal
+'' 1 for Y removal
+'' 2 for Z removal   <---Default
+Public Function RemoveAxisP3(p3 As Punto3d[], Optional Axis As Integer = 2) As Float[]
+
+    Dim i As Integer
+    Dim f2 As New Float[]
+
+    For i = 0 To p3.Max
+
+        f2.Add(p3[i].x)
+        If Axis <> 1 Then f2.Add(p3[i].y)
+        If Axis <> 2 Then f2.Add(p3[i].z)
+    Next
+    Return f2
+
+End
+
+'' Create a 2D array froma 3D array by removing an axis:
+'' 0 for X removal
+'' 1 for Y removal
+'' 2 for Z removal   <---Default
+Public Function RemoveAxis(fPoints As Float[], Optional Axis As Integer = 2) As Float[]
+
+    Dim i As Integer
+    Dim fResult As New Float[]
+
+    For i = 0 To fPoints.Max Step 3
+        If Axis <> 0 Then fResult.Add(fPoints[i])
+        If Axis <> 1 Then fResult.Add(fPoints[i + 1])
+        If Axis <> 2 Then fResult.Add(fPoints[i + 2])
+
+    Next
+    Return fResult
+
+End
+
+'' Creates a XYZ array of triangles from a Punto3D contour.
+'' Returns Null if contour is self intersecting.
+Public Function PolyFaceToTriangles(pFace As Punto3d[]) As Float[]
+
+End
+
+''' <summary>
+''' Convierte √°ngulos Yaw, Pitch y Roll (en grados) a un Cuaterni√≥n.
+''' </summary>
+Public Function AngulosACuaternion(YawDeg As Float, PitchDeg As Float, RollDeg As Float) As Quaternion
+
+    Dim q As New Quaternion
+    Dim yaw As Float = Rad(YawDeg) * 0.5
+    Dim pitch As Float = Rad(PitchDeg) * 0.5
+    Dim roll As Float = Rad(RollDeg) * 0.5
+
+    Dim cy As Float = Cos(yaw)
+    Dim sy As Float = Sin(yaw)
+    Dim cp As Float = Cos(pitch)
+    Dim sp As Float = Sin(pitch)
+    Dim cr As Float = Cos(roll)
+    Dim sr As Float = Sin(roll)
+
+    ' Combinaci√≥n de rotaciones (Orden: Yaw -> Pitch -> Roll)
+    q.W = cy * cp * cr + sy * sp * sr
+    q.X = cy * cp * sr - sy * sp * cr
+    q.Y = cy * sp * cr + sy * cp * sr
+    q.Z = sy * cp * cr - cy * sp * sr
+
+    Return q
+
+End Function
+
+''' <summary>
+''' Rota un punto 3D utilizando un cuaterni√≥n de orientaci√≥n.
+''' </summary>
+Public Function RotarPunto(Punto As Punto3D, Q As Quaternion) As Punto3D
+
+    Dim Resultado As New Punto3D
+    Dim tx, ty, tz As Float
+
+    ' F√≥rmulas optimizadas q * p * q_invertido para vectores 3D
+    tx = 2.0 * (Q.Y * Punto.Z - Q.Z * Punto.Y)
+    ty = 2.0 * (Q.Z * Punto.X - Q.X * Punto.Z)
+    tz = 2.0 * (Q.X * Punto.Y - Q.Y * Punto.X)
+
+    Resultado.X = Punto.X + Q.W * tx + (Q.Y * tz - Q.Z * ty)
+    Resultado.Y = Punto.Y + Q.W * ty + (Q.Z * tx - Q.X * tz)
+    Resultado.Z = Punto.Z + Q.W * tz + (Q.X * ty - Q.Y * tx)
+
+    Return Resultado
+
+End Function
+
+''' <summary>
+''' Rota un punto 3D utilizando un cuaterni√≥n de orientaci√≥n.
+''' </summary>
+Public Sub RotateP3(Punto As Punto3D, Q As Quaternion)
+
+    Dim tx, ty, tz As Float
+
+    ' F√≥rmulas optimizadas q * p * q_invertido para vectores 3D
+    tx = 2.0 * (Q.Y * Punto.Z - Q.Z * Punto.Y)
+    ty = 2.0 * (Q.Z * Punto.X - Q.X * Punto.Z)
+    tz = 2.0 * (Q.X * Punto.Y - Q.Y * Punto.X)
+
+    punto.X = Punto.X + Q.W * tx + (Q.Y * tz - Q.Z * ty)
+    punto.Y = Punto.Y + Q.W * ty + (Q.Z * tx - Q.X * tz)
+    punto.Z = Punto.Z + Q.W * tz + (Q.X * ty - Q.Y * tx)
+
+End
+
+''' <summary>
+''' Rota un punto 3D utilizando un cuaterni√≥n de orientaci√≥n.
+''' </summary>
+Public Sub RotatePoints3DFromBase(pPoints As Punto3D[], pBase As Punto3d, Q As Quaternion)
+
+    Dim Punto As Punto3D
+    Dim tx, ty, tz As Float
+
+    For Each punto In pPoints
+
+        punto.x -= pbase.x
+        punto.y -= pbase.y
+        punto.z -= pbase.z
+
+        ' F√≥rmulas optimizadas q * p * q_invertido para vectores 3D
+        tx = 2.0 * (Q.Y * Punto.Z - Q.Z * Punto.Y)
+        ty = 2.0 * (Q.Z * Punto.X - Q.X * Punto.Z)
+        tz = 2.0 * (Q.X * Punto.Y - Q.Y * Punto.X)
+
+        ' Resultado.X = Punto.X + Q.W * tx + (Q.Y * tz - Q.Z * ty)
+        ' Resultado.Y = Punto.Y + Q.W * ty + (Q.Z * tx - Q.X * tz)
+        ' Resultado.Z = Punto.Z + Q.W * tz + (Q.X * ty - Q.Y * tx)
+
+        Punto.X = Punto.X + Q.W * tx + (Q.Y * tz - Q.Z * ty)
+        Punto.Y = Punto.Y + Q.W * ty + (Q.Z * tx - Q.X * tz)
+        Punto.Z = Punto.Z + Q.W * tz + (Q.X * ty - Q.Y * tx)
+
+        punto.x += pbase.x
+        punto.y += pbase.y
+        punto.z += pbase.z
+
+    Next
+
+End
+
+Public Function IsClockwise(Polygon As Float[]) As Boolean
+
+    Dim I As Integer
+    Dim N As Integer = Polygon.Count
+    Dim Suma As Float = 0.0
+    Dim X1, Y1, X2, Y2 As Float
+
+    ' Cada punto tiene 2 coordenadas. Necesitamos al menos 3 puntos (6 elementos).
+    ' Tambi√©n verificamos que el array tenga una longitud par.
+    If N < 6 Or (N Mod 2 <> 0) Then Return False
+
+    ' Recorremos de 2 en 2 para saltar de punto en punto
+    For I = 0 To N - 1 Step 2
+        X1 = Polygon[I]
+        Y1 = Polygon[I + 1]
+
+        ' Si es el √∫ltimo punto, el siguiente es el primero (√≠ndice 0 y 1)
+        If I = N - 2 Then
+            X2 = Polygon[0]
+            Y2 = Polygon[1]
+        Else
+            X2 = Polygon[I + 2]
+            Y2 = Polygon[I + 3]
+        End If
+
+        ' Sumatoria de (x2 - x1) * (y2 + y1)
+        Suma += (X2 - X1) * (Y2 + Y1)
+    Next
+
+    ' Si la suma es mayor que cero, es Clockwise (sentido horario)
+    ' *Nota: Si el eje Y va hacia abajo en tu pantalla, cambia a (Suma < 0)
+    Return (Suma > 0)
+
+End Function
+
+' Retorna un punto3d si hay intersecciÛn, o Null si no la hay.
+Public Function RayTriangleIntersection(RayOrigin As Punto3d, RayDirection As Punto3d, V0 As Punto3d, V1 As Punto3d, V2 As Punto3d) As Punto3d
+
+    Dim Edge1, Edge2, H, S, Q As Punto3d
+    Dim A, F, U, V, T As Float
+    Dim EPSILON As Float = 0.0000001
+    Dim IntersectionPoint As New Punto3d
+
+    ' Encontrar vectores para los dos bordes que comparten V0
+    Edge1.X = V1.X - V0.X
+    Edge1.Y = V1.Y - V0.Y
+    Edge1.Z = V1.Z - V0.Z
+
+    Edge2.X = V2.X - V0.X
+    Edge2.Y = V2.Y - V0.Y
+    Edge2.Z = V2.Z - V0.Z
+
+    ' Calcular el producto vectorial (Cross Product) de RayDirection y Edge2
+    H.X = (RayDirection.Y * Edge2.Z) - (RayDirection.Z * Edge2.Y)
+    H.Y = (RayDirection.Z * Edge2.X) - (RayDirection.X * Edge2.Z)
+    H.Z = (RayDirection.X * Edge2.Y) - (RayDirection.Y * Edge2.X)
+
+    ' Calcular el producto escalar (Dot Product) de Edge1 y H
+    A = (Edge1.X * H.X) + (Edge1.Y * H.Y) + (Edge1.Z * H.Z)
+
+    ' Si A es cercano a cero, el rayo es paralelo al tri·ngulo
+    If A > -EPSILON And A < EPSILON Then Return Null
+
+    F = 1.0 / A
+
+    ' Calcular la distancia desde V0 al origen del rayo
+    S.X = RayOrigin.X - V0.X
+    S.Y = RayOrigin.Y - V0.Y
+    S.Z = RayOrigin.Z - V0.Z
+
+    ' Calcular el par·metro U y probar los lÌmites
+    U = F * ((S.X * H.X) + (S.Y * H.Y) + (S.Z * H.Z))
+    If U < 0.0 Or U > 1.0 Then Return Null
+
+    ' Preparar para calcular el par·metro V
+    Q.X = (S.Y * Edge1.Z) - (S.Z * Edge1.Y)
+    Q.Y = (S.Z * Edge1.X) - (S.X * Edge1.Z)
+    Q.Z = (S.X * Edge1.Y) - (S.Y * Edge1.X)
+
+    ' Calcular el par·metro V y probar los lÌmites
+    V = F * ((RayDirection.X * Q.X) + (RayDirection.Y * Q.Y) + (RayDirection.Z * Q.Z))
+    If V < 0.0 Or (U + V) > 1.0 Then Return Null
+
+    ' Calcular T (la distancia en el rayo donde ocurre la intersecciÛn)
+    T = F * ((Edge2.X * Q.X) + (Edge2.Y * Q.Y) + (Edge2.Z * Q.Z))
+
+    ' Si T > EPSILON, el rayo intersecta el tri·ngulo de frente
+    If T > EPSILON Then
+        IntersectionPoint.X = RayOrigin.X + RayDirection.X * T
+        IntersectionPoint.Y = RayOrigin.Y + RayDirection.Y * T
+        IntersectionPoint.Z = RayOrigin.Z + RayDirection.Z * T
+        Return IntersectionPoint
+    Else
+        ' Hay una intersecciÛn de lÌnea, pero no de rayo (est· detr·s del origen)
+        Return Null
+    Endif
+
+End
+
+' Returns [hit(0/1), hitX, hitY, hitZ, t]
+' Ray: O + t*D, t >= 0
+Public Function RayPolygonIntersection3D(rayO As Punto3D, rayD As Punto3D, pPolygon As Punto3D[], pIntersection As Punto3d) As Boolean
+
+    Dim n As Integer
+    Dim p0, p1, p2, hit As Punto3D
+    Dim e1x, e1y, e1z As Float
+    Dim e2x, e2y, e2z As Float
+    Dim nx, ny, nz As Float
+    Dim ndotd As Float
+    Dim t As Float
+    Dim wx, wy, wz As Float
+    Dim hx, hy, hz As Float
+    Dim i As Integer
+    Dim axis As Integer
+    Dim fPoly2D As New Float[]
+    Dim hp2x, hp2y As Float
+
+    n = pPolygon.Count
+    If n < 3 Then Return False
+
+    ' Find first non-colinear triple to define plane
+    p0 = pPolygon[0]
+    For i = 1 To n - 2
+        p1 = pPolygon[i]
+        p2 = pPolygon[i + 1]
+
+        e1x = p1.x - p0.x
+        e1y = p1.y - p0.y
+        e1z = p1.z - p0.z
+        e2x = p2.x - p0.x
+        e2y = p2.y - p0.y
+        e2z = p2.z - p0.z
+
+        ' normal = e1 x e2
+        nx = e1y * e2z - e1z * e2y
+        ny = e1z * e2x - e1x * e2z
+        nz = e1x * e2y - e1y * e2x
+
+        If Abs(nx) > NumericTolerance Or Abs(ny) > NumericTolerance Or Abs(nz) > NumericTolerance Then
+            Exit
+        Endif
+    Next
+
+    ' Degenerate polygon (all colinear or repeated)
+    If Abs(nx) <= NumericTolerance And Abs(ny) <= NumericTolerance And Abs(nz) <= NumericTolerance Then
+        Return False
+    Endif
+
+    ' Intersect ray with plane
+    ndotd = nx * rayD.x + ny * rayD.y + nz * rayD.z
+    If Abs(ndotd) <= NumericTolerance Then
+        ' Ray parallel to plane (including contained case)
+        Return False
+    Endif
+
+    wx = p0.x - rayO.x
+    wy = p0.y - rayO.y
+    wz = p0.z - rayO.z
+
+    t = (nx * wx + ny * wy + nz * wz) / ndotd
+    If t < 0 Then Return [0, 0, 0, 0, -1]
+
+    ' 3D hit point
+    hx = rayO.x + t * rayD.x
+    hy = rayO.y + t * rayD.y
+    hz = rayO.z + t * rayD.z
+
+    ' Project polygon + hit point to 2D by dropping dominant normal axis
+    ' (best numeric stability)
+    If Abs(nx) >= Abs(ny) And Abs(nx) >= Abs(nz) Then
+        axis = 0 ' drop X -> use YZ
+    Else If Abs(ny) >= Abs(nx) And Abs(ny) >= Abs(nz) Then
+        axis = 1 ' drop Y -> use XZ
+    Else
+        axis = 2 ' drop Z -> use XY
+    Endif
+
+    For i = 0 To n - 1
+        Select Case axis
+            Case 0
+                fPoly2D.Add(pPolygon[i].y)
+                fPoly2D.Add(pPolygon[i].z)
+            Case 1
+                fPoly2D.Add(pPolygon[i].x)
+                fPoly2D.Add(pPolygon[i].z)
+            Case 2
+                fPoly2D.Add(pPolygon[i].x)
+                fPoly2D.Add(pPolygon[i].y)
+        End Select
+    Next
+
+    Select Case axis
+        Case 0
+            hp2x = hy
+            hp2y = hz
+        Case 1
+            hp2x = hx
+            hp2y = hz
+        Case 2
+            hp2x = hx
+            hp2y = hy
+    End Select
+
+    If isInsIde(fPoly2D, hp2x, hp2y) Then
+        hit = New Punto3d(hx, hy, hz)
+        Return True
+    Else
+        Return False
+    Endif
 
 End

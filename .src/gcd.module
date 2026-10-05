@@ -625,7 +625,7 @@ Public Function GetGBColor(CADcolor As Integer, Optional pLayer As Layer) As Int
 
     Endif
 
-    If Drawing.Sheet.IsModel Then
+    If Me.Drawing.Sheet.IsModel Then
         ' If icolor = 0 Then Stop
         Return iColor
     Else
@@ -904,7 +904,6 @@ End
 
 Public Function IsPoint(sVal As String) As Boolean
 
-    Dim v As Variant
     Dim slx As String[]
     Dim s As String
     Dim f As Float
@@ -1191,37 +1190,51 @@ Catch
 End
 
 '' Prepara un dibujo y lo devuelve listo para usarse
-Public Sub NewDrawing(sName As String) As Drawing
+Public Sub NewDrawing(sName As String, Optional Is3D As Boolean = False) As Drawing
 
     Dim D As Drawing
+    Dim s As Sheet
 
     d = New Drawing
-
     d.Headers = New Headers
     d.FileName = sname
-    Dim S As New Sheet
-    s.Name = "Model"
-    s.IsModel = True
-    's.Entities = d.Entities
-    ' s.Handle = "2" ' Le asigno el 2 porque el 1 es el block_record
-    D.Sheets.Add(s, "Model")
-    d.Sheet = s
-    d.Model = s
-    'D.Entities = d.Sheet.Entities
+    d.Is3D = Is3D
 
-    ' lo agrego a los bloques
-    Dim b As New Block
-    b.name = "*Model_Space"
-    b.entities = New Collection
-    d.Sheet.Entities = b.entities
-    b.IsAuxiliar = True
-    b.IsReciclable = False
+    If Is3D Then
 
-    ' Asocio bloque y hoja
-    s.Block = b
-    b.Sheet = s
+        S = New Sheet("Model3D", d)
 
-    d.Blocks.Add(b, b.name)
+        s.IsModel = True
+        d.Sheet = s
+        d.Model = s
+        d.Model.Block.name = "*Model_Space"
+
+        S = New Sheet("Aux_XZ", d)
+        s.IsAuxiliar = True
+        s.Is3D = False
+        s.Plane2D = Planes.XZ
+
+        S = New Sheet("Aux_XY", d)
+        s.IsAuxiliar = True
+        s.Is3D = False
+        s.Plane2D = Planes.XY
+
+        S = New Sheet("Aux_YZ", d)
+        s.IsAuxiliar = True
+        s.Is3D = False
+        s.Plane2D = Planes.YZ
+
+    Else
+        S = New Sheet("Model", d)
+        s.IsModel = True
+        d.Sheet = s
+        d.Model = s
+        d.Model.Block.name = "*Model_Space"
+
+        S = New Sheet("PaperSpace1", d)
+        s.IsAuxiliar = False
+
+    End If
 
     Dim L As New Layer
     l.Name = "0"
@@ -1426,5 +1439,22 @@ Public Sub RegenID(d As Drawing)
     For Each v As Viewport In d.Viewports
         v.Id = NewId()
     Next
+
+End
+
+Public Function NewVertex(x As Float, y As Float, z As Float, Optional ForceNew As Boolean = False) As Vertex
+
+    Dim p As Vertex
+
+    If Not ForceNew Then
+
+        For Each p In Drawing.Sheet.vertex
+            If (p.x = x) And (p.y = y) And (p.z = z) Then Return p
+        Next
+    End If
+
+    p = New Vertex(x, y, z)
+    Drawing.Sheet.vertex.Add(p, NewId())
+    Return p
 
 End

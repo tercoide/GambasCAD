@@ -45,6 +45,7 @@ Public MyPrinter As Printer
 Public ftring As New Float[]
 Public flxTrimmedLine As New Float[]
 Public GLArea1 As GLArea' = gcd.Drawing.Sheet.GlSheet
+Public glarea3D As GLArea
 
 Public tabViews As TabPanel
 
@@ -275,7 +276,6 @@ End
 
 Private Sub SetToolsMode(sMode As String)
 
-    Dim obj As Object
     ' Dim fp As FProps  TERCO: esto tiene que ser global, lo defino mas arriba
 
     ' For Each obj In pnlToolbarLeft.Children
@@ -413,7 +413,7 @@ Private Sub Draw_Paper()
 
     Dim L As Layer
     Dim vpt As Viewport
-    Dim i, BackGroundColor As Integer
+    Dim BackGroundColor As Integer
 
     For Each vpt In gcd.Drawing.Sheet.Viewports
         If Not vpt.Visibile Then Continue
@@ -494,7 +494,6 @@ Private Sub Draw_Test()
     ' test area
     ' gl.LoadIdentity
     '
-    Dim flx, flx2 As New Float[]
     ' flx = puntos.DashedLineStrip([0, 0, 100, 0, 200, 200, 300, 200], [5, -2.5], 1, 0)
     '
     ' glx.ARC(100, 0, Pi / 3, Color.red)
@@ -539,11 +538,6 @@ End
 
 Public Sub GLArea1_draw()
 
-    Dim iParent As Integer
-    Dim i, BackGroundColor As Integer
-    Dim L As Layer
-    Dim vpt As Viewport
-    Dim e As Entity
 
     If Not gcd.DrawingReady Then Return
     Inc benGLAreaRefresh
@@ -700,6 +694,37 @@ Public Sub GLArea1_MouseWheel()
 
 End
 
+Public Sub glArea3D_MouseWheel()
+
+    ' If Not gcd.drawingready Then Return
+    ' 2024
+
+
+    gcd.Drawing.Sheet.camera.MouseWheel()
+    gcd.Drawing.Sheet.GLSheet.Refresh
+
+End
+
+Public Sub glarea3D_mouseDown()
+
+    gcd.Drawing.Sheet.camera.MouseDown()
+
+End
+
+Public Sub glarea3D_mouseUp()
+
+    ReSearch
+    gcd.Drawing.Sheet.camera.MouseDown()
+
+End
+
+Public Sub glarea3D_mousemove()
+
+    gcd.Drawing.Sheet.camera.MouseMove()
+    gcd.Drawing.Sheet.GLSheet.Refresh
+
+End
+
 ' Public Sub GLPaper_Draw()
 '
 '     Dim iParent As Integer
@@ -818,6 +843,177 @@ End
 '     ' Dec flgWheelCounter
 '
 ' End
+Public Sub glArea3D_draw()
+
+    Dim v As Single[]
+
+    ' Borro la ventana
+    v = glx.GetColorRGBA(config.ModelBackgroundColor)
+
+    gl.ClearColor(v[0], v[1], v[2], v[3])
+
+    gl.Clear(gl.DEPTH_BUFFER_BIT Or gl.COLOR_BUFFER_BIT)
+    gl.Enable(gl.DEPTH_TEST)
+    gl.Enable(gl.SMOOTH)
+
+    ' Try m = m.fMaxDim
+    ' If m = 0 Then m = 1
+    ' antes de dibujar algo, tengo que establecer el tipo de projecccion Ortogonal o Perspectiva
+    gl.MatrixMode(gl.PROJECTION)
+    gl.LoadIdentity()
+
+    Glu.Perspective(45, Me.w / Me.h, 0.1, 10000)
+    'gl.Frustum(-glarea1.w / 2, glarea1.w / 2, -glarea1.h / 2, glarea1.h / 2, 2 * m, 100 * m)
+
+    gl.MatrixMode(gl.MODELVIEW)
+    gl.LoadIdentity()
+    'gl.Translatef(gcd.Drawing.Sheet.PanX, gcd.Drawing.Sheet.PanY, gcd.Drawing.Sheet.PanZ)
+    gl.Scalef(gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom)
+    ' gl.Rotatef(gcd.Drawing.Sheet.Rotx, 1, 0, 0)
+    ' gl.Rotatef(gcd.Drawing.Sheet.RotY, 0, 1, 0)
+    ' gl.Rotatef(gcd.Drawing.Sheet.RotZ, 0, 0, 1)
+    'gl.Scalef(escala / 100, escala / 100, escala / 100)
+
+    Gl.Enable(Gl.NORMALIZE) ' esto sirve para normalizar los vectores normales , o sea que sean de largo = 1
+    ' gl.Translatef(0, 0, -m)
+    ' una vez ubicada la camara, roto el modelo
+    'gl.PushMatrix()                       ' guardo el estado actual de las transformaciones
+    ' gl.Scalef(Config.Zoom, Config.Zoom, Config.Zoom)
+
+    gcd.Drawing.Sheet.camera.render
+
+    Draw_Model
+
+    ' ' GLSL
+    ' 'gl.UseProgram(ShaderId)
+    '
+    ' For Each m In gcd.Drawing.Sheet.Models
+    '     gl.Rotatef(m.Rotation.x, 1, 0, 0)
+    '     gl.Rotatef(m.Rotation.y, 0, 1, 0)    ' roto el modelo segun cada eje
+    '     gl.Rotatef(m.Rotation.z, 0, 0, 1)
+    '
+    '     If m.ShowWireframe Then
+    '
+    '         gl.disable(gl.COLOR_MATERIAL)
+    '         gl.Disable(gl.TEXTURE_2D)
+    '         glx.glColorRGB(Color.Invert(m.colour))
+    '         glx.glBindBuffer(gl.ARRAY_BUFFER, m.VBO_Wireframe_ID)
+    '         glx.glVertexPointer(3, gl.FLOAT, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+    '         glx.glEnableClientState(glx.VERTEX_ARRAY)
+    '         glx.glDrawArrays(gl.LINES, 0, m.xyzWireframe.Count / 2)
+    '         glx.glDisableClientState(gl.VERTEX_ARRAY)
+    '
+    '     End If
+    '     If m.ShowColor Then
+    '
+    '         gl.disable(gl.COLOR_MATERIAL)
+    '         gl.Disable(gl.TEXTURE_2D)
+    '         'glx.glColorRGB(iColor)
+    '         glx.glEnableClientState(glx.VERTEX_ARRAY)
+    '
+    '         glx.glBindBuffer(gl.ARRAY_BUFFER, m.VBO_Vertex_ID)
+    '         glx.glVertexPointer(3, gl.FLOAT, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+    '
+    '         glx.glBindBuffer(gl.ARRAY_BUFFER, m.VBO_Color_ID)
+    '         glx.glColorPointer(3, gl.FLOAT, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+    '
+    '         glx.glDrawArrays(gl.TRIANGLES, 0, m.xyzVertex.Count / 3)
+    '         glx.glDisableClientState(gl.VERTEX_ARRAY)
+    '
+    '     Else If m.ShowMaterial Then
+    '         glx.SetGeneralLigths
+    '         gl.Enable(gl.COLOR_MATERIAL)        ' si usamos iluminacion, esto permite colorear (en caso contrario gl.COLOR no va a funcionar)
+    '
+    '         glx.glMaterial(Me.material)
+    '
+    '         'glx.glColorRGB(Me.Foreground)
+    '         glx.glEnableClientState(glx.VERTEX_ARRAY)
+    '         'glx.glEnableClientState(glx.COLOR_ARRAY)
+    '         'glx.glEnableClientState(glx.NORMAL_ARRAY)
+    '
+    '         glx.glBindBuffer(gl.ARRAY_BUFFER, m.VBO_Vertex_ID)
+    '         glx.glVertexPointer(3, gl.FLOAT, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+    '
+    '         ' glx.glBindBuffer(gl.ARRAY_BUFFER, m.VBO_Color_ID)
+    '         ' glx.glColorPointer(3, gl.FLOAT, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+    '
+    '         'glx.glBindBuffer(gl.ARRAY_BUFFER, m.VBO_Normal_ID)
+    '         'glx.glNormalPointer(gl.FLOAT, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+    '
+    '         glx.glDrawArrays(gl.TRIANGLES, 0, m.xyzVertex.Count / 3)
+    '         glx.glDisableClientState(gl.VERTEX_ARRAY)
+    '         'glx.gldisableClientState(glx.COLOR_ARRAY)
+    '         'glx.gldisableClientState(glx.NORMAL_ARRAY)
+    '
+    '     Else If m.ShowTexture Then
+    '         glx.SetGeneralLigths
+    '         If m.texture Then
+    '
+    '             gl.Disable(gl.COLOR_MATERIAL)        ' si usamos iluminacion, esto permite colorear (en caso contrario gl.COLOR no va a funcionar)
+    '             gl.Enable(GL.TEXTURE_2D)
+    '             glx.glEnableClientState(glx.VERTEX_ARRAY)
+    '             'glx.glEnableClientState(glx.COLOR_ARRAY) ' lo desactivo para que el color no se mezcle con la textura
+    '             glx.glEnableClientState(glx.NORMAL_ARRAY)
+    '             glx.glEnableClientState(glx.TEXTURE_COORD_ARRAY)
+    '             Gl.TexImage2D(m.texture)
+    '             ' sin esto la textura no se usa
+    '             Gl.TexParameteri(Gl.TEXTURE_2D, Gl.TEXTURE_MIN_FILTER, Gl.NEAREST)
+    '
+    '             Gl.TexParameteri(Gl.TEXTURE_2D, Gl.TEXTURE_MAG_FILTER, Gl.NEAREST)
+    '
+    '             gl.BindTexture(gl.TEXTURE_2D, m.hText[0])
+    '
+    '             glx.glBindBuffer(gl.ARRAY_BUFFER, m.VBO_Vertex_ID)
+    '             glx.glVertexPointer(3, gl.FLOAT, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+    '
+    '             ' lo siguiente era innecesario
+    '             ' glx.glBindBuffer(gl.ARRAY_BUFFER, m.VBO_Tex_ID)
+    '             ' glx.gluColorPointer(3, gl.FLOAT, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+    '
+    '             glx.glBindBuffer(gl.ARRAY_BUFFER, m.VBO_Normal_ID)
+    '             glx.glNormalPointer(gl.FLOAT, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+    '
+    '             glx.glBindBuffer(gl.ARRAY_BUFFER, m.VBO_Tex_ID)
+    '             glx.glTexCoordPointer(2, GL.FLOAT, 0, 0)
+    '
+    '             glx.glDrawArrays(gl.TRIANGLES, 0, m.xyzVertex.Count / 3)
+    '             glx.glDisableClientState(gl.VERTEX_ARRAY)
+    '             'glx.gldisableClientState(glx.COLOR_ARRAY)
+    '             glx.gldisableClientState(glx.NORMAL_ARRAY)
+    '             glx.gldisableClientState(glx.TEXTURE_COORD_ARRAY)
+    '
+    '             gl.Disable(GL.TEXTURE_2D)
+    '         End If
+    '
+    '     End If
+    '
+    ' Next
+
+    ' If gcd.Drawing.Sheet.GroundEnabled Then
+    '
+    '     p1.x = -100
+    '     p1.z = -100
+    '
+    '     p2.x = -100
+    '     p2.z = 100
+    '
+    '     p3.x = 100
+    '     p3.z = 100
+    '
+    '     p4.x = 100
+    '     p4.z = -100
+    '
+    '     gColor = Color.SetAlpha(gcd.Drawing.Sheet.GroundColor, gcd.Drawing.Sheet.GroundTrnasparency * 256)
+    '
+    '     glx.Quad3D(p1, p2, p3, p4, gcolor, gcolor, gcolor, gcolor)
+    '
+    ' Endif
+
+    If gcd.Drawing.Sheet.DrawGrid Then gcd.Drawing.Sheet.Grid3dVbo.Draw()
+
+    'gl.UseProgram(0)
+
+End
 
 Public Sub tabFile_MouseWheel()
 
@@ -881,15 +1077,7 @@ End
 
 Public Sub form_KeyPress()
 
-    Dim com As Variant
-    Dim umx As Integer     '' Index in undo array
-    Dim uEnty As Entity    '' Undo entity
-    Dim aEnty, e As Entity    '' Actual entity
-    Dim imx As Integer     '' Index in Entities array
-    Dim SelectMode As Boolean
-    Dim s As String
     ' Print Key.Code
-    Dim t As Float = Timer
 
     ' If txtInput.Visible Then Return
 
@@ -904,8 +1092,9 @@ Public Sub form_KeyPress()
             ' Me.SetFocus
             '            Form_Activate()
 
-            gcd.clsJob.KeyText(KeysAccumulator)
+            gcd.clsJob.KeyText(txtCommand.Text)
             KeysAccumulator = ""
+            txtCommand.Text = ""
 
         Case Key.f2
 
@@ -974,10 +1163,10 @@ Public Sub form_KeyPress()
             ' ftring2 = puntos.LinePolyIntersection(¨, ne.p)
             ' Stop
 
-            Dim NE As New Entity
-            ne = cadLine.NewEntity([0, 0, 100, 0], True)
-            gcd.Drawing.Sheet.Entities.Add(ne, ne.id)
-            gcd.Regen
+            ' Dim NE As New Entity
+            ' ne = cadLine.NewEntity([0, 0, 100, 0], True)
+            ' gcd.Drawing.Sheet.Entities.Add(ne, ne.id)
+            ' gcd.Regen
 
         Case Key.F3  ' tecla reservada para Test de todo tipo
             Try gcd.debugInfo("-----------------------------------------------------------------------")
@@ -999,6 +1188,8 @@ Public Sub form_KeyPress()
             End If
 
         Case Key.f6
+
+            gcd.Drawing.Sheet.models.Add(stl.LoadSTL(User.Home &/ "Quo.stl"), "quo")
 
             ' gcd.DrawBounds = Not gcd.DrawBounds
             ' Me.redraw
@@ -1038,8 +1229,8 @@ Public Sub form_KeyPress()
             'SetToolsMode("tools")
             gcd.clsJob.KeyText("_CANCEL")
 
-        Case Key.Space
-            Stop Event
+            'Case Key.Space
+            'Stop Event
 
         Case Key.Del
             gcd.clsJob.KeyText("Erase")
@@ -1048,7 +1239,7 @@ Public Sub form_KeyPress()
 
         Case Else
             ' A GOOD KEY
-            gcd.clsJob.KeyPress(Key.Code, Key.Text)
+            'gcd.clsJob.KeyPress(Key.Code, Key.Text)
 
             If InStr(KeysAccumulator, "Function") > 0 Then
 
@@ -1157,7 +1348,7 @@ Public Sub form_KeyPress()
             Else
                 If key.text <> "" Then
 
-                    KeysAccumulator &= Key.Text
+                    KeysAccumulator = Key.Text
                     'gcd.clsJob.KeyPress()
 
                     DrawingAIds.ErrorMessage = ""
@@ -1339,7 +1530,7 @@ End
 
 Public Sub UpdateLTypeMenu()
 
-    Dim i As Integer, d As Float
+    Dim i As Integer
     Dim sName As String = "_menuLType"
     Dim mLType As New Menu(fMain), m2 As Menu
     Dim aLType As LineType
@@ -1353,7 +1544,6 @@ Public Sub UpdateLTypeMenu()
         End If
     Next
     mLType.Name = sName
-    Dim AnchoMenu As Integer = 50 'no se cuanto es
     Dim nDashes As Float
     For Each aLType In gcd.Drawing.LineTypes
         m2 = New Menu(mLType)
@@ -1555,12 +1745,11 @@ End
 
 Public Sub UpdateLWtMenu()
 
-    Dim i As Integer, d As Float
+    Dim i As Integer
     Dim sName As String = "_menuLWt"
     Dim mLWt As New Menu(fMain), m2 As Menu
 
     Dim imagen As Image
-    Dim fAbs As New Float[]
     Dim f, lw As Float
 
     For i = 0 To fMain.Menus.Count - 1
@@ -1570,7 +1759,6 @@ Public Sub UpdateLWtMenu()
         End If
     Next
     mLWt.Name = sName
-    Dim AnchoMenu As Integer = 50 'no se cuanto es
 
     ' ahora espesores especificos
     For f = 0 To 1.2 Step 0.1
@@ -1660,7 +1848,6 @@ End
 
 Public Sub tabDrawings_Click()
 
-    Dim t As Object
 
     If InUse Then Return
 
@@ -1694,7 +1881,6 @@ End
 
 Public Sub tabSheets_Click()
 
-    Dim s As Sheet
 
     If InUse Then Return
 
@@ -1707,13 +1893,16 @@ Public Sub tabSheets_Click()
         gcd.Drawing.Sheet = Last.current.tag
 
         gcd.Drawing.LastLayer = gcd.Drawing.CurrLayer
-        If gcd.Drawing.Sheet.Is3D Then
+        gcd.Drawing.Sheet = Last.current.tag
+        If Last.current.tag.Is3D Then
 
+            drawingAids.RebuildGrid3D(gcd.Drawing.Sheet, gcd.Drawing.Sheet.Plane2D = Planes.XY, gcd.Drawing.Sheet.Plane2D = Planes.XZ, gcd.Drawing.Sheet.Plane2D = Planes.YZ, True)
         Else
+
             Me.GLArea1 = gcd.Drawing.Sheet.GLSheet
             GLArea1.Enabled = True
             'Object.Attach(GLArea1, Me, "GLArea1")
-
+            glx.Plane2D = Last.current.tag.Plane2D
             Me.GLArea1.Refresh
 
             If Not gcd.Drawing.Sheet.Shown Then
@@ -1759,14 +1948,17 @@ Public Function NewTabForDrawing(nDrawing As Drawing)
 
     tabFileNew.Refresh
 
-    NewSheet(tabFileNew, nDrawing.Sheets["Model"], True)
+    NewSheet(tabFileNew, nDrawing.model, True)
 
     ' Workaround
     Dim MaxOrder, MinOrder As Integer
     MinOrder = 1000
+    i = 0
     For Each s In nDrawing.Sheets
-        If s.Name = "Model" Then Continue
-        'If s.Name = "Model3D" Then Continue
+
+        If s.IsModel Then Continue   ' TabOrder es siempre 0
+        Inc i
+        If s.TabOrder = 0 Then s.TabOrder = i
         If s.TabOrder > MaxOrder Then MaxOrder = s.TabOrder
         If s.TabOrder < MinOrder Then MinOrder = s.TabOrder
 
@@ -1774,10 +1966,10 @@ Public Function NewTabForDrawing(nDrawing As Drawing)
     For i = MinOrder To MaxOrder
 
         For Each s In nDrawing.Sheets
-            If s.Name = "Model" Then Continue
+            If s.Name = "Model" Or s.Name = "Model3D " Then Continue
             'If s.Name = "Model3D" Then Continue
             If i = s.TabOrder Then
-                NewSheet(tabFileNew, s,, s.Is3D)
+                NewSheet(tabFileNew, s)
                 Break
             End If
 
@@ -1795,11 +1987,9 @@ Public Function NewTabForDrawing(nDrawing As Drawing)
 End
 
 '' Crea una nueva Tab para alojar una nueva hoja
-Public Function NewSheet(tabSheets As TabPanel, s As Sheet, Optional UseFirst As Boolean = False, Is3D As Boolean = False)
+Public Function NewSheet(tabSheets As TabPanel, s As Sheet, Optional UseFirst As Boolean = False)
 
-    Dim i As Integer
-    Dim glaFile2 As GLArea
-    Dim scene As Scene3d
+    Dim g As GLArea
 
     InUse = True
     gcd.DrawingReady = False
@@ -1811,14 +2001,16 @@ Public Function NewSheet(tabSheets As TabPanel, s As Sheet, Optional UseFirst As
     End If
     tabSheets.Text = s.Name
     tabSheets.Refresh
-    If Is3D Then
+    If s.Is3D Then
 
-        scene = New Scene3d(tabSheets.Current) As "glScene3d"
-        scene.BackGroundColor = Config.ModelBackgroundColor
-        scene.Expand = True
-        scene.Tracking = True
-        scene.Mouse = Cursor.CrossHair
-        s.scene = scene
+        g = New GLArea(tabSheets.Current) As "glArea3D"
+        g.BackGround = Config.ModelBackgroundColor
+        g.Expand = True
+        g.Tracking = True
+        g.Mouse = Cursor.CrossHair
+        g.Refresh
+        s.GLSheet = g
+
     Else
 
         glArea1 = New GLArea(tabSheets.Current) As "glarea1"
@@ -1897,9 +2089,7 @@ End
 
 Public Sub LoadButtons(Optional iSize As Integer = 32, iColumns As Integer = 2)
 
-    Dim tb As ToolButton
     Dim iBorder As Integer = 15
-    Dim lp As Integer[]
 
     panEntities.W = iSize * iColumns + iBorder
     panDimensions.W = iSize * iColumns + iBorder
@@ -1990,10 +2180,10 @@ Public Sub LoadButtons(Optional iSize As Integer = 32, iColumns As Integer = 2)
     Utils.tbnCreator(panTop, "cad/locks-grid", "grid",,, ("Toggle Grid"), False)
     Utils.tbnCreator(panTop, "cad/locks-ortho", "ortho",,, ("Toggle Ortho"), False)
 
-    Utils.tbnCreator(panTopRigth, "cad/select", "selectnew",,, ("New Selection"), False)
-    Utils.tbnCreator(panTopRigth, "cad/select-polyline", "selectpoly",,, ("Select with polyline"), False)
-    Utils.tbnCreator(panTopRigth, "cad/locks-grid", "grid",,, ("Toggle Grid"), False)
-    Utils.tbnCreator(panTopRigth, "cad/locks-ortho", "ortho",,, ("Toggle Ortho"), False)
+    ' Utils.tbnCreator(panTopRigth, "cad/select", "selectnew",,, ("New Selection"), False)
+    ' Utils.tbnCreator(panTopRigth, "cad/select-polyline", "selectpoly",,, ("Select with polyline"), False)
+    ' Utils.tbnCreator(panTopRigth, "cad/locks-grid", "grid",,, ("Toggle Grid"), False)
+    ' Utils.tbnCreator(panTopRigth, "cad/locks-ortho", "ortho",,, ("Toggle Ortho"), False)
 
     ' Snap points
 
@@ -2059,8 +2249,6 @@ End
 
 Public Sub splitterH_Resize()
 
-    Dim obj As Object
-    Dim q, e As Integer
 
     Config.SplitterH = splitterH.Layout
 
@@ -2104,8 +2292,8 @@ Public Sub tmrSlash_Timer()
     End If
     If PromtSlash = "|" Then PromtSlash = "" Else PromtSlash = "|"
 
-    fMain.txtCommand.Text = " > " & SCB & sJO & ":" & KeysAccumulator & PromtSlash
-    fMain.txtCommand.Refresh
+    fMain.lblPromp.Text = SCB & sJO
+    fMain.lblPromp.Refresh
 
     ' BenchMArkInfo
     If ShowBenchMarkInfo Then
@@ -2143,7 +2331,6 @@ End
 
 Public Sub Form_Open()
 
-    Dim x As Integer
 
     'Layout.Fix(Me)
     'Me.Border = False
@@ -2216,7 +2403,7 @@ End
 Public Sub TabPanel1_Click()
 
     If TabPanel1.Index = 1 Then ' Layers
-        Dim lay, aLayer As Layer
+        Dim aLayer As Layer
         Dim iRow As Integer
         Dim i As Integer
         Dim sName As String = "_menuLay"
@@ -2275,7 +2462,7 @@ End
 
 Public Sub tbvLayers_MouseUp()
 
-    Dim lay, aLayer As Layer
+    Dim aLayer As Layer
     Dim v As Integer
 
     Debug tbvLayers.Row, tbvLayers.Column
@@ -2371,5 +2558,15 @@ Public Sub mbtLayers_Click()
     clsEntities.EditEntities("layer", gcd.Drawing.CurrLayer.name)
 
     clsEntities.DeSelection()
+
+End
+
+Public Sub txtCommand_Activate()
+
+    txtCommand.CursorAt(txtCommand.Text.Len)
+
+End
+
+Public Sub txtCommand_KeyPress()
 
 End

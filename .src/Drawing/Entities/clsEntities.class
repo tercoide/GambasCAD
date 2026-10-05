@@ -74,7 +74,7 @@ End
 
 Public Sub DrawArrays()
 
-    Dim iError, vOffset, nOffset, cOffset, tOffset As Integer
+    Dim iError, vOffset, nOffset, cOffset As Integer
 
     If inxBuffersID.Count = 0 Then Return
 
@@ -204,7 +204,7 @@ End
 '' Borra la lista anterior y genera una nueva
 Public Sub glGenBuffers(Optional eEntity As Entity = Null)
 
-    Dim i, iVBO As Integer, e As Entity
+    Dim e As Entity
 
     If eEntity Then
 
@@ -221,7 +221,6 @@ Public Sub glGenBuffers(Optional eEntity As Entity = Null)
     Else
 
         ' If Not gl.islist(gcd.CurrDrawing.GlListAllEntities) Then gcd.CurrDrawing.GlListAllEntities = gl.GenLists(1)
-        Dim t As Float = Timer
         Dim iError As Integer
         ' listas de entidades
         glx.VBOFlush
@@ -238,7 +237,6 @@ Public Sub glGenBuffers(Optional eEntity As Entity = Null)
         Next
         glx.InmediateMode = True
 
-        Dim oneBufferID As Integer
         inxBuffersID.Resize(3)
 
         iError = glx.glGetError()
@@ -425,25 +423,34 @@ End
 
 ' Generates a GL list for the selected
 '' Mode: 0=Selected version 1=Normal version
-Public Sub glGenDrawVBO(Optional aLayer As Layer)
+Public Sub glGenDrawVBO(Optional vLayerOrEntity As Variant)
 
-    Dim i As Integer
-    Dim e As Entity, s As Sheet
+    Dim e As Entity, s As Sheet, aLayer As Layer
 
-    If aLayer Then
+    If vLayerOrEntity Then
 
-        aLayer.VBO.Clear
-        glx.VBOCurrent = aLayer.VBO
-        For Each s In gcd.Drawing.Sheets
+        If vLayerOrEntity Is Layer Then
+            aLayer = vLayerOrEntity
+            aLayer.VBO.Clear
+            glx.VBOCurrent = aLayer.VBO
+            For Each s In gcd.Drawing.Sheets
 
-            For Each e In s.Entities
+                For Each e In s.Entities
 
-                If e.pLayer = aLayer Then gcd.CCC[e.gender].Draw(e)
+                    If e.pLayer = aLayer Then gcd.CCC[e.gender].Draw(e)
+
+                Next
 
             Next
-        Next
 
-        aLayer.VBO.SendBuffersToGPU()
+            aLayer.VBO.SendBuffersToGPU()
+        Else If vLayerOrEntity Is Entity Then
+            aLayer = vLayerOrEntity.pLayer
+            glx.VBOCurrent = aLayer.VBO
+            gcd.CCC[vLayerOrEntity.gender].Draw(vLayerOrEntity)
+            aLayer.VBO.SendBuffersToGPU()
+
+        End If
 
     Else
         ' renuevo los VBO
@@ -452,7 +459,7 @@ Public Sub glGenDrawVBO(Optional aLayer As Layer)
         Next
 
         For Each s In gcd.Drawing.Sheets
-            If Not (s.name = "Model") Then Continue
+            If Not (s.name Like "Model*") Then Continue
 
             For Each e In s.Entities
 
@@ -594,8 +601,6 @@ End
 Public Function CopyBlock(bBase As Block) As Block
 
     Dim b As New Block
-    Dim h As Hatch
-    Dim s As SPline
     Dim e As Entity
 
     b.name = bBase.name
@@ -629,7 +634,7 @@ Public Function DeSelection(Optional elementos As String = "todo", Accion As Str
     ' tambien puede deseleccionar todo
     ' Devuelve la cantidad de elementos que quedaron seleccionados despues de filtrar
 
-    Dim i As Integer, c As Integer, Clase As String, iii As Integer
+    Dim i As Integer
 
     ' por las dudas vengan alguna letra mayuscula
     If Accion = "" Then accion = "deseleccionar"
@@ -794,7 +799,7 @@ End
 
 Public Sub SelectElem(eEntity As Entity, Optional AndItsPoints As Boolean = True)
 
-    Dim i, ii As Integer
+    Dim i As Integer
 
     If AndItsPoints Then
         For i = 0 To eEntity.Psel.Max
@@ -810,7 +815,7 @@ Public Sub DeSelectElem(eEntity As Entity, Optional AndItsPoints As Boolean = Tr
 
     ' deselect all points and myself
 
-    Dim i, ii As Integer
+    Dim i As Integer
 
     If AndItsPoints Then
         For i = 0 To eEntity.Psel.Max
@@ -825,7 +830,7 @@ End
 Public Sub Move(dX As Float, dY As Float, Optional cEntitiesToMove As Collection, OnlyPointSelected As Boolean = False, DoUndo As Boolean = False)
 
     ' crea un backup de todos los puntos
-    Dim e As Entity, i As Integer
+    Dim e As Entity
 
     If Not cEntitiesToMove Then cEntitiesToMove = gcd.Drawing.Sheet.EntitiesSelected
 
@@ -887,7 +892,7 @@ Public Sub Translate(e As Entity, dX As Float, dY As Float)
 
 End
 
-Public Sub Scale(e As Entity, sX As Float, sY As Float)
+Public Sub Scale(e As Entity, sX As Float, sY As Float, Optional sZ As Float = 1)
 
     gcd.CCC[e.gender].Scale(e, sX, sY)
 
@@ -1078,7 +1083,7 @@ End
 
 Public Function ComputeLimits(Optional entities As Collection, OnlyVisibles As Boolean = True, IgnorePoints As Boolean = True, OnlyModel As Boolean = True) As Float[]
 
-    Dim e As Entity, i As Integer
+    Dim e As Entity
     Dim entGroup As Collection
 
     Dim newLimits As New Float[]
@@ -1156,13 +1161,8 @@ End
 '' False if entity couldn't be created for some reason.
 Public Function DXFImportToEntity(drw As Drawing, c As Collection, Optional IsDummy As Boolean = False) As Entity
 
-    Dim clsidr As Object
-    Dim sClass As Class
     Dim sClave As New String[]
     Dim sValue As New String[]
-    Dim lpValue, lpclave As String
-    Dim i As Integer
-    Dim GotEntity As Boolean
     Dim e As Entity
     Dim LT As LineType
 
@@ -1472,7 +1472,6 @@ End
 Public Function FindInsertByName(cEntities As Collection, sName As String) As Entity
 
     Dim e As Entity
-    Dim b As Block
 
     For Each e In cEntities
         If e.pBlock Then
@@ -1487,11 +1486,8 @@ End
 
 Public Sub exportstl()
 
-    Dim e As Entity, i As Integer
-    Dim entGroup As Collection
+    Dim e As Entity
 
-    Dim newLimits As New Float[]
-    Dim IsVisible As Boolean
 
     For Each e In gcd.Drawing.Sheet.Entities
 
@@ -1531,5 +1527,38 @@ Public Sub VboEntitySetHighligth(e As Entity)
 End
 
 Public Sub glGenDrawListSel22()
+
+End
+
+'' Draws a Face in the current VBO
+'' Mode: 0 = normal, 1 = remark, 2 = selected
+'' Painting: 0 = use color, 1 = use material, 2 = use texture
+Public Sub DrawFace(f As Face, Optional mode As Integer = 0, painting As Integer = 0, DrawWireframe As Boolean = False)
+
+
+    If IsNull(f) Then Return
+    Dim fPoints As Float[]
+    Dim fColor4 As Integer
+
+    Dim fTriangles As Float[]
+    fColor4 = gcd.GetGBColor(f.Colour, f.pLayer)
+    If mode = 1 Then fcolor4 = Color.green 'Color.Lighter(fColor4)
+    If mode = 2 Then fColor4 = Color.red'Color.Darker(fColor4)
+
+    If DrawWireframe Then
+        If f.vertex.Count > 1 Then ' dibujo el contorno
+            fPoints = puntos.Create3dArray(f.vertex)    ' paso de Punto3D a XYZ triplets
+
+            glx.Polygon(fPoints, fColor4, 1,, True)
+        End If
+    End If
+    'If f.vertex.Count = 4 Then Stop
+    If (f.vertex.Count >= 3) Then ' dibujo el contorno
+
+        fTriangles = puntos.PolygonTriangulation3D(puntos.VertexToPunto3D(f.vertex))
+
+        fColor4 = Color.Darker(fColor4)
+        glx.DrawTriangles3D(fTriangles, Color.Darker(gcd.GetGBColor(f.Colour, f.pLayer)))
+    End If
 
 End

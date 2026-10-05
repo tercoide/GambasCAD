@@ -24,10 +24,10 @@ Create Static
 Inherits EntityBase
 Public Const Gender As String = "ELLIPSE"
 Public Const PointsToDraw As Integer = 1             ' minimal point requered for drawing something usefull
-Public Const CmdLineHelper As String = ("Draw an ellipse")
-Public Const ParamType As String = "PPRRR"
-Public Const ParamHelper As String = "Start point;Major Radious;Minor/Major;Start;End"      ' a little text that is shown at the prompt waiting for user input during build
-Public Const ParamDefault As String = " ;  ;0.5;0;360"
+Public Const CmdLineHelper As String = ("Draw an ellipse: center point")
+Public Const ParamType As String = "point"
+Public Const ParamHelper As String = "center"      ' a little text that is shown at the prompt waiting for user input during build
+Public Const ParamDefault As String = "0.0,0.0"
 
 ' vars creadas en finish
 
@@ -39,22 +39,23 @@ Public Const Regenerable As Boolean = True
 
 ' The entity handler receives a user action, and returns the number of expected parameter
 ' If definitive = true, means the parameter is set
-Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
+Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Variant
 
     Dim f As Float
-    Dim ip As Integer
 
-    If gcd.StepsDone = 0 Then
+    If Me.ExpectedParam = "center" Then
 
-        If vParam[0] <> "point" Then Return gcd.StepsDone
+        If vParam[0] <> "point" Then Return
 
         Try eBuild.P[0] = vParam[1]
         Try eBuild.P[1] = vParam[2]
         eBuild.P[2] = eBuild.P[0]
         eBuild.P[3] = eBuild.P[1]
-        If definitive Then Return True
-
-    Else If gcd.StepsDone = 1 Then
+        If Definitive Then
+            Me.ExpectedParam = "axis"
+            Return ["prompt": "axis", "nextparamtype": "point"]
+        End If
+    Else If Me.ExpectedParam = "axis" Then
 
         If vParam[0] <> "point" Then Return False
 
@@ -63,9 +64,13 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
         eBuild.fParam[0] = 0.5
         eBuild.fParam[1] = 0
         eBuild.fParam[2] = 360
-        If definitive Then Return True
+        If Definitive Then
 
-    Else If gcd.StepsDone = 2 Then   ' recibimos la relacion de minor/major
+            Me.ExpectedParam = "relation"
+            Return ["prompt": "axis factor", "nextparamtype": "relation"]
+        End If
+
+    Else If Me.ExpectedParam = "relation" Then   ' recibimos la relacion de minor/major
 
         If vParam[0] = "point" Then  ' vino como un punto, entonces la calculo de otra manera
 
@@ -76,35 +81,53 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
             eBuild.fParam[0] = vParam[1]
 
         Else
-            Return False
+            Return
         End If
 
-        If definitive Then Return True
+        If Definitive Then
+            Me.ExpectedParam = "start"
+            Return ["prompt": "start angle", "nextparamtype": "angle"]
+        End If
 
-    Else If gcd.StepsDone = 3 Or gcd.StepsDone = 4 Then    ' recibimos el angulo inicial
-
-        If gcd.StepsDone = 3 Then ip = 1 Else ip = 2
+    Else If Me.ExpectedParam = "start" Then    ' recibimos el angulo inicial
 
         If vParam[0] = "float" Then  ' vino como un punto, entonces la calculo de otra manera
-            eBuild.fParam[ip] = vParam[1]
+            eBuild.fParam[1] = vParam[1]
 
         Else If vParam[0] = "point" Then
             f = Ang(vParam[1] - eBuild.P[0], vParam[2] - eBuild.P[1])
             f *= 180 / Pi
-            eBuild.fParam[ip] = f
+            eBuild.fParam[1] = f
         Else
-            Return False
+            Return
         End If
 
-        If definitive Then Return True
+        If Definitive Then
+            Me.ExpectedParam = "end"
+            Return ["prompt": "end angle", "nextparamtype": "angle"]
+        End If
+    Else If Me.ExpectedParam = "end" Then    ' recibimos el angulo inicial
+
+        If vParam[0] = "float" Then  ' vino como un punto, entonces la calculo de otra manera
+            eBuild.fParam[1] = vParam[1]
+
+        Else If vParam[0] = "point" Then
+            f = Ang(vParam[1] - eBuild.P[0], vParam[2] - eBuild.P[1])
+            f *= 180 / Pi
+            eBuild.fParam[1] = f
+        Else
+            Return
+        End If
+
+        If Definitive Then Return ["command": "end"]
 
     Else
-        Return False
+        Return
     End If
 
 End
 
-Public Sub Scale(e As Entity, sX As Float, sY As Float)
+Public Sub Scale(e As Entity, sX As Float, sY As Float, Optional sZ As Float = 1)
 
     Dim i As Integer
 
@@ -137,8 +160,7 @@ End
 Public Sub MakePolyline(oe As Entity)
 
     Dim x, y, theta, angle_increment As Float
-    Dim i As Integer
-    Dim major, minor, la As Float
+    Dim major, minor As Float
 
     major = Sqr((oE.p[2] - oE.p[0]) ^ 2 + (oE.p[3] - oE.p[1]) ^ 2)
     angle = Ang(oE.p[2] - oE.p[0], oE.p[3] - oE.p[1])          ' Los coordenadas del eje mayor son relativas al centro
@@ -164,9 +186,7 @@ End
 
 Public Sub Draw(oE As Entity)
 
-    Dim x, y, theta, angle_increment As Float
-    Dim i As Integer
-    Dim major, minor, la As Float
+    Dim major, minor As Float
 
     If Not oE.Visible Then Return
 
@@ -213,7 +233,7 @@ End
 
 Public Function Draw2(oE As Entity)
 
-    Dim major, minor, la As Float
+    Dim major, minor As Float
 
     major = Sqr((oE.p[2] - oE.p[0]) ^ 2 + (oE.p[3] - oE.p[1]) ^ 2)
     angle = Ang(oE.p[2] - oE.p[0], oE.p[3] - oE.p[1])          ' Los coordenadas del eje mayor son relativas al centro

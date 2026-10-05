@@ -25,10 +25,10 @@ Inherits EntityBase
 
 Public Const Gender As String = "LWPOLYLINE"
 Public Const PointsToDraw As Integer = 0             ' minimal point requered for drawing something usefull
-Public Const CmdLineHelper As String = ("LWPOLYLINE")
-Public Const ParamType As String = "P+"                             ' that is Point, Point, Float; could be Color Text, etc
-Public Const ParamHelper As String = ("Next Point")      ' a little text that is shown at the prompt waiting for user input during build
-Public Const ParamDefault As String = "Close/Undo"
+Public Const CmdLineHelper As String = ("draw a LWPOLYLINE: first point")
+Public Const ParamType As String = "point"                             ' that is Point, Point, Float; could be Color Text, etc
+Public Const ParamHelper As String = "point"      ' a little text that is shown at the prompt waiting for user input during build
+Public Const ParamDefault As String = ""
 Public Const ContextMenu As String = ("Close polyline;_CLOSE;;;Undo last point;_UNDO;;;End in last point;_END;;") ' el menu para el boton derecho, los comandos en mayusculas NO se traducen
 
 Public Const totalpoints As Integer = 1
@@ -41,18 +41,19 @@ Public iContext As Integer = 0 ' var local para usar Draw2 con Draw
 
 ' The entity handler receives a user action, and returns the number of expected parameter
 ' If definitive = true, means the parameter is set
-Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Boolean
+Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Variant
 
     If vParam[0] = "point" Then
 
         eBuild.P[eBuild.P.Max - 1] = vParam[1]
         eBuild.P[eBuild.P.Max] = vParam[2]
 
-        If definitive Then
+        If Definitive Then
             eBuild.P.Insert(eBuild.P.Copy(eBuild.P.Max - 1, 2))
-            Return True
+            Return ["prompt": "next point"]
         End If
-    Else If vParam[0] = "text"
+
+    Else If vParam[0] = "text" Then
 
         If vParam[1] = "_CLOSE" Then
             If eBuild.P.Count > 4 Then eBuild.P.Remove(eBuild.P.Max - 1, 2)
@@ -60,17 +61,17 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
             eBuild.P.Add(eBuild.P[1])
             eBuild.iParam[0] = 1
             Inc gcd.StepsDone
-            Return True
+            Return ["command": "end"]
 
         Else If vParam[1] = "_UNDO" Then
             If eBuild.P.Count > 4 Then eBuild.P.Remove(eBuild.P.Max - 1, 2)
             eBuild.iParam[0] = 0
-            Return True
+            Return ["prompt": "next point"]
         Else If vParam[1] = "_END" Then
             If eBuild.P.Count > 4 Then eBuild.P.Remove(eBuild.P.Max - 1, 2)
             Inc gcd.StepsDone
             eBuild.iParam[0] = 0
-            Return True
+            Return ["command": "end"]
 
         Endif
     End If
@@ -191,38 +192,9 @@ Public Sub Finish(oE As Entity) As Boolean
 
 End
 
-Public Function SaveDxfData(e As Entity) As Boolean
-
-    Dim i, IMAX As Integer
-
-    ' stxExport.insert(["LWPOLYLINE", dxf.codEntity])
-    ' Los datos comunes a todas las entidades son guardados por la rutina que llama a esta
-    dxf.SaveCodeInv("AcDbPolyline", "100")
-    dxf.SaveCodeInv(e.P.Count / 2, "90")              ' n puntos
-    dxf.SaveCodeInv(CStr(e.iParam[Me.iiiPolylineType]), "70")      ' abierta =1 o cerrada =0
-    dxf.SaveCodeInv("0", "43")
-    imax = e.P.max
-    If e.iParam[Me.iiiPolylineType] Then imax -= 2
-    For i = 0 To e.p.Max Step 2
-        dxf.SaveCodeInv(CStr(e.p[i]), dxf.codX0)
-        dxf.SaveCodeInv(CStr(e.p[i + 1]), dxf.codY0)
-
-        If i / 2 <= e.fParam.max Then dxf.SaveCodeInv(CStr(e.fParam[i / 2]), "42")
-    Next
-    If e.Extrusion[2] <> 1 Then
-        dxf.SaveCodeInv(CStr(e.Extrusion[0]), "210")
-        dxf.SaveCodeInv(CStr(e.Extrusion[1]), "220")
-        dxf.SaveCodeInv(CStr(e.Extrusion[2]), "230")
-    Endif
-
-End
-
 Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
 
     Dim i As Integer
-    Dim FirstBulge As Boolean
-    Dim NewTrame As Boolean
-    Dim BulgeAdded As Boolean
 
     e.P.Clear
     For i = 0 To sClaves.Max
@@ -258,7 +230,33 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
 End
 
+Public Function SaveDxfData(e As Entity) As Boolean
+
+    Dim i, IMAX As Integer
+
+    ' stxExport.insert(["LWPOLYLINE", dxf.codEntity])
+    ' Los datos comunes a todas las entidades son guardados por la rutina que llama a esta
+    dxf.SaveCodeInv("AcDbPolyline", "100")
+    dxf.SaveCodeInv(e.P.Count / 2, "90")              ' n puntos
+    dxf.SaveCodeInv(CStr(e.iParam[Me.iiiPolylineType]), "70")      ' abierta =1 o cerrada =0
+    dxf.SaveCodeInv("0", "43")
+    imax = e.P.max
+    If e.iParam[Me.iiiPolylineType] Then imax -= 2
+    For i = 0 To e.p.Max Step 2
+        dxf.SaveCodeInv(CStr(e.p[i]), dxf.codX0)
+        dxf.SaveCodeInv(CStr(e.p[i + 1]), dxf.codY0)
+
+        If i / 2 <= e.fParam.max Then dxf.SaveCodeInv(CStr(e.fParam[i / 2]), "42")
+    Next
+    If e.Extrusion[2] <> 1 Then
+        dxf.SaveCodeInv(CStr(e.Extrusion[0]), "210")
+        dxf.SaveCodeInv(CStr(e.Extrusion[1]), "220")
+        dxf.SaveCodeInv(CStr(e.Extrusion[2]), "230")
+    Endif
+
+End
 '' Return if that position is over the entity within the tolerance
+
 Fast Public Function OverMe(e As Entity, Xr As Float, Yr As Float, tolerance As Float) As Boolean
 
     Dim i As Integer
@@ -302,14 +300,17 @@ Public Function GripEdit(g As Grip) As Boolean
 
 End
 
-Public Sub Scale(e As Entity, sX As Float, sY As Float)
+Public Sub Scale(e As Entity, sX As Float, sY As Float, Optional sZ As Float = 1)
 
-    Dim i, signo As Integer
+    Dim i, signo, paso As Integer
 
-    For i = 0 To e.p.max Step 2
+    If e.Is3D Then paso = 3 Else paso = 2
+
+    For i = 0 To e.p.max Step paso
 
         e.P[i] = e.P[i] * sX
         e.P[i + 1] = e.P[i + 1] * sY
+        If e.Is3D Then e.P[i + 2] = e.P[i + 2] * sZ
 
     Next
 
