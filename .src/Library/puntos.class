@@ -422,6 +422,7 @@ End
 Public Function PolygonTriangulation3D(pPolygon As Punto3d[]) As Float[]
 
     'Dim UsedTracts As New Boolean[]
+    Dim Wasted As New Float[]
     Dim Intersec As New Float[]
     Dim pPoly As New Punto3D[]
     Dim fPolyXY As New Float[]
@@ -647,8 +648,9 @@ End
 
 Public Function NearestToLine(Xp As Float, Yp As Float, X1 As Float, Y1 As Float, X2 As Float, Y2 As Float) As Float[]
 
+    Dim fRet As New Float[]
     Dim Xm, Ym As Float
-    Dim d1, d2 As Float
+    Dim d, d1, dm, d2 As Float
 
     ' Xm = (x2 + x1) / 2
     '
@@ -1290,9 +1292,11 @@ Public Function SortLineSegments2(flxPoly As Float[]) As Float[]
 
     Dim i As Integer
 
-    Dim dx, dy As Float
+    Dim iInicial As Integer
+    Dim d1, d2, dx, dy, d As Float
+    Dim Swaped As Boolean
     Dim f, flxLim, flxRet, flxRet0, flxret2, flxSorted As New Float[]
-    Dim i2 As Integer
+    Dim i2, iz As Integer
 
     flxLim = Limits(flxPoly)
     dx = flxLim[2] - flxLim[0]
@@ -1419,8 +1423,8 @@ Public Function LinePolyIntersection(flxLine As Float[], flxPoly As Float[]) As 
     ' la polylinea se considera cerrada y de mas de 3 puntos, caso contrario se devuelve la linea sin cambios
     ' la linea es de dos puntos , si esta afuera de la polilinea, se devuelve un array vacio
     ' Chequeos previos:
-    Dim FirstInsIde, LastInsIde As Boolean
-    Dim i As Integer
+    Dim UsarUltimoPunto, FirstInsIde, LastInsIde As Boolean
+    Dim i, UltimoPunto As Integer
     Dim flxRta, flxInter As New Float[]
 
     If flxLine.Count <> 4 Then Return []
@@ -2005,7 +2009,7 @@ Public Function Size3D(fPoints As Float[]) As Float[]
 
 End
 
-Public Function CenterGravity3dP(pPoints As Punto3d[]) As Punto3d
+Public Function CenterGravity3dP(pPoints As Variant[]) As Punto3d
 
     Dim fLimits As Float[]
     Dim p As New Punto3d
@@ -2019,7 +2023,7 @@ Public Function CenterGravity3dP(pPoints As Punto3d[]) As Punto3d
 
 End
 
-Public Function Limits3dP(Points As Punto3d[]) As Float[]
+Public Function Limits3dP(Points As Variant[]) As Float[]
 
     Dim Xmenor, Ymenor, Zmenor, Xmayor, Ymayor, Zmayor As Float
 
@@ -2047,7 +2051,7 @@ Public Function Limits3dP(Points As Punto3d[]) As Float[]
 
 End
 
-Public Function Size3dP(pPoints As Punto3d[]) As Punto3d
+Public Function Size3dP(pPoints As Variant[]) As Punto3d
 
     Dim fLimits As Float[]
     Dim l As New Punto3d
@@ -2073,11 +2077,12 @@ End
 '' Devuelve una linea de puntos confinada en los segmentos flxStrip, segun el patron estilo CAD flxDashes, usando el punto base.
 Public Function DashedLineStrip(flxStrip As Float[], flxDash As Float[], Optional fScale As Float = 1, fOffset As Float = 0, bInvertDashes As Boolean = False, bIntercalateLines As Boolean = False, fWIdth As Float = 1) As Float[]
 
-    Dim fTrame, fDashTotal, DashTrame As Float
-    Dim i, i2, iDashTrame As Integer
-    Dim flxDashes, flxFirstPass As New Float[]
-    Dim DashBaseX, DashBaseY, DashFinalX, DashFinalY As Float
-    Dim CosB, SinB, fAngle As Float
+    Dim fTrame, fDashTotal, fDistance, DashLength, DashTrame As Float
+    Dim iPatternOffset, iPatternN As Integer
+    Dim ie, i, i2, AlPedo, Sirve, nTrames, iDashTrame As Integer
+    Dim flxDashes, flxTrimmedLine, flxPatternLimits, flxContorno, flxFirstPass, flxSecondPass, flxInter As New Float[]
+    Dim CosA, SinA, DashBaseX, DashBaseY, DashFinalX, DashFinalY As Float
+    Dim SeedX, SeedY, SeedIndex, CosB, SinB, TanB, CosAB, SinAB, TanAB, fAngle As Float
     Dim X0, X1, Y0, Y1 As Float
     Dim DashCut As Float
     Dim bSpace, bSkip As Boolean
@@ -2365,6 +2370,7 @@ Public Function Create3dArray(p3dPoints As Variant[]) As Float[]
     Dim p As Variant
     Dim fPoints As New Float[]
     Dim i As Integer
+    Dim v As Variant
 
     ' If p3dPoints Is Punto3d Then
     '     p = vp
