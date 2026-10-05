@@ -130,35 +130,38 @@ Public Function OverMe(e As Entity, Xr As Float, Yr As Float, tolerance As Float
     ' debo transformar la cara 3D en puntos 2D segun la proyeccion
     Dim x, y As Integer
 
-    Return
     x = gcd.XPix(xr)            ' coordenadas de pantalla en pixeles
     y = gcd.YPix(yr)
 
     Dim ray As New Float[3]                             ' es un rayo que atraviesa la pantalla en la posicion del mouse
-    ray = glx.Get3DpointFromScreen(x, y)
+    ray = gcd.Drawing.Sheet.camera.Get3DpointFromScreen(x, y, 0)
 
     Dim origen, direccion, hit As New Punto3d
-    origen.x = xr 'ray[0]
-    origen.y = yr' ray[1]
-    origen.z = 1'ray[2]               ' ??
+    origen.x = ray[0]
+    origen.y = ray[1]
+    origen.z = ray[2]               ' ??
 
-    direccion.x = 0                 ' Valores del 2D XY
-    direccion.y = 0
-    direccion.z = -1
+    ray = gcd.Drawing.Sheet.camera.Get3DpointFromScreen(x, y, 1)
+
+    direccion.x = ray[0] - origen.x
+    direccion.y = ray[1] - origen.y
+    direccion.z = ray[2] - origen.z
 
     Dim inside As Boolean
-    inside = puntos.RayPolygonIntersection3D(origen, direccion, e.pBlock.faces[0].vertex, hit)
+    inside = puntos.RayPolygonIntersection3D(origen, direccion, puntos.VertexToPunto3D(e.pBlock.faces[0].vertex), hit)
     If inside Then
         Debug hit.x, hit.y, hit.z
     Endif
     'inside = puntos.RayConcavePolygonIntersect(origen, gcd.Drawing.Sheet.camera.ViewDir, e.pBlock.vertex, rDist)
-    'Return inside
+    Return inside
 
-    If e.Polygon Then
-        If puntos.isInside(puntos.RemoveAxisP3(e.pBlock.faces[0].vertex), xr, yr) Then Return True
-    End If
-
-    Return False
+    ' If e.Polygon Then
+    '     If puntos.isInside(puntos.RemoveAxisP3(e.pBlock.faces[0].vertex), xr, yr) Then
+    '         Return True
+    '     End If
+    ' End If
+    '
+    ' Return False
 
 End
 

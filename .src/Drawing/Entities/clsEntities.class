@@ -898,7 +898,7 @@ Public Sub Scale(e As Entity, sX As Float, sY As Float, Optional sZ As Float = 1
 
 End
 
-Fast Public Function SelectionSquare(X0 As Float, Y0 As Float, x1 As Float, y1 As Float, Optional crossing As Boolean = False) As Collection
+Public Function SelectionSquare(X0 As Float, Y0 As Float, x1 As Float, y1 As Float, Optional crossing As Boolean = False) As Collection
 
     ' Veo que accion estoy tomando
     Dim e As Entity, i, i2, TotalSeleccionados As Integer
@@ -953,6 +953,84 @@ Fast Public Function SelectionSquare(X0 As Float, Y0 As Float, x1 As Float, y1 A
                 If SelFull(e, X0, Y0, X1, Y1) Then GoSub AddMe
             End If
         End If
+    Next
+    t = Timer - t
+    Debug "Select parsing time ", t, "sec to ", c.Count, " of ", gcd.Drawing.Sheet.EntitiesVisibles.Count, " visibles"
+    ' For Each t In cTimes
+    '     Debug cTotal[cTimes.Key], cTimes.Key, t
+    ' Next
+    Return c
+
+AddMe:
+
+    If e.Container.parent Then
+        c.Add(e.Container.parent, e.Container.Parent.id)
+    Else
+
+        c.Add(e, e.id)
+    End If
+    Return
+
+End
+
+Public Function Selection3D(X0 As Float, Y0 As Float) As Collection
+
+    ' Veo que accion estoy tomando
+    Dim e As Entity, i, i2, TotalSeleccionados As Integer
+    Dim c As New Collection
+    Dim cTimes As New Collection
+    Dim cTotal As New Collection
+    Dim lay As Layer
+
+    Dim tot As Integer
+    Dim s As Sheet
+    Dim ho As String
+    Dim t As Float = Timer
+    Dim t2 As Float
+    Dim insideX, insideY, OutSideX, OutSidey As Boolean
+    Dim Tolerance As Float = gcd.Metros(Config.SelectTolerancePixDistance)
+
+    For Each e In gcd.Drawing.Sheet.Entities
+
+        If gcd.CCC[e.Gender].overme(e, X0, Y0, Tolerance) Then GoSub AddMe
+
+        ' insideX = False
+        ' insideY = False
+        ' OutSideX = False
+        ' OutSidey = False
+        '
+        ' If (e.Limits[0] >= x0) And (e.Limits[2] <= x1) Then insideX = True
+        ' If (e.Limits[1] >= y0) And (e.Limits[3] <= y1) Then insidey = True
+        ' If (e.Limits[0] > x1) Or (e.Limits[2] < x0) Then OutSideX = True
+        ' If (e.Limits[1] > y1) Or (e.Limits[3] < y0) Then OutSidey = True
+        '
+        ' If insideX And insideY Then
+        '
+        '     GoSub AddMe
+        '     e.Psel.Fill(True)
+        '
+        ' Else If OutSideX Or OutSidey Then
+        '     Continue
+        '
+        ' Else
+        '     ' cada entidad debe decidir si esta seleccionada o no
+        '     If crossing Then
+        '         t2 = Timer
+        '         If SelPArtial(e, X0, Y0, X1, Y1) Then GoSub AddMe
+        '
+        '         ' t2 = Timer - t2
+        '         ' If cTimes.Exist(e.Gender) Then
+        '         '     cTimes[e.Gender] += t2
+        '         '     cTotal[e.Gender] += 1
+        '         ' Else
+        '         '     cTimes.Add(t2, e.Gender)
+        '         '     cTotal.Add(1, e.Gender)
+        '         ' End If
+        '     Else
+        '
+        '         If SelFull(e, X0, Y0, X1, Y1) Then GoSub AddMe
+        '     End If
+        ' End If
     Next
     t = Timer - t
     Debug "Select parsing time ", t, "sec to ", c.Count, " of ", gcd.Drawing.Sheet.EntitiesVisibles.Count, " visibles"
@@ -1488,7 +1566,6 @@ Public Sub exportstl()
 
     Dim e As Entity
 
-
     For Each e In gcd.Drawing.Sheet.Entities
 
     Next
@@ -1534,7 +1611,6 @@ End
 '' Mode: 0 = normal, 1 = remark, 2 = selected
 '' Painting: 0 = use color, 1 = use material, 2 = use texture
 Public Sub DrawFace(f As Face, Optional mode As Integer = 0, painting As Integer = 0, DrawWireframe As Boolean = False)
-
 
     If IsNull(f) Then Return
     Dim fPoints As Float[]
