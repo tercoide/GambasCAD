@@ -1,6 +1,15 @@
 ' Gambas class file
 
 ' Uploads column-major matrices to GLSL mat4 uniforms.
+' Replaces the fixed-function matrix stack (gl.MatrixMode, gl.LoadIdentity, gl.Translatef,
+' gl.Rotatef, gl.Scalef, gl.PushMatrix, gl.PopMatrix, glu.Perspective, glu.LookAt).
+'
+' View holds the camera (pan, zoom, rotation), Model holds per-object transforms
+' (base offset, tool previews). Every change is uploaded right away, so the next draw
+' call already sees it.
+'
+' The legacy GL matrices are kept in sync too, so glu.Project/UnProject (picking) and any
+' code still drawing without the shader keep working.
 
 Public Model As New Matrix4
 Public View As New Matrix4
@@ -11,17 +20,69 @@ Public ViewUniform As String = "uView"
 Public ProjectionUniform As String = "uProjection"
 Public MVPUniform As String = "uMVP"
 
+' vertex attribute locations, must match .hidden/shaders/*.vert
+Public Const ATTRIB_POSITION As Integer = 0
+Public Const ATTRIB_NORMAL As Integer = 1
+Public Const ATTRIB_COLOR As Integer = 2
+Public Const ATTRIB_TEXCOORD As Integer = 3
+
 Private $program As Integer
 Private $modelLocation As Integer = -1
 Private $viewLocation As Integer = -1
 Private $projectionLocation As Integer = -1
 Private $mvpLocation As Integer = -1
 
+Private $stackModel As New Matrix4[]
+Private $stackView As New Matrix4[]
+
+' Lighting program (.hidden/shaders/vertex1.txt + fragment1.txt), used for triangles in 3D
+' Light values are in eye space, so the light follows the camera
+Public LightPosition As New Float[]    ' w = 0 -> directional
+Public LightAmbient As New Float[]
+Public LightDiffuse As New Float[]
+Public LightSpecular As New Float[]
+
+Private $litProgram As Integer
+Private $litDirty As Boolean = True
+Private $litModelViewLocation As Integer = -1
+Private $litNormalLocation As Integer = -1
+Private $litMVPLocation As Integer = -1
+Private $litLightPositionLocation As Integer = -1
+Private $litLightAmbientLocation As Integer = -1
+Private $litLightDiffuseLocation As Integer = -1
+Private $litLightSpecularLocation As Integer = -1
+Private $litTextureUsedLocation As Integer = -1
+Private $litMap0Location As Integer = -1
+
+Public Sub _new()
+
+    LightPosition = [0.3, 0.5, 1.0, 0.0]
+    LightAmbient = [0.35, 0.35, 0.35, 1.0]
+    LightDiffuse = [0.7, 0.7, 0.7, 1.0]
+    LightSpecular = [0.2, 0.2, 0.2, 1.0]
+
+End
+
+'' True when a shader program is bound and geometry must be fed through vertex attributes
+Property Read Active As Boolean
+
+Private Function Active_Read() As Boolean
+
+    Return $program > 0
+
+End
+
 Public Sub BindProgram(Program As Integer)
+
+    If Program = $program Then
+        If $program > 0 Then glx.glUseProgram($program)
+        Return
+    Endif
 
     $program = Program
 
     If $program <= 0 Then
+        glx.glUseProgram(0)
         $modelLocation = -1
         $viewLocation = -1
         $projectionLocation = -1
@@ -29,6 +90,7 @@ Public Sub BindProgram(Program As Integer)
         Return
     Endif
 
+    glx.glUseProgram($program)
     $modelLocation = glx.glGetUniformLocation($program, ModelUniform)
     $viewLocation = glx.glGetUniformLocation($program, ViewUniform)
     $projectionLocation = glx.glGetUniformLocation($program, ProjectionUniform)
@@ -41,6 +103,16 @@ Public Sub Upload()
     Dim viewModel As Matrix4
     Dim mvp As Matrix4
 
+    viewModel = View.Multiply(Model)
+
+    ' legacy matrices, for glu.Project/UnProject and fixed-function drawing
+    gl.MatrixMode(gl.PROJECTION)
+    gl.LoadMatrixf(Projection.m)
+    gl.MatrixMode(gl.MODELVIEW)
+    gl.LoadMatrixf(viewModel.m)
+
+    $litDirty = True
+
     If $program <= 0 Then Return
 
     glx.glUseProgram($program)
@@ -49,7 +121,6 @@ Public Sub Upload()
     UploadMatrix($viewLocation, View)
     UploadMatrix($projectionLocation, Projection)
 
-    viewModel = View.Multiply(Model)
     mvp = Projection.Multiply(viewModel)
     UploadMatrix($mvpLocation, mvp)
 
@@ -67,5 +138,146 @@ Private Sub UploadMatrix(Location As Integer, Value As Matrix4)
     Next
 
     glx.glUniformMatrix4fv(Location, 1, 0, Data)
+
+End
+
+' ------------------------------------------------------------------------
+' Matrix stack, same semantics as the fixed-function one
+' ------------------------------------------------------------------------
+
+'' Resets View and Model (gl.LoadIdentity on the modelview)
+Public Sub LoadIdentity()
+
+    View.SetIdentity()
+    Model.SetIdentity()
+    Upload()
+
+End
+
+Public Sub SetOrthographic(Left As Float, Right As Float, Bottom As Float, Top As Float, NearPlane As Float, FarPlane As Float)
+
+    Projection = Projection.Orthographic(Left, Right, Bottom, Top, NearPlane, FarPlane)
+    Upload()
+
+End
+
+Public Sub SetPerspective(FieldOfViewDegrees As Float, Aspect As Float, NearPlane As Float, FarPlane As Float)
+
+    Projection = Projection.Perspective(FieldOfViewDegrees, Aspect, NearPlane, FarPlane)
+    Upload()
+
+End
+
+Public Sub PushMatrix()
+
+    $stackModel.Push(Model.Clone())
+    $stackView.Push(View.Clone())
+
+End
+
+Public Sub PopMatrix()
+
+    If $stackModel.Count = 0 Then Return
+    Model = $stackModel.Pop()
+    View = $stackView.Pop()
+    Upload()
+
+End
+
+'' Post-multiplies the Model matrix (gl.Translatef)
+Public Sub Translate(X As Float, Y As Float, Z As Float)
+
+    Model.Translate(X, Y, Z)
+    Upload()
+
+End
+
+'' Post-multiplies the Model matrix (gl.Scalef)
+Public Sub Scale(X As Float, Y As Float, Z As Float)
+
+    Model.Scale(X, Y, Z)
+    Upload()
+
+End
+
+'' Post-multiplies the Model matrix (gl.Rotatef)
+Public Sub Rotate(AngleDegrees As Float, AxisX As Float, AxisY As Float, AxisZ As Float)
+
+    Model.RotateAxis(AxisX, AxisY, AxisZ, AngleDegrees)
+    Upload()
+
+End
+
+' ------------------------------------------------------------------------
+' Lighting program
+' ------------------------------------------------------------------------
+
+'' Sets the lighting program for triangles, 0 = no lighting
+Public Sub BindLitProgram(Program As Integer)
+
+    If Program = $litProgram Then Return
+
+    $litProgram = Program
+    $litDirty = True
+    If $litProgram <= 0 Then Return
+
+    $litModelViewLocation = glx.glGetUniformLocation($litProgram, "matrixModelView")
+    $litNormalLocation = glx.glGetUniformLocation($litProgram, "matrixNormal")
+    $litMVPLocation = glx.glGetUniformLocation($litProgram, "matrixModelViewProjection")
+    $litLightPositionLocation = glx.glGetUniformLocation($litProgram, "lightPosition")
+    $litLightAmbientLocation = glx.glGetUniformLocation($litProgram, "lightAmbient")
+    $litLightDiffuseLocation = glx.glGetUniformLocation($litProgram, "lightDiffuse")
+    $litLightSpecularLocation = glx.glGetUniformLocation($litProgram, "lightSpecular")
+    $litTextureUsedLocation = glx.glGetUniformLocation($litProgram, "textureUsed")
+    $litMap0Location = glx.glGetUniformLocation($litProgram, "map0")
+
+End
+
+'' Switches to the lighting program. Returns False if there is none, then the caller draws unlit.
+Public Function BeginLit() As Boolean
+
+    Dim viewModel As Matrix4
+    Dim normalMatrix As Matrix4
+
+    If $program <= 0 Or $litProgram <= 0 Then Return False
+
+    glx.glUseProgram($litProgram)
+    If Not $litDirty Then Return True
+
+    viewModel = View.Multiply(Model)
+    ' normales: inversa transpuesta de la modelview
+    normalMatrix = viewModel.Inverse()
+    If normalMatrix Then
+        normalMatrix = normalMatrix.Transposed()
+    Else
+        normalMatrix = viewModel
+    Endif
+
+    UploadMatrix($litModelViewLocation, viewModel)
+    UploadMatrix($litNormalLocation, normalMatrix)
+    UploadMatrix($litMVPLocation, Projection.Multiply(viewModel))
+    UploadVector($litLightPositionLocation, LightPosition)
+    UploadVector($litLightAmbientLocation, LightAmbient)
+    UploadVector($litLightDiffuseLocation, LightDiffuse)
+    UploadVector($litLightSpecularLocation, LightSpecular)
+    If $litTextureUsedLocation >= 0 Then glx.glUniform1i($litTextureUsedLocation, 0)
+    If $litMap0Location >= 0 Then glx.glUniform1i($litMap0Location, 0)
+
+    $litDirty = False
+    Return True
+
+End
+
+'' Back to the unlit program
+Public Sub EndLit()
+
+    If $program > 0 Then glx.glUseProgram($program)
+
+End
+
+Private Sub UploadVector(Location As Integer, Value As Float[])
+
+    If Location < 0 Then Return
+    glx.glUniform4f(Location, Value[0], Value[1], Value[2], Value[3])
 
 End

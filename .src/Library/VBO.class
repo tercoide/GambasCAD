@@ -15,6 +15,7 @@ Public VertexPoints As New Float[]
 Public ColorsPoints As New Single[]
 
 Public Normals As New Single[]
+Public NormalsTriangle As New Single[]      ' flat normals, one per triangle vertex, built on first lit draw
 Public TextureUV As New Single[]
 
 Public IdNormals As Integer
@@ -27,6 +28,7 @@ Public IdVertexPoints As Integer
 
 Public IdColorsTriangle As Integer
 Public IdVertexTriangle As Integer
+Public IdNormalsTriangle As Integer
 
 Public UseNormals As Boolean = False
 Public UseTexture As Boolean = False
@@ -55,6 +57,9 @@ Public Sub _free()
     If glx.glIsBuffer(IdVertexpoints) Then glx.glDeleteBuffers(1, VarPtr(IdVertexPoints))
     If glx.glIsBuffer(IdColorsPoints) Then glx.glDeleteBuffers(1, VarPtr(IdColorsPoints))
 
+    If glx.glIsBuffer(IdNormalsTriangle) Then glx.glDeleteBuffers(1, VarPtr(IdNormalsTriangle))
+    IdNormalsTriangle = 0
+
 End
 
 Public Sub Clear()
@@ -67,6 +72,10 @@ Public Sub Clear()
 
     If glx.glIsBuffer(IdVertexPoints) Then glx.glDeleteBuffers(1, VarPtr(IdVertexPoints))
     If glx.glIsBuffer(IdColorsPoints) Then glx.glDeleteBuffers(1, VarPtr(IdColorsPoints))
+
+    If glx.glIsBuffer(IdNormalsTriangle) Then glx.glDeleteBuffers(1, VarPtr(IdNormalsTriangle))
+    IdNormalsTriangle = 0
+    NormalsTriangle.Clear
 
     colors.Clear
     Vertex.Clear
@@ -85,6 +94,7 @@ End
 Public Sub SendBuffersToGPU(Optional mode As Integer = glx.STATIC_DRAW)
 
     _free()
+    NormalsTriangle.Clear                       ' la geometria cambio, se recalculan al dibujar con luces
     IdVertex = glx.createVBO(Vertex.Data, Vertex.Count * SizeOf(Vertex.Type), mode)
     IdColors = glx.createVBO(colors.Data, colors.Count * SizeOf(colors.Type), mode)
     IdVertexTriangle = glx.createVBO(VertexTriangle.Data, VertexTriangle.Count * SizeOf(VertexTriangle.Type), mode)
@@ -102,91 +112,75 @@ End
 ''  > 0 = that color
 Public Sub Draw(Optional mode As Integer = 0)
 
+    Dim UseShader As Boolean = glx.Matrices.Active
+    Dim Lit As Boolean
+
     '--------HIGHLIGHTING-------------------------------------------------
     If HoveredDraw Then
 
-        ' glx.glUniform1i(glx.glGetUniformLocation(gcd.Drawing.Model.GlShaderId, s), 1)
-        glx.glEnableClientState(glx.VERTEX_ARRAY)
-        ' glx.glEnableClientState(glx.COLOR_ARRAY) ' si uso goColor tengo que Deshabilitar color_array
+        EnableArrays(UseShader, False)
+        SetColor(UseShader, Color.Lighter(Config.ColorForSelected), 0.55)
 
-        glx.glBindBuffer(gl.ARRAY_BUFFER, IdVertex)
-        glx.glVertexPointer(3, gl.DOUBLE, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
-
-        ' glx.glBindBuffer(gl.ARRAY_BUFFER, IdColors)
-        ' glx.glColorPointer(3, gl.Float, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
-        ' GL.Enable(GL.BLEND)
-        ' GL.BlendFunc(GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA)
-        glx.glColorGb(Color.Lighter(Config.ColorForSelected), 0.55)
-
+        SetPositions(UseShader, IdVertex)
         glx.glDrawArrays(gl.LINES, SelectedVertexOffset / 3, SelectedVertexCount / 3)  ' es /3 porque hay 3 coordenadas por vertice
 
-        glx.glBindBuffer(gl.ARRAY_BUFFER, IdVertexTriangle)
-        glx.glVertexPointer(3, gl.DOUBLE, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
-
-        ' glx.glBindBuffer(gl.ARRAY_BUFFER, IdColorsTriangle)
-        ' glx.glColorPointer(3, gl.Float, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
-
+        SetPositions(UseShader, IdVertexTriangle)
         glx.glDrawArrays(gl.TRIANGLES, SelectedVertexTriangleOffset, SelectedVertexTriangleCount / 3)
 
         ' '--------points--------------------------------------------
-        glx.glBindBuffer(gl.ARRAY_BUFFER, IdVertexpoints)
-        glx.glVertexPointer(3, gl.DOUBLE, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
-
-        ' glx.glBindBuffer(gl.ARRAY_BUFFER, IdColorsPoints)
-        ' glx.glColorPointer(3, gl.Float, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
-
+        SetPositions(UseShader, IdVertexPoints)
         glx.glDrawArrays(gl.POINTS, SelectedVertexPointsOffset / 3, SelectedVertexPointsCount / 3)
 
         gl.Disable(gl.BLEND)
     End If
 
-    ' gl.Uniform1i(gl.GetUniformLocation(gcd.Drawing.Model.GlShaderId, "uBlend"), 0)
-    glx.glEnableClientState(glx.VERTEX_ARRAY)
-    If mode <> -3 Then glx.glEnableClientState(glx.COLOR_ARRAY)
     HoveredDraw = False
     SelectedDraw = False
 
-    glx.glBindBuffer(gl.ARRAY_BUFFER, IdVertex)
-    glx.glVertexPointer(3, gl.DOUBLE, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+    '--------lines--------------------------------------------
+    EnableArrays(UseShader, mode <> -3)
+    SetPositions(UseShader, IdVertex)
 
     If mode = 0 Then
-        glx.glBindBuffer(gl.ARRAY_BUFFER, IdColors)
-        glx.glColorPointer(3, gl.Float, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+        SetColors(UseShader, IdColors)
     Else If mode > 0 Then
-        glx.glColorGb(mode)
+        SetColor(UseShader, mode)
     Else If mode = -3 Then
-        glx.glColorGb(Color.Black)
-
+        SetColor(UseShader, Color.Black)
     End If
 
     glx.glDrawArrays(gl.LINES, 0, Vertex.Count / 3)
 
-    '
     ' '--------triangles--------------------------------------------
+    ' en 3D las caras se iluminan (vertex1.txt/fragment1.txt), lineas y puntos no tienen normales
+    Lit = False
+    If UseShader And VertexTriangle.Count > 0 Then Lit = glx.Matrices.BeginLit()
 
-    glx.glBindBuffer(gl.ARRAY_BUFFER, IdVertexTriangle)
-    glx.glVertexPointer(3, gl.DOUBLE, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+    EnableArrays(UseShader, mode <> 3)
+    SetPositions(UseShader, IdVertexTriangle)
 
     If mode <> 3 Then
-        glx.glBindBuffer(gl.ARRAY_BUFFER, IdColorsTriangle)
-        glx.glColorPointer(3, gl.Float, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+        SetColors(UseShader, IdColorsTriangle)
     Else
-        glx.glColorGb(Config.WindowBackColor)
-
+        SetColor(UseShader, Config.WindowBackColor)
     End If
+
+    If Lit Then SetTriangleNormals()
 
     glx.glDrawArrays(gl.TRIANGLES, 0, VertexTriangle.Count / 3)
 
+    If Lit Then
+        glx.glDisableVertexAttribArray(ShaderMatrices.ATTRIB_NORMAL)
+        glx.Matrices.EndLit()
+    End If
+
     ' '--------points--------------------------------------------
-    glx.glBindBuffer(gl.ARRAY_BUFFER, IdVertexpoints)
-    glx.glVertexPointer(3, gl.DOUBLE, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+    SetPositions(UseShader, IdVertexPoints)
 
     If mode <> 3 Then
-        glx.glBindBuffer(gl.ARRAY_BUFFER, IdColorsPoints)
-        glx.glColorPointer(3, gl.Float, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+        SetColors(UseShader, IdColorsPoints)
     Else
-        glx.glColorGb(Config.WindowBackColor)
-
+        SetColor(UseShader, Config.WindowBackColor)
     End If
 
     glx.glDrawArrays(gl.POINTS, 0, VertexPoints.Count / 3)
@@ -194,7 +188,133 @@ Public Sub Draw(Optional mode As Integer = 0)
     '---------limpieza----------------------------------------------
     glx.glBindBuffer(gl.ARRAY_BUFFER, 0)
 
-    glx.glDisableClientState(glx.VERTEX_ARRAY)
-    glx.gldisableClientState(glx.COLOR_ARRAY)
+    If UseShader Then
+        glx.glDisableVertexAttribArray(ShaderMatrices.ATTRIB_POSITION)
+        glx.glDisableVertexAttribArray(ShaderMatrices.ATTRIB_COLOR)
+    Else
+        glx.glDisableClientState(glx.VERTEX_ARRAY)
+        glx.gldisableClientState(glx.COLOR_ARRAY)
+    End If
+
+End
+
+'' Feeds flat triangle normals to the lighting shader, building them if the geometry changed
+Private Sub SetTriangleNormals()
+
+    If NormalsTriangle.Count <> VertexTriangle.Count Or IdNormalsTriangle = 0 Then
+        BuildTriangleNormals()
+        If glx.glIsBuffer(IdNormalsTriangle) Then glx.glDeleteBuffers(1, VarPtr(IdNormalsTriangle))
+        IdNormalsTriangle = glx.createVBO(NormalsTriangle.Data, NormalsTriangle.Count * SizeOf(NormalsTriangle.Type), glx.STATIC_DRAW)
+    End If
+
+    glx.glBindBuffer(gl.ARRAY_BUFFER, IdNormalsTriangle)
+    glx.glEnableVertexAttribArray(ShaderMatrices.ATTRIB_NORMAL)
+    glx.glVertexAttribPointer(ShaderMatrices.ATTRIB_NORMAL, 3, gl.FLOAT, False, 0, 0)
+
+End
+
+'' One normal per triangle, (v1 - v0) x (v2 - v0), repeated for its 3 vertices.
+'' The winding may come out either way from the triangulation; fragment1.txt lights both sides.
+Private Sub BuildTriangleNormals()
+
+    Dim i, k As Integer
+    Dim ax, ay, az, bx, by, bz, nx, ny, nz, l As Float
+
+    NormalsTriangle.Clear
+    NormalsTriangle.Resize(VertexTriangle.Count)
+
+    For i = 0 To VertexTriangle.Count - 9 Step 9
+        ax = VertexTriangle[i + 3] - VertexTriangle[i]
+        ay = VertexTriangle[i + 4] - VertexTriangle[i + 1]
+        az = VertexTriangle[i + 5] - VertexTriangle[i + 2]
+        bx = VertexTriangle[i + 6] - VertexTriangle[i]
+        by = VertexTriangle[i + 7] - VertexTriangle[i + 1]
+        bz = VertexTriangle[i + 8] - VertexTriangle[i + 2]
+
+        nx = ay * bz - az * by
+        ny = az * bx - ax * bz
+        nz = ax * by - ay * bx
+
+        l = Sqr(nx * nx + ny * ny + nz * nz)
+        If l > 0 Then
+            nx /= l
+            ny /= l
+            nz /= l
+        Else
+            nx = 0
+            ny = 0
+            nz = 1
+        End If
+
+        For k = 0 To 6 Step 3
+            NormalsTriangle[i + k] = nx
+            NormalsTriangle[i + k + 1] = ny
+            NormalsTriangle[i + k + 2] = nz
+        Next
+    Next
+
+End
+
+' Shader path: positions/colors go to the attribute locations of .hidden/shaders/basic.vert
+' Fixed-function path: legacy client arrays, used when the shader could not be loaded
+
+Private Sub EnableArrays(UseShader As Boolean, PerVertexColor As Boolean)
+
+    If UseShader Then
+        glx.glEnableVertexAttribArray(ShaderMatrices.ATTRIB_POSITION)
+        If PerVertexColor Then
+            glx.glEnableVertexAttribArray(ShaderMatrices.ATTRIB_COLOR)
+        Else
+            glx.glDisableVertexAttribArray(ShaderMatrices.ATTRIB_COLOR)
+        End If
+    Else
+        glx.glEnableClientState(glx.VERTEX_ARRAY)
+        If PerVertexColor Then
+            glx.glEnableClientState(glx.COLOR_ARRAY)
+        Else
+            glx.glDisableClientState(glx.COLOR_ARRAY)
+        End If
+    End If
+
+End
+
+Private Sub SetPositions(UseShader As Boolean, IdBuffer As Integer)
+
+    glx.glBindBuffer(gl.ARRAY_BUFFER, IdBuffer)
+    If UseShader Then
+        glx.glVertexAttribPointer(ShaderMatrices.ATTRIB_POSITION, 3, gl.DOUBLE, False, 0, 0)  '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+    Else
+        glx.glVertexPointer(3, gl.DOUBLE, 0, 0) '' ojo con el tipo d datos gbFLOAT = glDOUBLE
+    End If
+
+End
+
+Private Sub SetColors(UseShader As Boolean, IdBuffer As Integer)
+
+    glx.glBindBuffer(gl.ARRAY_BUFFER, IdBuffer)
+    If UseShader Then
+        glx.glEnableVertexAttribArray(ShaderMatrices.ATTRIB_COLOR)
+        glx.glVertexAttribPointer(ShaderMatrices.ATTRIB_COLOR, 3, gl.FLOAT, False, 0, 0)
+    Else
+        glx.glEnableClientState(glx.COLOR_ARRAY)
+        glx.glColorPointer(3, gl.Float, 0, 0)
+    End If
+
+End
+
+'' Constant color for every vertex (attribute array disabled)
+Private Sub SetColor(UseShader As Boolean, gbColor As Integer, Optional alpha As Float = -1)
+
+    Dim rgba As Single[]
+
+    If UseShader Then
+        rgba = glx.GetColorRGBA(gbColor)
+        If alpha > 0 Then rgba[3] = alpha
+        glx.glDisableVertexAttribArray(ShaderMatrices.ATTRIB_COLOR)
+        glx.glVertexAttrib4f(ShaderMatrices.ATTRIB_COLOR, rgba[0], rgba[1], rgba[2], rgba[3])
+    Else
+        glx.glDisableClientState(glx.COLOR_ARRAY)
+        glx.glColorGb(gbColor, alpha)
+    End If
 
 End
