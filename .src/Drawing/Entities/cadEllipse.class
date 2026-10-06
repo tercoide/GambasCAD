@@ -41,8 +41,6 @@ Public Const Regenerable As Boolean = True
 ' If definitive = true, means the parameter is set
 Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Variant
 
-    Dim f As Float
-
     If Me.ExpectedParam = "center" Then
 
         If vParam[0] <> "point" Then Return
@@ -95,9 +93,7 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
             eBuild.fParam[1] = vParam[1]
 
         Else If vParam[0] = "point" Then
-            f = Ang(vParam[1] - eBuild.P[0], vParam[2] - eBuild.P[1])
-            f *= 180 / Pi
-            eBuild.fParam[1] = f
+            eBuild.fParam[1] = PointToParam(eBuild, vParam[1], vParam[2])
         Else
             Return
         End If
@@ -109,12 +105,10 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
     Else If Me.ExpectedParam = "end" Then    ' recibimos el angulo inicial
 
         If vParam[0] = "float" Then  ' vino como un punto, entonces la calculo de otra manera
-            eBuild.fParam[1] = vParam[1]
+            eBuild.fParam[2] = vParam[1]
 
         Else If vParam[0] = "point" Then
-            f = Ang(vParam[1] - eBuild.P[0], vParam[2] - eBuild.P[1])
-            f *= 180 / Pi
-            eBuild.fParam[1] = f
+            eBuild.fParam[2] = PointToParam(eBuild, vParam[1], vParam[2])
         Else
             Return
         End If
@@ -124,6 +118,24 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
     Else
         Return
     End If
+
+End
+
+'' Returns the parametric angle (DXF codes 41/42) in degrees, measured from the major axis, of the ellipse point in the direction of (x, y)
+Private Function PointToParam(e As Entity, x As Float, y As Float) As Float
+
+    Dim axisAngle, dx, dy, xl, yl As Float
+
+    axisAngle = Ang(e.P[2] - e.P[0], e.P[3] - e.P[1])
+    dx = x - e.P[0]
+    dy = y - e.P[1]
+
+    ' rotate the point into the ellipse frame
+    xl = dx * Cos(axisAngle) + dy * Sin(axisAngle)
+    yl = -dx * Sin(axisAngle) + dy * Cos(axisAngle)
+
+    ' x = major * Cos(t), y = minor * Sin(t)  =>  t = Ang(x / major, y / minor) = Ang(x * minor / major, y)
+    Return Deg(Ang(xl * e.fParam[0], yl))
 
 End
 
@@ -159,8 +171,9 @@ End
 
 Public Sub MakePolyline(oe As Entity)
 
-    Dim x, y, theta, angle_increment As Float
+    Dim x, y, theta, tStart, sweep As Float
     Dim major, minor As Float
+    Dim i, n As Integer
 
     major = Sqr((oE.p[2] - oE.p[0]) ^ 2 + (oE.p[3] - oE.p[1]) ^ 2)
     angle = Ang(oE.p[2] - oE.p[0], oE.p[3] - oE.p[1])          ' Los coordenadas del eje mayor son relativas al centro
@@ -169,11 +182,17 @@ Public Sub MakePolyline(oe As Entity)
     If major = 0 Then major = 1
 
     oE.PolyLine.Clear
-    angle_increment = Pi * 2 / 72 '* oe.fParam[3]
 
-    ' el truco de ir hasta (+ angle_inc/2 ) es para evitar artuligios matematicos que
-    ' dejan incompleta la entidad (para ARC es lo mismo)
-    For theta = oE.fParam[1] / 180 * Pi To oE.fParam[2] / 180 * Pi Step angle_increment
+    ' the arc goes counterclockwise from start to end, even if end < start
+    tStart = Rad(oE.fParam[1])
+    sweep = Rad(oE.fParam[2] - oE.fParam[1])
+    If sweep <= 0 Then sweep += Pi * 2
+
+    ' segments are spread evenly so the last point lands exactly on the end angle
+    n = Max(1, CInt(Ceil(sweep / (Pi * 2 / 72))))
+
+    For i = 0 To n
+        theta = tStart + sweep * i / n
         ' el punto considerando 0,0 al centro
         x = major * Cos(theta) * Cos(angle) - minor * Sin(theta) * Sin(angle)
         y = major * Cos(theta) * Sin(angle) + minor * Sin(theta) * Cos(angle)
@@ -208,8 +227,9 @@ Public Sub Draw(oE As Entity)
         If gcd.StepsDone = 3 Then ip = 1 Else ip = 2
         x0 = oe.P[0]          ' centro de la elipse
         y0 = oe.P[1]
-        x1 = x0 + major * Cos(angle + oe.fParam[ip] / 180 * Pi) * 1.1
-        y1 = y0 + major * Sin(angle + oe.fParam[ip] / 180 * Pi) * 1.1
+        ' a line to the ellipse point at that parametric angle, a bit longer
+        x1 = x0 + (major * Cos(Rad(oe.fParam[ip])) * Cos(angle) - minor * Sin(Rad(oe.fParam[ip])) * Sin(angle)) * 1.1
+        y1 = y0 + (major * Cos(Rad(oe.fParam[ip])) * Sin(angle) + minor * Sin(Rad(oe.fParam[ip])) * Cos(angle)) * 1.1
 
         glx.DrawLines([x0, y0, x1, y1], Config.OnScreenHelpColor)
 
@@ -291,9 +311,10 @@ Public Sub Finish(oE As Entity) As Boolean
     ' tareas finales de armado del objeto
 
     oE.psel.resize(oE.p.count / 2)
-    Me.makepolyline(oe)
 
     If oE.fParam[2] < oE.fParam[1] Then oE.fParam[2] += 360
+
+    Me.makepolyline(oe)
 
 End
 
@@ -345,54 +366,26 @@ End
 '' Return if that position is over the entity within the tolerance
 Fast Public Function OverMe(e As Entity, Xr As Float, Yr As Float, tolerance As Float) As Boolean
 
-    Dim angle, major, minor, angle2, x, y As Float
-    Dim a1, a2 As Float
-    ' necesito determinar el radio en el angulo del punto que estaria sobre la elipse
-    angle = Ang(xr - E.P[0], yr - E.P[1])
-
-    ' el radio en este agulo viene dado por
+    Dim axisAngle, major, minor, t, x, y, sweep, d As Float
 
     major = Sqr((E.p[2] - E.p[0]) ^ 2 + (E.p[3] - E.p[1]) ^ 2)
     Minor = major * E.fParam[0]
-    angle2 = Ang(E.p[2] - E.p[0], E.p[3] - E.p[1])
+    axisAngle = Ang(E.p[2] - E.p[0], E.p[3] - E.p[1])
 
-    ' x = gcd.CurrDrawing.arrEntities[e].p[0] + major * Cos(angle) * Cos(angle2) - minor * Sin(angle) * Sin(angle2)
-    ' y = gcd.CurrDrawing.arrEntities[e].p[1] + major * Cos(angle) * Sin(angle2) + minor * Sin(angle) * Cos(angle2)
+    ' the ellipse point in the direction of the cursor
+    t = PointToParam(e, Xr, Yr)
+    x = E.p[0] + major * Cos(Rad(t)) * Cos(axisAngle) - minor * Sin(Rad(t)) * Sin(axisAngle)
+    y = E.p[1] + major * Cos(Rad(t)) * Sin(axisAngle) + minor * Sin(Rad(t)) * Cos(axisAngle)
 
-    x = E.p[0] + major * Cos(angle) * Cos(angle2) - minor * Sin(angle) * Sin(angle2)
-    y = E.p[1] + major * Cos(angle) * Sin(angle2) + minor * Sin(angle) * Cos(angle2)
+    If puntos.distancia(Xr, Yr, x, y) < tolerance Then
+        ' tengo que ver si esta en la porcion
+        sweep = E.fParam[2] - E.fParam[1]
+        If sweep <= 0 Then sweep += 360
+        If sweep >= 360 Then Return True
 
-    ' veo si en esa posicion esta cerca de la elipse
-    'If Abs(puntos.distancia(xr, yr, x, y)) < tolerance Then
-
-    ' If Abs(puntos.distancia(xr, yr, gcd.CurrDrawing.arrEntities[e].P[0], gcd.CurrDrawing.arrEntities[e].P[1]) - Sqr(x * x + y * y)) < tolerance Then
-    '   ' tengo que ver si esa en la porcion
-    '   angle = Angle * 180 / Pi
-    '   If angle < 0 Then angle += 360
-    '   If gcd.CurrDrawing.arrEntities[e].fParam[1] <= gcd.CurrDrawing.arrEntities[e].fParam[2] Then
-    '     If angle >= gcd.CurrDrawing.arrEntities[e].fParam[1] And angle <= gcd.CurrDrawing.arrEntities[e].fParam[2] Then Break
-    '   Else
-    '     If angle >= gcd.CurrDrawing.arrEntities[e].fParam[1] Or angle <= gcd.CurrDrawing.arrEntities[e].fParam[2] Then Break
-    '   End If
-    'Break
-    x = major * Cos(angle) * Cos(angle2) - minor * Sin(angle) * Sin(angle2)
-    y = major * Cos(angle) * Sin(angle2) + minor * Sin(angle) * Cos(angle2)
-
-    ' veo si en esa posicion esta cerca de la elipse
-    If Abs(puntos.distancia(xr, yr, E.P[0], E.P[1]) - Sqr(x * x + y * y)) < tolerance Then
-        ' tengo que ver si esa en la porcion
-        angle = Deg(Angle)
-        a1 = E.fParam[1]
-        a2 = E.fParam[2]
-        If a1 < 0 Then a1 += 360
-        If a2 < 0 Then a2 += 360
-        If angle < 0 Then angle += 360
-        If a1 <= a2 Then
-            If angle >= a1 And angle <= a2 Then Return True
-        Else
-            If angle >= a1 Or angle <= a2 Then Return True
-        End If
-
+        d = t - E.fParam[1]
+        d -= Floor(d / 360) * 360
+        If d <= sweep Then Return True
     End If
 
     ' ademas verifico si esta sobre el centro
