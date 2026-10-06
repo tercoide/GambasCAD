@@ -1,0 +1,94 @@
+' Gambas class file
+
+Inherits CadSelection
+
+Public Const Gender As String = "NAVIGATE"
+
+Public Sub MouseMove()
+    ' debo transformar la cara 3D en puntos 2D segun la proyeccion
+
+    Dim x, y As Integer
+    Dim n As Integer
+    Dim p0, p1, p2, hit As Punto3D
+    Dim e1x, e1y, e1z As Float
+    Dim e2x, e2y, e2z As Float
+    Dim nx, ny, nz As Float
+    Dim ndotd As Float
+    Dim t As Float
+    Dim wx, wy, wz As Float
+    Dim hx, hy, hz As Float
+    Dim iColor As Integer
+    Dim axis As Integer
+    Dim fPoly2D As New Float[]
+    Dim hp2x, hp2y As Float
+    Dim vecdir As New Punto3d
+
+    Me.VBO.Clear
+    glx.BeginVBO(Me.VBO)
+    Dim ray As New Float[3]                             ' es un gcd.Drawing.Sheet.ray.origin que atraviesa la pantalla en la posicion del mouse
+
+    ' Dim inside As Boolean
+    ' inside = puntos.RayPolygonIntersection3D(origen, direccion, puntos.VertexToPunto3D(e.pBlock.faces[0].vertex), hit)
+    ' If inside Then
+    '     Debug hit.x, hit.y, hit.z
+    ' Endif
+    ' 'inside = puntos.RayConcavePolygonIntersect(origen, gcd.Drawing.Sheet.camera.ViewDir, e.pBlock.vertex, rDist)
+    ' Return inside
+
+    If fMain.KeyControl Then
+        vecdir.x = 1
+        iColor = Color.red
+    Else If fMain.KeyAlt Then
+        vecdir.y = 1
+        iColor = Color.green
+    Else If fMain.KeyShift Then
+        vecdir.z = 1
+        iColor = Color.blue
+    Else
+
+    End If
+    ' Intersect ray with plane
+    ndotd = vecdir.x * gcd.Drawing.Sheet.ray.direction.x + vecdir.y * gcd.Drawing.Sheet.ray.direction.y + vecdir.z * gcd.Drawing.Sheet.ray.direction.z
+    If Abs(ndotd) <= puntos.NumericTolerance Then Return
+    ' Ray parallel to plane (including contained case)
+    'Stop
+    'Endif
+
+    wx = 0 - gcd.Drawing.Sheet.ray.origin.x     ' 0 = origin
+    wy = 0 - gcd.Drawing.Sheet.ray.origin.y
+    wz = 0 - gcd.Drawing.Sheet.ray.origin.z
+
+    t = (vecdir.x * wx + vecdir.y * wy + vecdir.z * wz) / ndotd
+    If t < 0 Then Return
+
+    ' 3D hit point
+    hx = gcd.Drawing.Sheet.ray.origin.x + t * gcd.Drawing.Sheet.ray.direction.x  ' =0 ???
+    hy = gcd.Drawing.Sheet.ray.origin.y + t * gcd.Drawing.Sheet.ray.direction.y
+    hz = gcd.Drawing.Sheet.ray.origin.z + t * gcd.Drawing.Sheet.ray.direction.z
+
+    If fMain.KeyControl Then
+        glx.DrawLines3D([hx, hy, hz, hx, 0, hz], iColor)
+        glx.DrawLines3D([hx, hy, hz, hx, hy, 0], iColor)
+
+    Else If fMain.KeyAlt Then
+        glx.DrawLines3D([hx, hy, hz, hx, hy, 0], iColor)
+        glx.DrawLines3D([hx, hy, hz, 0, hy, hz], iColor)
+    Else If fMain.KeyShift Then
+        glx.DrawLines3D([hx, hy, hz, 0, hy, hz], iColor)
+        glx.DrawLines3D([hx, hy, hz, hx, 0, hz], iColor)
+    Else
+
+        Me.VBO.Clear
+
+    End If
+    glx.EndVBO()
+
+End
+
+Public Sub Draw()
+
+    Me.VBO.Draw()
+    Me.VBO.HoveredDraw = False
+    Me.VBO.SelectedDraw = False
+
+End
