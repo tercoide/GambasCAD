@@ -15,6 +15,14 @@ Public VertexPoints As New Float[]
 Public ColorsPoints As New Single[]
 
 Public Normals As New Single[]
+
+' GPU picking: entity id as RGB, one color per vertex, parallel to Vertex/VertexTriangle/VertexPoints
+Public PickColors As New Single[]
+Public PickColorsTriangle As New Single[]
+Public PickColorsPoints As New Single[]
+Public IdPickColors As Integer
+Public IdPickColorsTriangle As Integer
+Public IdPickColorsPoints As Integer
 Public NormalsTriangle As New Single[]      ' flat normals, one per triangle vertex, built on first lit draw
 Public TextureUV As New Single[]
 
@@ -60,6 +68,13 @@ Public Sub _free()
     If glx.glIsBuffer(IdNormalsTriangle) Then glx.glDeleteBuffers(1, VarPtr(IdNormalsTriangle))
     IdNormalsTriangle = 0
 
+    If glx.glIsBuffer(IdPickColors) Then glx.glDeleteBuffers(1, VarPtr(IdPickColors))
+    If glx.glIsBuffer(IdPickColorsTriangle) Then glx.glDeleteBuffers(1, VarPtr(IdPickColorsTriangle))
+    If glx.glIsBuffer(IdPickColorsPoints) Then glx.glDeleteBuffers(1, VarPtr(IdPickColorsPoints))
+    IdPickColors = 0
+    IdPickColorsTriangle = 0
+    IdPickColorsPoints = 0
+
 End
 
 Public Sub Clear()
@@ -75,7 +90,18 @@ Public Sub Clear()
 
     If glx.glIsBuffer(IdNormalsTriangle) Then glx.glDeleteBuffers(1, VarPtr(IdNormalsTriangle))
     IdNormalsTriangle = 0
+
+    If glx.glIsBuffer(IdPickColors) Then glx.glDeleteBuffers(1, VarPtr(IdPickColors))
+    If glx.glIsBuffer(IdPickColorsTriangle) Then glx.glDeleteBuffers(1, VarPtr(IdPickColorsTriangle))
+    If glx.glIsBuffer(IdPickColorsPoints) Then glx.glDeleteBuffers(1, VarPtr(IdPickColorsPoints))
+    IdPickColors = 0
+    IdPickColorsTriangle = 0
+    IdPickColorsPoints = 0
     NormalsTriangle.Clear
+
+    PickColors.Clear
+    PickColorsTriangle.Clear
+    PickColorsPoints.Clear
 
     colors.Clear
     Vertex.Clear
@@ -101,6 +127,14 @@ Public Sub SendBuffersToGPU(Optional mode As Integer = glx.STATIC_DRAW)
     IdColorsTriangle = glx.createVBO(ColorsTriangle.Data, ColorsTriangle.Count * SizeOf(ColorsTriangle.Type), mode)
     IdVertexPoints = glx.createVBO(VertexPoints.Data, VertexPoints.Count * SizeOf(VertexPoints.Type), mode)
     IdColorsPoints = glx.createVBO(ColorsPoints.Data, ColorsPoints.Count * SizeOf(ColorsPoints.Type), mode)
+
+    ' solo los VBO de layers llevan ids de picking
+    If PickColors.Count + PickColorsTriangle.Count + PickColorsPoints.Count > 0 Then
+        TagPick(0)                              ' lo que se agrego sin id queda como "nada"
+        IdPickColors = glx.createVBO(PickColors.Data, PickColors.Count * SizeOf(PickColors.Type), mode)
+        IdPickColorsTriangle = glx.createVBO(PickColorsTriangle.Data, PickColorsTriangle.Count * SizeOf(PickColorsTriangle.Type), mode)
+        IdPickColorsPoints = glx.createVBO(PickColorsPoints.Data, PickColorsPoints.Count * SizeOf(PickColorsPoints.Type), mode)
+    End If
 
 End
 
@@ -188,6 +222,63 @@ Public Sub Draw(Optional mode As Integer = 0)
     '---------limpieza----------------------------------------------
     glx.glBindBuffer(gl.ARRAY_BUFFER, 0)
 
+    If UseShader Then
+        glx.glDisableVertexAttribArray(ShaderMatrices.ATTRIB_POSITION)
+        glx.glDisableVertexAttribArray(ShaderMatrices.ATTRIB_COLOR)
+    Else
+        glx.glDisableClientState(glx.VERTEX_ARRAY)
+        glx.gldisableClientState(glx.COLOR_ARRAY)
+    End If
+
+End
+
+'' Gives the picking id to every vertex added since the last call (call right after drawing an entity)
+Public Sub TagPick(PickId As Integer)
+
+    Dim r, g, b As Single
+
+    r = (Shr(PickId, 16) And 255) / 255
+    g = (Shr(PickId, 8) And 255) / 255
+    b = (PickId And 255) / 255
+
+    FillPick(PickColors, Vertex.Count, r, g, b)
+    FillPick(PickColorsTriangle, VertexTriangle.Count, r, g, b)
+    FillPick(PickColorsPoints, VertexPoints.Count, r, g, b)
+
+End
+
+Private Sub FillPick(aPick As Single[], iCount As Integer, r As Single, g As Single, b As Single)
+
+    While aPick.Count < iCount
+        aPick.Add(r)
+        aPick.Add(g)
+        aPick.Add(b)
+    Wend
+
+End
+
+'' Draws the geometry with the picking ids as colors, into PickBuffer
+Public Sub DrawPick()
+
+    Dim UseShader As Boolean = glx.Matrices.Active
+
+    If IdPickColors = 0 And IdPickColorsTriangle = 0 And IdPickColorsPoints = 0 Then Return
+
+    EnableArrays(UseShader, True)
+
+    SetPositions(UseShader, IdVertex)
+    SetColors(UseShader, IdPickColors)
+    glx.glDrawArrays(gl.LINES, 0, Vertex.Count / 3)
+
+    SetPositions(UseShader, IdVertexTriangle)
+    SetColors(UseShader, IdPickColorsTriangle)
+    glx.glDrawArrays(gl.TRIANGLES, 0, VertexTriangle.Count / 3)
+
+    SetPositions(UseShader, IdVertexPoints)
+    SetColors(UseShader, IdPickColorsPoints)
+    glx.glDrawArrays(gl.POINTS, 0, VertexPoints.Count / 3)
+
+    glx.glBindBuffer(gl.ARRAY_BUFFER, 0)
     If UseShader Then
         glx.glDisableVertexAttribArray(ShaderMatrices.ATTRIB_POSITION)
         glx.glDisableVertexAttribArray(ShaderMatrices.ATTRIB_COLOR)

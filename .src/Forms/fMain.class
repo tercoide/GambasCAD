@@ -32,7 +32,6 @@ Private RawFlag As Boolean = False
 Public flgWheelCounter As Integer
 Public InUse As Boolean                         ' variable auxiliar para evitar eventos indeseados
 Public $hDrawTimer As New Timer As "DrawTimer"
-Public $hSearchTimer As New Timer As "SearchTimer"
 Public $hRecollectTimer As New Timer As "RecollectTimer"
 Private $hOneSecondTimer As New Timer As "OneSecondTimer"
 
@@ -134,32 +133,30 @@ End Sub
 '
 ' End
 
-Public Sub SearchTimer_Timer()
+'' Hover from the GPU picker (replaces the CPU search with clsMouseTracking.CheckAboveEntity).
+'' HoveredEntities: everything within Picker.Radius pixels, nearest first (used by the snaps).
+'' HoveredEntity: the nearest one, or its Insert if it is part of a block.
+Private Sub ApplyPickHover(oPicker As PickBuffer)
 
-    If clsMouseTracking.Searching Then Return
+    Dim e As Entity
+    Dim aFound As New Entity[]
 
-    ' tskReSearch = New TskSearch
-    ' tskReSearch.Xreal = xr
-    ' tskReSearch.Yreal = yr
-    ' Return
-    ' gcd.Drawing.HoveredEntities = tskReSearch.EntitiesBelow
-    elaSearch = Timer
-    gcd.Drawing.HoveredEntities = clsMouseTracking.CheckAboveEntity(Xr, Yr)
-    elaSearch = Timer - elaSearch
-    ' If IsNull(gcd.Drawing.HoveredEntities) Then Return
-    ' gcd.Drawing.HoveredEntity = gcd.Drawing.HoveredEntities.First
-    ' If IsNull(gcd.Drawing.HoveredEntity.Container) Then Return
+    For Each e In oPicker.Entities
+        If e = gcd.Drawing.Sheet.SkipSearch Then Continue
+        aFound.Add(e)
+    Next
+    gcd.Drawing.HoveredEntities = aFound
+
     If gcd.Drawing.HoveredEntities.Count > 0 Then
         gcd.Drawing.HoveredEntity = gcd.Drawing.HoveredEntities.First
-        If Not IsNull(gcd.Drawing.HoveredEntity.Container.Parent) Then gcd.Drawing.HoveredEntity = gcd.Drawing.HoveredEntity.Container.Parent
+        If gcd.Drawing.HoveredEntity.Container Then
+            If Not IsNull(gcd.Drawing.HoveredEntity.Container.Parent) Then gcd.Drawing.HoveredEntity = gcd.Drawing.HoveredEntity.Container.Parent
+        End If
     Else
-        gcd.Drawing.Hoveredentity = Null
-        ' End If
-
+        gcd.Drawing.HoveredEntity = Null
     End If
-    'Debug "Found " & Str(gcd.Drawing.HoveredEntities.Count) & " entities below the mouse pointer"
 
-End Sub
+End
 
 Public Sub Run() As Boolean
 
@@ -416,6 +413,27 @@ Private Sub Draw_Model()
 
 End
 
+'' GPU picking: if the mouse moved, draws the layers with their id colors into the sheet's
+'' offscreen framebuffer and reads back the entity under the mouse (gcd.Drawing.Sheet.Picker.Entity).
+'' Must run with the same matrices as Draw_Model.
+Private Sub Draw_Pick(W As Integer, H As Integer)
+
+    Dim L As Layer
+
+    If Not gcd.Drawing.Sheet.Picker.Begin(W, H) Then Return
+
+    For Each L In gcd.Drawing.Layers
+        If L.Visible And Not l.Frozen Then
+            l.VBO.DrawPick()
+        End If
+    Next
+
+    gcd.Drawing.Sheet.Picker.Finish()
+
+    If gcd.flgSearchingAllowed Then ApplyPickHover(gcd.Drawing.Sheet.Picker)
+
+End
+
 Private Sub Draw_Paper()
 
     Dim L As Layer
@@ -575,6 +593,11 @@ Public Sub GLArea1_draw()
         .RotateZ(gcd.Drawing.Sheet.RotZ)
     End With
     '---------------------------------------------------
+    ' el picking va antes que la herramienta, asi el hover de este cuadro ya se resalta
+    glx.Matrices.Model.SetIdentity()
+    glx.Matrices.Upload()
+    Draw_Pick(Last.W, Last.H)
+
     glx.Matrices.Model = glx.Matrices.Model.Translation(-gcd.Drawing.Sheet.PanBaseRealX, -gcd.Drawing.Sheet.PanBaseRealY, 0)
     glx.Matrices.Upload()
 
@@ -950,6 +973,8 @@ Public Sub glArea3D_draw()
 
     gcd.Drawing.Sheet.camera.render
 
+    Draw_Pick(Last.W, Last.H)
+
     Draw_Model
 
     gcd.clsJob.Draw()
@@ -1126,6 +1151,8 @@ Public Sub glScene3D_draw()
 
     gcd.Drawing.Sheet.camera.render
 
+    Draw_Pick(Last.W, Last.H)
+
     Draw_Model
 
     If gcd.Drawing.Sheet.DrawGrid Then gcd.Drawing.Sheet.Grid3dVbo.Draw()
@@ -1155,7 +1182,9 @@ Public Sub ReSearch()
     ' tskReSearch.Yreal = yr
     ' Return
     If Not gcd.flgSearchingAllowed Then Return
-    $hSearchTimer.Trigger
+    ' el picker por GPU se resuelve en el proximo Draw
+    Try gcd.Drawing.Sheet.Picker.Request(Mouse.X, Mouse.Y)
+    If Not Error Then gcd.Drawing.Sheet.GLSheet.Refresh
 
 End
 

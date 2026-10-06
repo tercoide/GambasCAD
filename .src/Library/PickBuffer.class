@@ -1,0 +1,269 @@
+' Gambas class file
+
+' GPU mouse picking.
+'
+' Every entity drawn into a layer VBO gets a 24 bit id, stored per vertex as a flat RGB
+' color (R = bits 16-23, G = bits 8-15, B = bits 0-7). On request the layers are drawn
+' with those colors into an offscreen framebuffer, using the same matrices as the screen,
+' and the pixels around the mouse are read back to get the entity.
+'
+' Id 0 (black) = nothing, so there are 256^3 - 1 = 16777215 usable ids.
+'
+' Usage, inside the GLArea Draw event (the GL context must be current):
+'     If Sheet.Picker.Begin(W, H) Then
+'         ... draw every layer VBO with VBO.DrawPick() ...
+'         Sheet.Picker.Finish()
+'     End If
+' and Sheet.Picker.Request(Mouse.X, Mouse.Y) from MouseMove.
+
+Public Const MAX_ID As Integer = 16777215
+
+' ------------------------------------------------------------------------
+' Id registry, shared by all sheets (layer VBOs are shared too)
+' ------------------------------------------------------------------------
+
+Static Private $entities As New Entity[]        ' $entities[id], index 0 is unused
+
+'' Forgets every id. Call before regenerating all the VBOs.
+Static Public Sub ResetIds()
+
+    $entities.Clear
+    $entities.Add(Null)
+
+End
+
+'' Returns the entity's picking id, giving it a new one if it has none or a stale one.
+'' Returns 0 when all ids are used, the entity is then not pickable.
+Static Public Function AssignId(e As Entity) As Integer
+
+    If $entities.Count = 0 Then $entities.Add(Null)
+
+    If e.PickId > 0 And e.PickId < $entities.Count Then
+        If $entities[e.PickId] = e Then Return e.PickId
+    End If
+
+    If $entities.Count > MAX_ID Then
+        e.PickId = 0
+        Return 0
+    End If
+
+    $entities.Add(e)
+    e.PickId = $entities.Max
+    Return e.PickId
+
+End
+
+Static Public Function EntityFromId(PickId As Integer) As Entity
+
+    If PickId <= 0 Or PickId >= $entities.Count Then Return Null
+    Return $entities[PickId]
+
+End
+
+' ------------------------------------------------------------------------
+' Offscreen buffer, one per sheet (each GLArea has its own GL context)
+' ------------------------------------------------------------------------
+
+'' Pixels around the mouse that count as a hit (same 12 px as the old CPU search)
+Public Radius As Integer = 12
+
+'' Result of the last pick: every entity found in the window, nearest to the mouse first
+Public Ids As New Integer[]
+Public Entities As New Entity[]
+'' The nearest one
+Public Id As Integer
+Public Entity As Entity
+
+Private $fbo As Integer
+Private $colorBuffer As Integer
+Private $depthBuffer As Integer
+Private $w As Integer
+Private $h As Integer
+
+Private $requested As Boolean
+Private $x As Integer
+Private $y As Integer
+
+' state saved by Begin, restored by Finish
+Private $prevFbo As Integer
+Private $prevViewport As Integer[]
+Private $prevClear As Float[]
+Private $prevBlend As Boolean
+Private $prevDither As Boolean
+
+'' True when a pick is waiting for the next draw
+Property Read Requested As Boolean
+
+Private Function Requested_Read() As Boolean
+
+    Return $requested
+
+End
+
+'' Asks for a pick at this mouse position (widget pixels, origin top left)
+Public Sub Request(X As Integer, Y As Integer)
+
+    $x = X
+    $y = Y
+    $requested = True
+
+End
+
+'' Binds the picking framebuffer and clears it. Returns False if no pick was requested
+'' or the buffer could not be created; then nothing must be drawn and Finish not called.
+Public Function Begin(W As Integer, H As Integer) As Boolean
+
+    If Not $requested Then Return False
+    $requested = False
+    If W <= 0 Or H <= 0 Then Return False
+
+    glx.glGetIntegervPtr(glx.FRAMEBUFFER_BINDING, VarPtr($prevFbo))   ' GTK draws into its own FBO, not 0
+    $prevViewport = gl.GetIntegerv(gl.VIEWPORT_)
+    $prevClear = gl.GetFloatv(gl.COLOR_CLEAR_VALUE)
+    $prevBlend = gl.IsEnabled(gl.BLEND)
+    $prevDither = gl.IsEnabled(gl.DITHER)
+
+    If Not EnsureBuffers(W, H) Then
+        glx.glBindFramebuffer(glx.FRAMEBUFFER, $prevFbo)
+        Return False
+    End If
+
+    glx.glBindFramebuffer(glx.FRAMEBUFFER, $fbo)
+    gl.Viewport(0, 0, W, H)
+
+    ' los ids tienen que llegar exactos: nada de mezclas
+    gl.Disable(gl.BLEND)
+    gl.Disable(gl.DITHER)
+
+    gl.ClearColor(0, 0, 0, 0)
+    gl.Clear(gl.COLOR_BUFFER_BIT Or gl.DEPTH_BUFFER_BIT)
+
+    Return True
+
+End
+
+'' Reads the pixels around the mouse, sets Id and Entity, and restores the screen framebuffer
+Public Sub Finish()
+
+    Dim x0, y0, x1, y1, w, h, px, py, i, k, iId, d As Integer
+    Dim bytes As Byte[]
+    Dim yGl As Integer
+    Dim cBest As New Collection                 ' id -> distancia^2 mas corta
+    Dim aDist As New Integer[]
+    Dim e As Entity
+
+    yGl = $h - 1 - $y                           ' GL tiene el origen abajo
+
+    x0 = Max(0, $x - Radius)
+    y0 = Max(0, yGl - Radius)
+    x1 = Min($w - 1, $x + Radius)
+    y1 = Min($h - 1, yGl + Radius)
+
+    Ids.Clear
+    Entities.Clear
+    If x1 >= x0 And y1 >= y0 Then
+
+        w = x1 - x0 + 1
+        h = y1 - y0 + 1
+        bytes = New Byte[w * h * 4]
+        glx.glReadPixelsPtr(x0, y0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, bytes.Data)
+
+        For py = 0 To h - 1
+            For px = 0 To w - 1
+                i = (py * w + px) * 4
+                iId = Shl(CInt(bytes[i]), 16) Or Shl(CInt(bytes[i + 1]), 8) Or CInt(bytes[i + 2])
+                If iId = 0 Then Continue
+                d = (x0 + px - $x) ^ 2 + (y0 + py - yGl) ^ 2
+                If Not cBest.Exist(CStr(iId)) Then
+                    cBest[CStr(iId)] = d
+                Else If d < cBest[CStr(iId)] Then
+                    cBest[CStr(iId)] = d
+                End If
+            Next
+        Next
+
+        ' ordeno por distancia al mouse (son pocos)
+        For Each d In cBest
+            iId = CInt(cBest.Key)
+            e = EntityFromId(iId)
+            If Not e Then Continue
+            k = 0
+            While k < aDist.Count
+                If d < aDist[k] Then Break
+                Inc k
+            Wend
+            aDist.Add(d, k)
+            Ids.Add(iId, k)
+            Entities.Add(e, k)
+        Next
+
+    End If
+
+    If Ids.Count > 0 Then
+        Id = Ids[0]
+        Entity = Entities[0]
+    Else
+        Id = 0
+        Entity = Null
+    End If
+
+    ' restauro el estado de la pantalla
+    glx.glBindFramebuffer(glx.FRAMEBUFFER, $prevFbo)
+    gl.Viewport($prevViewport[0], $prevViewport[1], $prevViewport[2], $prevViewport[3])
+    gl.ClearColor($prevClear[0], $prevClear[1], $prevClear[2], $prevClear[3])
+    If $prevBlend Then gl.Enable(gl.BLEND)
+    If $prevDither Then gl.Enable(gl.DITHER)
+
+End
+
+'' Frees the GL objects; the GL context of this sheet must be current
+Public Sub Release()
+
+    If $fbo Then glx.glDeleteFramebuffers(1, VarPtr($fbo))
+    If $colorBuffer Then glx.glDeleteRenderbuffers(1, VarPtr($colorBuffer))
+    If $depthBuffer Then glx.glDeleteRenderbuffers(1, VarPtr($depthBuffer))
+    $fbo = 0
+    $colorBuffer = 0
+    $depthBuffer = 0
+    $w = 0
+    $h = 0
+
+End
+
+'' (Re)creates the framebuffer when the GLArea size changes: RGBA8 color + 24 bit depth
+Private Function EnsureBuffers(W As Integer, H As Integer) As Boolean
+
+    Dim iStatus As Integer
+
+    If $fbo <> 0 And W = $w And H = $h Then Return True
+
+    Release()
+
+    glx.glGenRenderbuffers(1, VarPtr($colorBuffer))
+    glx.glBindRenderbuffer(glx.RENDERBUFFER, $colorBuffer)
+    glx.glRenderbufferStorage(glx.RENDERBUFFER, glx.RGBA8, W, H)
+
+    glx.glGenRenderbuffers(1, VarPtr($depthBuffer))
+    glx.glBindRenderbuffer(glx.RENDERBUFFER, $depthBuffer)
+    glx.glRenderbufferStorage(glx.RENDERBUFFER, glx.DEPTH_COMPONENT24, W, H)
+    glx.glBindRenderbuffer(glx.RENDERBUFFER, 0)
+
+    glx.glGenFramebuffers(1, VarPtr($fbo))
+    glx.glBindFramebuffer(glx.FRAMEBUFFER, $fbo)
+    glx.glFramebufferRenderbuffer(glx.FRAMEBUFFER, glx.COLOR_ATTACHMENT0, glx.RENDERBUFFER, $colorBuffer)
+    glx.glFramebufferRenderbuffer(glx.FRAMEBUFFER, glx.DEPTH_ATTACHMENT, glx.RENDERBUFFER, $depthBuffer)
+
+    iStatus = glx.glCheckFramebufferStatus(glx.FRAMEBUFFER)
+    glx.glBindFramebuffer(glx.FRAMEBUFFER, $prevFbo)
+
+    If iStatus <> glx.FRAMEBUFFER_COMPLETE Then
+        Debug "Picking framebuffer incomplete: &H"; Hex(iStatus)
+        Release()
+        Return False
+    End If
+
+    $w = W
+    $h = H
+    Return True
+
+End
