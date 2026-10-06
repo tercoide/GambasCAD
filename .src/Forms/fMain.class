@@ -32,7 +32,6 @@ Private RawFlag As Boolean = False
 Public flgWheelCounter As Integer
 Public InUse As Boolean                         ' variable auxiliar para evitar eventos indeseados
 Public $hDrawTimer As New Timer As "DrawTimer"
-Public $hSearchTimer As New Timer As "SearchTimer"
 Public $hRecollectTimer As New Timer As "RecollectTimer"
 Private $hOneSecondTimer As New Timer As "OneSecondTimer"
 
@@ -134,32 +133,30 @@ End Sub
 '
 ' End
 
-Public Sub SearchTimer_Timer()
+'' Hover from the GPU picker (replaces the CPU search with clsMouseTracking.CheckAboveEntity).
+'' HoveredEntities: everything within Picker.Radius pixels, nearest first (used by the snaps).
+'' HoveredEntity: the nearest one, or its Insert if it is part of a block.
+Private Sub ApplyPickHover(oPicker As PickBuffer)
 
-    If clsMouseTracking.Searching Then Return
+    Dim e As Entity
+    Dim aFound As New Entity[]
 
-    ' tskReSearch = New TskSearch
-    ' tskReSearch.Xreal = xr
-    ' tskReSearch.Yreal = yr
-    ' Return
-    ' gcd.Drawing.HoveredEntities = tskReSearch.EntitiesBelow
-    elaSearch = Timer
-    gcd.Drawing.HoveredEntities = clsMouseTracking.CheckAboveEntity(Xr, Yr)
-    elaSearch = Timer - elaSearch
-    ' If IsNull(gcd.Drawing.HoveredEntities) Then Return
-    ' gcd.Drawing.HoveredEntity = gcd.Drawing.HoveredEntities.First
-    ' If IsNull(gcd.Drawing.HoveredEntity.Container) Then Return
+    For Each e In oPicker.Entities
+        If e = gcd.Drawing.Sheet.SkipSearch Then Continue
+        aFound.Add(e)
+    Next
+    gcd.Drawing.HoveredEntities = aFound
+
     If gcd.Drawing.HoveredEntities.Count > 0 Then
         gcd.Drawing.HoveredEntity = gcd.Drawing.HoveredEntities.First
-        If Not IsNull(gcd.Drawing.HoveredEntity.Container.Parent) Then gcd.Drawing.HoveredEntity = gcd.Drawing.HoveredEntity.Container.Parent
+        If gcd.Drawing.HoveredEntity.Container Then
+            If Not IsNull(gcd.Drawing.HoveredEntity.Container.Parent) Then gcd.Drawing.HoveredEntity = gcd.Drawing.HoveredEntity.Container.Parent
+        End If
     Else
-        gcd.Drawing.Hoveredentity = Null
-        ' End If
-
+        gcd.Drawing.HoveredEntity = Null
     End If
-    'Debug "Found " & Str(gcd.Drawing.HoveredEntities.Count) & " entities below the mouse pointer"
 
-End Sub
+End
 
 Public Sub Run() As Boolean
 
@@ -416,6 +413,27 @@ Private Sub Draw_Model()
 
 End
 
+'' GPU picking: if the mouse moved, draws the layers with their id colors into the sheet's
+'' offscreen framebuffer and reads back the entity under the mouse (gcd.Drawing.Sheet.Picker.Entity).
+'' Must run with the same matrices as Draw_Model.
+Private Sub Draw_Pick(W As Integer, H As Integer)
+
+    Dim L As Layer
+
+    If Not gcd.Drawing.Sheet.Picker.Begin(W, H) Then Return
+
+    For Each L In gcd.Drawing.Layers
+        If L.Visible And Not l.Frozen Then
+            l.VBO.DrawPick()
+        End If
+    Next
+
+    gcd.Drawing.Sheet.Picker.Finish()
+
+    If gcd.flgSearchingAllowed Then ApplyPickHover(gcd.Drawing.Sheet.Picker)
+
+End
+
 Private Sub Draw_Paper()
 
     Dim L As Layer
@@ -424,7 +442,6 @@ Private Sub Draw_Paper()
 
     For Each vpt In gcd.Drawing.Sheet.Viewports
         If Not vpt.Visibile Then Continue
-        gl.LoadIdentity
 
         ' el scissor no se ve afectado por las trnasformaciones!!!!!!!!
         ' se aplica al Viewport XLow,Ylow,Width,Heigth
@@ -433,12 +450,15 @@ Private Sub Draw_Paper()
 
         gl.Scissor(gcd.XPix(vpt.X0), GLArea1.h - gcd.YPix(vpt.Y0), gcd.Pixels(Abs(vpt.X1 - vpt.x0)), gcd.Pixels(Abs(vpt.Y1 - vpt.y0)))
 
-        gl.Translatef(gcd.Drawing.Sheet.PanX, gcd.Drawing.Sheet.PanY, 0)
-
-        gl.Scalef(gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom, 1)
-
-        gl.Translatef(vpt.PanX, vpt.PanY, 0)
-        gl.Scalef(vpt.ScaleZoom, vpt.ScaleZoom, 1)
+        With glx.Matrices.View
+            .SetIdentity()
+            .Translate(gcd.Drawing.Sheet.PanX, gcd.Drawing.Sheet.PanY, 0)
+            .Scale(gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom, 1)
+            .Translate(vpt.PanX, vpt.PanY, 0)
+            .Scale(vpt.ScaleZoom, vpt.ScaleZoom, 1)
+        End With
+        glx.Matrices.Model.SetIdentity()
+        glx.Matrices.Upload()
 
         gl.Enable(GL.sCISSOR_TEST)
 
@@ -453,11 +473,13 @@ Private Sub Draw_Paper()
 
     'gl.Viewport(0, 0, gcd.Drawing.GLAreaInUse.W, gcd.Drawing.GLAreaInUse.h)
 
-    gl.LoadIdentity
-
-    gl.Translatef(gcd.Drawing.Sheet.PanX, gcd.Drawing.Sheet.PanY, 0)
-
-    gl.Scalef(gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom, 1)
+    With glx.Matrices.View
+        .SetIdentity()
+        .Translate(gcd.Drawing.Sheet.PanX, gcd.Drawing.Sheet.PanY, 0)
+        .Scale(gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom, 1)
+    End With
+    glx.Matrices.Model.SetIdentity()
+    glx.Matrices.Upload()
 
     ' For Each e In gcd.Drawing.Sheet.Entities
     '     If e.Visible Then gl.CallList(e.glDrwList)
@@ -556,24 +578,33 @@ Public Sub GLArea1_draw()
     Inc benGLAreaRefresh
     gl.Clear(gl.DEPTH_BUFFER_BIT Or gl.COLOR_BUFFER_BIT)
 
-    ' le cargo el Shader
-    If gcd.Drawing.Model.GlShaderId = 0 Then gcd.Drawing.Model.GlShaderId = glx.LoadShader(gcd.dirResources &/ "shaders/basic.vert", gcd.dirResources &/ "shaders/basic.frag")
+    UseSheetShader()
 
-    'gl.UseProgram(gcd.Drawing.Model.GlShaderId)
-    gl.LoadIdentity
-    gl.Translatef(gcd.Drawing.Sheet.PanX, gcd.Drawing.Sheet.PanY, gcd.Drawing.Sheet.PanZ)
-    gl.Scalef(gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom)
-    gl.Rotatef(gcd.Drawing.Sheet.RotX, 1, 0, 0)
-    gl.Rotatef(gcd.Drawing.Sheet.RotY, 0, 1, 0)
-    gl.Rotatef(gcd.Drawing.Sheet.RotZ, 0, 0, 1)
+    ' proyeccion ortogonal, centrada en la ventana (misma que glx.Resize)
+    glx.Matrices.Projection = glx.Matrices.Projection.Orthographic(-Last.W / 2, Last.W / 2, -Last.H / 2, Last.H / 2, 1, -1)
+
+    ' la camara: pan, zoom y rotacion
+    With glx.Matrices.View
+        .SetIdentity()
+        .Translate(gcd.Drawing.Sheet.PanX, gcd.Drawing.Sheet.PanY, gcd.Drawing.Sheet.PanZ)
+        .Scale(gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom)
+        .RotateX(gcd.Drawing.Sheet.RotX)
+        .RotateY(gcd.Drawing.Sheet.RotY)
+        .RotateZ(gcd.Drawing.Sheet.RotZ)
+    End With
     '---------------------------------------------------
-    gl.Translatef(-gcd.Drawing.Sheet.PanBaseRealX, -gcd.Drawing.Sheet.PanBaseRealY, 0)
-    'gl.UseProgram(gcd.Drawing.Model.GlShaderId)
-    'gl.Uniform1i(gl.GetUniformLocation(gcd.Drawing.Model.GlShaderId, "uBlend"), 1)
+    ' el picking va antes que la herramienta, asi el hover de este cuadro ya se resalta
+    glx.Matrices.Model.SetIdentity()
+    glx.Matrices.Upload()
+    Draw_Pick(Last.W, Last.H)
+
+    glx.Matrices.Model = glx.Matrices.Model.Translation(-gcd.Drawing.Sheet.PanBaseRealX, -gcd.Drawing.Sheet.PanBaseRealY, 0)
+    glx.Matrices.Upload()
 
     gcd.clsJob.Draw()
 
-    gl.Translatef(gcd.Drawing.Sheet.PanBaseRealX, gcd.Drawing.Sheet.PanBaseRealY, 0)
+    glx.Matrices.Model.SetIdentity()
+    glx.Matrices.Upload()
     '--------------------------------------------------------------------
     If FontTest Then DrawingAids.FontVBO.Draw()
     Draw_Model
@@ -582,7 +613,32 @@ Public Sub GLArea1_draw()
 
     ' el orden del dibujo es importante en paint, porque una cosa tapa a la otra; en openGL aparentemente es al reves, lo primero se dibuja ultimo
 
-    gl.Translatef(-gcd.Drawing.Sheet.PanBaseRealX, -gcd.Drawing.Sheet.PanBaseRealY, 0)
+    glx.Matrices.Translate(-gcd.Drawing.Sheet.PanBaseRealX, -gcd.Drawing.Sheet.PanBaseRealY, 0)
+
+End
+
+'' Loads the GLSL programs from .hidden/shaders once per sheet (each GLArea has its own context) and binds them.
+'' If one fails to compile its Id stays at -1: without basic.* drawing falls back to fixed-function,
+'' without vertex1/fragment1 the 3D faces are drawn unlit.
+Private Sub UseSheetShader(Optional Lighting As Boolean = False)
+
+    If gcd.Drawing.Sheet.GlShaderId = 0 Then
+        gcd.Drawing.Sheet.GlShaderId = glx.LoadShader(gcd.dirResources &/ "shaders/basic.vert", gcd.dirResources &/ "shaders/basic.frag")
+        If gcd.Drawing.Sheet.GlShaderId = 0 Then gcd.Drawing.Sheet.GlShaderId = -1
+    End If
+
+    glx.Matrices.BindProgram(gcd.Drawing.Sheet.GlShaderId)
+
+    If Lighting And gcd.Drawing.Sheet.GlLitShaderId = 0 Then
+        gcd.Drawing.Sheet.GlLitShaderId = glx.LoadShader(gcd.dirResources &/ "shaders/vertex1.txt", gcd.dirResources &/ "shaders/fragment1.txt")
+        If gcd.Drawing.Sheet.GlLitShaderId = 0 Then gcd.Drawing.Sheet.GlLitShaderId = -1
+    End If
+
+    If Lighting Then
+        glx.Matrices.BindLitProgram(gcd.Drawing.Sheet.GlLitShaderId)
+    Else
+        glx.Matrices.BindLitProgram(0)
+    End If
 
 End
 
@@ -895,16 +951,15 @@ Public Sub glArea3D_draw()
     ' Try m = m.fMaxDim
     ' If m = 0 Then m = 1
     ' antes de dibujar algo, tengo que establecer el tipo de projecccion Ortogonal o Perspectiva
-    gl.MatrixMode(gl.PROJECTION)
-    gl.LoadIdentity()
+    UseSheetShader(True)
 
-    Glu.Perspective(45, Me.w / Me.h, 0.1, 10000)
+    glx.Matrices.Projection = glx.Matrices.Projection.Perspective(45, Me.w / Me.h, 0.1, 10000)
     'gl.Frustum(-glarea1.w / 2, glarea1.w / 2, -glarea1.h / 2, glarea1.h / 2, 2 * m, 100 * m)
 
-    gl.MatrixMode(gl.MODELVIEW)
-    gl.LoadIdentity()
+    glx.Matrices.View.SetIdentity()
     'gl.Translatef(gcd.Drawing.Sheet.PanX, gcd.Drawing.Sheet.PanY, gcd.Drawing.Sheet.PanZ)
-    gl.Scalef(gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom)
+    glx.Matrices.View.Scale(gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom)
+    glx.Matrices.Model.SetIdentity()
     ' gl.Rotatef(gcd.Drawing.Sheet.Rotx, 1, 0, 0)
     ' gl.Rotatef(gcd.Drawing.Sheet.RotY, 0, 1, 0)
     ' gl.Rotatef(gcd.Drawing.Sheet.RotZ, 0, 0, 1)
@@ -917,6 +972,8 @@ Public Sub glArea3D_draw()
     ' gl.Scalef(Config.Zoom, Config.Zoom, Config.Zoom)
 
     gcd.Drawing.Sheet.camera.render
+
+    Draw_Pick(Last.W, Last.H)
 
     Draw_Model
 
@@ -1072,16 +1129,15 @@ Public Sub glScene3D_draw()
     ' Try m = m.fMaxDim
     ' If m = 0 Then m = 1
     ' antes de dibujar algo, tengo que establecer el tipo de projecccion Ortogonal o Perspectiva
-    gl.MatrixMode(gl.PROJECTION)
-    gl.LoadIdentity()
+    UseSheetShader(True)
 
-    Glu.Perspective(45, Me.w / Me.h, 0.1, 10000)
+    glx.Matrices.Projection = glx.Matrices.Projection.Perspective(45, Me.w / Me.h, 0.1, 10000)
     'gl.Frustum(-glarea1.w / 2, glarea1.w / 2, -glarea1.h / 2, glarea1.h / 2, 2 * m, 100 * m)
 
-    gl.MatrixMode(gl.MODELVIEW)
-    gl.LoadIdentity()
+    glx.Matrices.View.SetIdentity()
     'gl.Translatef(gcd.Drawing.Sheet.PanX, gcd.Drawing.Sheet.PanY, gcd.Drawing.Sheet.PanZ)
-    gl.Scalef(gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom)
+    glx.Matrices.View.Scale(gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom)
+    glx.Matrices.Model.SetIdentity()
     ' gl.Rotatef(gcd.Drawing.Sheet.Rotx, 1, 0, 0)
     ' gl.Rotatef(gcd.Drawing.Sheet.RotY, 0, 1, 0)
     ' gl.Rotatef(gcd.Drawing.Sheet.RotZ, 0, 0, 1)
@@ -1094,6 +1150,8 @@ Public Sub glScene3D_draw()
     ' gl.Scalef(Config.Zoom, Config.Zoom, Config.Zoom)
 
     gcd.Drawing.Sheet.camera.render
+
+    Draw_Pick(Last.W, Last.H)
 
     Draw_Model
 
@@ -1124,7 +1182,9 @@ Public Sub ReSearch()
     ' tskReSearch.Yreal = yr
     ' Return
     If Not gcd.flgSearchingAllowed Then Return
-    $hSearchTimer.Trigger
+    ' el picker por GPU se resuelve en el proximo Draw
+    Try gcd.Drawing.Sheet.Picker.Request(Mouse.X, Mouse.Y)
+    If Not Error Then gcd.Drawing.Sheet.GLSheet.Refresh
 
 End
 

@@ -105,6 +105,7 @@ Public VBO_present As Boolean = False   ' si tenemos VBO que dibujar
 
 Public VBOCurrent As VBO                ' Current VBO version moderna
 Public VBOLast As VBO                   ' para nuevo buffer
+Public Matrices As New ShaderMatrices   ' Model/View/Projection para los shaders GLSL
 
 Public Plane2D As Integer = 0 ''Set screen 2D left to right and bottom to top axis 0 = default X+Y+, 1=X+Z-, 2=Z-Y+
 
@@ -2545,6 +2546,7 @@ Public Extern glNormalPointer(type As Integer, strIde As Long, data As Pointer)
 Public Extern glTexCoordPointer(size As Integer, type As Integer, strIde As Long, data As Pointer)
 Public Extern glColorPointer(size As Integer, type As Integer, strIde As Long, data As Pointer)
 Public Extern glVertexAttrib3f(iIndex As Integer, x As Single, y As Single, z As Single)
+Public Extern glVertexAttrib4f(iIndex As Integer, x As Single, y As Single, z As Single, w As Single)
 
 Public Extern glBindVertexArray(array As Integer)
 
@@ -2552,6 +2554,20 @@ Public Extern glDeleteVertexArrays(n As Integer, arrays As Pointer)
 Public Extern glGenVertexArrays(n As Integer, arrays As Pointer)
 
 Public Extern glVertexAttribPointer(iIndex As Integer, size As Integer, iType As Integer, normalized As Boolean, stride As Integer, ipointer As Pointer)
+
+' Framebuffer objects (GPU picking, see PickBuffer.class)
+Public Extern glGenFramebuffers(n As Integer, framebuffers As Pointer)
+Public Extern glDeleteFramebuffers(n As Integer, framebuffers As Pointer)
+Public Extern glBindFramebuffer(iTarget As Integer, framebuffer As Integer)
+Public Extern glCheckFramebufferStatus(iTarget As Integer) As Integer
+Public Extern glFramebufferRenderbuffer(iTarget As Integer, attachment As Integer, renderbuffertarget As Integer, renderbuffer As Integer)
+Public Extern glGenRenderbuffers(n As Integer, renderbuffers As Pointer)
+Public Extern glDeleteRenderbuffers(n As Integer, renderbuffers As Pointer)
+Public Extern glBindRenderbuffer(iTarget As Integer, renderbuffer As Integer)
+Public Extern glRenderbufferStorage(iTarget As Integer, internalformat As Integer, iWidth As Integer, iHeight As Integer)
+' versiones con puntero, las de arriba reciben arrays
+Public Extern glReadPixelsPtr(x As Integer, y As Integer, iWidth As Integer, iHeight As Integer, iFormat As Integer, iType As Integer, pixels As Pointer) Exec "glReadPixels"
+Public Extern glGetIntegervPtr(iPname As Integer, data As Pointer) Exec "glGetIntegerv"
 
 Public Sub Resize(drwContext As Object) ' only glArea for now
 
@@ -4140,134 +4156,75 @@ Public Function CheckExtension(sExtension As String) As Boolean
 End
 
 'El contexto debe estar creado para poder usar los Shaders
+'' Compiles and links a GLSL program from two files. Returns 0 on failure, so callers fall back to fixed-function.
 Public Function LoadShader(sVertexShaderFile As String, sFragmentShaderFile As String) As Integer
 
-    Dim sShader, sInput As String
-    Dim f As File
     Dim iShaderProgram, iVerShaderID, iFraShaderID As Integer
-    ' verificamos si el sistema soporta shaders
-    ' If Not gl.CheckExtensions("GL_ARB_vertex_program") Then
-    '   Debug "No se pueden cargar Shaders"
-    '
-    '   Return 0
-    ' End If
-    'Dim vsSource, fsSource As String
-
-    Dim vsSource As String = "#version 330\n" &
-        "layout (location = 0) in vec3 position;\n" &
-        "layout (location = 1) in vec3 color;\n" &
-        "layout (location = 2) in vec3 normal;\n" &
-        "out vec3 vColor;\n" &
-        "out vec3 vNormal;\n" &
-        "void main() {\n" &
-        "    vColor = color;\n" &
-        "    vNormal = normal;\n" &
-        "    gl_Position = vec4(position, 1.0);\n" &
-        "}\n"
-
-    Dim fsSource As String = "#version 330\n" &
-        "in vec3 vColor;\n" &
-        "in vec3 vNormal;\n" &
-        "out vec4 fragColor;\n" &
-        "uniform vec2 uMouseNdc;\n" &
-        "uniform int uBlend;\n" &
-        "float sign2d(vec2 p1, vec2 p2, vec2 p3) {\n" &
-        "    return (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y);\n" &
-        "}\n" &
-        "bool pointInTriangle(vec2 pt, vec2 v1, vec2 v2, vec2 v3) {\n" &
-        "    float d1 = sign2d(pt, v1, v2);\n" &
-        "    float d2 = sign2d(pt, v2, v3);\n" &
-        "    float d3 = sign2d(pt, v3, v1);\n" &
-        "    bool hasNeg = (d1 < 0.0) || (d2 < 0.0) || (d3 < 0.0);\n" &
-        "    bool hasPos = (d1 > 0.0) || (d2 > 0.0) || (d3 > 0.0);\n" &
-        "    return !(hasNeg && hasPos);\n" &
-        "}\n" &
-        "void main() {\n" &
-        "    vec2 a = vec2(0.0, 0.5);\n" &
-        "    vec2 b = vec2(-0.5, -0.5);\n" &
-        "    vec2 c = vec2(0.5, -0.5);\n" &
-        "    float nLight = max(dot(normalize(vNormal), vec3(0.0, 0.0, 1.0)), 0.2);\n" &
-        "    bool mouseInTriangle = pointInTriangle(uMouseNdc, a, b, c);\n" &
-        "    if (uBlend == 1 || mouseInTriangle) {\n" &
-        "        fragColor = vec4(1.0, 0.0, 0.0, 1.0);\n" &
-        "    } else {\n" &
-        "        fragColor = vec4(vColor * nLight, 1.0);\n" &
-        "    }\n" &
-        "}\n"
-    ' SI SACO AL VECTOR nLight, SE VE MAS COLORES
 
     If Not Exist(sVertexShaderFile) Then
-        Debug "No existe el Vertex Shader"
-
+        Debug "No existe el Vertex Shader: "; sVertexShaderFile
         Return 0
     End If
     If Not Exist(sFragmentShaderFile) Then
-        Debug "No existe el Vertex Shader"
-
+        Debug "No existe el Fragment Shader: "; sFragmentShaderFile
         Return 0
     End If
-    f = Open sVertexShaderFile For Input
-    Do
-        Input #f, sInput
 
-        sShader &= sInput & gb.CrLf
+    iVerShaderID = CompileShader(gl.VERTEX_SHADER, File.Load(sVertexShaderFile), sVertexShaderFile)
+    If iVerShaderID = 0 Then Return 0
 
-    Loop Until f.Eof
+    iFraShaderID = CompileShader(gl.FRAGMENT_SHADER, File.Load(sFragmentShaderFile), sFragmentShaderFile)
+    If iFraShaderID = 0 Then
+        gl.DeleteShader(iVerShaderID)
+        Return 0
+    End If
 
-    Close #f
+    iShaderProgram = gl.CreateProgram()
+    gl.AttachShader(iShaderProgram, iVerShaderID)
+    gl.AttachShader(iShaderProgram, iFraShaderID)
 
-    ' La siguiente linea cuelga el programa si no hay contexto
-    iVerShaderID = gl.CreateShader(gl.VERTEX_SHADER)
-    If iVerShaderID = 0 Then Stop
-    ' ' set the source code
-    Gl.ShaderSource(iVerShaderID, vsSource) ' Conv(sShader, "UTF-8", "ASCII") & Chr(0))
-    ' ' compile
-    gl.CompileShader(iVerShaderID)
+    ' por si el shader no usa layout(location = n)
+    glBindAttribLocation(iShaderProgram, ShaderMatrices.ATTRIB_POSITION, "vertexPosition")
+    glBindAttribLocation(iShaderProgram, ShaderMatrices.ATTRIB_NORMAL, "vertexNormal")
+    glBindAttribLocation(iShaderProgram, ShaderMatrices.ATTRIB_COLOR, "vertexColor")
+    glBindAttribLocation(iShaderProgram, ShaderMatrices.ATTRIB_TEXCOORD, "vertexTexCoord")
 
-    ' after compile vertex shader
-    Debug "Vertex log: "; gl.GetShaderInfoLog(iVerShaderID)
+    gl.LinkProgram(iShaderProgram)
 
-    sShader = ""
-    f = Open sFragmentShaderFile For Input
-    Do
-        Input #f, sInput
-
-        sShader &= sInput & gb.CrLf
-
-    Loop Until f.Eof
-
-    Close #f
-
-    iFraShaderID = gl.CreateShader(gl.FRAGMENT_SHADER)
-    If iFRaShaderID = 0 Then Stop
-    ' ' set the source code
-    Gl.ShaderSource(iFraShaderID, fsSource) ' Conv(sShader, "UTF-8", "ASCII") & Chr(0))
-    ' ' compile
-    gl.CompileShader(iFraShaderID)
-
-    ' after compile fragment shader
-    Debug "Fragment log: "; gl.GetShaderInfoLog(iFraShaderID)
-
-    ishaderProgram = gl.CreateProgram()
-    gl.AttachShader(ishaderProgram, iVerShaderID)
-    gl.AttachShader(ishaderProgram, iFraShaderID)
-    GlBindAttribLocation(ishaderProgram, 0, "position")
-    GlBindAttribLocation(ishaderProgram, 1, "color")
-    GlBindAttribLocation(ishaderProgram, 2, "normal")
-    gl.LinkProgram(ishaderProgram)
-
-    ' program link log (NOT GetShaderInfoLog)
-    Debug "Program log: "; gl.GetProgramInfoLog(iShaderProgram)
-
-    Dim uBlendLoc As Integer
-    uBlendLoc = glx.glGetUniformLocation(iShaderProgram, "uBlend")
-    Debug "uBlend loc: "; uBlendLoc
-    ' ' una vez complilados, no se necesitan mas
-    '
+    ' una vez linkeados, no se necesitan mas
+    gl.DetachShader(iShaderProgram, iVerShaderID)
+    gl.DetachShader(iShaderProgram, iFraShaderID)
     gl.DeleteShader(iVerShaderID)
     gl.DeleteShader(iFraShaderID)
 
+    If gl.GetProgramiv(iShaderProgram, gl.LINK_STATUS)[0] = 0 Then
+        Debug "Shader link error: "; gl.GetProgramInfoLog(iShaderProgram)
+        gl.DeleteProgram(iShaderProgram)
+        Return 0
+    End If
+
     Return iShaderProgram
+
+End
+
+Private Function CompileShader(iType As Integer, sSource As String, sFileName As String) As Integer
+
+    Dim iShaderID As Integer
+
+    ' La siguiente linea cuelga el programa si no hay contexto
+    iShaderID = gl.CreateShader(iType)
+    If iShaderID = 0 Then Return 0
+
+    gl.ShaderSource(iShaderID, sSource)
+    gl.CompileShader(iShaderID)
+
+    If gl.GetShaderiv(iShaderID, gl.COMPILE_STATUS)[0] = 0 Then
+        Debug "Shader compile error in "; sFileName; ": "; gl.GetShaderInfoLog(iShaderID)
+        gl.DeleteShader(iShaderID)
+        Return 0
+    End If
+
+    Return iShaderID
 
 End
 
