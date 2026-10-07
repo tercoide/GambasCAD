@@ -23,9 +23,9 @@ Public Function NewEntity(Optional fPoints As Float[], bNewid As Boolean = False
     e = Super.NewEntity(fPoints, bNewid)
     e.Gender = Me.Gender
 
-    e.pBlock = New PoliFace
+    e.faces = New Face[]
     f = New Face
-    e.pBlock.Faces.Add(f)
+    e.faces.Add(f)
 
     Return e
 
@@ -41,13 +41,13 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
     '     f = eBuild.pBlock
     ' Else
 
-    f = eBuild.pBlock.faces[0]
+    f = eBuild.faces[0]
     ' End If
 
     If f.vertex.Count = 0 Then
         p = gcd.NewVertex(0, 0, 0)
         f.vertex.Add(p)
-        f.colour = eBuild.Colour
+        ' f.colour = eBuild.Colour
     End If
     If Me.ExpectedParam = "point"
         If vParam[0] = "point3d" Then
@@ -113,9 +113,9 @@ Public Sub Draw(oE As Entity)
     Dim pTriangles As Punto3d
     Dim fTriangles As Float[]
 
-    For Each f In oe.pBlock.faces
+    For Each f In oe.faces
 
-        clsEntities.DrawFace(f, 0, 0, oe.pLayer.ShowWireframe)
+        clsEntities.DrawFace(f, gcd.GetGBColor(oE.Colour, oe.pLayer), 0, 0, oe.pLayer.ShowWireframe)
 
     Next
 
@@ -125,9 +125,9 @@ Public Sub DrawRemark(oE As Entity)
 
     Dim f As Face
 
-    For Each f In oe.pBlock.faces
+    For Each f In oe.faces
 
-        clsEntities.DrawFace(f, -1, 1, True)
+        clsEntities.DrawFace(f, Color.Lighter(gcd.GetGBColor(oE.Colour, oe.pLayer)), -1, 1, True)
 
     Next
 
@@ -135,7 +135,12 @@ End
 
 Public Sub Finish(e As Entity) As Boolean
 
-    gcd.Drawing.Sheet.Faces.Add(e.pBlock.faces[0], e.pBlock.faces[0].id)
+    Dim f As Face
+
+    For Each f In e.faces
+
+        gcd.Drawing.Sheet.Faces.Add(f, e.id)
+    Next
 
     Super.Finish(e)
 
@@ -166,7 +171,7 @@ Public Function OverMe(e As Entity, Xr As Float, Yr As Float, tolerance As Float
 
     Dim inside As Boolean
 
-    inside = puntos.RayPolygonIntersection3D(gcd.Drawing.Sheet.ray.Origin, gcd.Drawing.Sheet.ray.Direction, puntos.VertexToPunto3D(e.pBlock.faces[0].vertex), hit)
+    inside = puntos.RayPolygonIntersection3D(gcd.Drawing.Sheet.ray.Origin, gcd.Drawing.Sheet.ray.Direction, puntos.VertexToPunto3D(e.faces[0].vertex), hit)
     If inside Then
         Debug hit.x, hit.y, hit.z
     Endif
@@ -199,7 +204,7 @@ Public Function SaveDxfData(e As Entity) As Boolean
 
     ' ahora van los vertices, pero la idea es no repetirlos, entonces hago una lista unica
     Dim vertexlist As New Punto3d[]
-    For Each f In e.pBlock.faces
+    For Each f In e.faces
         For Each p In f.vertex
             For Each p2 In vertexlist
                 If p = p2 Then ' es el mismo vertex
@@ -221,8 +226,8 @@ Public Function SaveDxfData(e As Entity) As Boolean
         dxf.SaveCode("20", p.y)
         dxf.SaveCode("30", p.z)
     Next
-    dxf.SaveCode("93", e.pBlock.faces.count)
-    For Each f In e.pBlock.faces
+    dxf.SaveCode("93", e.faces.count)
+    For Each f In e.faces
         dxf.SaveCode("94", f.vertex.Count)
         For Each p In f.vertex                          ' busco el indice
             For i = 0 To vertexlist.Max
@@ -253,10 +258,10 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
         p3d[np] = p
     Next
     i = dxf.ReadCode(93, sClaves, sValues, ByRef nf, i)          ' nro de caras
-    e.pBlock.faces.clear
+    e.faces.clear
     For ifa = 1 To nf
         f = New Face
-        e.pBlock.faces.Add(f)
+        e.faces.Add(f)
 
         F.Id = gcd.NewId()
         i = dxf.ReadCode(94, sClaves, sValues, ByRef nv, i)      ' nro de vertices en esta cara
