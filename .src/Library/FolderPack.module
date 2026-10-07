@@ -1,0 +1,457 @@
+' Gambas module file
+
+' Packs a folder with all its contents into a single compressed file, and restores it.
+' Used to save and load the 3D drawings (drawing data, textures, blocks... in one file).
+'
+' gb.compress only compresses single files, so the folder is first written as a standard
+' tar archive (POSIX ustar) and then compressed. The result is an ordinary .tar.zst,
+' .tar.gz or .tar.bz2 that any tar can list or extract:   tar --zstd -tvf drawing.file
+'
+'   FolderPack.Pack("/path/folder", "/path/drawing.file")     -> True if OK
+'   FolderPack.Unpack("/path/drawing.file", "/path/folder")   -> True if OK
+'   On failure, FolderPack.LastError says why.
+'
+' Pack stores regular files and folders (empty ones too); symbolic links and special files
+' are skipped. Unpack detects the compression by itself, overwrites files that already exist
+' in the target folder and leaves the others alone. It refuses entries with absolute paths
+' or "..", so a file can never write outside the target folder.
+
+Public Const TYPE_ZSTD As String = "zstd"       ' default: fast, good ratio
+Public Const TYPE_ZLIB As String = "zlib"       ' gzip, .tar.gz
+Public Const TYPE_BZIP2 As String = "bzlib2"    ' .tar.bz2
+Public Const TYPE_NONE As String = "tar"        ' plain .tar, no compression
+
+'' Why the last call failed
+Public LastError As String
+
+Private Const BLOCK As Integer = 512
+Private Const CHUNK As Integer = 1048576        ' copy buffer
+
+' ------------------------------------------------------------------------
+' Public API
+' ------------------------------------------------------------------------
+
+'' Packs sFolder (its contents, not the folder itself) into sFile.
+'' sType: TYPE_ZSTD (default), TYPE_ZLIB, TYPE_BZIP2 or TYPE_NONE ("tar" or ""). iLevel: compression level,
+'' omitted = the type's default.
+Public Function Pack(sFolder As String, sFile As String, Optional sType As String = TYPE_ZSTD, Optional iLevel As Variant) As Boolean
+
+    Dim hTar As File
+    Dim sTar As String
+    Dim hZip As Compress
+
+    LastError = ""
+    If Not sFolder Or If Not IsDir(sFolder) Then
+        LastError = Subst(("Folder not found: &1"), sFolder)
+        Return False
+    Endif
+
+    If Not sType Then sType = TYPE_NONE
+    If sType = TYPE_NONE Then
+        sTar = sFile
+    Else
+        sTar = Temp$("pack")
+    Endif
+
+    hTar = Open sTar For Write Create
+    WriteFolder(hTar, sFolder, "")
+    Write #hTar, String$(BLOCK * 2, Chr$(0)), BLOCK * 2          ' fin del archivo: dos bloques vacios
+    Close #hTar
+
+    If sType <> TYPE_NONE Then
+        hZip = New Compress
+        hZip.Type = sType
+        If IsNull(iLevel) Then iLevel = hZip.Default
+        If Exist(sFile) Then Kill sFile
+        hZip.File(sTar, sFile, iLevel)
+        Kill sTar
+    Endif
+
+    Return True
+
+Catch
+    LastError = Error.Text & " (" & Error.Where & ")"
+    Try Close #hTar
+    If sTar And If sTar <> sFile Then Try Kill sTar
+    Return False
+
+End
+
+'' Restores the contents of sFile into sFolder (created if missing)
+Public Function Unpack(sFile As String, sFolder As String) As Boolean
+
+    Dim sType, sTar As String
+    Dim hTar As File
+    Dim hUnzip As Uncompress
+
+    LastError = ""
+    If Not sFile Or If Not Exist(sFile) Then
+        LastError = Subst(("File not found: &1"), sFile)
+        Return False
+    Endif
+
+    sType = DetectType(sFile)
+    If Not sType Then
+        LastError = Subst(("Not a packed folder: &1"), sFile)
+        Return False
+    Endif
+
+    If sType = TYPE_NONE Then
+        sTar = sFile
+    Else
+        sTar = Temp$("unpack")
+        hUnzip = New Uncompress
+        hUnzip.Type = sType
+        hUnzip.File(sFile, sTar)
+    Endif
+
+    MakeDirs(sFolder)
+    hTar = Open sTar For Read
+    ReadEntries(hTar, sFolder)
+    Close #hTar
+
+    If sTar <> sFile Then Kill sTar
+    Return LastError = ""
+
+Catch
+    LastError = Error.Text & " (" & Error.Where & ")"
+    Try Close #hTar
+    If sTar And If sTar <> sFile Then Try Kill sTar
+    Return False
+
+End
+
+'' Compression of a packed file from its first bytes: TYPE_ZSTD, TYPE_ZLIB, TYPE_BZIP2,
+'' TYPE_NONE for a plain tar, or "" if it is none of them
+Public Function DetectType(sFile As String) As String
+
+    Dim hFile As File
+    Dim sHead As String
+
+    hFile = Open sFile For Read
+    If Lof(hFile) >= BLOCK Then
+        Read #hFile, sHead, BLOCK
+    Else
+        Read #hFile, sHead, Lof(hFile)
+    Endif
+    Close #hFile
+
+    If Left$(sHead, 4) = Chr$(&H28) & Chr$(&HB5) & Chr$(&H2F) & Chr$(&HFD) Then Return TYPE_ZSTD
+    If Left$(sHead, 2) = Chr$(&H1F) & Chr$(&H8B) Then Return TYPE_ZLIB
+    If Left$(sHead, 3) = "BZh" Then Return TYPE_BZIP2
+    If Mid$(sHead, 258, 5) = "ustar" Then Return TYPE_NONE
+    Return ""
+
+Catch
+    Return ""
+
+End
+
+' ------------------------------------------------------------------------
+' Writing (tar, POSIX ustar)
+' ------------------------------------------------------------------------
+
+'' Writes the contents of sDir; sRel is its path inside the archive ("" for the root)
+Private Sub WriteFolder(hTar As File, sDir As String, sRel As String)
+
+    Dim sName, sPath, sEntry As String
+    Dim hStat As Stat
+
+    For Each sName In Dir(sDir).Sort()
+        sPath = sDir &/ sName
+        sEntry = IIf(sRel, sRel & "/" & sName, sName)
+        hStat = Stat(sPath)                                     ' sin seguir los links
+
+        Select Case hStat.Type
+            Case gb.Directory
+                WriteHeader(hTar, sEntry & "/", "5", 0, 493, hStat.LastModified)               ' 0755
+                WriteFolder(hTar, sPath, sEntry)
+            Case gb.File
+                WriteHeader(hTar, sEntry, "0", hStat.Size, 420, hStat.LastModified)     ' 0644
+                WriteData(hTar, sPath, hStat.Size)
+            ' links, sockets, etc.: no van
+        End Select
+    Next
+
+End
+
+Private Sub WriteHeader(hTar As File, sEntry As String, sTypeFlag As String, lSize As Long, iMode As Integer, dModified As Date)
+
+    Dim sName, sPrefix, sHeader As String
+    Dim iSplit As Integer
+
+    ' ustar: name hasta 100 bytes, o prefix (155) + "/" + name (100)
+    sName = sEntry
+    If Len(sEntry) > 100 Then
+        iSplit = RInStr(Left$(sEntry, 156), "/")
+        If iSplit = 0 Or Len(sEntry) - iSplit > 100 Then Error.Raise(Subst(("Path too long for the archive: &1"), sEntry))
+        sPrefix = Left$(sEntry, iSplit - 1)
+        sName = Mid$(sEntry, iSplit + 1)
+    Endif
+
+    sHeader = Field(sName, 100) &
+        Octal(iMode, 8) &                       ' mode
+        Octal(0, 8) &                           ' uid
+        Octal(0, 8) &                           ' gid
+        Octal(lSize, 12) &                      ' size
+        Octal(UnixTime(dModified), 12) &        ' mtime
+        Space$(8) &                             ' checksum, se calcula con espacios
+        sTypeFlag &
+        Field("", 100) &                        ' linkname
+        "ustar" & Chr$(0) & "00" &
+        Field("", 32) &                         ' uname
+        Field("", 32) &                         ' gname
+        Octal(0, 8) &                           ' devmajor
+        Octal(0, 8) &                           ' devminor
+        Field(sPrefix, 155) &
+        String$(12, Chr$(0))
+
+    sHeader = Left$(sHeader, 148) & Octal(Checksum(sHeader), 7) & " " & Mid$(sHeader, 157)
+    Write #hTar, sHeader, BLOCK
+
+End
+
+Private Sub WriteData(hTar As File, sPath As String, lSize As Long)
+
+    Dim hIn As File
+    Dim sBuf As String
+    Dim lLeft As Long
+    Dim iPad As Integer
+
+    hIn = Open sPath For Read
+    lLeft = lSize
+    While lLeft > 0
+        Read #hIn, sBuf, CInt(Min(lLeft, CHUNK))
+        Write #hTar, sBuf, Len(sBuf)
+        lLeft -= Len(sBuf)
+    Wend
+    Close #hIn
+
+    iPad = (BLOCK - lSize Mod BLOCK) Mod BLOCK
+    If iPad Then Write #hTar, String$(iPad, Chr$(0)), iPad
+
+End
+
+' ------------------------------------------------------------------------
+' Reading
+' ------------------------------------------------------------------------
+
+Private Sub ReadEntries(hTar As File, sFolder As String)
+
+    Dim sHeader, sName, sTypeFlag, sLongName, sTarget As String
+    Dim lSize As Long
+    Dim iSum As Integer
+
+    While Lof(hTar) - Seek(hTar) >= BLOCK
+
+        Read #hTar, sHeader, BLOCK
+        If sHeader = String$(BLOCK, Chr$(0)) Then Break              ' fin del archivo
+
+        iSum = OctalValue(Mid$(sHeader, 149, 8))
+        If iSum <> Checksum(Left$(sHeader, 148) & Space$(8) & Mid$(sHeader, 157)) Then
+            LastError = ("Damaged archive (bad header checksum)")
+            Return
+        Endif
+
+        sTypeFlag = Mid$(sHeader, 157, 1)
+        lSize = OctalValue(Mid$(sHeader, 125, 12))
+        If lSize < 0 Then
+            LastError = ("Unsupported archive (file too large)")
+            Return
+        Endif
+
+        If sLongName Then
+            sName = sLongName
+            sLongName = ""
+        Else
+            sName = CText(Mid$(sHeader, 1, 100))
+            If Mid$(sHeader, 258, 5) = "ustar" And If CText(Mid$(sHeader, 346, 155)) Then sName = CText(Mid$(sHeader, 346, 155)) & "/" & sName
+        Endif
+
+        Select Case sTypeFlag
+            Case "L"                                            ' GNU tar: nombre largo para la proxima entrada
+                sLongName = CText(ReadData(hTar, lSize))
+                Continue
+            Case "x"                                            ' POSIX pax: puede traer path=
+                sLongName = PaxPath(ReadData(hTar, lSize))
+                Continue
+        End Select
+
+        sTarget = SafeTarget(sFolder, sName)
+        If Not sTarget Then
+            LastError = Subst(("Unsafe path in the archive: &1"), sName)
+            Return
+        Endif
+
+        Select Case sTypeFlag
+            Case "5"                                            ' carpeta ("./" es la carpeta misma)
+                MakeDirs(sTarget)
+                SkipData(hTar, lSize)
+            Case "0", Chr$(0), "7"                              ' archivo
+                If sTarget = sFolder Then
+                    SkipData(hTar, lSize)                       ' archivo sin nombre
+                Else
+                    MakeDirs(File.Dir(sTarget))
+                    ExtractData(hTar, lSize, sTarget)
+                Endif
+            Default                                             ' links y otros: se ignoran
+                SkipData(hTar, lSize)
+        End Select
+
+    Wend
+
+End
+
+Private Sub ExtractData(hTar As File, lSize As Long, sTarget As String)
+
+    Dim hOut As File
+    Dim sBuf As String
+    Dim lLeft As Long
+
+    hOut = Open sTarget For Write Create
+    lLeft = lSize
+    While lLeft > 0
+        Read #hTar, sBuf, CInt(Min(lLeft, CHUNK))
+        Write #hOut, sBuf, Len(sBuf)
+        lLeft -= Len(sBuf)
+    Wend
+    Close #hOut
+
+    SkipPadding(hTar, lSize)
+
+End
+
+Private Function ReadData(hTar As File, lSize As Long) As String
+
+    Dim sData As String
+
+    If lSize > 0 Then Read #hTar, sData, CInt(lSize)
+    SkipPadding(hTar, lSize)
+    Return sData
+
+End
+
+Private Sub SkipData(hTar As File, lSize As Long)
+
+    Seek #hTar, Seek(hTar) + lSize
+    SkipPadding(hTar, lSize)
+
+End
+
+Private Sub SkipPadding(hTar As File, lSize As Long)
+
+    Dim iPad As Integer = (BLOCK - lSize Mod BLOCK) Mod BLOCK
+
+    If iPad Then Seek #hTar, Seek(hTar) + iPad
+
+End
+
+'' Records "<len> path=<value>\n" of a pax header
+Private Function PaxPath(sData As String) As String
+
+    Dim sLine As String
+    Dim iPos As Integer
+
+    For Each sLine In Split(sData, "\n", "", True)
+        iPos = InStr(sLine, " path=")
+        If iPos Then Return Mid$(sLine, iPos + 6)
+    Next
+    Return ""
+
+End
+
+'' Full target path, or "" if the entry tries to leave the folder (absolute path, "..").
+'' "./" or "." give the folder itself.
+Private Function SafeTarget(sFolder As String, sName As String) As String
+
+    Dim sPart As String
+    Dim aParts As New String[]
+
+    If Left$(sName) = "/" Then Return ""
+    For Each sPart In Split(sName, "/", "", True)
+        If sPart = "." Then Continue
+        If sPart = ".." Then Return ""
+        aParts.Add(sPart)
+    Next
+    If aParts.Count = 0 Then Return sFolder
+    Return sFolder &/ aParts.Join("/")
+
+End
+
+' ------------------------------------------------------------------------
+' Helpers
+' ------------------------------------------------------------------------
+
+Private Sub MakeDirs(sPath As String)
+
+    If Not sPath Or If IsDir(sPath) Then Return
+    MakeDirs(File.Dir(sPath))
+    Mkdir sPath
+
+End
+
+'' Text padded with NUL to iLen bytes
+Private Function Field(sText As String, iLen As Integer) As String
+
+    Return Left$(sText & String$(iLen, Chr$(0)), iLen)
+
+End
+
+'' Octal number, zero padded, NUL terminated, iLen bytes in all
+Private Function Octal(lValue As Long, iLen As Integer) As String
+
+    Dim sOct As String
+
+    Do
+        sOct = CStr(lValue Mod 8) & sOct
+        lValue = lValue \ 8
+    Loop Until lValue = 0
+    Return Right$(String$(iLen - 1, "0") & sOct, iLen - 1) & Chr$(0)
+
+End
+
+'' Value of an octal field; -1 if it uses the binary (base-256) form of big files
+Private Function OctalValue(sField As String) As Long
+
+    Dim i As Integer
+    Dim sCar As String
+    Dim lValue As Long
+
+    If Asc(sField) >= 128 Then Return -1
+    For i = 1 To Len(sField)
+        sCar = Mid$(sField, i, 1)
+        If sCar = " " Then Continue
+        If sCar < "0" Or sCar > "7" Then Break
+        lValue = lValue * 8 + Asc(sCar) - 48
+    Next
+    Return lValue
+
+End
+
+Private Function Checksum(sHeader As String) As Integer
+
+    Dim i, iSum As Integer
+
+    For i = 1 To BLOCK
+        iSum += Asc(sHeader, i)
+    Next
+    Return iSum
+
+End
+
+'' Text up to the first NUL
+Private Function CText(sField As String) As String
+
+    Dim iPos As Integer = InStr(sField, Chr$(0))
+
+    If iPos Then Return Left$(sField, iPos - 1)
+    Return sField
+
+End
+
+'' Seconds since 1970-01-01 UTC (Date(1970, 1, 1) is local midnight, hence the time zone)
+Private Function UnixTime(dDate As Date) As Long
+
+    Return DateDiff(Date(1970, 1, 1) - System.TimeZone / 86400, dDate, gb.Second)
+
+End
