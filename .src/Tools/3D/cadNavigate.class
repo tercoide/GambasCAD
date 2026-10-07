@@ -9,7 +9,7 @@ Public Sub MouseMove()
 
     Dim x, y As Integer
     Dim n As Integer
-    Dim p0, p1, p2, hit As Punto3D
+    Dim p0, p1, p2 As Punto3D
     Dim e1x, e1y, e1z As Float
     Dim e2x, e2y, e2z As Float
     Dim nx, ny, nz As Float
@@ -49,7 +49,7 @@ Public Sub MouseMove()
     End If
     ' Intersect ray with plane
     ndotd = vecdir.x * gcd.Drawing.Sheet.ray.direction.x + vecdir.y * gcd.Drawing.Sheet.ray.direction.y + vecdir.z * gcd.Drawing.Sheet.ray.direction.z
-    If Abs(ndotd) <= puntos.NumericTolerance Then Return
+    If Abs(ndotd) <= puntos.NumericTolerance Then ndotd = 1 ' DEBERIA RETORNAR PERO QUEIRO SEGUIR ACA
     ' Ray parallel to plane (including contained case)
     'Stop
     'Endif
@@ -59,14 +59,15 @@ Public Sub MouseMove()
     wz = 0 - gcd.Drawing.Sheet.ray.origin.z
 
     t = (vecdir.x * wx + vecdir.y * wy + vecdir.z * wz) / ndotd
-    If t < 0 Then Return
 
     ' 3D hit point
     hx = gcd.Drawing.Sheet.ray.origin.x + t * gcd.Drawing.Sheet.ray.direction.x  ' =0 ???
     hy = gcd.Drawing.Sheet.ray.origin.y + t * gcd.Drawing.Sheet.ray.direction.y
     hz = gcd.Drawing.Sheet.ray.origin.z + t * gcd.Drawing.Sheet.ray.direction.z
 
-    If fMain.KeyControl Then
+    If t < 0 Then
+
+    Else If fMain.KeyControl Then
         glx.DrawLines3D([hx, hy, hz, hx, 0, hz], iColor)
         glx.DrawLines3D([hx, hy, hz, hx, hy, 0], iColor)
 
@@ -81,14 +82,35 @@ Public Sub MouseMove()
         Me.VBO.Clear
 
     End If
+
+    Dim inside As Boolean
+    Dim e As Entity
+    Dim hit As Punto3d
+    Dim f As Face
+
+    e = gcd.Drawing.HoveredEntity
+    If Not e Then Return
+
+    If Not e.faces Then Return
+
+    f = clsEntities.FaceCloserToRay(e.faces, gcd.Drawing.Sheet.ray)
+
+    If Not f Then Return  ' imposible que ocurra
+
+    clsEntities.DrawFace(f, Color.red, 1, 1, True)'Color.Lighter(gcd.GetGBColor(E.Colour, e.pLayer)))
+
     glx.EndVBO()
 
 End
 
-' Public Sub Draw()
-'
-'     Me.VBO.Draw()
-'     Me.VBO.HoveredDraw = False
-'     Me.VBO.SelectedDraw = False
-'
-' End
+Public Sub MouseUp()
+
+End
+
+Public Sub Draw()
+
+    Me.VBO.Draw()
+    Me.VBO.HoveredDraw = False
+    Me.VBO.SelectedDraw = False
+
+End

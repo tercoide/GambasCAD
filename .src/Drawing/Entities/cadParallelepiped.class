@@ -78,10 +78,10 @@ Public Sub Finish(oe As Entity) As Boolean
 
     Dim f As Face
 
-    For Each f In oe.pBlock.faces
-        gcd.Drawing.Sheet.Faces.Add(f, f.Id)
-
-    Next
+    ' For Each f In oe.faces
+    '     gcd.Drawing.Sheet.Faces.Add(f, f.Id)
+    '
+    ' Next
     oe.Gender = cadMesh.Gender
 
 End
@@ -98,10 +98,14 @@ Public Function MakePolyLine(E As Entity)
     Dim i2 As Integer
 
     If e.fParam.Count < 4 Then Return
-    If e.pBlock.faces.count = 0 Then Return
+    If e.faces.count = 0 Then Return
+    If e.faces.Count > 1 Then
+        e.faces.Remove(1, e.faces.Count - 1)
+    Endif
 
-    f1 = e.pBlock.faces[0]
-    If f1.Id = "" Then Return  ' la base no esta terminada
+    f1 = e.faces[0]
+    If f1.vertex.Count < 2 Then Return
+    If e.Id = "" Then Return  ' la base no esta terminada
     Dim pCG, pCG2 As New Punto3d
     pCG = puntos.CenterGravity3dP(f1.vertex)                    ' obtengo el centro de la forma
     pCG2.x = pcg.x + e.fParam[0]                                ' el CG de la otra tapa, dezplazado
@@ -129,25 +133,23 @@ Public Function MakePolyLine(E As Entity)
 
     ' primero replicamos los puntos de la cara a la altura indicada
     f2 = New Face
-    f2.colour = e.Colour
     For Each p In f1.vertex
         p2 = gcd.NewVertex(pcg2.x + (p.x - pCG.x) * fx, pCG2.y + (p.y - pCG.y) * fy, pCG2.z + (p.z - pCG.z) * fz)
         f2.vertex.Add(p2)
     Next
 
-    e.pBlock.faces.Add(f2)                                       ' Agregamos la tapa
+    e.faces.Add(f2)                                       ' Agregamos la tapa
 
     ' ahora creamos las caras rectangulares
     For i = 0 To f1.vertex.Max
         i2 = i + 1
         If i2 = f1.vertex.Count Then i2 = 0
         fRect = New Face
-        fRect.colour = e.Colour
         fRect.vertex.Add(f1.vertex[i])
         fRect.vertex.Add(f1.vertex[i2])
         fRect.vertex.Add(f2.vertex[i2])
         fRect.vertex.Add(f2.vertex[i])
-        e.pBlock.faces.Add(fRect)
+        e.faces.Add(fRect)
 
     Next
     e.Generated = True

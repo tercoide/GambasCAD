@@ -2,8 +2,9 @@
 
 ' GPU mouse picking.
 '
-' Every entity drawn into a layer VBO gets a 24 bit id, stored per vertex as a flat RGB
-' color (R = bits 16-23, G = bits 8-15, B = bits 0-7). On request the layers are drawn
+' Every entity drawn into a layer VBO is tagged with its handle (Entity.Id, hex) as a 24 bit
+' integer, stored per vertex as a flat RGB color (R = bits 16-23, G = bits 8-15, B = bits 0-7).
+' Inserts are tagged as a whole with their own handle. On request the layers are drawn
 ' with those colors into an offscreen framebuffer, using the same matrices as the screen,
 ' and the pixels around the mouse are read back to get the entity.
 '
@@ -19,44 +20,57 @@
 Public Const MAX_ID As Integer = 16777215
 
 ' ------------------------------------------------------------------------
-' Id registry, shared by all sheets (layer VBOs are shared too)
+' Index of the picked ids back to their entities, shared by all sheets (layer VBOs are shared too)
+' The id is the entity's own handle, Entity.Id (hex string), as an integer
 ' ------------------------------------------------------------------------
 
-Static Private $entities As New Entity[]        ' $entities[id], index 0 is unused
+Static Private $index As New Collection         ' CStr(id) -> Entity
+Static Private $warnedTooBig As Boolean
 
-'' Forgets every id. Call before regenerating all the VBOs.
-Static Public Sub ResetIds()
+'' Forgets the index. Call before regenerating all the VBOs.
+Static Public Sub ResetIndex()
 
-    $entities.Clear
-    $entities.Add(Null)
+    $index.Clear
 
 End
 
-'' Returns the entity's picking id, giving it a new one if it has none or a stale one.
-'' Returns 0 when all ids are used, the entity is then not pickable.
-Static Public Function AssignId(e As Entity) As Integer
+'' Converts a handle (hex string) to its picking id. Returns 0 if it is not valid hex
+'' or does not fit in 24 bits; such an entity can't be picked.
+Static Public Function HandleToId(sHandle As String) As Integer
 
-    If $entities.Count = 0 Then $entities.Add(Null)
+    Dim l As Long
 
-    If e.PickId > 0 And e.PickId < $entities.Count Then
-        If $entities[e.PickId] = e Then Return e.PickId
-    End If
+    If Not sHandle Then Return 0
+    Try l = Val("&H" & sHandle & "&")
+    If Error Then Return 0
+    If l <= 0 Or l > MAX_ID Then Return 0
+    Return CInt(l)
 
-    If $entities.Count > MAX_ID Then
-        e.PickId = 0
+End
+
+'' Returns the entity's picking id (from Entity.Id) and indexes it for EntityFromId
+Static Public Function Register(e As Entity) As Integer
+
+    Dim iId As Integer
+
+    iId = HandleToId(e.Id)
+    If iId = 0 Then
+        If Not $warnedTooBig And e.Id Then
+            Debug "Picking: handle "; e.Id; " is not valid hex or does not fit in 24 bits (FFFFFF), entity not pickable"
+            $warnedTooBig = True
+        End If
         Return 0
     End If
 
-    $entities.Add(e)
-    e.PickId = $entities.Max
-    Return e.PickId
+    $index[CStr(iId)] = e
+    Return iId
 
 End
 
-Static Public Function EntityFromId(PickId As Integer) As Entity
+Static Public Function EntityFromId(iId As Integer) As Entity
 
-    If PickId <= 0 Or PickId >= $entities.Count Then Return Null
-    Return $entities[PickId]
+    If iId <= 0 Then Return Null
+    Return $index[CStr(iId)]
 
 End
 
