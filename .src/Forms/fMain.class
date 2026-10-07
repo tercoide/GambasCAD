@@ -134,26 +134,35 @@ End Sub
 ' End
 
 '' Hover from the GPU picker (replaces the CPU search with clsMouseTracking.CheckAboveEntity).
-'' HoveredEntities: everything within Picker.Radius pixels, nearest first (used by the snaps).
-'' HoveredEntity: the nearest one, or its Insert if it is part of a block.
+'' HoveredEntity: the nearest entity to the mouse (an Insert is picked as a whole).
+'' HoveredEntities: everything within Picker.Radius pixels, nearest first, with the parts of
+'' the Inserts expanded, because the snaps work on the parts.
 Private Sub ApplyPickHover(oPicker As PickBuffer)
 
     Dim e As Entity
     Dim aFound As New Entity[]
 
+    gcd.Drawing.HoveredEntity = Null
     For Each e In oPicker.Entities
         If e = gcd.Drawing.Sheet.SkipSearch Then Continue
-        aFound.Add(e)
+        If Not gcd.Drawing.HoveredEntity Then gcd.Drawing.HoveredEntity = e
+        AddHovered(e, aFound)
     Next
     gcd.Drawing.HoveredEntities = aFound
 
-    If gcd.Drawing.HoveredEntities.Count > 0 Then
-        gcd.Drawing.HoveredEntity = gcd.Drawing.HoveredEntities.First
-        If gcd.Drawing.HoveredEntity.Container Then
-            If Not IsNull(gcd.Drawing.HoveredEntity.Container.Parent) Then gcd.Drawing.HoveredEntity = gcd.Drawing.HoveredEntity.Container.Parent
-        End If
+End
+
+Private Sub AddHovered(e As Entity, aFound As Entity[])
+
+    Dim ePart As Entity
+
+    If e.Gender = "INSERT" Then
+        If Not e.pBlock Then Return
+        For Each ePart In e.pBlock.entities
+            AddHovered(ePart, aFound)
+        Next
     Else
-        gcd.Drawing.HoveredEntity = Null
+        aFound.Add(e)
     End If
 
 End
