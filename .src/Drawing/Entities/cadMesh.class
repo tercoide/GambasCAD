@@ -4,7 +4,7 @@
 ' Podria pensarse como una LWPolyline cerrada, pero no es alambrica sino llena.
 ' El minimo numero de lados es 3. Si tiene mas lados, seran triangulados internamente creando mas lados invisibles.
 
-Inherits EntityBase
+Inherits CadLWPolyline
 Public Const Gender As String = "MESH"
 Public Const DrawingOrder As Integer = 1        ' 1 = draws first
 Public Const CmdLineHelper As String = ("a polyface of segments: First point: ")
@@ -33,7 +33,7 @@ End
 Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Variant
 
     Dim p As Vertex
-    Dim comm As New Communications
+
     Dim f As Face
     ' ' 'If Definitive Then Stop
     ' If eBuild.Gender = Gender Then ' es polyface
@@ -62,19 +62,14 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
                 'p = New Vertex
                 f.vertex.Add(p)
 
-                comm.Prompt = "Next point"
-                comm.ParamType = "point3d"
-                comm.Options.Add("End")
-                comm.Options.Add("Close")
-
-                Return comm
+                Return ["prompt": "Next point", "next": "point3d"]
             End If
 
         Else If vParam[0] = "text" Then
 
             If vParam[1] = "_UNDO" Then
                 f.vertex.Remove(f.vertex.Max)
-                Return comm
+                Return ["command": "undo"]
             Else If vParam[1] = "_ENDP" Or vParam[1] = "_CLOSE" Then
                 f.vertex.Last.x = f.vertex.First.x
                 f.vertex.Last.y = f.vertex.First.y
@@ -271,5 +266,31 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     ' catch
 
     Return False
+
+End
+
+Public Sub Translate(e As Entity, dX As Float, dY As Float, dZ As Float, Optional OnlySelected As Boolean = False)
+
+    Dim i As Integer
+    Dim f As Face
+    Dim v As Vertex
+    Dim p As Vertex
+
+    For Each f In e.faces
+        For Each v In f.vertex
+            If Not OnlySelected Or (OnlySelected And v.IsSelected) Then
+                v.x += dx
+                v.y += dy
+                v.z += dz
+            End If
+        Next
+
+    Next
+
+    ' Endif
+    '
+    ' puntos.Translate(e.Polygon, dx, dy)
+    ' puntos.Translate(e.PolyLine, dx, dy)
+    Me.BuildGeometry(e)
 
 End
