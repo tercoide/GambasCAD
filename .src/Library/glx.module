@@ -106,6 +106,7 @@ Public VBO_present As Boolean = False   ' si tenemos VBO que dibujar
 Public VBOCurrent As VBO                ' Current VBO version moderna
 Public VBOLast As VBO                   ' para nuevo buffer
 Public Matrices As New ShaderMatrices   ' Model/View/Projection para los shaders GLSL
+Private $overlayVBO As VBO               ' para DrawText2DOverlay
 
 Public Plane2D As Integer = 0 ''Set screen 2D left to right and bottom to top axis 0 = default X+Y+, 1=X+Z-, 2=Z-Y+
 
@@ -3788,6 +3789,65 @@ Public Function DrawText(UTFstring As String, posX As Float, posY As Float, colo
 
 End
 
+'' Draws text flat on the screen, over whatever is drawn (2D or 3D): saves the GL matrices,
+'' switches to a 2D projection in window pixels, draws the glyph lines from DrawTextPoly and
+'' restores the matrices. Must be called inside the GLArea Draw event.
+''   X, Y      start of the text baseline, window pixels, origin top left (same as Mouse.X / Mouse.Y)
+''   TextH     text height in pixels
+''   AngleRad  rotation, radians, counterclockwise
+Public Sub DrawText2DOverlay(UTFstring As String, X As Float, Y As Float, Optional Colour As Integer = Color.White, TextH As Float = 12, AngleRad As Float = 0, Italic As Float = 0, LineWidth As Float = 1)
+
+    Dim fGlyphs As Float[]
+    Dim aViewport As Integer[]
+    Dim i As Integer
+    Dim r, g, b As Single
+    Dim bDepth As Boolean
+    Dim fPrevWidth As Float[]
+
+    If Not UTFstring Then Return
+    fGlyphs = DrawTextPoly(UTFstring, TextH, AngleRad, Italic)
+    If Not fGlyphs Then Return
+    If fGlyphs.Count < 4 Then Return
+
+    aViewport = gl.GetIntegerv(gl.VIEWPORT_)
+
+    ' 2D: un pixel por unidad, origen abajo a la izquierda como OpenGL
+    Matrices.PushMatrix()
+    Matrices.Projection = Matrices.Projection.Orthographic(0, aViewport[2], 0, aViewport[3], -1, 1)
+    Matrices.View.SetIdentity()
+    Matrices.Model.SetIdentity()
+    Matrices.Upload()
+
+    ' el texto va encima de todo
+    bDepth = gl.IsEnabled(gl.DEPTH_TEST)
+    gl.Disable(gl.DEPTH_TEST)
+    fPrevWidth = gl.GetFloatv(gl.LINE_WIDTH)
+    gl.LineWidth(LineWidth)
+
+    ' segmentos de los glifos, en z = 0 (sin pasar por XYZ, que los llevaria al plano de trabajo)
+    If Not $overlayVBO Then $overlayVBO = New VBO
+    $overlayVBO.Clear()
+    r = (Shr(Colour, 16) And 255) / 255
+    g = (Shr(Colour, 8) And 255) / 255
+    b = (Colour And 255) / 255
+    For i = 0 To fGlyphs.Max - 1 Step 2
+        $overlayVBO.Vertex.Add(X + fGlyphs[i])
+        $overlayVBO.Vertex.Add(aViewport[3] - Y + fGlyphs[i + 1])
+        $overlayVBO.Vertex.Add(0)
+        $overlayVBO.Colors.Add(r)
+        $overlayVBO.Colors.Add(g)
+        $overlayVBO.Colors.Add(b)
+    Next
+    $overlayVBO.SendBuffersToGPU(STREAM_DRAW)
+    $overlayVBO.Draw()
+
+    ' vuelvo al 3D
+    gl.LineWidth(fPrevWidth[0])
+    If bDepth Then gl.Enable(gl.DEPTH_TEST)
+    Matrices.PopMatrix()
+
+End
+
 '' Devuelve una poly con el texto en el contexto actual de acuerdo a los parametros pasados
 '' Debe estar definida la Font con nombre y altura
 Fast Unsafe Public Function DrawTextPoly(UTFstring As String, Optional textH As Float = 1, sRotationRad As Single = 0, sItalicAngle As Single = 0, fScaleX As Float = 1) As Float[]
@@ -4429,11 +4489,14 @@ Public Sub SetGeneralLigths()
 End
 
 '' Converts a 2D point to a 3D point acording the working 2D plane
-Public Function XYZ(x2D As Float, y2D As Float, Optional fLevel As Float = zlevel) As Punto3d
+Public Function XYZ(x2D As Float, y2D As Float, Optional fLevel As Float = zlevel, ForcedPlane As Integer = -1) As Punto3d
 
     Dim p As New Punto3d
+    Dim plane1 As Integer
 
-    Select Case Plane2D
+    If ForcedPlane < 0 Then Plane1 = Plane2D Else Plane1 = ForcedPlane
+
+    Select Case Plane1
         Case Planes.XY      ' plano X+Y+
             p.x = x2D                                                            'X horizontal
             p.y = y2d                                                            'Y up

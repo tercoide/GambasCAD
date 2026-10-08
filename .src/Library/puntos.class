@@ -2581,7 +2581,7 @@ Public Function IsClockwise(Polygon As Float[]) As Boolean
 
 End Function
 
-' Retorna un punto3d si hay intersección, o Null si no la hay.
+' Retorna un punto3d si hay intersecciï¿½n, o Null si no la hay.
 Public Function RayTriangleIntersection(RayOrigin As Punto3d, RayDirection As Punto3d, V0 As Punto3d, V1 As Punto3d, V2 As Punto3d) As Punto3d
 
     Dim Edge1, Edge2, H, S, Q As Punto3d
@@ -2606,7 +2606,7 @@ Public Function RayTriangleIntersection(RayOrigin As Punto3d, RayDirection As Pu
     ' Calcular el producto escalar (Dot Product) de Edge1 y H
     A = (Edge1.X * H.X) + (Edge1.Y * H.Y) + (Edge1.Z * H.Z)
 
-    ' Si A es cercano a cero, el rayo es paralelo al triángulo
+    ' Si A es cercano a cero, el rayo es paralelo al triï¿½ngulo
     If A > -EPSILON And A < EPSILON Then Return Null
 
     F = 1.0 / A
@@ -2616,30 +2616,30 @@ Public Function RayTriangleIntersection(RayOrigin As Punto3d, RayDirection As Pu
     S.Y = RayOrigin.Y - V0.Y
     S.Z = RayOrigin.Z - V0.Z
 
-    ' Calcular el parámetro U y probar los límites
+    ' Calcular el parï¿½metro U y probar los lï¿½mites
     U = F * ((S.X * H.X) + (S.Y * H.Y) + (S.Z * H.Z))
     If U < 0.0 Or U > 1.0 Then Return Null
 
-    ' Preparar para calcular el parámetro V
+    ' Preparar para calcular el parï¿½metro V
     Q.X = (S.Y * Edge1.Z) - (S.Z * Edge1.Y)
     Q.Y = (S.Z * Edge1.X) - (S.X * Edge1.Z)
     Q.Z = (S.X * Edge1.Y) - (S.Y * Edge1.X)
 
-    ' Calcular el parámetro V y probar los límites
+    ' Calcular el parï¿½metro V y probar los lï¿½mites
     V = F * ((RayDirection.X * Q.X) + (RayDirection.Y * Q.Y) + (RayDirection.Z * Q.Z))
     If V < 0.0 Or (U + V) > 1.0 Then Return Null
 
-    ' Calcular T (la distancia en el rayo donde ocurre la intersección)
+    ' Calcular T (la distancia en el rayo donde ocurre la intersecciï¿½n)
     T = F * ((Edge2.X * Q.X) + (Edge2.Y * Q.Y) + (Edge2.Z * Q.Z))
 
-    ' Si T > EPSILON, el rayo intersecta el triángulo de frente
+    ' Si T > EPSILON, el rayo intersecta el triï¿½ngulo de frente
     If T > EPSILON Then
         IntersectionPoint.X = RayOrigin.X + RayDirection.X * T
         IntersectionPoint.Y = RayOrigin.Y + RayDirection.Y * T
         IntersectionPoint.Z = RayOrigin.Z + RayDirection.Z * T
         Return IntersectionPoint
     Else
-        ' Hay una intersección de línea, pero no de rayo (está detrás del origen)
+        ' Hay una intersecciï¿½n de lï¿½nea, pero no de rayo (estï¿½ detrï¿½s del origen)
         Return Null
     Endif
 
@@ -2757,7 +2757,7 @@ Public Function RayPolygonIntersection3D(rayO As Punto3D, rayD As Punto3D, pPoly
 
 End
 
-' Calcula la normal exacta de cualquier N-gon (convexo o cóncavo) usando el método de Newell
+' Calcula la normal exacta de cualquier N-gon (convexo o cï¿½ncavo) usando el mï¿½todo de Newell
 Public Function CalcularNormalNewell(VerticesCara As Variant[]) As Punto3D
 
     Dim Normal As New Punto3D
@@ -2772,15 +2772,15 @@ Public Function CalcularNormalNewell(VerticesCara As Variant[]) As Punto3D
     Normal.Y = 0
     Normal.Z = 0
 
-    ' Recorrer todos los vértices del polígono de forma circular
+    ' Recorrer todos los vï¿½rtices del polï¿½gono de forma circular
     For i = 0 To VerticesCara.Max
-        ' El siguiente vértice del bucle (si es el último, vuelve al primero)
+        ' El siguiente vï¿½rtice del bucle (si es el ï¿½ltimo, vuelve al primero)
         Siguiente = (i + 1) Mod VerticesCara.Count
 
         V_Actual = VerticesCara[i]
         V_Siguiente = VerticesCara[Siguiente]
 
-        ' Fórmulas acumulativas de Newell
+        ' Fï¿½rmulas acumulativas de Newell
         Normal.X += (V_Actual.Y - V_Siguiente.Y) * (V_Actual.Z + V_Siguiente.Z)
         Normal.Y += (V_Actual.Z - V_Siguiente.Z) * (V_Actual.X + V_Siguiente.X)
         Normal.Z += (V_Actual.X - V_Siguiente.X) * (V_Actual.Y + V_Siguiente.Y)
@@ -2794,7 +2794,7 @@ Public Function CalcularNormalNewell(VerticesCara As Variant[]) As Punto3D
         Normal.Y /= Longitud
         Normal.Z /= Longitud
     Else
-        ' Si el polígono es una línea o está colapsado, apuntar por defecto al eje Y
+        ' Si el polï¿½gono es una lï¿½nea o estï¿½ colapsado, apuntar por defecto al eje Y
         Normal.X = 0
         Normal.Y = 1
         Normal.Z = 0
@@ -2803,3 +2803,466 @@ Public Function CalcularNormalNewell(VerticesCara As Variant[]) As Punto3D
     Return Normal
 
 End
+
+Public Function IsAligned(p1 As Punto3d, p2 As Punto3d, px As Punto3d, Optional tolerance As Float = 0) As Boolean
+    'devuelve True si px esta alineado con p1 y p2
+
+    Dim l12 As Float, l1x As Float
+
+    l12 = Distancia3D(p1, p2)
+    l1x = Distancia3D(p1, px)
+
+    If (l12 <= tolerance) Or (l1x <= tolerance) Then Return True ' si uno de los puntos coincide con otro, siempre estaran alineados
+
+    If Abs(Abs(p1.x - px.x) / l1x - Abs(p1.x - p2.x) / l12) <= tolerance Then
+        If Abs(Abs(p1.y - px.y) / l1x - Abs(p1.y - p2.y) / l12) <= tolerance Then
+            If Abs(Abs(p1.z - px.z) / l1x - Abs(p1.z - p2.z) / l12) <= tolerance Then
+                Return True
+            Endif
+        Endif
+
+    Endif
+
+    Return False
+
+End
+
+Public Function IsBetween(p1 As Punto3d, p2 As Punto3d, px As Punto3d, Optional tolerance As Float = 0) As Boolean
+    'devuelve True si px esta sobre la linea (y entre) con p1 y p2
+
+    'primero verifico que no coincida con alguno...
+
+    If (Abs(px.x - p1.x) <= tolerance) And (Abs(px.y - p1.y) <= tolerance) And (Abs(px.z - p1.z) <= tolerance) Then Return True
+    If (Abs(px.x - p2.x) <= tolerance) And (Abs(px.y - p2.y) <= tolerance) And (Abs(px.z - p2.z) <= tolerance) Then Return True
+
+    If IsAligned(p1, p2, px, tolerance) Then
+        'ahora la verificacion es simple, pues basta que se cumpla cualquier condicion como esta:
+
+        If (Abs(px.x - p1.x) > tolerance) And (Sgn(px.x - p1.x) = Sgn(p2.x - px.x)) Then Return True
+
+        If (Abs(px.y - p1.y) > tolerance) And (Sgn(px.y - p1.y) = Sgn(p2.y - px.y)) Then Return True
+
+        If (Abs(px.z - p1.z) > tolerance) And (Sgn(px.z - p1.z) = Sgn(p2.z - px.z)) Then Return True
+
+    Endif
+
+    Return False
+
+End
+
+Public Function fDistancia(x1 As Float, y1 As Float, z1 As Float, x2 As Float, y2 As Float, z2 As Float) As Float
+    'devuelve la distanncia entre los dos puntos
+
+    Return Sqr((x1 - x2) ^ 2 + (y1 - y2) ^ 2 + (z1 - z2) ^ 2)
+
+End
+
+Public Function Distancia3D(p1 As Punto3d, p2 As Punto3d) As Float
+    'devuelve la distanncia entre los dos puntos
+
+    Return Sqr((p1.x - p2.x) ^ 2 + (p1.y - p2.y) ^ 2 + (p1.z - p2.z) ^ 2)
+
+End
+
+'' Distance from pPoint to the infinite line through pLine1 and pLine2, always >= 0
+'' (in 3D there is no side, unlike PointToLineDistance in 2D).
+'' If pLine1 and pLine2 are the same point, returns the distance to that point.
+Public Function PointToLineDistance3D(pPoint As Punto3d, pLine1 As Punto3d, pLine2 As Punto3d) As Float
+
+    Dim dx, dy, dz, vx, vy, vz, cx, cy, cz, l2 As Float
+
+    ' direccion de la linea
+    dx = pLine2.x - pLine1.x
+    dy = pLine2.y - pLine1.y
+    dz = pLine2.z - pLine1.z
+    l2 = dx * dx + dy * dy + dz * dz
+
+    If l2 = 0 Then Return Distancia3D(pPoint, pLine1)
+
+    ' |(P - L1) x D| / |D|
+    vx = pPoint.x - pLine1.x
+    vy = pPoint.y - pLine1.y
+    vz = pPoint.z - pLine1.z
+
+    cx = vy * dz - vz * dy
+    cy = vz * dx - vx * dz
+    cz = vx * dy - vy * dx
+
+    Return Sqr((cx * cx + cy * cy + cz * cz) / l2)
+
+End
+
+'' Point of the infinite line through pLine1 and pLine2 that is closest to pPoint
+'' (the foot of the perpendicular). Returns a new Punto3d; it may lie outside the segment.
+'' If pLine1 and pLine2 are the same point, returns a copy of pLine1.
+Public Function ClosestPointOnLine3D(pPoint As Punto3d, pLine1 As Punto3d, pLine2 As Punto3d) As Punto3d
+
+    Dim dx, dy, dz, l2, t As Float
+    Dim pResult As New Punto3d
+
+    ' direccion de la linea
+    dx = pLine2.x - pLine1.x
+    dy = pLine2.y - pLine1.y
+    dz = pLine2.z - pLine1.z
+    l2 = dx * dx + dy * dy + dz * dz
+
+    ' t = (P - L1) . D / |D|^2, posicion a lo largo de la linea (0 en pLine1, 1 en pLine2)
+    If l2 > 0 Then t = ((pPoint.x - pLine1.x) * dx + (pPoint.y - pLine1.y) * dy + (pPoint.z - pLine1.z) * dz) / l2
+
+    pResult.x = pLine1.x + t * dx
+    pResult.y = pLine1.y + t * dy
+    pResult.z = pLine1.z + t * dz
+
+    Return pResult
+
+End
+
+' Public Function Dot(a As Punto3d, b As Punto3d) As Float
+'
+'     Return a.X * b.X + a.Y * b.Y + a.Z * b.Z
+'
+' End Function
+
+Public Function longitud(p1 As Punto3d) As Float
+    'devuelve el largo del vector p1
+
+    Return Sqr(p1.x ^ 2 + p1.y ^ 2 + p1.z ^ 2)
+
+End
+
+Public Sub Main()
+
+    Dim p1 As New Punto3d, p2 As New Punto3d, px As New Punto3d
+
+    p1.x = 10
+    p1.y = 10
+    p1.z = 10
+
+    p2.x = -3
+    p2.y = -3
+    p2.z = -3
+
+    px.x = -3
+    px.y = -3
+    px.z = -3
+
+    Debug "Alineados? "; IsAligned(p1, p2, px)
+
+    Debug "Entre p1 y p2? "; IsBetween(p1, p2, px)
+
+End
+
+Public Function Cross(vVector1 As Punto3d, vVector2 As Punto3d) As Punto3d
+    'devuelve un vector que es perpendicular a los otros dos
+
+    Dim vResult As New Punto3d
+
+    vResult.x = vVector1.y * vVector2.z - vVector1.z * vVector2.y
+    vResult.y = vVector1.z * vVector2.x - vVector1.x * vVector2.z
+    vResult.z = vVector1.x * vVector2.y - vVector1.y * vVector2.x
+
+    Return vResult
+
+End
+
+Public Sub vNormal2Plane(vBase As Punto3d, vVector1 As Punto3d, vVector2 As Punto3d, ByRef vResult As Punto3d)
+    'devuelve un vector que es perpendicular a los otros dos (con  punto base), y normalizado
+
+    Dim v1 As New Punto3d, v2 As New Punto3d
+
+    Copy3D(v1, vVector1)
+    Copy3D(v2, vVector2)
+
+    v1.x -= vBase.x
+    v1.y -= vBase.y
+    v1.z -= vBase.z
+
+    v2.x -= vBase.x
+    v2.y -= vBase.y
+    v2.z -= vBase.z
+
+    vresult.x = v1.y * v2.z - v1.z * v2.y
+    vresult.y = v1.z * v2.x - v1.x * v2.z
+    vresult.z = v1.x * v2.y - v1.y * v2.x
+
+    Normalizar(vresult)
+
+End
+
+Public Sub Normalizar(v As Punto3d)
+    'devuelve un vector de largo 1
+
+    Dim l As Float
+
+    l = (v.x * v.x + v.y * v.y + v.z * v.z) ^ 0.5
+    If l = 0 Then Return
+    Mult3D(v, 1 / l)
+
+End
+
+Public Sub Normalizar2(v As Punto3d, vresult As Punto3d)
+    'devuelve un vector de largo 1
+
+    Dim l As Float
+
+    l = (v.x * v.x + v.y * v.y + v.z * v.z) ^ 0.5
+    If l = 0 Then Return
+    vresult.x = v.x / l
+    vresult.y = v.y / l
+    vresult.z = v.z / l
+
+End
+
+Public Sub Sum3D(Destino As Punto3d, Origen As Punto3d, Origen2 As Punto3d)
+    ' copia el punto 3D
+
+    Destino.x = Origen.x + Origen2.x
+    Destino.y = Origen.y + Origen2.y
+    Destino.z = Origen.z + Origen2.z
+
+End
+
+' Sum = 0 , Rest = 1, Mult = 2
+Public Function Operate(Origen As Punto3d, Origen2 As Punto3d, Optional TypeOperation As Integer = 0) As Punto3d
+    ' copia el punto 3D
+
+    Dim destino As New Punto3d
+
+    If TypeOperation = 0 Then
+        Destino.x = Origen.x + Origen2.x
+        Destino.y = Origen.y + Origen2.y
+        Destino.z = Origen.z + Origen2.z
+
+    Else If TypeOperation = 1 Then
+        Destino.x = Origen.x - Origen2.x
+        Destino.y = Origen.y - Origen2.y
+        Destino.z = Origen.z - Origen2.z
+
+    Else If TypeOperation = 2 Then
+        Destino.x = Origen.x * Origen2.x
+        Destino.y = Origen.y * Origen2.y
+        Destino.z = Origen.z * Origen2.z
+
+    End If
+    Return destino
+
+End
+
+Public Sub Copy3D(Destino As Punto3d, Origen As Punto3d)
+    ' copia el punto 3D
+
+    Destino.x = Origen.x
+    Destino.y = Origen.y
+    Destino.z = Origen.z
+
+End
+
+Public Sub Add3D(Destino As Punto3d, Origen As Punto3d)
+    ' suma las coordenadas de destino a origen
+
+    Destino.x += Origen.x
+    Destino.y += Origen.y
+    Destino.z += Origen.z
+
+End
+
+Public Sub Mult3D(Destino As Punto3d, valor As Float)
+    ' suma las coordenadas de destino a origen
+
+    Destino.x *= valor
+    Destino.y *= valor
+    Destino.z *= valor
+
+End
+
+Public Function Mult(Destino As Punto3d, valor As Float) As Punto3d
+    ' suma las coordenadas de destino a origen
+
+    Dim d As New Punto3d
+
+    d.x = Destino.x * valor
+    d.y = Destino.y * valor
+    d.z = Destino.z * valor
+    Return d
+
+End
+
+Public Function Crossing2D(x1 As Float, y1 As Float, x2 As Float, y2 As Float, x3 As Float, y3 As Float, x4 As Float, y4 As Float, ByRef x As Float, ByRef y As Float) As Boolean
+
+    'checks if 1-2 crosses 3-4 , and returns a point if true
+
+    Dim a1 As Float, b1 As Float
+    Dim a2 As Float, b2 As Float
+
+    'check for points in same position
+
+    If (x1 = x3) And (y1 = y3) Then Return 0
+    If (x1 = x4) And (y1 = y4) Then Return 0
+
+    If (x2 = x3) And (y2 = y3) Then Return 0
+    If (x2 = x4) And (y2 = y4) Then Return 0
+
+    ' first we ensure x1<= x2 and so on
+    If x1 > x2 Then
+
+        Swap x1, x2
+        Swap y1, y2
+
+    Endif
+
+    If x3 > x4 Then
+
+        Swap x3, x4
+        Swap y3, y4
+
+    Endif
+
+    If y1 = y2 Then 'Y = y1 (= y2)
+        If y3 = y4 Then Return False 'both lines are parallel and horizontal, there is no crossing point, even if they are collineal
+
+        a2 = (x3 - x4) / (y3 - y4)
+        b2 = x3 - a2 * y3
+
+        ' X = a2 . Y + b2
+
+        'this is the crossing point
+        X = a2 * y1 + b2
+        Y = y1
+
+        ' now we need to check if the point is betwwen segments and not outside them
+        If X > x1 And x < x2 Then Return True Else Return False
+
+    Else
+
+        a1 = (x1 - x2) / (y1 - y2)
+        b1 = x1 - a1 * y1
+
+        If y3 = y4 Then
+
+            y = y3              'the crossing point
+            x = a1 * y + b1
+
+            If X > x3 And x < x4 Then Return True Else Return False
+
+        Else
+            a2 = (x3 - x4) / (y3 - y4)
+            b2 = x3 - a2 * y3
+
+            If a1 = a2 Then Return False 'because they are parallel
+
+            y = (b2 - b1) / (a1 - a2)  'the crssing point
+            x = a2 * y + b2
+
+            If x <= x1 Then Return False
+            If x >= x2 Then Return False
+            If x <= x3 Then Return False
+            If x >= x4 Then Return False Else Return True ' nice!
+
+        Endif
+
+    Endif
+
+End Function
+
+Public Function Interseccion2D(x0 As Single, y0 As Single, x1 As Single, y1 As Single, x2 As Single, y2 As Single, x3 As Single, y3 As Single, Optional x As Single, Optional Y As Single) As Boolean
+    'devuelve el punto de interseccion entre rectas definidas por 2 puntos
+    'y true o false
+
+    Dim a1 As Single, a2 As Single, b1 As Single, b2 As Single
+    Dim v1 As Boolean, v2 As Boolean
+    ' determino la ecuacion de la recta de la forma Y=aX+b
+    ' a x0 + b y0 = 0
+    ' a=
+    If x1 <> x0 Then
+        a1 = (y1 - y0) / (x1 - x0)
+        b1 = y1 - x1 * a1
+    Else
+        v1 = True
+    End If
+
+    If x3 <> x2 Then
+        a2 = (y3 - y2) / (x3 - x2)
+        b2 = y3 - x3 * a1
+    Else
+        v2 = True
+    End If
+
+    If v1 And v2 Then
+        'son verticales las dos
+        Return False
+    Else If v1 Then
+        ' recta1 vertical 1
+        ' veo donde corta
+        x = x1
+        ' y=a2X+b2
+        Y = a2 * x1 + b2
+        Return True
+    Else If v2 Then
+        ' recta1 vertical 2
+        ' veo donde corta
+        x = x2
+        ' y = a1 X + b1
+        Y = a1 * x2 + b1
+        Return True
+    Else
+        ' y = a1 . X + b1 = a2 . x + b2 ->  a1 X - a2 X = b2 - b1 ->
+        If a1 <> a2 Then
+            x = (b2 - b1) / (a1 - a2)
+            Y = a1 * x + b1
+            Return True
+        Else
+            ' son paralelas
+            Return False
+        End If
+    End If
+
+End Function
+
+Public Function AreaRomboide(x1 As Float, z1 As Float, x2 As Float, z2 As Float, x3 As Float, z3 As Float, x4 As Float, z4 As Float) As Float
+    ' hay que tener cuidado con el orden en que se pasan los puntos, es necesario que den la vuelta al poligono para que funcione
+
+    Return Abs((x1 * z2 + x2 * z3 + x3 * z4 + x4 * z1) - (x1 * z4 + x4 * z3 + x3 * z2 + x2 * z1)) / 2
+
+End Function
+
+Public Function AreaTriang(x1 As Float, z1 As Float, x2 As Float, z2 As Float, x3 As Float, z3 As Float) As Float
+
+    Return Abs((x1 * z2 + x2 * z3 + x3 * z1) - (x1 * z3 + x3 * z2 + x2 * z1)) / 2
+
+End Function
+
+Public Function AreaRomboide3D(p1 As Punto3d, p2 As Punto3d, p3 As Punto3d, p4 As Punto3d) As Float
+    ' hay que tener cuidado con el orden en que se pasan los puntos, es necesario que den la vuelta al poligono para que funcione
+    ' ademas los puntos deben estar en el mismo plano
+
+    Dim a1 As Float, a2 As Float, a3 As Float
+
+    a1 = AreaRomboide(p1.x, p1.z, p2.x, p2.z, p3.x, p3.z, p4.x, p4.z)
+
+    a2 = AreaRomboide(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y, p4.x, p4.y)
+
+    a3 = AreaRomboide(p1.y, p1.z, p2.y, p2.z, p3.y, p3.z, p4.y, p4.z)
+
+    ' Debug a1, a2, a3
+
+    Return (a1 * a1 + a2 * a2 + a3 * a3) ^ 0.5
+
+End Function
+
+Public Function RayPlaneIntersection(ray As Ray, plane As Plane) As Punto3d
+
+    Dim hitPoint As Punto3d
+    Dim denominator As Float = Dot(plane.Normal, ray.Direction)
+
+    ' The ray is parallel to the plane
+    If Abs(denominator) < 0.00001 Then Return Null
+
+    Dim t As Float = Dot(Operate(plane.Point, ray.Origin, 1), plane.Normal) / denominator
+
+    ' Intersection is behind the camera
+    If t < 0.0 Then Return Null
+
+    hitPoint = Operate(ray.Origin, Mult(ray.Direction, t))
+    Return hitPoint
+
+End Function

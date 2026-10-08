@@ -28,6 +28,45 @@ Public Const DrawingOrder As Integer = 1        ' 1 = draws first
 Public Const CmdLineHelper As String = ("a polyline of segments")
 Public Const Is3D As Boolean = True
 
+' The entity handler receives a user action, and returns the number of expected parameter
+' If definitive = true, means the parameter is set
+Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Variant
+
+    If vParam[0] = "point3d" Then
+
+        eBuild.P[eBuild.P.Max - 1] = vParam[1]
+        eBuild.P[eBuild.P.Max] = vParam[2]
+
+        If Definitive Then
+            eBuild.P.Insert(eBuild.P.Copy(eBuild.P.Max - 1, 2))
+            Return ["prompt": "next point"]
+        End If
+
+    Else If vParam[0] = "text" Then
+
+        If vParam[1] = "_CLOSE" Then
+            If eBuild.P.Count > 4 Then eBuild.P.Remove(eBuild.P.Max - 1, 2)
+            eBuild.P.Add(eBuild.P[0])
+            eBuild.P.Add(eBuild.P[1])
+            eBuild.iParam[0] = 1
+            Inc gcd.StepsDone
+            Return ["command": "end"]
+
+        Else If vParam[1] = "_UNDO" Then
+            If eBuild.P.Count > 4 Then eBuild.P.Remove(eBuild.P.Max - 1, 2)
+            eBuild.iParam[0] = 0
+            Return ["prompt": "next point"]
+        Else If vParam[1] = "_END" Then
+            If eBuild.P.Count > 4 Then eBuild.P.Remove(eBuild.P.Max - 1, 2)
+            Inc gcd.StepsDone
+            eBuild.iParam[0] = 0
+            Return ["command": "end"]
+
+        Endif
+    End If
+
+End
+
 Public Sub Draw(oE As Entity)
 
     If (oe.iParam[Me.iiiPolylineType] And 64) = 64 Then
@@ -160,8 +199,8 @@ Public Function BuildGeometry(E As Entity, Optional density As Float)
         '     v2.y = e.PolyLine[i + 7] - e.PolyLine[i + 4]
         '     v2.z = e.PolyLine[i + 8] - e.PolyLine[i + 5]
         '
-        '     modAlgebra.Cross(v1, v2, n)
-        '     modAlgebra.Normalizar(n)
+        '     puntos.Cross(v1, v2, n)
+        '     puntos.Normalizar(n)
         '     For ii = 1 To 3
         '         gcd.Drawing.Sheet.model3d.xyzNormals.Add(n.x)
         '         gcd.Drawing.Sheet.model3d.xyzNormals.Add(n.y)
