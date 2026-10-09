@@ -33,6 +33,7 @@ Public Const Is2D As Boolean = True                      ' otras solo son 2D com
 Public SelStartP As New Punto3d
 Public SelEndP As New Punto3d
 Public CurrentP As New Punto3d
+Public LastP As New Punto3d
 
 Public SelStartX As Integer                         ' Sel = selection, where? Start/End , axis? X/Y
 Public SelStartY As Integer
@@ -54,6 +55,7 @@ Public Endyr As Float
 
 Public LastX As Float               ' change in MouseUp
 Public LastY As Float
+Public LastZ As Float
 
 Public MouseX As Integer               ' change in MouseMove/MouseUp
 Public MouseY As Integer
@@ -120,6 +122,7 @@ Public Sub Draw()               ' called by gcd.CurrDrawing.drwArea_Draw
     gcd.Drawing.Sheet.EntitiesSelectedVBO.Draw()
     ' glx.Matrices.PopMatrix()
     ' glx.Matrices.Translate(-gcd.Drawing.Sheet.PanBaseRealX, -gcd.Drawing.Sheet.PanBaseRealY, 0)
+    DrawingAids.DrawSnapText()
 
 End
 
@@ -139,7 +142,7 @@ End
 Public Function KeyText(EnteredText As String)
     ' Lets see what are we expecting
 
-    Dim Xt, yt As Float, ErrTxt As String, Relative As Boolean
+    Dim Xt, yt, zt As Float, ErrTxt As String, Relative As Boolean
 
     ' primero veo si el entorno nos pide algo
     Select Case UCase(EnteredText)
@@ -200,20 +203,25 @@ Public Function KeyText(EnteredText As String)
         Endif
         Xt = CFloat(Split(EnteredText, ",")[0])
         yt = CFloat(Split(EnteredText, ",")[1])
-
+        Try zt = CFloat(Split(EnteredText, ",")[2])
         If Relative Then
             xt += Me.LastX
             yt += Me.LastY
-
+            zt += Me.LastZ
         Endif
         Me.LastX = xt
         Me.LastY = yt
+        Me.LastZ = zt
+
+        Me.LastP.x = xt
+        Me.LastP.y = yt
+        Me.LastP.z = zt
 
         ' last point
         gcd.Drawing.LastPoint.Clear
-        gcd.Drawing.LastPoint.Insert([xt, yt])
+        gcd.Drawing.LastPoint.Insert([xt, yt, zt])
 
-        Me.NewParameter("point", gcd.Drawing.LastPoint, True)
+        Me.NewParameter("point", Me.LastP, True)
     Else
         Me.NewParameter("text", EnteredText, True)
     End If
@@ -292,7 +300,7 @@ End
 
 Public Sub MouseUp()
 
-    Dim x, y As Float
+    Dim x, y, z As Float
 
     If Mouse.Right Then
         Me.NewParameter("action", "_CANCEL")
@@ -303,16 +311,15 @@ Public Sub MouseUp()
     Y = gcd.Yreal(Mouse.Y)
 
     ' yo soy el responsable de chequear POI
-    If Not gcd.flgSearchingPOI Then
-        gcd.Drawing.iEntity = clsMouseTracking.CheckBestPOI(x, Y)
-        If (gcd.Drawing.iEntity["mode"] > 0) Then
 
-            ' esto re enganchado
+    gcd.Drawing.iEntity = clsMouseTracking.CheckBestPOI(x, Y)
+    If (gcd.Drawing.iEntity["mode"] > 0) Then
 
-            X = gcd.Drawing.iEntity["point"].x
-            Y = gcd.Drawing.iEntity["point"].y
+        ' esto re enganchado
 
-        End If
+        X = gcd.Drawing.iEntity["point"].x
+        Y = gcd.Drawing.iEntity["point"].y
+        Try z = gcd.Drawing.iEntity["point"].z
     End If
 
     X = gcd.Near(X)
@@ -336,7 +343,8 @@ Public Sub MouseUp()
 
     LastX = X
     LastY = y
-    Me.NewParameter("point", [LastX, LastY], True)
+    Me.LastP = New Punto3d(LastX, LastY, 0)
+    Me.NewParameter("point", Me.LastP, True)
 
 End
 '
@@ -349,16 +357,15 @@ Public Sub MouseMove()
     Y = gcd.Yreal(Mouse.Y)
 
     ' yo soy el responsable de chequear POI
-    If Not gcd.flgSearchingPOI Then
-        gcd.Drawing.iEntity = clsMouseTracking.CheckBestPOI(x, Y)
-        If (gcd.Drawing.iEntity["mode"] > 0) Then
 
-            ' esto re enganchado
+    gcd.Drawing.iEntity = clsMouseTracking.CheckBestPOI(x, Y)
+    If (gcd.Drawing.iEntity["mode"] > 0) Then
 
-            X = gcd.Drawing.iEntity["point"].x
-            Y = gcd.Drawing.iEntity["point"].y
+        ' esto re enganchado
 
-        End If
+        X = gcd.Drawing.iEntity["point"].x
+        Y = gcd.Drawing.iEntity["point"].y
+
     End If
 
     X = gcd.Near(X)
@@ -379,7 +386,8 @@ Public Sub MouseMove()
 
         End If
     End If
-    Me.NewParameter("point", [X, Y])
+    Me.CurrentP = New Punto3d(X, Y, 0)
+    Me.NewParameter("point", Me.CurrentP)
     Me.MouseX = X
     Me.MouseY = Y
 
