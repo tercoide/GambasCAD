@@ -3087,6 +3087,37 @@ Public Function Mult(Destino As Punto3d, valor As Float) As Punto3d
 
 End
 
+'' Convierte un punto 2D (x, y) de un plano local a coordenadas globales XYZ.
+'' El plano lo definen su origen y su normal (no hace falta que este normalizada).
+'' El eje X local es paralelo al plano global XZ (sin componente Y): Xlocal = Y global x Normal, normalizado.
+'' El eje Y local es Normal x Xlocal, asi que con normal (0,0,1) los ejes locales coinciden con X e Y globales.
+'' Si la normal es paralela al eje Y global, el eje X local es el X global.
+'' Devuelve Null si la normal es nula.
+Public Function LocalToGlobal(Origen As Punto3d, Normal As Punto3d, x As Float, y As Float) As Punto3d
+
+    Dim n As New Punto3d
+    Dim ejeX, ejeY As Punto3d
+    Dim p As New Punto3d
+
+    If longitud(Normal) < NumericTolerance Then Return Null
+    Normalizar2(Normal, n)
+
+    ' Y global x n = (n.z, 0, -n.x)
+    ejeX = New Punto3d(n.z, 0, -n.x)
+    If longitud(ejeX) < NumericTolerance Then
+        ejeX = New Punto3d(1, 0, 0)                 ' la normal es vertical (paralela a Y)
+    Else
+        Normalizar(ejeX)
+    Endif
+    ejeY = Cross(n, ejeX)
+
+    p.x = Origen.x + x * ejeX.x + y * ejeY.x
+    p.y = Origen.y + x * ejeX.y + y * ejeY.y
+    p.z = Origen.z + x * ejeX.z + y * ejeY.z
+    Return p
+
+End
+
 Public Function Crossing2D(x1 As Float, y1 As Float, x2 As Float, y2 As Float, x3 As Float, y3 As Float, x4 As Float, y4 As Float, ByRef x As Float, ByRef y As Float) As Boolean
 
     'checks if 1-2 crosses 3-4 , and returns a point if true
