@@ -27,25 +27,22 @@ Public Const Gender As String = "DIVIDE"
 Public Offset As Float
 Public EntitySelected As Entity
 ' Workflow
-'   1 Select entity
-'   2 If entity is valid to offset, select point to split it
-'   3 Goto 1
+'   1 Select entity/face if 3D
+'   2 If entity is valid to offset, select point to split it or start point of poly
+'   3 Second point or end point of poly if 3D
 
 Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer = 0) As Boolean
-    ' Llamada por FCAD al inicio de la aplicacion de esta herramienta
-
-    ' Aprovechamos para establecer los helpers (comentarios de ayuda en pantalla)
-    Me.PointsDone = 0
-    Me.PointsTotal = 3
 
     ' chequeamos si hubo seleccion previa
 
     If gcd.Drawing.Sheet.EntitiesSelected.Count <> 1 Then
         clsEntities.DeSelection()
         Me.Prompt = ("Select only one entity")
+        If gcd.Drawing.Sheet.Is3D Then Me.Prompt = ("Select only one face")
         gcd.clsJobCallBack = Me
         gcd.clsJob = cadSelection
         cadSelection.ReturnOnFirstSelection = True
+        cadSelection.SelectType = cadSelection.SelectTypeFace
 
     Else
         ' verificamos si la entidad puede ser partida
@@ -55,10 +52,17 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
             Case "LINE", "LWPOLYLINE", "CIRCLE", "ARC", "ELLIPSE", "SPLINE"
                 clsEntities.SelectElem(Me.EntitySelected)
                 DrawingAIds.Helper.texto = ("First breakpoint of entity")
-                Me.PointsDone = 1
+                Me.ExpectedParam = "first"
+            Case "MESH"
+                ' verifico que haya elegido una face
+                If Not gcd.Drawing.Sheet.LastFace Then
+
+                Endif
+                Me.ExpectedParam = "first"
+
             Case Else
                 Me.EntitySelected = Null
-                DrawingAIds.ErrorMessage = ("Can't break that entity")
+                DrawingAIds.ErrorMessage = ("Can't divide that entity")
         End Select
 
     Endif
@@ -81,10 +85,10 @@ Public Sub Run()
         Me.EntitySelected = gcd.Drawing.Sheet.EntitiesSelected[gcd.Drawing.Sheet.EntitiesSelected.First]
 
         Select Me.EntitySelected.Gender
-            Case "LINE", "LWPOLYLINE", "CIRCLE", "ARC", "ELLIPSE", "SPLINE"
+            Case "LINE", "LWPOLYLINE", "CIRCLE", "ARC", "ELLIPSE", "SPLINE", "MESH"
                 clsEntities.SelectElem(Me.EntitySelected)
                 Me.Prompt = ("First breakpoint of entity")
-                Me.PointsDone = 1
+                Me.ExpectedParam = "first"
             Case Else
                 Me.EntitySelected = Null
                 DrawingAIds.ErrorMessage = ("Can't break that entity")
@@ -94,40 +98,46 @@ Public Sub Run()
 
 End
 
-Public Function MouseUp()
+Public Sub NewParameter(tipo As String, vValor As Variant, Optional definitive As Boolean = False)
 
     Dim flxIntersec As Float[]
     Dim e, e2 As Entity
-
     ' si llegue aca es porque ya tengo una entidad seleccionada
     e = Me.EntitySelected       ' esto lo hago para reducir el largo del codigo
+    If LCase(tipo) <> "point" Or LCase(tipo) <> "point3d" Then
 
-    ' verifico que este sobre la entidad a romper
-    If Me.PointsDone = 1 Then ' marco el primer punto
-        Me.SelStartXr = gcd.Xreal(mouse.x)
-        Me.SelStartYr = gcd.Yreal(mouse.y)
+        DrawingAIds.ErrorMessage = ("Invalid input")
+        Return
+
+    Endif
+
+    If Me.ExpectedParam = "first" Then ' marco el primer punto
+
+        Me.SelStartP = New Punto3d(vValor.x, vValor.y, vValor.z)
+        Me.ExpectedParam = "end"
 
         If gcd.Drawing.HoveredEntity <> Me.EntitySelected Then ' el mouse se fue de la entidad a romper
-            DrawingAIds.ErrorMessage = ("InvalId breakpoint")
+            DrawingAIds.ErrorMessage = ("Invalid breakpoint, must be in the same " & Me.EntitySelected.Gender)
             Return
         End If
 
+        ' supongo que el primer punto esta ok
+
         Select e.Gender
             Case "LINE"
-                flxIntersec = clsMouseTracking.GetNearestPoint(e, Me.SelStartXr, Me.SelStartYr)
-                Me.SelStartXr = flxIntersec[0]
-                Me.SelStartYr = flxIntersec[1]
+                flxIntersec = clsMouseTracking.GetNearestPoint(e, Me.SelStartP.x, Me.SelStartp.Y)
+                Me.SelStartP.x = flxIntersec[0]
+                Me.SelStartp.y = flxIntersec[1]
                 Me.Prompt = ("Second breakpoint of entity")
-                Me.PointsDone = 2
+                Me.ExpectedParam = "next"
 
             Case Else
                 Me.iEntitySelected = Null
                 DrawingAIds.ErrorMessage = ("Can't offset that entity")
         End Select
 
-    Else If Me.PointsDone = 2 Then ' acabo de marcar el segundo punto
-        Me.SelendXr = gcd.Xreal(mouse.x)
-        Me.SelEndYr = gcd.Yreal(mouse.y)
+    Else If Me.ExpectedParam = "next" Then ' acabo de marcar el segundo punto
+        Me.SelEndP = New Punto3d(vValor.x, vValor.y, vValor.z)
         If gcd.Drawing.HoveredEntity <> Me.EntitySelected Then ' el mouse se fue de la entidad a romper
             DrawingAIds.ErrorMessage = ("InvalId breakpoint")
             Return
@@ -136,9 +146,9 @@ Public Function MouseUp()
         gcd.Drawing.uUndo.AddUndoItem(e)
         Select e.Gender
             Case "LINE"
-                flxIntersec = clsMouseTracking.GetNearestPoint(e, Me.SelendXr, Me.SelendYr)
-                Me.SelendXr = flxIntersec[0]
-                Me.Selendyr = flxIntersec[1]
+                flxIntersec = clsMouseTracking.GetNearestPoint(e, Me.SelEndP.x, Me.SelEndP.y)
+                Me.SelEndP.x = flxIntersec[0]
+                Me.SelEndP.y = flxIntersec[1]
 
                 ' ahora tengo que partir la entidad, pero puede ocurrir que el punto sea uno de los dos endpoints
                 ' If (flxIntersec[0] = e.P[0] And flxIntersec[1] = e.P[1]) Or (flxIntersec[0] = e.P[2] And flxIntersec[1] = e.P[3]) Then
@@ -149,19 +159,19 @@ Public Function MouseUp()
                 e2 = clsEntities.ClonEntity(e, True)          ' primero la clono
 
                 ' veo cual esta mas cerca del punto inicial
-                If puntos.distancia(e.P[0], e.P[1], Me.SelStartXr, Me.SelStartYr) > puntos.distancia(e.P[0], e.P[1], Me.SelendXr, Me.SelEndYr) Then
+                If puntos.distancia(e.P[0], e.P[1], Me.SelStartp.X, Me.SelStartp.Y) > puntos.distancia(e.P[0], e.P[1], Me.Selendp.X, Me.SelEndP.Y) Then
 
-                    e2.P[2] = Me.SelendXr                   ' corrijo los puntos
-                    e2.P[3] = Me.SelendYr
+                    e2.P[2] = Me.SelEndP.X                   ' corrijo los puntos
+                    e2.P[3] = Me.SelEndP.Y
 
-                    e.P[0] = Me.SelstartXr                 ' y ahora recorto la entidad original
-                    e.P[1] = Me.Selstartyr
+                    e.P[0] = Me.SelStartP.X                 ' y ahora recorto la entidad original
+                    e.P[1] = Me.SelStartP.y
                 Else
-                    e2.P[0] = Me.SelendXr                   ' corrijo los puntos
-                    e2.P[1] = Me.SelendYr
+                    e2.P[0] = Me.SelEndP.X                   ' corrijo los puntos
+                    e2.P[1] = Me.SelEndP.Y
 
-                    e.P[2] = Me.SelstartXr                 ' y ahora recorto la entidad original
-                    e.P[3] = Me.Selstartyr
+                    e.P[2] = Me.SelStartP.X                 ' y ahora recorto la entidad original
+                    e.P[3] = Me.SelStartP.y
 
                 End If
 
@@ -179,7 +189,7 @@ Public Function MouseUp()
 
             Case Else
                 Me.iEntitySelected = Null
-                DrawingAIds.ErrorMessage = ("Can't offset that entity")
+                DrawingAIds.ErrorMessage = ("Can't divide that entity")
         End Select
         gcd.Drawing.uUndo.CloseUndoStage()
     End If

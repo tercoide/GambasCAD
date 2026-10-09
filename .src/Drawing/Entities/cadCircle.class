@@ -34,13 +34,20 @@ Public Const Regenerable As Boolean = True
 
 ' The entity handler receives a user action, and returns the number of expected parameter
 ' If definitive = true, means the parameter is setc
+' En 3D solo puede dibujarse un circulo en una cara
+
 Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Variant
 
+    eBuild.Is3D = gcd.Drawing.Sheet.Is3D
+    If eBuild.Is3D Then eBuild.p3 = New Punto3d[]
     If Me.ExpectedParam = "center" Then
 
-        If vParam[0] <> "point" Then Return
+        If (vParam[0] <> "point") And (vParam[0] <> "point3d") Then Return
+        eBuild.P.Resize(3)
+
         Try eBuild.P[0] = vParam[1]
         Try eBuild.P[1] = vParam[2]
+        Try eBuild.P[2] = vParam[3]
 
         If Definitive Then
             eBuild.fParam.Add(0)
@@ -72,11 +79,11 @@ Public Sub Draw(oE As Entity)
 
     If Not oE.Visible Then Return
 
-    clsEntities.VBOEntityStart(oe)
-
+    ' clsEntities.VBOEntityStart(oe)
+    If oe.Is3D Then glx.DrawLines3D(puntos.Create3dArray(oe.p3))
     glx.PolyLines(oe.PolyLine, gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
 
-    clsEntities.VboEntityDone(oe)
+    ' clsEntities.VboEntityDone(oe)
 
 End
 
@@ -84,6 +91,10 @@ Public Sub makepolyline(oe As Entity)
 
     Dim x, y, theta, angle_increment As Float
     Dim iTramos As Integer
+    Dim centro3 As Punto3d
+    Dim normal As Punto3D
+
+    If oE.fParam[0] = 0 Then Return
 
     ' If oe.id = "DB8C" Then Stop
     iTramos = oE.fParam[0] * 2 * Pi / gcd.metros(Config.ArcDensity)
@@ -107,6 +118,16 @@ Public Sub makepolyline(oe As Entity)
 
     oE.polyline.Add(x)
     oE.polyline.Add(y)
+
+    If oe.Is3D Then
+        oe.p3 = New Punto3d[]
+        ' determino el plano
+        centro3 = New Punto3d(oe.P[0], oe.P[1], oe.P[2])
+        normal = puntos.CalcularNormalNewell(gcd.Drawing.Sheet.LastFace.ToPuntos3D())
+        For iTramos = 0 To oe.PolyLine.Max Step 2
+            oe.p3.Add(puntos.LocalToGlobal(centro3, normal, oe.PolyLine[iTramos], oe.PolyLine[iTramos + 1]))
+        Next
+    Endif
 
 End
 
