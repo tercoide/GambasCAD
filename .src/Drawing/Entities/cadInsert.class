@@ -345,6 +345,39 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
 End
 
+Public Function SaveJsonData(e As Entity, j As Collection) As Boolean
+
+    Dim eAttrib As Entity
+    Dim cAttribs As New Collection
+
+    Super.SaveJsonData(e, j)
+    j["block"] = e.pBlock.name
+
+    ' las partes se rearman desde el bloque, solo guardo los atributos
+    For Each eAttrib In e.pBlock.entities
+        If eAttrib.Gender = "ATTRIB" Then cAttribs.Add(eAttrib, eAttrib.id)
+    Next
+    If cAttribs.Count > 0 Then j["attribs"] = JsonFile.EntitiesToJson(cAttribs)
+
+    Return True
+
+End
+
+Public Function ImportJson(e As Entity, c As Collection) As Boolean
+
+    Super.ImportJson(e, c)
+    e.pBlock.name = c["block"]
+    Return True
+
+End
+
+'' Finish ya armo las partes desde el bloque, ahora agrego los atributos
+Public Sub ImportJsonParts(e As Entity, c As Collection)
+
+    If c.Exist("attribs") Then JsonFile.LoadEntities(c["attribs"], e.pBlock)
+
+End
+
 '' Inserta las partes de un Insert en la coleccion de entidades
 Public Function InsertParts(eInsert As Entity, Optional GetAttributes As Boolean = False) As Boolean
 

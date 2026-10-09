@@ -1,0 +1,769 @@
+' Gambas module file
+
+' GambasCAD
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+
+'' Formato nativo de GambasCAD, basado en JSON.
+'' Este modulo es el guardador general: escribe el esqueleto del archivo (headers, tablas, bloques, hojas)
+'' y los datos comunes a todas las entidades. Cada tabla se guarda/lee a si misma con ExportJson/ImportJson
+'' y cada clase cad* agrega sus datos con SaveJsonData/ImportJson, igual que SaveDxfData/ImportDXF con el DXF.
+''
+'' Estructura del archivo:
+'' {
+'' "format": "GambasCAD", "version": 1,
+'' "drawing": {...}, "headers": {...}, "current": {...},
+'' "linetypes": [...], "layers": [...], "textstyles": [...], "dimstyles": [...], "mlinestyles": [...],
+'' "ucss": [...], "views": [...], "viewports": [...], "appids": [...],
+'' "blocks": [{...datos del bloque..., "entities": [{entidad}, {entidad}]}],
+'' "sheets": [{...datos de la hoja..., "block": {...datos del bloque..., "entities": [...]}}]
+'' }
+'' Cada entidad va en su propia linea.
+
+Public Const FileFormat As String = "GambasCAD"
+Public Const FileVersion As Integer = 1
+Public Const FileExtension As String = "gcd"
+
+Private hFile As File
+Private drwLoading As Drawing
+Private cPendingBlocks As New Collection        '' nombre del bloque -> su JSON, esperando ser llenado con entidades
+
+'=============================================== SAVE ===============================================
+
+'' Guarda el dibujo en formato JSON nativo. Devuelve 0 si no hubo errores.
+Public Function SaveFile(sName As String, drw As Drawing) As Integer
+
+    Dim b As Block
+    Dim s As Sheet
+    Dim bFirst As Boolean
+
+    hFile = Open sName For Create
+    Inc Application.Busy
+
+    ' cosas utiles para cuando abra de nuevo este archivo
+    Try drw.Headers.CLAYER = drw.CurrLayer.Name
+    drw.Headers.HANDSEED = Hex(drw.HandSeed)
+
+    Print #hFile, "{"
+    WriteKey("format", FileFormat)
+    WriteKey("version", FileVersion)
+    WriteKey("drawing", DrawingToJson(drw))
+    WriteKey("headers", ObjectToJson(drw.Headers))
+    WriteKey("current", CurrentToJson(drw))
+
+    WriteTable("linetypes", drw.LineTypes)
+    WriteTable("layers", drw.Layers)
+    WriteTable("textstyles", drw.TextStyles)
+    WriteTable("dimstyles", drw.DimStyles)
+    WriteTable("mlinestyles", drw.MLineStyles)
+    WriteTable("ucss", drw.UCSs)
+    WriteTable("views", drw.Views)
+    WriteTable("viewports", drw.Viewports)
+    WriteTable("appids", drw.AppIDs)
+
+    ' los bloques de las hojas van con su hoja
+    Print #hFile, JSON.Encode("blocks") & ": ["
+    bFirst = True
+    For Each b In drw.Blocks
+        If b.Sheet Then Continue
+        If Not bFirst Then Print #hFile, ","
+        WriteBlock(b)
+        bFirst = False
+    Next
+    Print #hFile, "],"
+
+    Print #hFile, JSON.Encode("sheets") & ": ["
+    bFirst = True
+    For Each s In drw.Sheets
+        If Not bFirst Then Print #hFile, ","
+        If s.IsAuxiliar Then            ' usa el bloque del Model
+            Print #hFile, JSON.Encode(s.ExportJson());
+        Else
+            Print #hFile, OpenObject(s.ExportJson()) & JSON.Encode("block") & ": ";
+            WriteBlock(s.Block)
+            Print #hFile, "}";
+        Endif
+        bFirst = False
+    Next
+    Print #hFile, "]"
+
+    Print #hFile, "}"
+    Close #hFile
+    Dec Application.Busy
+    gcd.debugInfo(("Saved to ") & sName,,, True, True)
+    Return 0
+
+Catch
+    Try Close #hFile
+    Dec Application.Busy
+    gcd.debugInfo(("Error saving file ") & sName & ": " & Error.Text,,, True)
+    Return -1
+
+End
+
+Private Sub WriteKey(sKey As String, vValue As Variant)
+
+    Print #hFile, JSON.Encode(sKey) & ": " & JSON.Encode(vValue) & ","
+
+End
+
+'' Cada elemento de la tabla sabe exportarse con ExportJson()
+Private Sub WriteTable(sKey As String, cTable As Collection)
+
+    Dim oItem As Object
+    Dim bFirst As Boolean = True
+
+    Print #hFile, JSON.Encode(sKey) & ": ["
+    For Each oItem In cTable
+        If Not bFirst Then Print #hFile, ","
+        Print #hFile, JSON.Encode(oItem.ExportJson());
+        bFirst = False
+    Next
+    Print #hFile, ""
+    Print #hFile, "],"
+
+End
+
+'' Escribe el bloque con una entidad por linea
+Private Sub WriteBlock(b As Block)
+
+    Dim jEntity As Collection
+    Dim bFirst As Boolean = True
+
+    Print #hFile, OpenObject(b.ExportJson()) & JSON.Encode("entities") & ": ["
+    For Each jEntity In EntitiesToJson(b.entities)
+        If Not bFirst Then Print #hFile, ","
+        Print #hFile, JSON.Encode(jEntity);
+        bFirst = False
+    Next
+    Print #hFile, ""
+    Print #hFile, "]}";
+
+End
+
+'' Devuelve el objeto JSON sin cerrar, listo para agregarle una clave mas
+Private Function OpenObject(j As Collection) As String
+
+    If j.Count = 0 Then Return "{"
+    Return Left(JSON.Encode(j), -1) & ", "
+
+End
+
+Private Function DrawingToJson(drw As Drawing) As Collection
+
+    Dim j As New Collection
+
+    j["Is3D"] = drw.Is3D
+    j["Has3dEntities"] = drw.Has3dEntities
+    j["HandSeed"] = drw.HandSeed
+    Return j
+
+End
+
+Private Function CurrentToJson(drw As Drawing) As Collection
+
+    Dim j As New Collection
+
+    Try j["layer"] = drw.CurrLayer.Name
+    Try j["linetype"] = drw.CurrLineType.Name
+    Try j["textstyle"] = drw.CurrTextStyle.name
+    Try j["dimstyle"] = drw.CurrDimStyle.name
+    j["color"] = drw.CurrColor
+    j["linewidth"] = drw.CurrLineWt
+    Return j
+
+End
+
+'' Datos comunes a todas las entidades; los propios de cada una los agrega su clase con SaveJsonData
+Public Function EntityToJson(e As Entity) As Collection
+
+    Dim j As New Collection
+
+    j["entity"] = e.Gender
+    j["id"] = e.id
+    If e.pLayer Then j["layer"] = e.pLayer.Name
+    If e.LineType Then j["linetype"] = e.LineType.Name
+    j["color"] = e.Colour
+    j["linewidth"] = e.LineWidth
+    If e.pStyle Then j["style"] = e.pStyle.name
+    If e.pDimStyle Then j["dimstyle"] = e.pDimStyle.name
+    If e.PaperSpace Then j["paperspace"] = True
+    If Not e.Visible Then j["visible"] = False
+
+    gcd.CCC[e.Gender].SaveJsonData(e, j)
+
+    Return j
+
+End
+
+'' Convierte una lista de entidades (Collection o Entity[]) en un array de JSON
+Public Function EntitiesToJson(vEntities As Variant) As Collection[]
+
+    Dim e As Entity
+    Dim aList As New Collection[]
+
+    If IsNull(vEntities) Then Return aList
+    For Each e In vEntities
+        If e.Gender = "SEQEND" Or If e.Gender = "ENDBLK" Then Continue      ' son solo marcas del DXF
+        If Not gcd.CCC.Exist(e.Gender) Then
+            gcd.debugInfo("JSON: no puedo guardar entidades " & e.Gender)
+            Continue
+        Endif
+        aList.Add(EntityToJson(e))
+    Next
+    Return aList
+
+End
+
+'=============================================== LOAD ===============================================
+
+'' Lee un archivo JSON nativo y llena el Drawing. Devuelve True si hubo error, igual que dxf.LoadFile.
+Public Function LoadFile(sFile As String, drw As Drawing) As Boolean
+
+    Dim cData, c As Collection
+    Dim s As Sheet
+    Dim e As Entity
+    Dim sName As String
+    Dim sNames As New String[]
+    Dim aSheets As New Sheet[]
+    Dim aSheetEntities As New Variant[]
+    Dim i As Integer
+
+    cData = JSON.Decode(File.Load(sFile), True)      ' True: conserva las claves con null (textos vacios)
+    If Not cData Then Return True
+    If cData["format"] <> FileFormat Then
+        gcd.debugInfo("JSON: " & sFile & " no es un dibujo de GambasCAD",,, True)
+        Return True
+    Endif
+
+    drwLoading = drw
+    gcd.Drawing = drw                ' muchas rutinas usan gcd.Drawing
+    cPendingBlocks = New Collection
+
+    If cData["drawing"] Then
+        drw.Is3D = cData["drawing"]["Is3D"]
+        drw.Has3dEntities = cData["drawing"]["Has3dEntities"]
+        drw.HandSeed = cData["drawing"]["HandSeed"]
+    Endif
+    If cData["headers"] Then JsonToObject(drw.Headers, cData["headers"])
+
+    LoadTables(cData, drw)
+    LoadCurrent(cData["current"], drw)
+
+    ' primero creo todos los bloques vacios, asi los INSERT los encuentran
+    If cData["blocks"] Then
+        For Each c In cData["blocks"]
+            sName = c["name"]
+            If Not sName Or If drw.Blocks.Exist(sName) Then Continue
+            drw.Blocks.Add(BlockFromJson(c), sName)
+            cPendingBlocks.Add(c, sName)
+            sNames.Add(sName)
+        Next
+    Endif
+
+    ' las hojas, sin entidades todavia (algunas entidades necesitan drw.Sheet al terminarse)
+    If cData["sheets"] Then
+        For Each c In cData["sheets"]
+            s = SheetFromJson(c, drw)
+            If s.IsModel And If Not drw.Model Then
+                drw.Model = s
+                drw.Sheet = s
+            Endif
+            If Not s.IsAuxiliar And If c["block"] Then
+                aSheets.Add(s)
+                aSheetEntities.Add(c["block"]["entities"])
+            Endif
+        Next
+    Endif
+
+    If Not drw.Model Then
+        s = New Sheet("Model", drw)
+        s.IsModel = True
+        s.Block.name = "*Model_Space"
+        drw.Model = s
+        drw.Sheet = s
+    Endif
+
+    ' ahora si, las entidades
+    For Each sName In sNames
+        FillBlock(sName)
+    Next
+    For i = 0 To aSheets.Max
+        LoadEntities(aSheetEntities[i], aSheets[i].Block)
+    Next
+
+    ' los viewports de las hojas
+    For Each s In drw.Sheets
+        For Each e In s.Entities
+            If e.Gender <> cadViewport.Gender Then Continue
+            If Not s.Viewports.Exist(e.id) Then s.Viewports.Add(e.pBlock, e.id)
+        Next
+    Next
+
+    gcd.debugInfo("JSON read",,, True, True)
+    clsEntities.BuildGeometry()
+    gcd.debugInfo("Geometry generated",,, True, True)
+
+    Return False
+
+Catch
+    gcd.debugInfo("JSON: error reading " & sFile & ": " & Error.Text & " " & Error.Where,,, True)
+    Return True
+
+End
+
+Private Sub LoadTables(cData As Collection, drw As Drawing)
+
+    Dim c As Collection
+    Dim lt As LineType
+    Dim l As Layer
+    Dim ts As TextStyle
+    Dim ds As DimStyle
+    Dim ms As MLineStyle
+    Dim u As UCS
+    Dim v As View
+    Dim vp As Viewport
+    Dim a As APPID
+
+    drw.LineTypes.Clear
+    If cData["linetypes"] Then
+        For Each c In cData["linetypes"]
+            lt = New LineType
+            lt.ImportJson(c)
+            AddToTable(drw.LineTypes, lt, lt.Name)
+        Next
+    Endif
+    If drw.LineTypes.Count = 0 Then
+        lt = New LineType
+        lt.Name = "CONTINUOUS"
+        lt.id = gcd.NewId(drw)
+        drw.LineTypes.Add(lt, lt.Name)
+    Endif
+    ' TrameLength se guardo ya escalado por LTSCALE, no llamo a gcd.SetLTScale
+
+    drw.Layers.Clear
+    If cData["layers"] Then
+        For Each c In cData["layers"]
+            l = New Layer
+            l.ImportJson(c, drw)
+            AddToTable(drw.Layers, l, l.Name)
+        Next
+    Endif
+    If drw.Layers.Count = 0 Then
+        l = New Layer
+        l.Name = "0"
+        l.LineType = drw.LineTypes[drw.LineTypes.First]
+        l.id = gcd.NewId(drw)
+        drw.Layers.Add(l, l.Name)
+    Endif
+
+    drw.TextStyles.Clear
+    If cData["textstyles"] Then
+        For Each c In cData["textstyles"]
+            ts = New TextStyle
+            ts.ImportJson(c)
+            ' como el lector DXF: sin nombre, uso el de la fuente
+            If ts.name Then
+                AddToTable(drw.TextStyles, ts, ts.name)
+            Else
+                AddToTable(drw.TextStyles, ts, Utils.FileWithoutExtension(ts.sFont_3))
+            Endif
+        Next
+    Endif
+    If drw.TextStyles.Count = 0 Then
+        ts = New TextStyle
+        ts.FontName = "romans"
+        ts.name = "standard"
+        ts.sFont_3 = "romans"
+        ts.FixedH_40 = 0.10
+        ts.Id = gcd.NewId(drw)
+        drw.TextStyles.Add(ts, ts.name)
+    Endif
+
+    drw.DimStyles.Clear
+    If cData["dimstyles"] Then
+        For Each c In cData["dimstyles"]
+            ds = New DimStyle
+            ds.ImportJson(c)
+            AddToTable(drw.DimStyles, ds, ds.name)
+        Next
+    Endif
+    If drw.DimStyles.Count = 0 Then
+        ds = New DimStyle
+        ds.id = gcd.NewId(drw)
+        ds.name = "standard"
+        drw.DimStyles.Add(ds, ds.name)
+    Endif
+
+    drw.MLineStyles.Clear
+    If cData["mlinestyles"] Then
+        For Each c In cData["mlinestyles"]
+            ms = New MLineStyle
+            ms.ImportJson(c)
+            AddToTable(drw.MLineStyles, ms, ms.Name)
+        Next
+    Endif
+
+    drw.UCSs.Clear
+    If cData["ucss"] Then
+        For Each c In cData["ucss"]
+            u = New UCS
+            u.ImportJson(c)
+            AddToTable(drw.UCSs, u, u.Name_2)
+        Next
+    Endif
+
+    drw.Views.Clear
+    If cData["views"] Then
+        For Each c In cData["views"]
+            v = New View
+            v.ImportJson(c)
+            drw.Views.Add(v)
+        Next
+    Endif
+
+    drw.Viewports.Clear
+    If cData["viewports"] Then
+        For Each c In cData["viewports"]
+            vp = New Viewport
+            vp.ImportJson(c)
+            drw.Viewports.Add(vp)
+        Next
+    Endif
+
+    drw.AppIDs.Clear
+    If cData["appids"] Then
+        For Each c In cData["appids"]
+            a = New APPID
+            a.ImportJson(c)
+            drw.AppIDs.Add(a)
+        Next
+    Endif
+
+End
+
+'' Agrega a la tabla, salvo nombres vacios o repetidos
+Private Sub AddToTable(cTable As Collection, oItem As Object, sKey As String)
+
+    If Not sKey Then Return
+    If cTable.Exist(sKey) Then Return
+    cTable.Add(oItem, sKey)
+
+End
+
+Private Sub LoadCurrent(c As Collection, drw As Drawing)
+
+    drw.CurrLayer = drw.Layers[drw.Layers.First]
+    Try drw.CurrLayer = drw.Layers[drw.Headers.CLAYER]
+    drw.CurrLineType = drw.LineTypes[drw.LineTypes.First]
+    drw.CurrTextStyle = drw.TextStyles[drw.TextStyles.First]
+    drw.CurrDimStyle = drw.DimStyles[drw.DimStyles.First]
+    drw.CommonLayer = drw.Layers[drw.Layers.First]
+
+    If Not c Then Return
+    If drw.Layers.Exist(c["layer"]) Then drw.CurrLayer = drw.Layers[c["layer"]]
+    If drw.LineTypes.Exist(c["linetype"]) Then drw.CurrLineType = drw.LineTypes[c["linetype"]]
+    If drw.TextStyles.Exist(c["textstyle"]) Then drw.CurrTextStyle = drw.TextStyles[c["textstyle"]]
+    If drw.DimStyles.Exist(c["dimstyle"]) Then drw.CurrDimStyle = drw.DimStyles[c["dimstyle"]]
+    Try drw.CurrColor = c["color"]
+    Try drw.CurrLineWt = c["linewidth"]
+
+End
+
+'' Crea un bloque con sus datos, sin entidades
+Public Function BlockFromJson(c As Collection) As Block
+
+    Dim b As New Block
+
+    b.ImportJson(c)
+    b.entities = New Collection
+    Return b
+
+End
+
+'' Llena un bloque pendiente con sus entidades. Si alguna es un INSERT, primero lleno el bloque que inserta.
+Private Sub FillBlock(sName As String)
+
+    Dim c As Collection
+
+    If Not cPendingBlocks.Exist(sName) Then Return
+    c = cPendingBlocks[sName]
+    cPendingBlocks.Remove(sName)            ' antes de llenarlo, para evitar recursion infinita
+    LoadEntities(c["entities"], drwLoading.Blocks[sName])
+    drwLoading.Blocks[sName].Filled = True
+
+End
+
+'' Crea la hoja y su bloque, sin las entidades
+Private Function SheetFromJson(c As Collection, drw As Drawing) As Sheet
+
+    Dim s As Sheet
+    Dim sName As String
+    Dim cBlock As Collection
+
+    sName = c["Name"]
+    If Not sName Then sName = "Sheet " & CStr(drw.Sheets.Count)
+
+    ' la Sheet crea su bloque y lo agrega a drw.Blocks con el nombre de la hoja
+    s = New Sheet(sName, drw)
+    drw.Sheets.Remove(s.id)
+    s.ImportJson(c)
+    drw.Sheets.Add(s, s.id)
+
+    ' las hojas auxiliares usan el bloque del Model
+    If c["IsAuxiliar"] And If drw.Model Then
+        If drw.Blocks[sName] = s.Block Then drw.Blocks.Remove(sName)
+        s.IsAuxiliar = True
+        Return s
+    Endif
+
+    cBlock = c["block"]
+    If cBlock Then
+        s.Block.ImportJson(cBlock)
+        ' lo vuelvo a indexar con el nombre real del bloque, como lo hace el lector DXF
+        If s.Block.name <> sName And If Not drw.Blocks.Exist(s.Block.name) Then
+            drw.Blocks.Remove(sName)
+            drw.Blocks.Add(s.Block, s.Block.name)
+        Endif
+    Endif
+    s.Block.Sheet = s
+    s.Entities = s.Block.entities
+
+    Return s
+
+End
+
+'' Agrega las entidades de la lista JSON al bloque
+Public Sub LoadEntities(vList As Variant, b As Block)
+
+    Dim c As Collection
+    Dim e As Entity
+
+    If IsNull(vList) Then Return
+    For Each c In vList
+        ' un INSERT necesita que su bloque este lleno para armar sus partes
+        If TypeOf(c["block"]) = gb.String Then FillBlock(c["block"])
+        e = JsonToEntity(c, b)
+        If Not e Then Continue
+        If b.entities.Exist(e.id) Then e.id = gcd.NewId(drwLoading)
+        b.entities.Add(e, e.id)
+    Next
+
+End
+
+'' Crea una entidad a partir de su JSON: los datos comunes aqui, los propios en ImportJson de su clase.
+'' NoFinish es para entidades auxiliares, como los bordes de un Hatch.
+Public Function JsonToEntity(c As Collection, Optional bContainer As Block, NoFinish As Boolean = False) As Entity
+
+    Dim e As Entity
+    Dim sGender As String
+    Dim hClass As Object
+    Dim drw As Drawing
+
+    drw = drwLoading
+    If Not drw Then drw = gcd.Drawing
+
+    sGender = c["entity"]
+    If Not gcd.CCC.Exist(sGender) Then
+        gcd.debugInfo("JSON: entidad no implementada " & sGender & " " & c["id"])
+        Return Null
+    Endif
+    hClass = gcd.CCC[sGender]
+
+    e = hClass.NewEntity()
+    e.id = c["id"]
+    If Not e.id And If Not NoFinish Then e.id = gcd.NewId(drw)
+
+    If drw.Layers.Exist(c["layer"]) Then
+        e.pLayer = drw.Layers[c["layer"]]
+    Else
+        e.pLayer = drw.Layers[drw.Layers.First]
+    Endif
+    If drw.LineTypes.Exist(c["linetype"]) Then
+        e.LineType = drw.LineTypes[c["linetype"]]
+    Else
+        e.LineType = drw.LineTypes[drw.LineTypes.First]
+    Endif
+    If c.Exist("color") Then e.Colour = c["color"]
+    If c.Exist("linewidth") Then e.LineWidth = c["linewidth"]
+    If drw.TextStyles.Exist(c["style"]) Then e.pStyle = drw.TextStyles[c["style"]]
+    If drw.DimStyles.Exist(c["dimstyle"]) Then e.pDimStyle = Utils.CloneObject(drw.DimStyles[c["dimstyle"]])
+    If c.Exist("paperspace") Then e.PaperSpace = c["paperspace"]
+    If c.Exist("visible") Then e.Visible = c["visible"]
+    If bContainer Then e.Container = bContainer
+
+    If Not hClass.ImportJson(e, c) Then Return Null
+
+    If Not NoFinish Then
+        hClass.Finish(e)
+        hClass.ImportJsonParts(e, c)
+    Endif
+
+    Return e
+
+End
+
+'=============================================== HELPERS ===============================================
+
+'' Copia a una coleccion las variables y propiedades publicas de tipo simple (numeros, textos, booleanos y sus arrays).
+'' Las que empiezan con "_" se ignoran. sOnly limita a esos nombres, sSkip los excluye.
+Public Function ObjectToJson(obj As Object, Optional sOnly As String[], sSkip As String[]) As Collection
+
+    Dim j As New Collection
+    Dim hClass As Class
+    Dim sSymbol As String
+    Dim vValue As Variant
+
+    hClass = Object.Class(obj)
+    For Each sSymbol In hClass.Symbols
+        If Not UseSymbol(hClass, sSymbol, sOnly, sSkip) Then Continue
+        vValue = Object.GetProperty(obj, sSymbol)
+        If TypeOf(vValue) = gb.Object Then
+            If Not (vValue Is Array) Then Continue      ' un Variant con un objeto adentro
+        Endif
+        ' en Gambas "" es Null y no quedaria en la coleccion
+        If IsNull(vValue) Then vValue = JSON.Null
+        j[sSymbol] = vValue
+    Next
+    Return j
+
+End
+
+'' Lo inverso de ObjectToJson: pone en el objeto los valores de la coleccion, convirtiendo los arrays al tipo declarado
+Public Sub JsonToObject(obj As Object, c As Collection, Optional sOnly As String[], sSkip As String[])
+
+    Dim hClass As Class
+    Dim sSymbol As String
+    Dim vValue As Variant
+
+    If Not c Then Return
+    hClass = Object.Class(obj)
+    For Each sSymbol In hClass.Symbols
+        If Not c.Exist(sSymbol) Then Continue
+        If Not UseSymbol(hClass, sSymbol, sOnly, sSkip) Then Continue
+        If hClass[sSymbol].Kind = Class.Property And If hClass[sSymbol].ReadOnly Then Continue
+        vValue = c[sSymbol]
+        If TypeOf(vValue) = gb.Null And If hClass[sSymbol].Type <> "s" And If hClass[sSymbol].Type <> "v" Then Continue
+
+        Select Case hClass[sSymbol].Type
+            Case "Float[]"
+                vValue = ToFloats(vValue)
+            Case "Single[]"
+                vValue = ToSingles(vValue)
+            Case "Integer[]"
+                vValue = ToIntegers(vValue)
+            Case "String[]"
+                vValue = ToStrings(vValue)
+            Case "Boolean[]"
+                vValue = ToBooleans(vValue)
+        End Select
+
+        Try Object.SetProperty(obj, sSymbol, vValue)
+        If Error Then gcd.debugInfo("JSON: no pude leer " & Object.Type(obj) & "." & sSymbol)
+    Next
+
+End
+
+Private Function UseSymbol(hClass As Class, sSymbol As String, sOnly As String[], sSkip As String[]) As Boolean
+
+    If Left(sSymbol) = "_" Then Return False
+    If sOnly Then
+        If Not sOnly.Exist(sSymbol, gb.IgnoreCase) Then Return False
+    Endif
+    If sSkip Then
+        If sSkip.Exist(sSymbol, gb.IgnoreCase) Then Return False
+    Endif
+    If hClass[sSymbol].Kind <> Class.Variable And If hClass[sSymbol].Kind <> Class.Property Then Return False
+    If hClass[sSymbol].Static Then Return False
+
+    ' los tipos simples vienen como una letra: b=Boolean c=Byte h=Short i=Integer l=Long g=Single f=Float s=String v=Variant
+    Select Case hClass[sSymbol].Type
+        Case "b", "c", "h", "i", "l", "g", "f", "s", "v"
+            Return True
+        Case "Boolean[]", "Integer[]", "Single[]", "Float[]", "String[]"
+            Return True
+    End Select
+    Return False
+
+End
+
+Public Function ToFloats(vList As Variant) As Float[]
+
+    Dim a As New Float[]
+    Dim v As Variant
+
+    If IsNull(vList) Then Return a
+    For Each v In vList
+        a.Add(CFloat(v))
+    Next
+    Return a
+
+End
+
+Public Function ToSingles(vList As Variant) As Single[]
+
+    Dim a As New Single[]
+    Dim v As Variant
+
+    If IsNull(vList) Then Return a
+    For Each v In vList
+        a.Add(CSingle(v))
+    Next
+    Return a
+
+End
+
+Public Function ToIntegers(vList As Variant) As Integer[]
+
+    Dim a As New Integer[]
+    Dim v As Variant
+
+    If IsNull(vList) Then Return a
+    For Each v In vList
+        a.Add(CInt(v))
+    Next
+    Return a
+
+End
+
+Public Function ToStrings(vList As Variant) As String[]
+
+    Dim a As New String[]
+    Dim v As Variant
+
+    If IsNull(vList) Then Return a
+    For Each v In vList
+        a.Add(CStr(v))
+    Next
+    Return a
+
+End
+
+Public Function ToBooleans(vList As Variant) As Boolean[]
+
+    Dim a As New Boolean[]
+    Dim v As Variant
+
+    If IsNull(vList) Then Return a
+    For Each v In vList
+        a.Add(CBool(v))
+    Next
+    Return a
+
+End

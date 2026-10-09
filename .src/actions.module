@@ -99,16 +99,17 @@ Public Function FileOpen(Optional sFile As String = "") As Integer
 
     Dim NewDrawing As Drawing
     Dim s As Sheet
+    Dim bLoadError As Boolean
 
     If sFile = "" Then
 
         Dialog.Title = ("Select File")
 
         If main.convODA Or main.convLibreDWG Then
-            Dialog.Filter = ["*.dxf;*.dwg;*.dgn", "Drawings", "*.dxf", "DXF Drawing exchange", "*.dwg", "DWG AutoCAD Drawing file", "*.dgn", "DGN Microstation Drawing file"]
+            Dialog.Filter = ["*.gcd;*.dxf;*.dwg;*.dgn", "Drawings", "*.gcd", "GambasCAD drawing", "*.dxf", "DXF Drawing exchange", "*.dwg", "DWG AutoCAD Drawing file", "*.dgn", "DGN Microstation Drawing file"]
         Else
 
-            Dialog.Filter = ["*.dxf", "Drawings", "*.dxf", "DXF Drawing exchange"]
+            Dialog.Filter = ["*.gcd;*.dxf", "Drawings", "*.gcd", "GambasCAD drawing", "*.dxf", "DXF Drawing exchange"]
 
         End If
         Dialog.Path = Config.FilesLastPath
@@ -178,7 +179,7 @@ Public Function FileOpen(Optional sFile As String = "") As Integer
                     Endif
 
                     GoSub LoadDXF
-                Case "dxf"
+                Case "dxf", JsonFile.FileExtension
                     fDxf = f
                     GoSub LoadDXF
 
@@ -226,7 +227,12 @@ LoadDXF:
     'gcd.LoadCommon  ' esto va antes de abrir el DXF o dara error cargando inserts
     ' el problema es que los common no tienen layer
     ' gcd.debugInfo("Leidos los bloques comunes",,, True)
-    If dxf.LoadFile(fDxf, NewDrawing, False, False, False, 0, True) Then
+    If Lower(File.Ext(fDxf)) = JsonFile.FileExtension Then
+        bLoadError = JsonFile.LoadFile(fDxf, NewDrawing)
+    Else
+        bLoadError = dxf.LoadFile(fDxf, NewDrawing, False, False, False, 0, True)
+    Endif
+    If bLoadError Then
         Message.Error(("There was an error opening the file"))
         NewDrawing = Null
         gcd.Drawing = gcd.Drawings.Last
@@ -583,7 +589,9 @@ Public Sub ActionActivate(sAction As String)
                     Shell "mv '" & f & "' '" & fbas & ".bak'" Wait
                 End If
 
-                If File.Ext(f) = "dxf" Then
+                If File.Ext(f) = JsonFile.FileExtension Then
+                    JsonFile.SaveFile(f, gcd.Drawing)
+                Else If File.Ext(f) = "dxf" Then
                     Dxf.SaveFile(f, gcd.Drawing)
                 Else If File.Ext(f) = "dwg" Then
                     ' guardamos la version DXF en el dir adecuado, con el nombre elegido
@@ -608,7 +616,7 @@ Public Sub ActionActivate(sAction As String)
             fBak = "'" & fbas & ".bak'"
 
             Dialog.AutoExt = True
-            Dialog.Filter = ["*.dxf", "DXF Drawing exchange 2010", "*.dwg", "DWG AutoCAD Drawing file 2010"]
+            Dialog.Filter = ["*.gcd", "GambasCAD drawing", "*.dxf", "DXF Drawing exchange 2010", "*.dwg", "DWG AutoCAD Drawing file 2010"]
             If Dialog.SaveFile() Then Return ' cancel saving
 
             f = Dialog.Path

@@ -255,6 +255,56 @@ Public Function SaveDxfData(e As Entity) As Boolean
 
 End
 
+Public Function SaveJsonData(e As Entity, j As Collection) As Boolean
+
+    Dim jBlock As Collection
+
+    Super.SaveJsonData(e, j)
+
+    ' si el bloque no esta en la tabla de bloques del dibujo (dimensiones hechas aqui), lo guardo con la dimension
+    If Not gcd.Drawing.Blocks.Exist(e.pBlock.name) Or If gcd.Drawing.Blocks[e.pBlock.name] <> e.pBlock Then
+        jBlock = e.pBlock.ExportJson()
+        jBlock["entities"] = JsonFile.EntitiesToJson(e.pBlock.entities)
+        j["blockdata"] = jBlock
+    Endif
+    j["insertionplace"] = e.pBlock.InsertionPlace
+
+    ' el estilo puede tener valores propios de esta dimension
+    If e.pDimStyle Then
+        j["DIMTXT"] = e.pDimStyle.DIMTXT
+        j["DIMASZ"] = e.pDimStyle.DIMASZ
+        j["DIMSCALE"] = e.pDimStyle.DIMSCALE
+    Endif
+
+    Return True
+
+End
+
+Public Function ImportJson(e As Entity, c As Collection) As Boolean
+
+    Dim b As Block
+
+    Super.ImportJson(e, c)
+
+    If c.Exist("blockdata") Then
+        b = JsonFile.BlockFromJson(c["blockdata"])
+        JsonFile.LoadEntities(c["blockdata"]["entities"], b)
+        e.pBlock = b
+    Else If gcd.Drawing.Blocks.Exist(c["block"]) Then
+        e.pBlock = gcd.Drawing.Blocks[c["block"]]
+    Endif
+    If c.Exist("insertionplace") Then e.pBlock.InsertionPlace = c["insertionplace"]
+
+    If e.pDimStyle Then
+        If c.Exist("DIMTXT") Then e.pDimStyle.DIMTXT = c["DIMTXT"]
+        If c.Exist("DIMASZ") Then e.pDimStyle.DIMASZ = c["DIMASZ"]
+        If c.Exist("DIMSCALE") Then e.pDimStyle.DIMSCALE = c["DIMSCALE"]
+    Endif
+
+    Return True
+
+End
+
 Public Sub Translate(e As Entity, dX As Float, dY As Float, dZ As Float, Optional OnlySelected As Boolean = False)
 
     Dim eBlock As Entity

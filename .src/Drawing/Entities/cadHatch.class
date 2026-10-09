@@ -1195,6 +1195,89 @@ End
 ' End
 '
 
+Public Function SaveJsonData(e As Entity, j As Collection) As Boolean
+
+    Dim oHatch As Hatch
+    Dim eSegments As Entity[]
+    Dim oPattern As Pattern
+    Dim aLoops As New Variant[]
+    Dim aPatterns As New Collection[]
+
+    Super.SaveJsonData(e, j)
+    oHatch = e.pBlock
+
+    ' los bordes, de los que se rearman las polilineas
+    For Each eSegments In oHatch.eSegments
+        aLoops.Add(JsonFile.EntitiesToJson(eSegments))
+    Next
+    j["loops"] = aLoops
+    j["flag"] = oHatch.Flag
+    j["seedpoints"] = oHatch.SeedPoints
+
+    ' por si no hay bordes, tambien las polilineas ya armadas
+    j["polylines"] = oHatch.Polylines
+    j["levels"] = oHatch.Levels
+
+    For Each oPattern In oHatch.Patterns
+        aPatterns.Add(JsonFile.ObjectToJson(oPattern))
+    Next
+    j["patterns"] = aPatterns
+
+    Return True
+
+End
+
+Public Function ImportJson(e As Entity, c As Collection) As Boolean
+
+    Dim oHatch As New Hatch
+    Dim vLoop, vSegment, vPoly As Variant
+    Dim eSegments As Entity[]
+    Dim eSegment As Entity
+    Dim oPattern As Pattern
+    Dim fPoly As Float[]
+    Dim bPoints As Boolean[]
+    Dim cPattern As Collection
+
+    Super.ImportJson(e, c)
+    e.pBlock = oHatch
+
+    If c.Exist("loops") Then
+        For Each vLoop In c["loops"]
+            eSegments = New Entity[]
+            For Each vSegment In vLoop
+                eSegment = JsonFile.JsonToEntity(vSegment,, True)
+                If eSegment Then eSegments.Add(eSegment)
+            Next
+            oHatch.eSegments.Add(eSegments)
+        Next
+    Endif
+    If c.Exist("flag") Then oHatch.Flag = c["flag"]
+    If c.Exist("seedpoints") Then oHatch.SeedPoints = JsonFile.ToFloats(c["seedpoints"])
+
+    ' sin bordes, uso las polilineas guardadas; con bordes, BuildGeometry las rearma
+    If oHatch.eSegments.Count = 0 And If c.Exist("polylines") Then
+        For Each vPoly In c["polylines"]
+            fPoly = JsonFile.ToFloats(vPoly)
+            oHatch.Polylines.Add(fPoly)
+            bPoints = New Boolean[]
+            bPoints.Resize(fPoly.Count \ 2)
+            oHatch.Psel.Add(bPoints)
+        Next
+        oHatch.Levels = JsonFile.ToIntegers(c["levels"])
+    Endif
+
+    If c.Exist("patterns") Then
+        For Each cPattern In c["patterns"]
+            oPattern = New Pattern
+            JsonFile.JsonToObject(oPattern, cPattern)
+            oHatch.Patterns.Add(oPattern)
+        Next
+    Endif
+
+    Return True
+
+End
+
 Public Function SaveDxfData(e As Entity) As Boolean
 
     Dim h As Hatch

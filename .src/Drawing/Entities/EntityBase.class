@@ -199,10 +199,79 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
 End
 
-' Importo los datos que puedo procesar de una coleccion y genero un Entity para ser agregado a un array
-Public Function ImportJsonCol(c As Collection, e As Entity) As Boolean
+'' Guarda en j los datos propios de la entidad. Los datos comunes (layer, color, etc) los guarda JsonFile.
+'' Por defecto guarda los arrays de parametros; las clases con datos extra (pBlock) agregan los suyos.
+Public Function SaveJsonData(e As Entity, j As Collection) As Boolean
 
-    Return False
+    j["p"] = e.P
+    j["fparam"] = e.fParam
+    j["iparam"] = e.iParam
+    j["sparam"] = e.sParam
+    If e.Extrusion[0] <> 0 Or e.Extrusion[1] <> 0 Or e.Extrusion[2] <> 1 Then j["extrusion"] = e.Extrusion
+    If e.faces Then j["faces"] = FacesToJson(e.faces)
+    Return True
+
+End
+
+'' Lee los datos propios de la entidad, lo inverso de SaveJsonData. Despues JsonFile llama a Finish.
+Public Function ImportJson(e As Entity, c As Collection) As Boolean
+
+    If c.Exist("p") Then e.P = JsonFile.ToFloats(c["p"])
+    If c.Exist("fparam") Then e.fParam = JsonFile.ToFloats(c["fparam"])
+    If c.Exist("iparam") Then e.iParam = JsonFile.ToIntegers(c["iparam"])
+    If c.Exist("sparam") Then e.sParam = JsonFile.ToStrings(c["sparam"])
+    If c.Exist("extrusion") Then e.Extrusion = JsonFile.ToFloats(c["extrusion"])
+    If c.Exist("faces") Then e.faces = JsonToFaces(c["faces"])
+    Return True
+
+End
+
+'' Se llama despues de Finish, para las partes que Finish no reconstruye (ej: los ATTRIB de un INSERT)
+Public Sub ImportJsonParts(e As Entity, c As Collection)
+
+End
+
+'' Cada cara se guarda como un array de x,y,z
+Public Function FacesToJson(aFaces As Face[]) As Float[][]
+
+    Dim f As Face
+    Dim v As Vertex
+    Dim fCoords As Float[]
+    Dim aList As New Float[][]
+
+    For Each f In aFaces
+        fCoords = New Float[]
+        For Each v In f.vertex
+            fCoords.Insert([v.X, v.Y, v.Z])
+        Next
+        aList.Add(fCoords)
+    Next
+    Return aList
+
+End
+
+Public Function JsonToFaces(vList As Variant) As Face[]
+
+    Dim aFaces As New Face[]
+    Dim f As Face
+    Dim v As Vertex
+    Dim fCoords As Float[]
+    Dim vCoords As Variant
+    Dim i As Integer
+
+    For Each vCoords In vList
+        fCoords = JsonFile.ToFloats(vCoords)
+        f = New Face
+        For i = 0 To fCoords.Max - 2 Step 3
+            v = New Vertex
+            v.X = fCoords[i]
+            v.Y = fCoords[i + 1]
+            v.Z = fCoords[i + 2]
+            f.vertex.Add(v)
+        Next
+        aFaces.Add(f)
+    Next
+    Return aFaces
 
 End
 
