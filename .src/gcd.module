@@ -43,6 +43,7 @@ Public SnapModeSaved As Integer
 Public GrIdMode As Integer
 Public GrIdModePrev As Integer
 Public MultiDraw As Boolean                     '' dibuja repetidamente la misma entidad
+Public Interactive As Boolean = True            '' False en scripts y pruebas: los comandos no tocan la interfaz ni OpenGL
 
 Public CCC As New Collection                            '' CAD Classes Collection
 Public clsJob As Object                             '' what I am doing now, thats either selecting or something else
@@ -716,6 +717,47 @@ Public Function NewId(Optional d As Drawing) As String
     d.Headers.HANDSEED = hHex
 
     Return hHex     ' devuelvo la Hex del numero
+
+End
+
+'' Agrega una entidad ya armada a una hoja: id, contenedor, bloque de cota, geometria y undo. No toca la interfaz.
+Public Function AddEntity(e As Entity, Optional s As Sheet, NoUndo As Boolean = False) As Entity
+
+    If Not s Then s = Drawing.Sheet
+    If e.Id = "" Or If s.Entities.Exist(e.Id) Then e.Id = NewId()
+
+    s.Entities.Add(e, e.Id)
+    If s.IsModel Then s.EntitiesVisibles.Add(e, e.Id)
+    e.Container = s.Block
+
+    ' para las DIMENSION
+    If e.pBlock Is Block Then
+        If e.pBlock.name = "*D" Then
+            e.pBlock.name &= e.Id
+            e.pBlock.Id = NewId()
+            Drawing.Blocks.Add(e.pBlock, e.pBlock.Id)
+        End If
+    Endif
+
+    CCC[e.Gender].BuildGeometry(e)
+    CCC[e.Gender].Finish(e)
+
+    ' NoUndo: quien llama arma un solo paso de undo para varias entidades
+    If Not NoUndo Then
+        Drawing.uUndo.OpenUndoStage(("Draw a") & " " & e.Gender, Undo.TypeCreate)
+        Drawing.uUndo.AddUndoItem(e)
+        Drawing.uUndo.CloseUndoStage()
+    Endif
+
+    Drawing.RequiresSaving = True
+    Return e
+
+End
+
+'' Atajo a la capa de comandos (ver Cmd)
+Public Function Execute(sCommand As String, Optional cArgs As Collection) As Collection
+
+    Return Cmd.Run(sCommand, cArgs)
 
 End
 

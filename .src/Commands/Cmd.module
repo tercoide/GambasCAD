@@ -1,0 +1,351 @@
+' Gambas module file
+
+' GambasCAD
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+
+'' Capa de comandos: ejecuta acciones sobre el dibujo sin mouse ni interfaz.
+'' La usan (o la van a usar) las herramientas, la linea de comandos, los scripts, las pruebas y el asistente.
+''
+'' Cada comando recibe sus argumentos en una Collection (lo mismo que un objeto JSON) y devuelve otra:
+''   {"ok": True, "created": [ids], "modified": [ids], "deleted": [ids], ...datos del comando}
+''   {"ok": False, "error": "texto"}
+'' Las entidades se leen y escriben en el mismo JSON que el formato .gcd (ver JsonFile).
+'' Con gcd.Interactive = False no se toca OpenGL ni la interfaz.
+
+'' Ejecuta un comando y devuelve el resultado
+Public Function Run(sCommand As String, Optional cArgs As Collection) As Collection
+
+    Dim r As Collection
+
+    r = NewResult()
+    If Not cArgs Then cArgs = New Collection
+    If Not gcd.Drawing Then Return Fail(r, "No drawing open")
+
+    Select Case UCase(sCommand)
+        Case "ADD"
+            DoAdd(cArgs, r)
+        Case "GET"
+            DoGet(cArgs, r)
+        Case "ENTITIES"
+            DoEntities(cArgs, r)
+        Case "LAYERS"
+            DoLayers(r)
+        Case "DELETE"
+            DoDelete(cArgs, r)
+        Case "UNDO"
+            DoUndo(r, False)
+        Case "REDO"
+            DoUndo(r, True)
+        Case "LIST"
+            r["commands"] = List()
+        Case Else
+            Return Fail(r, "Unknown command " & sCommand)
+    End Select
+
+    If r["ok"] Then AfterCommand(r)
+    Return r
+
+Catch
+    Try gcd.Drawing.uUndo.CloseUndoStage()      ' que un error no deje el undo bloqueado
+    Return Fail(r, Error.Text & " (" & Error.Where & ")")
+
+End
+
+'' Lo mismo en texto JSON: {"command": "ADD", "args": {...}} -> resultado en JSON
+Public Function RunJson(sJson As String) As String
+
+    Dim c As Collection
+    Dim r As Collection
+
+    Try c = JSON.Decode(sJson, True)
+    If Error Or If Not c Then
+        r = Fail(NewResult(), "Invalid JSON")
+    Else If TypeOf(c["command"]) <> gb.String Then
+        r = Fail(NewResult(), "Missing \"command\"")
+    Else
+        r = Run(c["command"], c["args"])
+    Endif
+    Return JSON.Encode(r)
+
+End
+
+'' Catalogo de comandos: nombre -> descripcion de lo que hace y sus argumentos
+Public Function List() As Collection
+
+    Dim c As New Collection
+
+    c["ADD"] = "Add entities. Args: entity (one entity JSON, same format as a .gcd file) or entities (array). Layer, line type and color default to the current ones. Returns created ids."
+    c["GET"] = "Get one entity as JSON. Args: id."
+    c["ENTITIES"] = "List entities of the current sheet. Args (all optional): layer, entity (type, e.g. LINE), bbox [x0,y0,x1,y1], limit (default 1000). Returns entities and count."
+    c["LAYERS"] = "List layers with their properties and entity count."
+    c["DELETE"] = "Delete entities, in one undo step. Args: ids (array). Returns deleted ids and notfound ids."
+    c["UNDO"] = "Undo the last change."
+    c["REDO"] = "Redo the last undone change."
+    c["LIST"] = "This list."
+    Return c
+
+End
+
+'=============================================== COMANDOS ===============================================
+
+Private Sub DoAdd(cArgs As Collection, r As Collection)
+
+    Dim aList As New Variant[]
+    Dim v As Variant
+    Dim c As Collection
+    Dim e As Entity
+
+    If cArgs["entity"] Then aList.Add(cArgs["entity"])
+    If cArgs["entities"] Then
+        For Each v In cArgs["entities"]
+            aList.Add(v)
+        Next
+    Endif
+    If aList.Count = 0 Then
+        Fail(r, "ADD needs entity or entities")
+        Return
+    Endif
+
+    ' primero valido todo, asi no queda nada a medias
+    For Each v In aList
+        If TypeOf(v) <> gb.Object Or If Not (v Is Collection) Then
+            Fail(r, "Each entity must be a JSON object")
+            Return
+        Endif
+        c = v
+        If Not gcd.CCC.Exist(c["entity"]) Then
+            Fail(r, "Unknown entity type " & c["entity"])
+            Return
+        Endif
+        If c.Exist("layer") And If Not gcd.Drawing.Layers.Exist(c["layer"]) Then
+            Fail(r, "Unknown layer " & c["layer"])
+            Return
+        Endif
+    Next
+
+    ' todo el ADD es un solo paso de undo
+    gcd.Drawing.uUndo.OpenUndoStage(("Add entities"), Undo.TypeCreate)
+    For Each c In aList
+        e = JsonFile.JsonToEntity(c, gcd.Drawing.Sheet.Block, True)       ' sin Finish: lo hace AddEntity
+        If Not e Then
+            gcd.Drawing.uUndo.CloseUndoStage()
+            Fail(r, "Can't create " & c["entity"])
+            Return
+        Endif
+
+        ' los ids los decide el dibujo, y lo que no viene toma los valores actuales
+        e.Id = ""
+        If Not c.Exist("layer") Then e.pLayer = gcd.Drawing.CurrLayer
+        If Not c.Exist("linetype") And If gcd.Drawing.CurrLineType Then e.LineType = gcd.Drawing.CurrLineType
+        If e.LineWidth = 0 Then e.LineWidth = 1                          ' igual que cadEntityBuilder
+
+        gcd.AddEntity(e,, True)
+        gcd.Drawing.uUndo.AddUndoItem(e)
+        gcd.CCC[e.Gender].ImportJsonParts(e, c)
+        r["created"].Add(e.Id)
+    Next
+    gcd.Drawing.uUndo.CloseUndoStage()
+
+End
+
+Private Sub DoGet(cArgs As Collection, r As Collection)
+
+    Dim e As Entity
+
+    e = FindEntity(cArgs["id"])
+    If Not e Then
+        Fail(r, "No entity " & cArgs["id"])
+        Return
+    Endif
+    r["entity"] = JsonFile.EntityToJson(e)
+
+End
+
+Private Sub DoEntities(cArgs As Collection, r As Collection)
+
+    Dim e As Entity
+    Dim aList As New Collection[]
+    Dim fBox As Float[]
+    Dim iLimit As Integer = 1000
+    Dim iCount As Integer
+
+    If cArgs["bbox"] Then
+        fBox = JsonFile.ToFloats(cArgs["bbox"])
+        If fBox.Count <> 4 Then
+            Fail(r, "bbox must be [x0, y0, x1, y1]")
+            Return
+        Endif
+    Endif
+    If cArgs.Exist("limit") Then iLimit = cArgs["limit"]
+
+    For Each e In gcd.Drawing.Sheet.Entities
+        If cArgs["layer"] And If e.pLayer.Name <> cArgs["layer"] Then Continue
+        If cArgs["entity"] And If UCase(e.Gender) <> UCase(cArgs["entity"]) Then Continue
+        If fBox Then
+            ' se superponen los limites de la entidad y el recuadro
+            If e.Limits[2] < fBox[0] Or e.Limits[0] > fBox[2] Or e.Limits[3] < fBox[1] Or e.Limits[1] > fBox[3] Then Continue
+        Endif
+        Inc iCount
+        If aList.Count < iLimit Then aList.Add(JsonFile.EntityToJson(e))
+    Next
+
+    r["entities"] = aList
+    r["count"] = iCount                 ' puede ser mayor que lo devuelto, si se paso el limite
+
+End
+
+Private Sub DoLayers(r As Collection)
+
+    Dim l As Layer
+    Dim e As Entity
+    Dim j As Collection
+    Dim cCount As New Collection
+    Dim aList As New Collection[]
+
+    For Each e In gcd.Drawing.Sheet.Entities
+        If cCount.Exist(e.pLayer.Name) Then
+            cCount[e.pLayer.Name] += 1
+        Else
+            cCount[e.pLayer.Name] = 1
+        Endif
+    Next
+
+    For Each l In gcd.Drawing.Layers
+        j = l.ExportJson()
+        j["entities"] = IIf(cCount.Exist(l.Name), cCount[l.Name], 0)
+        j["current"] = (l = gcd.Drawing.CurrLayer)
+        aList.Add(j)
+    Next
+    r["layers"] = aList
+
+End
+
+Private Sub DoDelete(cArgs As Collection, r As Collection)
+
+    Dim v As Variant
+    Dim e As Entity
+    Dim s As Sheet
+    Dim aFound As New Entity[]
+    Dim aNotFound As New String[]
+
+    If Not cArgs["ids"] Then
+        Fail(r, "DELETE needs ids")
+        Return
+    Endif
+
+    s = gcd.Drawing.Sheet
+    For Each v In cArgs["ids"]
+        If s.Entities.Exist(CStr(v)) Then
+            aFound.Add(s.Entities[CStr(v)])
+        Else
+            aNotFound.Add(CStr(v))
+        Endif
+    Next
+
+    If aFound.Count > 0 Then
+        gcd.Drawing.uUndo.OpenUndoStage(("Delete entities"), Undo.TypeDelete)
+        For Each e In aFound
+            gcd.Drawing.uUndo.AddUndoItem(e)
+            s.Entities.Remove(e.Id)
+            If s.EntitiesVisibles.Exist(e.Id) Then s.EntitiesVisibles.Remove(e.Id)
+            If s.EntitiesSelected.Exist(e.Id) Then s.EntitiesSelected.Remove(e.Id)
+            r["deleted"].Add(e.Id)
+        Next
+        gcd.Drawing.uUndo.CloseUndoStage()
+        gcd.Drawing.RequiresSaving = True
+    Endif
+
+    r["notfound"] = aNotFound
+
+End
+
+Private Sub DoUndo(r As Collection, bRedo As Boolean)
+
+    Dim u As Undo = gcd.Drawing.uUndo
+
+    If bRedo Then
+        If u.cRedo.Count = 0 Then
+            Fail(r, "Nothing to redo")
+            Return
+        Endif
+        r["message"] = ("Redo") & ": " & u.cRedo.Last.Name
+        u.DoRedo()
+    Else
+        If u.cUndo.Count = 0 Then
+            Fail(r, "Nothing to undo")
+            Return
+        Endif
+        r["message"] = ("Undo") & ": " & u.cUndo.Last.Name
+        u.DoUndo()
+    Endif
+    r["changed"] = True                 ' no se sabe que entidades cambiaron
+    gcd.Drawing.RequiresSaving = True
+
+End
+
+'=============================================== AUXILIARES ===============================================
+
+Private Function NewResult() As Collection
+
+    Dim r As New Collection
+
+    r["ok"] = True
+    r["created"] = New String[]
+    r["modified"] = New String[]
+    r["deleted"] = New String[]
+    Return r
+
+End
+
+Private Function Fail(r As Collection, sError As String) As Collection
+
+    r["ok"] = False
+    r["error"] = sError
+    Return r
+
+End
+
+'' Busca una entidad por id en la hoja actual y, si no esta, en las demas
+Private Function FindEntity(vId As Variant) As Entity
+
+    Dim s As Sheet
+    Dim sId As String
+
+    If IsNull(vId) Then Return Null
+    sId = CStr(vId)
+    If gcd.Drawing.Sheet.Entities.Exist(sId) Then Return gcd.Drawing.Sheet.Entities[sId]
+    For Each s In gcd.Drawing.Sheets
+        If s.Entities.Exist(sId) Then Return s.Entities[sId]
+    Next
+    Return Null
+
+End
+
+'' En la aplicacion: regenera los graficos y redibuja. En scripts y pruebas no hace nada.
+Private Sub AfterCommand(r As Collection)
+
+    If Not gcd.Interactive Then Return
+    If r["created"].Count + r["modified"].Count + r["deleted"].Count = 0 And If Not r["changed"] Then Return
+
+    clsEntities.glGenDrawVBO()
+    clsEntities.CollectVisibleEntities()
+    gcd.redraw
+
+End
