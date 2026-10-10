@@ -18,6 +18,9 @@ Public cRedo As New UndoStage[]
 Public UndoStage As Integer
 Public RedoStage As Integer
 Private IsStageOpen As Boolean = False
+Private $GroupId As Integer             ' grupo abierto, 0 = ninguno
+Private $GroupName As String
+Private $LastGroupId As Integer
 
 Public Const TypeModify As Integer = 1
 Public Const TypeCreate As Integer = 2
@@ -54,6 +57,8 @@ Public Function OpenUndoStage(sName As String, iStageType As Integer) As Boolean
     If IsStageOpen Then Error.Raise("Undo stage already open")
     If sName = "" Then sName = "<no description>"
     cRedo.Clear              ' una accion nueva descarta lo que se podia rehacer
+    cStage.GroupId = $GroupId
+    cStage.GroupName = $GroupName
     cUndo.Add(cStage)        ' agrego al array que acumula acciones
     cStage.Name = sName   ' el primer item es el nombre de las acciones, ej: "Editar nudos"
     IsStageOpen = True
@@ -68,7 +73,56 @@ Public Function CloseUndoStage() As Boolean
 End
 
 '' Esto debe ser llamado cuando el user presiona el boton de Undo
+'' Desde aca hasta EndGroup, todas las etapas forman un solo paso de undo/redo
+'' (por ejemplo, todo lo que hizo el asistente para un pedido)
+Public Sub BeginGroup(sName As String)
+
+    Inc $LastGroupId
+    $GroupId = $LastGroupId
+    $GroupName = sName
+
+End
+
+Public Sub EndGroup()
+
+    $GroupId = 0
+    $GroupName = ""
+
+End
+
+'' Deshace la ultima etapa, o el grupo completo si la etapa es parte de uno
 Public Sub DoUndo()
+
+    Dim iGroup As Integer
+
+    If cUndo.Count = 0 Then Return
+    iGroup = cUndo.Last.GroupId
+    UndoOne()
+    If iGroup = 0 Then Return
+    While cUndo.Count > 0
+        If cUndo.Last.GroupId <> iGroup Then Break
+        UndoOne()
+    Wend
+
+End
+
+'' Rehace la ultima etapa deshecha, o el grupo completo
+Public Sub DoRedo()
+
+    Dim iGroup As Integer
+
+    If cRedo.Count = 0 Then Return
+    iGroup = cRedo.Last.GroupId
+    RedoOne()
+    If iGroup = 0 Then Return
+    While cRedo.Count > 0
+        If cRedo.Last.GroupId <> iGroup Then Break
+        RedoOne()
+    Wend
+
+End
+
+Private Sub UndoOne()
 
     Dim indice As String
     Dim e As Entity
@@ -87,6 +141,7 @@ Public Sub DoUndo()
         indice = cUndo.Last.cModify.Key
         NewRedo.cModify.Add(gcd.Drawing.Sheet.Entities[indice], indice)
         e.Container.Entities[indice] = e
+        gcd.CCC[e.Gender].BuildGeometry(e)          ' la copia guardada no trae sus limites
 
     Next
 
@@ -99,13 +154,15 @@ Public Sub DoUndo()
 
     NewRedo.iTypeDefault = cUndo.Last.iTypeDefault
     NewRedo.Name = cUndo.Last.Name
+    NewRedo.GroupId = cUndo.Last.GroupId
+    NewRedo.GroupName = cUndo.Last.GroupName
     cRedo.Add(NewRedo)
     cUndo.Remove(cUndo.Max)
 
 End
 
 '' Esto debe ser llamado cuando el user presiona el boton de Undo
-Public Sub DoRedo()
+Private Sub RedoOne()
 
     Dim indice As String
     Dim e As Entity
@@ -124,6 +181,7 @@ Public Sub DoRedo()
         indice = cRedo.Last.cModify.Key
         NewUndo.cModify.Add(gcd.Drawing.Sheet.Entities[indice], indice)
         e.Container.Entities[indice] = e
+        gcd.CCC[e.Gender].BuildGeometry(e)          ' la copia guardada no trae sus limites
 
     Next
 
@@ -136,6 +194,8 @@ Public Sub DoRedo()
 
     NewUndo.iTypeDefault = cRedo.Last.iTypeDefault
     NewUndo.Name = cRedo.Last.Name
+    NewUndo.GroupId = cRedo.Last.GroupId
+    NewUndo.GroupName = cRedo.Last.GroupName
     cUndo.Add(NewUndo)
     cRedo.Remove(cRedo.Max)
 

@@ -29,6 +29,9 @@
 '' Las entidades se leen y escriben en el mismo JSON que el formato .gcd (ver JsonFile).
 '' Con gcd.Interactive = False no se toca OpenGL ni la interfaz.
 
+Private $bBatch As Boolean               ' entre BeginBatch y EndBatch se redibuja una sola vez, al final
+Private $bPendingRefresh As Boolean
+
 '' Ejecuta un comando y devuelve el resultado
 Public Function Run(sCommand As String, Optional cArgs As Collection) As Collection
 
@@ -47,6 +50,8 @@ Public Function Run(sCommand As String, Optional cArgs As Collection) As Collect
             DoEntities(cArgs, r)
         Case "LAYERS"
             DoLayers(r)
+        Case "INFO"
+            DoInfo(r)
         Case "DELETE"
             DoDelete(cArgs, r)
         Case "MOVE"
@@ -134,7 +139,7 @@ Public Function HandlesText(sLine As String) As Boolean
     aTok = SplitWords(Trim(sLine))
     If aTok.Count = 0 Then Return False
     sWord = ResolveWord(aTok[0])
-    If ["ADD", "GET", "ENTITIES", "LAYERS", "DELETE", "SET", "UNDO", "REDO", "LIST"].Exist(sWord) Then Return True
+    If ["ADD", "GET", "ENTITIES", "LAYERS", "INFO", "DELETE", "SET", "UNDO", "REDO", "LIST"].Exist(sWord) Then Return True
     If ["LINE", "CIRCLE", "ARC", "POINT", "MOVE", "COPY", "ROTATE", "SCALE", "MIRROR"].Exist(sWord) Then Return aTok.Count > 1
     Return False
 
@@ -160,6 +165,7 @@ Public Function TextHelp() As Collection
     c["GET"] = "GET id"
     c["ENTITIES"] = "ENTITIES [layer=NAME] [entity=TYPE] [limit=N] [x0,y0 x1,y1]"
     c["LAYERS"] = "LAYERS"
+    c["INFO"] = "INFO"
     c["UNDO"] = "UNDO"
     c["REDO"] = "REDO"
     c["LIST"] = "LIST"
@@ -177,6 +183,7 @@ Public Function List() As Collection
     c["GET"] = "Get one entity as JSON. Args: id."
     c["ENTITIES"] = "List entities of the current sheet. Args (all optional): layer, entity (type, e.g. LINE), bbox [x0,y0,x1,y1], limit (default 1000). Returns entities and count."
     c["LAYERS"] = "List layers with their properties and entity count."
+    c["INFO"] = "Summary of the drawing: file, sheets, current layer and style, layers, entity count by type, extents, selection, undo."
     c["DELETE"] = "Delete entities, in one undo step. Args: ids (default: current selection). Returns deleted ids and notfound ids."
     c["MOVE"] = "Move entities, in one undo step. Args: ids (default: current selection), dx, dy, dz (default 0)."
     c["COPY"] = "Copy entities displaced by dx, dy, dz (default 0) into the current sheet, in one undo step. Args: ids (default: selection), dx, dy, dz. Returns created ids."
@@ -547,6 +554,95 @@ Private Sub DoSet(cArgs As Collection, r As Collection)
 
 End
 
+Private Sub DoInfo(r As Collection)
+
+    Dim drw As Drawing = gcd.Drawing
+    Dim s As Sheet
+    Dim e As Entity
+    Dim l As Layer
+    Dim cCur, cTypes, cSel As New Collection
+    Dim aSheets, aLayers, aSelIds As New String[]
+    Dim fBox As Float[] = [1e100, 1e100, -1e100, -1e100]
+    Dim iCount As Integer
+
+    r["file"] = drw.FileName
+    r["sheet"] = drw.Sheet.Name
+    For Each s In drw.Sheets
+        aSheets.Add(s.Name)
+    Next
+    r["sheets"] = aSheets
+    r["is3d"] = drw.Sheet.Is3D
+
+    Try cCur["layer"] = drw.CurrLayer.Name
+    Try cCur["linetype"] = drw.CurrLineType.Name
+    Try cCur["textstyle"] = drw.CurrTextStyle.name
+    Try cCur["dimstyle"] = drw.CurrDimStyle.name
+    cCur["color"] = drw.CurrColor
+    cCur["linewidth"] = drw.CurrLineWt
+    r["current"] = cCur
+
+    For Each l In drw.Layers
+        aLayers.Add(l.Name)
+    Next
+    r["layer_names"] = aLayers
+
+    ' entidades por tipo y extension, en la hoja actual
+    For Each e In drw.Sheet.Entities
+        Inc iCount
+        If cTypes.Exist(e.Gender) Then
+            cTypes[e.Gender] += 1
+        Else
+            cTypes[e.Gender] = 1
+        Endif
+        If Abs(e.Limits[0]) < 1e90 And Abs(e.Limits[2]) < 1e90 Then
+            fBox[0] = Min(fBox[0], e.Limits[0])
+            fBox[1] = Min(fBox[1], e.Limits[1])
+            fBox[2] = Max(fBox[2], e.Limits[2])
+            fBox[3] = Max(fBox[3], e.Limits[3])
+        Endif
+    Next
+    r["entity_count"] = iCount
+    r["by_type"] = cTypes
+    If fBox[0] <= fBox[2] Then r["extents"] = fBox
+
+    For Each e In drw.Sheet.EntitiesSelected
+        If aSelIds.Count < 50 Then aSelIds.Add(e.Id)
+    Next
+    cSel["count"] = drw.Sheet.EntitiesSelected.Count
+    cSel["ids"] = aSelIds                 ' como mucho 50
+    r["selection"] = cSel
+
+    r["can_undo"] = drw.uUndo.cUndo.Count > 0
+    r["can_redo"] = drw.uUndo.cRedo.Count > 0
+
+End
+
+'' El nombre de un paso de undo: el del grupo si es parte de uno
+Private Function StageName(st As UndoStage) As String
+
+    If st.GroupId <> 0 Then Return st.GroupName
+    Return st.Name
+
+End
+
+'' Varios comandos seguidos (por ejemplo, las herramientas que pide el asistente): la pantalla se actualiza una vez, en EndBatch
+Public Sub BeginBatch()
+
+    $bBatch = True
+    $bPendingRefresh = False
+
+End
+
+Public Sub EndBatch()
+
+    $bBatch = False
+    If $bPendingRefresh Then
+        $bPendingRefresh = False
+        Refresh()
+    Endif
+
+End
+
 Private Sub DoUndo(r As Collection, bRedo As Boolean)
 
     Dim u As Undo = gcd.Drawing.uUndo
@@ -556,14 +652,14 @@ Private Sub DoUndo(r As Collection, bRedo As Boolean)
             Fail(r, "Nothing to redo")
             Return
         Endif
-        r["message"] = ("Redo") & ": " & u.cRedo.Last.Name
+        r["message"] = ("Redo") & ": " & StageName(u.cRedo.Last)
         u.DoRedo()
     Else
         If u.cUndo.Count = 0 Then
             Fail(r, "Nothing to undo")
             Return
         Endif
-        r["message"] = ("Undo") & ": " & u.cUndo.Last.Name
+        r["message"] = ("Undo") & ": " & StageName(u.cUndo.Last)
         u.DoUndo()
     Endif
     r["changed"] = True                 ' no se sabe que entidades cambiaron
@@ -685,7 +781,7 @@ Private Function RunParsed(sWord As String, r As Collection) As Collection
             Endif
             Return Run(sWord, cArgs)
 
-        Case "SET", "LAYERS", "UNDO", "REDO"
+        Case "SET", "LAYERS", "INFO", "UNDO", "REDO"
             If $aPoints.Count + $aNumbers.Count + $aWords.Count > 0 Then Return Usage(r, sWord)
             Return Run(sWord, cArgs)
 
@@ -1021,6 +1117,17 @@ Private Sub AfterCommand(r As Collection)
     If Not gcd.Interactive Then Return
     If r["created"].Count + r["modified"].Count + r["deleted"].Count = 0 And If Not r["changed"] Then Return
 
+    If $bBatch Then
+        $bPendingRefresh = True
+    Else
+        Refresh()
+    Endif
+
+End
+
+Private Sub Refresh()
+
+    If Not gcd.Interactive Then Return
     clsEntities.glGenDrawVBO()
     clsEntities.CollectVisibleEntities()
     gcd.redraw

@@ -1,0 +1,309 @@
+' Gambas module file
+
+' GambasCAD
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+
+'' Puente entre el asistente (Claude, a traves de nuestro servidor) y la capa de comandos.
+'' GambasCAD no conoce la clave de la API ni el prompt: solo
+''   - publica las herramientas que el asistente puede usar (ToolDefinitionsJson),
+''   - da el resumen del dibujo que acompaña cada mensaje (ContextJson),
+''   - ejecuta las llamadas a herramientas que le manda el servidor (RunToolCalls) y devuelve los resultados,
+''   - hace que todo un pedido sea un solo paso de deshacer (BeginRequest / EndRequest),
+''   - pide confirmacion al usuario antes de borrar o de tocar muchas entidades.
+'' Los nombres y descripciones de las herramientas estan en ingles: los lee el modelo, no el usuario.
+
+Public AutoConfirm As Boolean = False       '' True: no pregunta (pruebas). Sin interfaz y en False, las acciones a confirmar se rechazan
+Public ConfirmAbove As Integer = 50         '' editar mas entidades que esto pide confirmacion
+Public DefaultListLimit As Integer = 200    '' list_entities devuelve como mucho esto si el modelo no pide otro limite
+Public MaxListLimit As Integer = 1000
+
+Private $cTools As Collection               ' nombre de la herramienta -> definicion
+Private $cCommands As Collection            ' nombre de la herramienta -> comando de Cmd
+
+'=============================================== HERRAMIENTAS ===============================================
+
+'' Las definiciones de las herramientas, en el formato de la API de Claude: [{name, description, input_schema}, ...]
+Public Function ToolDefinitions() As Collection[]
+
+    Dim aList As New Collection[]
+    Dim c As Collection
+
+    LoadTools()
+    For Each c In $cTools
+        aList.Add(c)
+    Next
+    Return aList
+
+End
+
+Public Function ToolDefinitionsJson() As String
+
+    Return JSON.Encode(ToolDefinitions())
+
+End
+
+Private Sub LoadTools()
+
+    Dim sEntity As String
+
+    If $cTools Then Return
+    $cTools = New Collection
+    $cCommands = New Collection
+
+    sEntity = "{\"type\": \"object\", \"properties\": {"
+    sEntity &= "\"entity\": {\"type\": \"string\", \"enum\": [\"LINE\", \"CIRCLE\", \"ARC\", \"POINT\", \"LWPOLYLINE\"]},"
+    sEntity &= "\"p\": {\"type\": \"array\", \"items\": {\"type\": \"number\"}, \"description\": \"Coordinates as x,y pairs. LINE: [x1,y1,x2,y2]. CIRCLE, ARC: center [x,y]. POINT: [x,y]. LWPOLYLINE: [x1,y1,x2,y2,...].\"},"
+    sEntity &= "\"fparam\": {\"type\": \"array\", \"items\": {\"type\": \"number\"}, \"description\": \"CIRCLE: [radius]. ARC: [radius, start angle, end angle] in degrees, counterclockwise from +X. Not used by LINE, POINT, LWPOLYLINE.\"},"
+    sEntity &= "\"closed\": {\"type\": \"boolean\", \"description\": \"LWPOLYLINE only: close the polyline.\"},"
+    sEntity &= "\"layer\": {\"type\": \"string\", \"description\": \"Existing layer name. Default: current layer.\"},"
+    sEntity &= "\"color\": {\"type\": \"integer\", \"description\": \"AutoCAD color index: 0 = by block, 1 red, 2 yellow, 3 green, 4 cyan, 5 blue, 6 magenta, 7 white/black, 256 = by layer.\"},"
+    sEntity &= "\"linetype\": {\"type\": \"string\"},"
+    sEntity &= "\"linewidth\": {\"type\": \"integer\", \"description\": \"In hundredths of mm; -3 = by layer.\"}"
+    sEntity &= "}, \"required\": [\"entity\", \"p\"]}"
+
+    AddTool("drawing_info", "INFO", "Summary of the open drawing: file, sheets, current layer and style, layer names, number of entities of each type, extents [x0, y0, x1, y1], the current selection (count and up to 50 ids) and whether undo is possible. Call it first when you need to know what the drawing contains or what the user selected.", "{}", "[]")
+
+    AddTool("list_layers", "LAYERS", "List the layers with their color, line type, visibility, number of entities, and which one is current.", "{}", "[]")
+
+    AddTool("list_entities", "ENTITIES", "List entities of the current sheet as JSON (same format accepted by add_entities, plus an id). All filters are optional. Returns at most 'limit' entities and the total count that matched.", "{\"layer\": {\"type\": \"string\"}, \"entity\": {\"type\": \"string\", \"description\": \"Entity type, e.g. LINE, CIRCLE, INSERT.\"}, \"bbox\": {\"type\": \"array\", \"items\": {\"type\": \"number\"}, \"minItems\": 4, \"maxItems\": 4, \"description\": \"[x0, y0, x1, y1]: only entities whose extents overlap this box.\"}, \"limit\": {\"type\": \"integer\", \"minimum\": 0, \"maximum\": 1000, \"description\": \"Default 200.\"}}", "[]")
+
+    AddTool("get_entity", "GET", "Get one entity by id, as JSON.", "{\"id\": {\"type\": \"string\"}}", "[\"id\"]")
+
+    AddTool("add_entities", "ADD", "Create entities in the current sheet. Coordinates are in drawing units. Entities not given a layer, color, line type or width use the current ones. All entities are validated first: if one is wrong, nothing is created. Returns the ids of the created entities.", "{\"entities\": {\"type\": \"array\", \"minItems\": 1, \"items\": " & sEntity & "}}", "[\"entities\"]")
+
+    AddTool("delete_entities", "DELETE", "Delete entities. The user is asked to confirm first; if they decline, nothing is deleted and the result says so.", "{\"ids\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}, \"minItems\": 1}}", "[\"ids\"]")
+
+    AddTool("move_entities", "MOVE", "Move entities by a displacement. Without ids, moves the user's current selection.", IdsProperty() & ", \"dx\": {\"type\": \"number\"}, \"dy\": {\"type\": \"number\"}, \"dz\": {\"type\": \"number\"}}", "[\"dx\", \"dy\"]")
+
+    AddTool("copy_entities", "COPY", "Copy entities displaced by dx, dy into the current sheet. Without ids, copies the user's current selection. Returns the ids of the copies.", IdsProperty() & ", \"dx\": {\"type\": \"number\"}, \"dy\": {\"type\": \"number\"}, \"dz\": {\"type\": \"number\"}}", "[\"dx\", \"dy\"]")
+
+    AddTool("rotate_entities", "ROTATE", "Rotate entities around a base point. Without ids, rotates the user's current selection.", IdsProperty() & ", \"angle\": {\"type\": \"number\", \"description\": \"Degrees, counterclockwise.\"}, " & PointProperty("base", "Center of rotation, default [0, 0].") & "}", "[\"angle\"]")
+
+    AddTool("scale_entities", "SCALE", "Scale entities uniformly from a base point. Without ids, scales the user's current selection.", IdsProperty() & ", \"factor\": {\"type\": \"number\", \"exclusiveMinimum\": 0}, " & PointProperty("base", "Fixed point, default [0, 0].") & "}", "[\"factor\"]")
+
+    AddTool("mirror_entities", "MIRROR", "Mirror entities about a line through 'base' with direction 'angle'. With keep = true the originals stay and mirrored copies are created. Without ids, mirrors the user's current selection.", IdsProperty() & ", " & PointProperty("base", "A point of the mirror line, default [0, 0].") & ", \"angle\": {\"type\": \"number\", \"description\": \"Direction of the mirror line in degrees, default 90 (vertical).\"}, \"keep\": {\"type\": \"boolean\"}}", "[]")
+
+    AddTool("set_properties", "SET", "Change layer, color, line type or line width of entities. Without ids, changes the user's current selection.", IdsProperty() & ", \"layer\": {\"type\": \"string\"}, \"color\": {\"type\": \"integer\"}, \"linetype\": {\"type\": \"string\"}, \"linewidth\": {\"type\": \"integer\"}}", "[]")
+
+End
+
+'' La propiedad ids, sin cerrar el objeto de propiedades
+Private Function IdsProperty() As String
+
+    Return "{\"ids\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}, \"description\": \"Entity ids. Default: the user's current selection.\"}"
+
+End
+
+Private Function PointProperty(sName As String, sDescription As String) As String
+
+    Return JSON.Encode(sName) & ": {\"type\": \"array\", \"items\": {\"type\": \"number\"}, \"minItems\": 2, \"maxItems\": 2, \"description\": " & JSON.Encode(sDescription) & "}"
+
+End
+
+Private Sub AddTool(sName As String, sCommand As String, sDescription As String, sProperties As String, sRequired As String)
+
+    Dim c As New Collection
+    Dim cSchema As New Collection
+
+    cSchema["type"] = "object"
+    cSchema["properties"] = JSON.Decode(sProperties)
+    cSchema["required"] = JSON.Decode(sRequired)
+    c["name"] = sName
+    c["description"] = sDescription
+    c["input_schema"] = cSchema
+    $cTools[sName] = c
+    $cCommands[sName] = sCommand
+
+End
+
+'=============================================== CONTEXTO ===============================================
+
+'' El resumen del dibujo que acompaña cada mensaje del usuario (no el dibujo entero: el modelo pide lo que necesite)
+Public Function ContextJson() As String
+
+    Return JSON.Encode(Cmd.Run("INFO"))
+
+End
+
+'=============================================== PEDIDOS ===============================================
+
+'' Todo lo que haga el asistente desde aca hasta EndRequest es un solo paso de deshacer
+Public Sub BeginRequest(sUserText As String)
+
+    Dim sName As String
+
+    If Not gcd.Drawing Then Return
+    sName = Trim(Replace(sUserText, "\n", " "))
+    If Len(sName) > 40 Then sName = Left(sName, 40) & "..."
+    gcd.Drawing.uUndo.EndGroup()
+    gcd.Drawing.uUndo.BeginGroup(("Assistant") & ": " & sName)
+
+End
+
+Public Sub EndRequest()
+
+    If gcd.Drawing Then gcd.Drawing.uUndo.EndGroup()
+
+End
+
+'' Ejecuta las llamadas a herramientas de una respuesta del modelo, en orden.
+'' Entrada: [{"id": "...", "name": "...", "input": {...}}, ...]  (los bloques tool_use)
+'' Salida:  [{"type": "tool_result", "tool_use_id": "...", "content": "<resultado JSON>", "is_error": bool}, ...]
+'' Todos los resultados vuelven juntos, en un solo mensaje, como pide la API.
+Public Function RunToolCalls(sJson As String) As String
+
+    Dim v, vCall As Variant
+    Dim cCall, cOut, r As Collection
+    Dim aOut As New Collection[]
+
+    Try v = JSON.Decode(sJson, True)
+    If Error Or If Not (v Is Array) Then Return JSON.Encode(["error": "Expected a JSON array of tool calls"])
+
+    Cmd.BeginBatch()
+    For Each vCall In v
+        cOut = New Collection
+        cOut["type"] = "tool_result"
+        If TypeOf(vCall) <> gb.Object Or If Not (vCall Is Collection) Then
+            r = ErrorResult("Each tool call must be an object")
+        Else
+            cCall = vCall
+            cOut["tool_use_id"] = cCall["id"]
+            r = RunTool(cCall["name"], cCall["input"])
+        Endif
+        cOut["content"] = JSON.Encode(r)
+        cOut["is_error"] = Not r["ok"]
+        aOut.Add(cOut)
+    Next
+    Cmd.EndBatch()
+
+    Return JSON.Encode(aOut)
+
+End
+
+'' Ejecuta una herramienta y devuelve el resultado del comando
+Public Function RunTool(sName As String, vInput As Variant) As Collection
+
+    Dim cInput As Collection
+    Dim sCommand, sQuestion As String
+
+    LoadTools()
+    If Not $cCommands.Exist(sName) Then Return ErrorResult("Unknown tool " & sName)
+    If IsNull(vInput) Then
+        cInput = New Collection
+    Else If TypeOf(vInput) = gb.Object And If vInput Is Collection Then
+        cInput = vInput
+    Else
+        Return ErrorResult("The input of " & sName & " must be an object")
+    Endif
+
+    sCommand = $cCommands[sName]
+    Select Case sName
+        Case "list_entities"
+            If Not cInput.Exist("limit") Then cInput["limit"] = DefaultListLimit
+            If cInput["limit"] > MaxListLimit Then cInput["limit"] = MaxListLimit
+        Case "add_entities"
+            If Not NormalizeEntities(cInput) Then Return ErrorResult("entities must be an array of entity objects")
+        Case "delete_entities"
+            If Not cInput["ids"] Then Return ErrorResult("delete_entities needs ids")
+    End Select
+
+    ' borrar o tocar muchas entidades: el usuario decide
+    sQuestion = ConfirmationQuestion(sName, cInput)
+    If sQuestion And If Not Confirm(sQuestion) Then
+        Return ErrorResult("The user declined: " & sQuestion & " Nothing was changed. Ask the user how to continue.")
+    Endif
+
+    Return Cmd.Run(sCommand, cInput)
+
+End
+
+'' Lo que hay que preguntar antes de ejecutar, o "" si no hace falta
+Public Function ConfirmationQuestion(sName As String, cInput As Collection) As String
+
+    Dim iCount As Integer
+
+    If cInput.Exist("ids") And If cInput["ids"] Then
+        iCount = cInput["ids"].Count
+    Else
+        iCount = gcd.Drawing.Sheet.EntitiesSelected.Count
+    Endif
+
+    Select Case sName
+        Case "delete_entities"
+            Return Subst(("The assistant wants to delete &1 entities. Allow it?"), iCount)
+        Case "move_entities", "copy_entities", "rotate_entities", "scale_entities", "mirror_entities", "set_properties"
+            If iCount > ConfirmAbove Then Return Subst(("The assistant wants to change &1 entities. Allow it?"), iCount)
+    End Select
+    Return ""
+
+End
+
+Private Function Confirm(sQuestion As String) As Boolean
+
+    If AutoConfirm Then Return True
+    If Not gcd.Interactive Then Return False
+    Return Message.Question(sQuestion, ("Allow"), ("Don't allow")) = 1
+
+End
+
+'' Completa lo que el modelo no tiene por que saber del formato interno: polilineas abiertas o cerradas
+Private Function NormalizeEntities(cInput As Collection) As Boolean
+
+    Dim v As Variant
+    Dim c As Collection
+    Dim fP As Float[]
+    Dim fBulges As New Float[]
+    Dim i As Integer
+    Dim bClosed As Boolean
+
+    If Not cInput["entities"] Or If Not (cInput["entities"] Is Array) Then Return False
+    For Each v In cInput["entities"]
+        If TypeOf(v) <> gb.Object Or If Not (v Is Collection) Then Return False
+        c = v
+        If UCase(c["entity"]) <> "LWPOLYLINE" Then Continue
+        c["entity"] = "LWPOLYLINE"
+        bClosed = c["closed"]
+        fP = JsonFile.ToFloats(c["p"])
+        If bClosed And fP.Count >= 4 Then
+            ' cerrada: el primer punto se repite al final
+            If fP[0] <> fP[fP.Max - 1] Or fP[1] <> fP[fP.Max] Then fP.Insert([fP[0], fP[1]])
+        Endif
+        fBulges = New Float[]
+        For i = 1 To fP.Count \ 2
+            fBulges.Add(0)
+        Next
+        c["p"] = fP
+        c["fparam"] = fBulges
+        c["iparam"] = [IIf(bClosed, 1, 0), 0]
+        If c.Exist("closed") Then c.Remove("closed")
+    Next
+    Return True
+
+End
+
+Private Function ErrorResult(sError As String) As Collection
+
+    Dim r As New Collection
+
+    r["ok"] = False
+    r["error"] = sError
+    Return r
+
+End
