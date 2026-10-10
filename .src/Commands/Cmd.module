@@ -98,6 +98,76 @@ Public Function RunJson(sJson As String) As String
 
 End
 
+'' Lo mismo desde una linea de texto, como en la linea de comandos:
+''   LINE 0,0 10,0 @0,5        CIRCLE 5,5 2          MOVE 10,0        ROTATE 90 0,0 ids=4003,4004
+'' Puntos x,y o x,y,z (@ = relativo al ultimo punto), numeros, opciones clave=valor, y "textos" entre comillas.
+Public Function RunText(sLine As String) As Collection
+
+    Dim aTok As String[]
+    Dim sWord, sRest As String
+    Dim r As Collection
+
+    sLine = Trim(sLine)
+    aTok = SplitWords(sLine)
+    If aTok.Count = 0 Then Return Fail(NewResult(), "Empty command")
+    sWord = ResolveWord(aTok[0])
+
+    ' ADD lleva el JSON tal cual
+    If sWord = "ADD" Then
+        sRest = Trim(Mid(sLine, Len(aTok[0]) + 1))
+        Return RunTextAdd(sRest)
+    Endif
+
+    r = NewResult()
+    If Not ParseTokens(aTok, sWord, r) Then Return r
+    Return RunParsed(sWord, r)
+
+End
+
+'' True si la linea es para la capa de comandos y no para arrancar una herramienta interactiva:
+'' las palabras que solo existen como comando siempre; las demas (LINE, MOVE...) solo si traen argumentos.
+Public Function HandlesText(sLine As String) As Boolean
+
+    Dim aTok As String[]
+    Dim sWord As String
+
+    aTok = SplitWords(Trim(sLine))
+    If aTok.Count = 0 Then Return False
+    sWord = ResolveWord(aTok[0])
+    If ["ADD", "GET", "ENTITIES", "LAYERS", "DELETE", "SET", "UNDO", "REDO", "LIST"].Exist(sWord) Then Return True
+    If ["LINE", "CIRCLE", "ARC", "POINT", "MOVE", "COPY", "ROTATE", "SCALE", "MIRROR"].Exist(sWord) Then Return aTok.Count > 1
+    Return False
+
+End
+
+'' Como se escribe cada comando en la linea de texto
+Public Function TextHelp() As Collection
+
+    Dim c As New Collection
+
+    c["LINE"] = "LINE x,y x,y [x,y ...]   (one line per segment)"
+    c["CIRCLE"] = "CIRCLE x,y radius"
+    c["ARC"] = "ARC x,y radius start end   (angles in degrees, counterclockwise)"
+    c["POINT"] = "POINT x,y [x,y ...]"
+    c["ADD"] = "ADD {entity JSON} | [entity JSON, ...]"
+    c["MOVE"] = "MOVE dx,dy | MOVE from to   [ids=a,b]"
+    c["COPY"] = "COPY dx,dy | COPY from to   [ids=a,b]"
+    c["ROTATE"] = "ROTATE angle [base]   [ids=a,b]"
+    c["SCALE"] = "SCALE factor [base]   [ids=a,b]"
+    c["MIRROR"] = "MIRROR p1 p2 | MIRROR base angle   [keep=yes] [ids=a,b]"
+    c["SET"] = "SET layer=NAME color=N linetype=NAME linewidth=N   [ids=a,b]"
+    c["DELETE"] = "DELETE [id id ...]   (default: selection)"
+    c["GET"] = "GET id"
+    c["ENTITIES"] = "ENTITIES [layer=NAME] [entity=TYPE] [limit=N] [x0,y0 x1,y1]"
+    c["LAYERS"] = "LAYERS"
+    c["UNDO"] = "UNDO"
+    c["REDO"] = "REDO"
+    c["LIST"] = "LIST"
+    c["options"] = "layer=, color=, linetype=, linewidth= also work on LINE, CIRCLE, ARC and POINT"
+    Return c
+
+End
+
 '' Catalogo de comandos: nombre -> descripcion de lo que hace y sus argumentos
 Public Function List() As Collection
 
@@ -107,7 +177,7 @@ Public Function List() As Collection
     c["GET"] = "Get one entity as JSON. Args: id."
     c["ENTITIES"] = "List entities of the current sheet. Args (all optional): layer, entity (type, e.g. LINE), bbox [x0,y0,x1,y1], limit (default 1000). Returns entities and count."
     c["LAYERS"] = "List layers with their properties and entity count."
-    c["DELETE"] = "Delete entities, in one undo step. Args: ids (array). Returns deleted ids and notfound ids."
+    c["DELETE"] = "Delete entities, in one undo step. Args: ids (default: current selection). Returns deleted ids and notfound ids."
     c["MOVE"] = "Move entities, in one undo step. Args: ids (default: current selection), dx, dy, dz (default 0)."
     c["COPY"] = "Copy entities displaced by dx, dy, dz (default 0) into the current sheet, in one undo step. Args: ids (default: selection), dx, dy, dz. Returns created ids."
     c["ROTATE"] = "Rotate entities around a point, in one undo step. Args: ids (default: selection), angle (degrees, counterclockwise), base [x, y] (default [0, 0])."
@@ -257,40 +327,29 @@ End
 
 Private Sub DoDelete(cArgs As Collection, r As Collection)
 
-    Dim v As Variant
+    Dim aEnt As Entity[]
     Dim e As Entity
-    Dim s As Sheet
-    Dim aFound As New Entity[]
-    Dim aNotFound As New String[]
+    Dim c As Collection
 
-    If Not cArgs["ids"] Then
-        Fail(r, "DELETE needs ids")
-        Return
-    Endif
+    aEnt = Targets(cArgs, r)
+    If Not aEnt Then Return
 
-    s = gcd.Drawing.Sheet
-    For Each v In cArgs["ids"]
-        If s.Entities.Exist(CStr(v)) Then
-            aFound.Add(s.Entities[CStr(v)])
-        Else
-            aNotFound.Add(CStr(v))
+    gcd.Drawing.uUndo.OpenUndoStage(("Delete entities"), Undo.TypeDelete)
+    For Each e In aEnt
+        gcd.Drawing.uUndo.AddUndoItem(e)
+        If e.Container Then
+            c = e.Container.entities
+            If c.Exist(e.Id) Then c.Remove(e.Id)
         Endif
-    Next
-
-    If aFound.Count > 0 Then
-        gcd.Drawing.uUndo.OpenUndoStage(("Delete entities"), Undo.TypeDelete)
-        For Each e In aFound
-            gcd.Drawing.uUndo.AddUndoItem(e)
-            s.Entities.Remove(e.Id)
+        For Each s As Sheet In gcd.Drawing.Sheets
+            If s.Entities.Exist(e.Id) Then s.Entities.Remove(e.Id)
             If s.EntitiesVisibles.Exist(e.Id) Then s.EntitiesVisibles.Remove(e.Id)
             If s.EntitiesSelected.Exist(e.Id) Then s.EntitiesSelected.Remove(e.Id)
-            r["deleted"].Add(e.Id)
         Next
-        gcd.Drawing.uUndo.CloseUndoStage()
-        gcd.Drawing.RequiresSaving = True
-    Endif
-
-    r["notfound"] = aNotFound
+        r["deleted"].Add(e.Id)
+    Next
+    gcd.Drawing.uUndo.CloseUndoStage()
+    gcd.Drawing.RequiresSaving = True
 
 End
 
@@ -512,6 +571,312 @@ Private Sub DoUndo(r As Collection, bRedo As Boolean)
 
 End
 
+'=============================================== TEXTO ===============================================
+
+Private $aPoints As New Float[][]        ' los puntos de la linea, en orden
+Private $aRaw As New Float[][]           ' los mismos, tal como se escribieron (sin sumar el @)
+Private $aNumbers As New Float[]         ' los numeros sueltos
+Private $aWords As New String[]          ' las palabras sueltas (ids, nombres)
+Private $cOptions As New Collection      ' clave=valor
+Private $fLast As Float[]                ' ultimo punto, base de @
+
+Private Function RunParsed(sWord As String, r As Collection) As Collection
+
+    Dim cArgs As Collection
+    Dim aList As New Collection[]
+    Dim c As Collection
+    Dim i As Integer
+    Dim f, f2 As Float[]
+
+    cArgs = CopyOptions()
+
+    Select Case sWord
+
+        Case "LINE"
+            If $aPoints.Count < 2 Or $aNumbers.Count + $aWords.Count > 0 Then Return Usage(r, sWord)
+            For i = 0 To $aPoints.Count - 2
+                c = EntityOptions("LINE")
+                c["p"] = [$aPoints[i][0], $aPoints[i][1], $aPoints[i + 1][0], $aPoints[i + 1][1]]
+                aList.Add(c)
+            Next
+            Return Run("ADD", ["entities": aList])
+
+        Case "POINT"
+            If $aPoints.Count < 1 Or $aNumbers.Count + $aWords.Count > 0 Then Return Usage(r, sWord)
+            For Each f In $aPoints
+                c = EntityOptions("POINT")
+                c["p"] = [f[0], f[1]]
+                aList.Add(c)
+            Next
+            Return Run("ADD", ["entities": aList])
+
+        Case "CIRCLE"
+            If $aPoints.Count <> 1 Or $aNumbers.Count <> 1 Or $aWords.Count > 0 Then Return Usage(r, sWord)
+            If $aNumbers[0] <= 0 Then Return Fail(r, "The radius must be > 0")
+            c = EntityOptions("CIRCLE")
+            c["p"] = [$aPoints[0][0], $aPoints[0][1]]
+            c["fparam"] = [$aNumbers[0]]
+            Return Run("ADD", ["entity": c])
+
+        Case "ARC"
+            If $aPoints.Count <> 1 Or $aNumbers.Count <> 3 Or $aWords.Count > 0 Then Return Usage(r, sWord)
+            If $aNumbers[0] <= 0 Then Return Fail(r, "The radius must be > 0")
+            c = EntityOptions("ARC")
+            c["p"] = [$aPoints[0][0], $aPoints[0][1]]
+            c["fparam"] = [$aNumbers[0], $aNumbers[1], $aNumbers[2]]
+            Return Run("ADD", ["entity": c])
+
+        Case "MOVE", "COPY"
+            If $aNumbers.Count + $aWords.Count > 0 Then Return Usage(r, sWord)
+            If $aPoints.Count = 1 Then              ' el desplazamiento tal cual
+                f = $aRaw[0]
+                cArgs["dx"] = f[0]
+                cArgs["dy"] = f[1]
+                cArgs["dz"] = f[2]
+            Else If $aPoints.Count = 2 Then         ' desde - hasta
+                f = $aPoints[0]
+                f2 = $aPoints[1]
+                cArgs["dx"] = f2[0] - f[0]
+                cArgs["dy"] = f2[1] - f[1]
+                cArgs["dz"] = f2[2] - f[2]
+            Else If Not cArgs.Exist("dx") And Not cArgs.Exist("dy") Then
+                Return Usage(r, sWord)
+            Endif
+            Return Run(sWord, cArgs)
+
+        Case "ROTATE", "SCALE"
+            If $aNumbers.Count > 1 Or $aPoints.Count > 1 Or $aWords.Count > 0 Then Return Usage(r, sWord)
+            If $aNumbers.Count = 1 Then cArgs[IIf(sWord = "ROTATE", "angle", "factor")] = $aNumbers[0]
+            If $aPoints.Count = 1 Then cArgs["base"] = [$aPoints[0][0], $aPoints[0][1]]
+            Return Run(sWord, cArgs)
+
+        Case "MIRROR"
+            If $aWords.Count > 0 Or $aNumbers.Count > 1 Or $aPoints.Count > 2 Then Return Usage(r, sWord)
+            If $aPoints.Count = 2 Then              ' recta por dos puntos
+                f = $aPoints[0]
+                f2 = $aPoints[1]
+                If f[0] = f2[0] And f[1] = f2[1] Then Return Fail(r, "The two points must be different")
+                cArgs["base"] = [f[0], f[1]]
+                cArgs["angle"] = Deg(ATan2(f2[1] - f[1], f2[0] - f[0]))
+            Else
+                If $aPoints.Count = 1 Then cArgs["base"] = [$aPoints[0][0], $aPoints[0][1]]
+                If $aNumbers.Count = 1 Then cArgs["angle"] = $aNumbers[0]
+            Endif
+            Return Run(sWord, cArgs)
+
+        Case "DELETE", "GET"
+            If $aPoints.Count > 0 Then Return Usage(r, sWord)
+            If $aWords.Count > 0 Then
+                If sWord = "GET" Then
+                    cArgs["id"] = $aWords[0]
+                Else
+                    cArgs["ids"] = $aWords
+                Endif
+            Endif
+            If sWord = "GET" And Not cArgs.Exist("id") Then Return Usage(r, sWord)
+            Return Run(sWord, cArgs)
+
+        Case "ENTITIES"
+            If $aNumbers.Count + $aWords.Count > 0 Or ($aPoints.Count <> 0 And $aPoints.Count <> 2) Then Return Usage(r, sWord)
+            If $aPoints.Count = 2 Then
+                f = $aPoints[0]
+                f2 = $aPoints[1]
+                cArgs["bbox"] = [Min(f[0], f2[0]), Min(f[1], f2[1]), Max(f[0], f2[0]), Max(f[1], f2[1])]
+            Endif
+            Return Run(sWord, cArgs)
+
+        Case "SET", "LAYERS", "UNDO", "REDO"
+            If $aPoints.Count + $aNumbers.Count + $aWords.Count > 0 Then Return Usage(r, sWord)
+            Return Run(sWord, cArgs)
+
+        Case "LIST"
+            ' en texto, lo util es como se escribe cada comando
+            r["usage"] = TextHelp()
+            Return r
+
+        Case Else
+            Return Fail(r, "Unknown command " & sWord)
+
+    End Select
+
+End
+
+'' Separa la linea en palabras; lo que esta entre comillas es una sola palabra
+Private Function SplitWords(sLine As String) As String[]
+
+    Dim aTok As New String[]
+    Dim sTok, sCar As String
+    Dim bQuote, bHave As Boolean
+    Dim i As Integer
+
+    For i = 1 To Len(sLine)
+        sCar = Mid(sLine, i, 1)
+        If sCar = Chr(34) Then
+            bQuote = Not bQuote
+            bHave = True
+        Else If (sCar = " " Or sCar = gb.Tab) And Not bQuote Then
+            If bHave Then aTok.Add(sTok)
+            sTok = ""
+            bHave = False
+        Else
+            sTok &= sCar
+            bHave = True
+        Endif
+    Next
+    If bHave Then aTok.Add(sTok)
+    Return aTok
+
+End
+
+'' La palabra del comando, en mayusculas y con los alias de Config resueltos (l -> LINE, m -> MOVE...)
+Private Function ResolveWord(sWord As String) As String
+
+    If Config.oAlias And If Config.oAlias.Exist(LCase(sWord)) Then Return UCase(Config.oAlias[LCase(sWord)])
+    Return UCase(sWord)
+
+End
+
+'' Clasifica los argumentos en puntos, numeros, palabras y opciones. Devuelve False (y marca el error) si alguno esta mal.
+'' Para DELETE y GET los numeros son ids ("DELETE 4003"); para los demas, numeros.
+Private Function ParseTokens(aTok As String[], sCommand As String, r As Collection) As Boolean
+
+    Dim i, iPos As Integer
+    Dim sTok, sKey As String
+    Dim f, fRaw As Float[]
+    Dim fNum As Float
+    Dim bIds As Boolean
+
+    bIds = (sCommand = "DELETE" Or sCommand = "GET")
+    $aPoints = New Float[][]
+    $aRaw = New Float[][]
+    $aNumbers = New Float[]
+    $aWords = New String[]
+    $cOptions = New Collection
+    If Not $fLast Then $fLast = [0.0, 0.0, 0.0]
+
+    For i = 1 To aTok.Max
+        sTok = aTok[i]
+        iPos = InStr(sTok, "=")
+        If iPos > 1 Then
+            sKey = LCase(Left(sTok, iPos - 1))
+            $cOptions[sKey] = OptionValue(sKey, Mid(sTok, iPos + 1))
+        Else If Left(sTok) = "@" Or InStr(sTok, ",") > 0 Then
+            fRaw = ParsePoint(sTok)
+            If Not fRaw Then
+                Fail(r, "Bad point " & sTok & ": use x,y or x,y,z, and @dx,dy for relative")
+                Return False
+            Endif
+            f = fRaw.Copy()
+            If Left(sTok) = "@" Then
+                f[0] += $fLast[0]
+                f[1] += $fLast[1]
+                f[2] += $fLast[2]
+            Endif
+            $aRaw.Add(fRaw)
+            $aPoints.Add(f)
+            $fLast = f
+        Else If Not bIds And If IsNumberText(sTok, ByRef fNum) Then
+            $aNumbers.Add(fNum)
+        Else
+            $aWords.Add(sTok)
+        Endif
+    Next
+    Return True
+
+End
+
+'' x,y o x,y,z (con @ adelante o no); los valores tal como se escribieron
+Private Function ParsePoint(sTok As String) As Float[]
+
+    Dim aPart As String[]
+    Dim f As New Float[3]
+    Dim i As Integer
+    Dim fNum As Float
+
+    If Left(sTok) = "@" Then sTok = Mid(sTok, 2)
+    aPart = Split(sTok, ",")
+    If aPart.Count < 2 Or aPart.Count > 3 Then Return Null
+    For i = 0 To aPart.Max
+        If Not IsNumberText(Trim(aPart[i]), ByRef fNum) Then Return Null
+        f[i] = fNum
+    Next
+    Return f
+
+End
+
+'' Solo numeros simples (sin Eval: esta linea tambien puede venir de afuera)
+Private Function IsNumberText(sText As String, ByRef fValue As Float) As Boolean
+
+    If sText = "" Then Return False
+    If InStr("+-.0123456789", Left(sText)) = 0 Then Return False
+    Try fValue = CFloat(sText)
+    Return Not Error
+
+End
+
+Private Function OptionValue(sKey As String, sValue As String) As Variant
+
+    Dim fNum As Float
+
+    If sKey = "ids" Then Return Split(sValue, ",")
+    Select Case LCase(sValue)
+        Case "yes", "y", "true", "si", "s"
+            Return True
+        Case "no", "n", "false"
+            Return False
+    End Select
+    If sKey <> "layer" And sKey <> "linetype" And IsNumberText(sValue, ByRef fNum) Then Return fNum
+    Return sValue
+
+End
+
+Private Function CopyOptions() As Collection
+
+    Dim c As New Collection
+    Dim v As Variant
+
+    For Each v In $cOptions
+        c[$cOptions.Key] = v
+    Next
+    Return c
+
+End
+
+'' Una entidad nueva en JSON, con las opciones comunes que se hayan escrito
+Private Function EntityOptions(sGender As String) As Collection
+
+    Dim c As New Collection
+    Dim sKey As String
+
+    c["entity"] = sGender
+    For Each sKey In ["layer", "linetype", "color", "linewidth"]
+        If $cOptions.Exist(sKey) Then c[sKey] = $cOptions[sKey]
+    Next
+    Return c
+
+End
+
+Private Function RunTextAdd(sJson As String) As Collection
+
+    Dim v As Variant
+    Dim c As Collection
+
+    Try v = JSON.Decode(sJson, True)
+    If Error Or If IsNull(v) Then Return Fail(NewResult(), "ADD needs an entity JSON: " & TextHelp()["ADD"])
+    If v Is Array Then Return Run("ADD", ["entities": v])
+    If Not (v Is Collection) Then Return Fail(NewResult(), "ADD needs an entity JSON: " & TextHelp()["ADD"])
+    c = v
+    If TypeOf(c["entity"]) = gb.String Then Return Run("ADD", ["entity": c])       ' una entidad
+    Return Run("ADD", c)                                                            ' ya son los argumentos
+
+End
+
+Private Function Usage(r As Collection, sCommand As String) As Collection
+
+    Return Fail(r, "Usage: " & TextHelp()[sCommand])
+
+End
+
 '=============================================== AUXILIARES ===============================================
 
 '' Las entidades a modificar: los ids de "ids" o, si no vienen, la seleccion actual.
@@ -594,6 +959,23 @@ Public Function IdsOf(cEntities As Collection) As String[]
         aIds.Add(e.Id)
     Next
     Return aIds
+
+End
+
+'' Una linea con lo que hizo un comando, para mostrar al usuario
+Public Function Summary(r As Collection) As String
+
+    Dim aParts As New String[]
+
+    If Not r["ok"] Then Return ("Error") & ": " & r["error"]
+    If r["created"].Count Then aParts.Add(r["created"].Count & " " & ("created"))
+    If r["modified"].Count Then aParts.Add(r["modified"].Count & " " & ("modified"))
+    If r["deleted"].Count Then aParts.Add(r["deleted"].Count & " " & ("deleted"))
+    If r.Exist("notfound") And If r["notfound"].Count Then aParts.Add(r["notfound"].Count & " " & ("not found") & " (" & r["notfound"].Join(", ") & ")")
+    If r.Exist("count") Then aParts.Add(r["count"] & " " & ("entities"))
+    If r.Exist("message") Then aParts.Add(r["message"])
+    If aParts.Count = 0 Then aParts.Add("OK")
+    Return aParts.Join(", ")
 
 End
 

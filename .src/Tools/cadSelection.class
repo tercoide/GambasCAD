@@ -685,11 +685,53 @@ Public Sub MouseMove()
 
 End
 
+'' Muestra el resultado de un comando escrito: en la consola de depuracion, y la abre si hay algo para leer
+Private Sub ShowCmdResult(r As Collection)
+
+    Dim v As Variant
+    Dim c As Collection
+
+    If Not r["ok"] Then
+        gcd.debugInfo(("Error") & ": " & r["error"])
+        fDebug.Show
+        Return
+    Endif
+
+    gcd.debugInfo(Cmd.Summary(r))
+
+    ' las consultas
+    If r.Exist("entity") Then gcd.debugInfo(JSON.Encode(r["entity"]))
+    If r.Exist("entities") Then
+        For Each v In r["entities"]
+            gcd.debugInfo(JSON.Encode(v))
+        Next
+    Endif
+    If r.Exist("layers") Then
+        For Each c In r["layers"]
+            gcd.debugInfo(c["Name"] & "  " & ("color") & " " & c["Colour"] & "  " & c["LineType"] & "  " & c["entities"] & " " & ("entities") & IIf(c["current"], "  (" & ("current") & ")", ""))
+        Next
+    Endif
+    If r.Exist("usage") Then
+        For Each v In r["usage"]
+            gcd.debugInfo(v)
+        Next
+    Endif
+    If r.Exist("entity") Or r.Exist("entities") Or r.Exist("layers") Or r.Exist("usage") Then fDebug.Show
+
+End
+
 Public Function KeyText(EnteredText As String)
 
     ' in this case, we try to run the command wich is a class
     Dim o As Object
     Dim chat As String[]
+
+    ' lineas con argumentos (LINE 0,0 10,10, MOVE 5,0...) y comandos como GET o UNDO: los ejecuta la capa de comandos
+    ' (antes de pasar a mayusculas, para no cambiar nombres de layers ni ids)
+    If Cmd.HandlesText(EnteredText) Then
+        ShowCmdResult(Cmd.RunText(EnteredText))
+        Return
+    Endif
 
     EnteredText = UCase(Trim(EnteredText))
     If EnteredText = "" Then Return                                ' no BS here
