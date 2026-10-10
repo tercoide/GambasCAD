@@ -602,13 +602,41 @@ Public Sub Finish() As Boolean
 
     fMain.txtCommand.Text = ""
 
-    ' id, hoja, bloque de cota, geometria y undo: lo hace el modelo
-    gcd.AddEntity(elem)
+    ' La entidad se crea sin handle
+    If elem.Id = "" Then elem.Id = gcd.NewId()
+    ' depretest elem.HandleOwner = gcd.Drawing.Sheet.Handle
+    If gcd.Drawing.Sheet.IsModel Then
+        gcd.Drawing.Sheet.Entities.Add(elem, elem.Id)
+        gcd.Drawing.Sheet.EntitiesVisibles.add(elem, elem.Id)
+    Else
+        gcd.Drawing.Sheet.Entities.Add(elem, elem.Id)
+    End If
 
+    elem.Container = gcd.Drawing.Sheet.Block
+
+    If elem.pBlock Then
+        ' para las DIMENSION
+        If elem.pBlock.name = "*D" Then
+            elem.pBlock.name &= elem.Id
+            elem.pBlock.Id = gcd.NewId()
+            gcd.Drawing.Blocks.Add(elem.pBlock, elem.pBlock.Id)
+            'elem.pBlock.entities.Add(eEndBlock, eendblock.Id)
+        End If
+    Endif
+
+    Gcd.CCC[elem.gender].BuildGeometry(elem)
+    Gcd.CCC[elem.gender].Finish(elem)
     Try Gcd.CCC[elem.gender].LastMode = elem.iParam[Gcd.CCC[elem.gender].iiiMode]
     LastEntity = elem                                       ' save it to repeat on rigth click
     If Left(elem.Gender, 3) = "DIM" Then gcd.Drawing.LastDimension = elem
 
+    '======Undo stuff===================================================================
+    gcd.Drawing.uUndo.OpenUndoStage(("Draw a") & " " & elem.Gender, Undo.TypeCreate)
+    gcd.Drawing.uUndo.AddUndoItem(Elem)
+    gcd.Drawing.uUndo.CloseUndoStage()
+    '====================================================================================
+
+    gcd.Drawing.RequiresSaving = True
     gcd.DrawHoveredEntity = True
     gcd.Drawing.iEntity.Clear
     gcd.clsJobPrevious = Me
@@ -655,7 +683,7 @@ Public Sub KeyDown(iCode As Integer)
 
 End
 
-Public Function GetAnswer(Answer As Object) As Boolean
+Public Function GetAnswer(Answer As Variant) As Boolean
 
     Dim v As Variant
 
