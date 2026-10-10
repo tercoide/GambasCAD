@@ -176,34 +176,13 @@ End
 
 Public Sub Finish()
 
-    Dim e As Entity
-
-    Dim cContainer As Collection
-
     If Me.PointsDone = Me.PointsTotal Then
         ' Recolecto la ultima seleccion
         gcd.Drawing.Sheet.EntitiesSelectedPrevious = gcd.Drawing.Sheet.EntitiesSelected.Copy()
 
-        gcd.Drawing.uUndo.OpenUndoStage("Mirror", Undo.TypeModify)
-
-        If KeepOriginal Then
-            cContainer = clsEntities.ClonElements() ' let make a copy of them
-            For Each e In cContainer
-                gcd.Drawing.uUndo.AddUndoItem(e, Undo.TypeCreate)
-                gcd.Drawing.Sheet.Entities.Add(e, e.id)
-            Next
-        End If
-        For Each e In gcd.Drawing.Sheet.EntitiesSelected
-            gcd.Drawing.uUndo.AddUndoItem(e)
-
-            ' en todos los casos, roto los puntos
-            clsEntities.Translate(e, -Me.SelStartXr, -Me.SelStartYr)
-            clsEntities.Scale(e, 1, -1)
-            clsEntities.Rotate(e, Radianes)
-            clsEntities.Translate(e, Me.SelStartXr, Me.SelStartYr)
-            ' fix clsEntities. glGenDrawList(e)
-        Next
-        gcd.Drawing.uUndo.CloseUndoStage()
+        ' Radianes es el doble del angulo de la recta de simetria (simetria en X y luego rotacion)
+        ' la simetria, las copias y su undo los hace la capa de comandos
+        Cmd.Run("MIRROR", ["ids": Cmd.SelectionIds(), "base": [Me.SelStartXr, Me.SelStartYr], "angle": Deg(Radianes) / 2, "keep": KeepOriginal])
     Endif
 
     Super.Finish()

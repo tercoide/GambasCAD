@@ -49,6 +49,18 @@ Public Function Run(sCommand As String, Optional cArgs As Collection) As Collect
             DoLayers(r)
         Case "DELETE"
             DoDelete(cArgs, r)
+        Case "MOVE"
+            DoMove(cArgs, r)
+        Case "COPY"
+            DoCopy(cArgs, r)
+        Case "ROTATE"
+            DoRotate(cArgs, r)
+        Case "SCALE"
+            DoScale(cArgs, r)
+        Case "MIRROR"
+            DoMirror(cArgs, r)
+        Case "SET"
+            DoSet(cArgs, r)
         Case "UNDO"
             DoUndo(r, False)
         Case "REDO"
@@ -96,6 +108,12 @@ Public Function List() As Collection
     c["ENTITIES"] = "List entities of the current sheet. Args (all optional): layer, entity (type, e.g. LINE), bbox [x0,y0,x1,y1], limit (default 1000). Returns entities and count."
     c["LAYERS"] = "List layers with their properties and entity count."
     c["DELETE"] = "Delete entities, in one undo step. Args: ids (array). Returns deleted ids and notfound ids."
+    c["MOVE"] = "Move entities, in one undo step. Args: ids (default: current selection), dx, dy, dz (default 0)."
+    c["COPY"] = "Copy entities displaced by dx, dy, dz (default 0) into the current sheet, in one undo step. Args: ids (default: selection), dx, dy, dz. Returns created ids."
+    c["ROTATE"] = "Rotate entities around a point, in one undo step. Args: ids (default: selection), angle (degrees, counterclockwise), base [x, y] (default [0, 0])."
+    c["SCALE"] = "Scale entities uniformly from a point, in one undo step. Args: ids (default: selection), factor (> 0), base [x, y] (default [0, 0])."
+    c["MIRROR"] = "Mirror entities about a line through base with the given angle, in one undo step. Args: ids (default: selection), base [x, y] (default [0, 0]), angle (degrees of the mirror line, default 90), keep (true: mirror copies and keep the originals; default false)."
+    c["SET"] = "Change properties of entities, in one undo step. Args: ids (default: selection), and any of layer, color, linetype, linewidth."
     c["UNDO"] = "Undo the last change."
     c["REDO"] = "Redo the last undone change."
     c["LIST"] = "This list."
@@ -276,6 +294,200 @@ Private Sub DoDelete(cArgs As Collection, r As Collection)
 
 End
 
+Private Sub DoMove(cArgs As Collection, r As Collection)
+
+    Dim aEnt As Entity[]
+    Dim e As Entity
+    Dim dx, dy, dz As Float
+
+    aEnt = Targets(cArgs, r)
+    If Not aEnt Then Return
+    If Not GetFloat(cArgs, "dx", 0, r, ByRef dx) Then Return
+    If Not GetFloat(cArgs, "dy", 0, r, ByRef dy) Then Return
+    If Not GetFloat(cArgs, "dz", 0, r, ByRef dz) Then Return
+
+    gcd.Drawing.uUndo.OpenUndoStage(("Move entities"), Undo.TypeModify)
+    For Each e In aEnt
+        gcd.Drawing.uUndo.AddUndoItem(e)
+        gcd.CCC[e.Gender].Translate(e, dx, dy, dz)
+        r["modified"].Add(e.Id)
+    Next
+    gcd.Drawing.uUndo.CloseUndoStage()
+    gcd.Drawing.RequiresSaving = True
+
+End
+
+Private Sub DoCopy(cArgs As Collection, r As Collection)
+
+    Dim aEnt As Entity[]
+    Dim e, eCopy As Entity
+    Dim dx, dy, dz As Float
+
+    aEnt = Targets(cArgs, r)
+    If Not aEnt Then Return
+    If Not GetFloat(cArgs, "dx", 0, r, ByRef dx) Then Return
+    If Not GetFloat(cArgs, "dy", 0, r, ByRef dy) Then Return
+    If Not GetFloat(cArgs, "dz", 0, r, ByRef dz) Then Return
+
+    ' las copias van a la hoja actual, aunque el original este en otra
+    gcd.Drawing.uUndo.OpenUndoStage(("Copy entities"), Undo.TypeCreate)
+    For Each e In aEnt
+        eCopy = clsEntities.ClonEntity(e, True)
+        gcd.CCC[eCopy.Gender].Translate(eCopy, dx, dy, dz)
+        gcd.AddEntity(eCopy,, True)
+        gcd.Drawing.uUndo.AddUndoItem(eCopy)
+        r["created"].Add(eCopy.Id)
+    Next
+    gcd.Drawing.uUndo.CloseUndoStage()
+
+End
+
+Private Sub DoRotate(cArgs As Collection, r As Collection)
+
+    Dim aEnt As Entity[]
+    Dim e As Entity
+    Dim fAngle As Float
+    Dim fBase As Float[]
+
+    aEnt = Targets(cArgs, r)
+    If Not aEnt Then Return
+    If Not cArgs.Exist("angle") Then
+        Fail(r, "ROTATE needs angle")
+        Return
+    Endif
+    If Not GetFloat(cArgs, "angle", 0, r, ByRef fAngle) Then Return
+    fBase = GetPoint(cArgs, "base", r)
+    If Not fBase Then Return
+
+    gcd.Drawing.uUndo.OpenUndoStage(("Rotate"), Undo.TypeModify)
+    For Each e In aEnt
+        gcd.Drawing.uUndo.AddUndoItem(e)
+        gcd.CCC[e.Gender].Translate(e, -fBase[0], -fBase[1], 0)
+        gcd.CCC[e.Gender].Rotate(e, Rad(fAngle))
+        gcd.CCC[e.Gender].Translate(e, fBase[0], fBase[1], 0)
+        gcd.CCC[e.Gender].BuildGeometry(e)
+        r["modified"].Add(e.Id)
+    Next
+    gcd.Drawing.uUndo.CloseUndoStage()
+    gcd.Drawing.RequiresSaving = True
+
+End
+
+Private Sub DoScale(cArgs As Collection, r As Collection)
+
+    Dim aEnt As Entity[]
+    Dim e As Entity
+    Dim fFactor As Float
+    Dim fBase As Float[]
+
+    aEnt = Targets(cArgs, r)
+    If Not aEnt Then Return
+    If Not GetFloat(cArgs, "factor", 0, r, ByRef fFactor) Then Return
+    If fFactor <= 0 Then
+        Fail(r, "SCALE needs factor > 0")
+        Return
+    Endif
+    fBase = GetPoint(cArgs, "base", r)
+    If Not fBase Then Return
+
+    gcd.Drawing.uUndo.OpenUndoStage(("Scale"), Undo.TypeModify)
+    For Each e In aEnt
+        gcd.Drawing.uUndo.AddUndoItem(e)
+        gcd.CCC[e.Gender].Translate(e, -fBase[0], -fBase[1], 0)
+        gcd.CCC[e.Gender].Scale(e, fFactor, fFactor)
+        gcd.CCC[e.Gender].Translate(e, fBase[0], fBase[1], 0)
+        gcd.CCC[e.Gender].BuildGeometry(e)
+        r["modified"].Add(e.Id)
+    Next
+    gcd.Drawing.uUndo.CloseUndoStage()
+    gcd.Drawing.RequiresSaving = True
+
+End
+
+Private Sub DoMirror(cArgs As Collection, r As Collection)
+
+    Dim aEnt As Entity[]
+    Dim e As Entity
+    Dim fAngle As Float
+    Dim fBase As Float[]
+    Dim bKeep As Boolean
+
+    aEnt = Targets(cArgs, r)
+    If Not aEnt Then Return
+    If Not GetFloat(cArgs, "angle", 90, r, ByRef fAngle) Then Return
+    fBase = GetPoint(cArgs, "base", r)
+    If Not fBase Then Return
+    If cArgs.Exist("keep") Then bKeep = cArgs["keep"]
+
+    If bKeep Then
+        gcd.Drawing.uUndo.OpenUndoStage(("Mirror"), Undo.TypeCreate)
+    Else
+        gcd.Drawing.uUndo.OpenUndoStage(("Mirror"), Undo.TypeModify)
+    Endif
+
+    For Each e In aEnt
+        If bKeep Then
+            e = clsEntities.ClonEntity(e, True)
+        Else
+            gcd.Drawing.uUndo.AddUndoItem(e)
+        Endif
+
+        ' simetria respecto de X y luego rotacion del doble del angulo = simetria respecto de la recta
+        gcd.CCC[e.Gender].Translate(e, -fBase[0], -fBase[1], 0)
+        gcd.CCC[e.Gender].Scale(e, 1, -1)
+        gcd.CCC[e.Gender].Rotate(e, Rad(2 * fAngle))
+        gcd.CCC[e.Gender].Translate(e, fBase[0], fBase[1], 0)
+
+        If bKeep Then
+            gcd.AddEntity(e,, True)
+            gcd.Drawing.uUndo.AddUndoItem(e)
+            r["created"].Add(e.Id)
+        Else
+            gcd.CCC[e.Gender].BuildGeometry(e)
+            r["modified"].Add(e.Id)
+        Endif
+    Next
+    gcd.Drawing.uUndo.CloseUndoStage()
+    gcd.Drawing.RequiresSaving = True
+
+End
+
+Private Sub DoSet(cArgs As Collection, r As Collection)
+
+    Dim aEnt As Entity[]
+    Dim e As Entity
+
+    aEnt = Targets(cArgs, r)
+    If Not aEnt Then Return
+
+    ' primero valido, asi no queda nada a medias
+    If cArgs.Exist("layer") And If Not gcd.Drawing.Layers.Exist(cArgs["layer"]) Then
+        Fail(r, "Unknown layer " & cArgs["layer"])
+        Return
+    Endif
+    If cArgs.Exist("linetype") And If Not gcd.Drawing.LineTypes.Exist(cArgs["linetype"]) Then
+        Fail(r, "Unknown line type " & cArgs["linetype"])
+        Return
+    Endif
+    If Not (cArgs.Exist("layer") Or cArgs.Exist("color") Or cArgs.Exist("linetype") Or cArgs.Exist("linewidth")) Then
+        Fail(r, "SET needs layer, color, linetype or linewidth")
+        Return
+    Endif
+
+    gcd.Drawing.uUndo.OpenUndoStage(("Change properties"), Undo.TypeModify)
+    For Each e In aEnt
+        gcd.Drawing.uUndo.AddUndoItem(e)
+        If cArgs.Exist("layer") Then e.pLayer = gcd.Drawing.Layers[cArgs["layer"]]
+        If cArgs.Exist("color") Then e.Colour = CInt(cArgs["color"])
+        If cArgs.Exist("linetype") Then e.LineType = gcd.Drawing.LineTypes[cArgs["linetype"]]
+        If cArgs.Exist("linewidth") Then e.LineWidth = CInt(cArgs["linewidth"])
+        r["modified"].Add(e.Id)
+    Next
+    gcd.Drawing.uUndo.CloseUndoStage()
+    gcd.Drawing.RequiresSaving = True
+
+End
+
 Private Sub DoUndo(r As Collection, bRedo As Boolean)
 
     Dim u As Undo = gcd.Drawing.uUndo
@@ -301,6 +513,89 @@ Private Sub DoUndo(r As Collection, bRedo As Boolean)
 End
 
 '=============================================== AUXILIARES ===============================================
+
+'' Las entidades a modificar: los ids de "ids" o, si no vienen, la seleccion actual.
+'' Devuelve Null (y marca el error) si no hay ninguna.
+Private Function Targets(cArgs As Collection, r As Collection) As Entity[]
+
+    Dim aEnt As New Entity[]
+    Dim aNotFound As New String[]
+    Dim v As Variant
+    Dim e As Entity
+
+    If cArgs.Exist("ids") Then
+        For Each v In cArgs["ids"]
+            e = FindEntity(v)
+            If e Then
+                aEnt.Add(e)
+            Else
+                aNotFound.Add(CStr(v))
+            Endif
+        Next
+        r["notfound"] = aNotFound
+    Else
+        For Each e In gcd.Drawing.Sheet.EntitiesSelected
+            aEnt.Add(e)
+        Next
+    Endif
+
+    If aEnt.Count = 0 Then
+        Fail(r, "No entities to work on")
+        Return Null
+    Endif
+    Return aEnt
+
+End
+
+'' Lee un numero opcional. Devuelve False (y marca el error) si no es un numero.
+Private Function GetFloat(cArgs As Collection, sKey As String, fDefault As Float, r As Collection, ByRef fValue As Float) As Boolean
+
+    fValue = fDefault
+    If Not cArgs.Exist(sKey) Or If TypeOf(cArgs[sKey]) = gb.Null Then Return True
+    Select Case TypeOf(cArgs[sKey])
+        Case gb.Integer, gb.Long, gb.Float, gb.Single, gb.Short, gb.Byte
+            fValue = cArgs[sKey]
+            Return True
+    End Select
+    Fail(r, sKey & " must be a number")
+    Return False
+
+End
+
+'' Lee un punto opcional [x, y]; por defecto [0, 0]. Devuelve Null (y marca el error) si esta mal.
+Private Function GetPoint(cArgs As Collection, sKey As String, r As Collection) As Float[]
+
+    Dim f As Float[]
+
+    If Not cArgs.Exist(sKey) Or If TypeOf(cArgs[sKey]) = gb.Null Then Return [0.0, 0.0]
+    Try f = JsonFile.ToFloats(cArgs[sKey])
+    If Error Or If f.Count < 2 Then
+        Fail(r, sKey & " must be [x, y]")
+        Return Null
+    Endif
+    Return f
+
+End
+
+'' Ids de la seleccion actual, para que las herramientas llamen a los comandos
+Public Function SelectionIds() As String[]
+
+    Return IdsOf(gcd.Drawing.Sheet.EntitiesSelected)
+
+End
+
+'' Ids de una coleccion de entidades
+Public Function IdsOf(cEntities As Collection) As String[]
+
+    Dim e As Entity
+    Dim aIds As New String[]
+
+    For Each e In cEntities
+        aIds.Add(e.Id)
+    Next
+    Return aIds
+
+End
 
 Private Function NewResult() As Collection
 
