@@ -3,7 +3,8 @@
 ' Gambas3 - Módulo de exportación OBJ con Grupos, Texturas Avanzadas y UVs
 ' Requiere activar el componente gb.image para el manejo de colores
 
-Public Sub ExportarObjeto3D(RutaBase As String, ColeccionVertices As Collection, ColeccionCaras As Collection)
+'' recibe una coleccion de entidades a ser incluidas en el OBJ
+Public Sub ExportarObjeto3D(RutaBase As String, ColeccionVertices As Collection, ColeccionMeshes As Collection)
 
     Dim hObj As File
     Dim hMtl As File
@@ -27,6 +28,7 @@ Public Sub ExportarObjeto3D(RutaBase As String, ColeccionVertices As Collection,
 
     ' Diccionario para mapear materiales del .mtl a sus propiedades (Color y Textura)
     Dim DiccionarioMateriales As New Collection
+    Dim eMesh As Entity
 
     ' =========================================================================
     ' 1. CREACIÓN DEL ARCHIVO DE MATERIALES (.MTL)
@@ -34,35 +36,36 @@ Public Sub ExportarObjeto3D(RutaBase As String, ColeccionVertices As Collection,
     hMtl = Open RutaMtl For Create
     Print #hMtl, "# Archivo de Materiales generado por Gambas3"
     Print #hMtl, ""
+    For Each eMesh In ColeccionMeshes
+        For Each Cara In eMesh
+            ColorActual = eMesh.colour
 
-    For Each Cara In ColeccionCaras
-        ColorActual = Cara.colour
-
-        ' El identificador único del material será el nombre de la textura (si tiene) o su color hex
-        If Cara.texture_name <> "" Then
-            NombreMaterial = "Mat_" & File.BaseName(Cara.texture_name)
-        Else
-            NombreMaterial = "Mat_Color_" & Hex$(ColorActual)
-        Endif
-
-        ' Si el material no se ha registrado en el archivo .mtl, lo configuramos
-        If Not DiccionarioMateriales.Exist(NombreMaterial) Then
-            Print #hMtl, "newmtl " & NombreMaterial
-            Print #hMtl, "Ka 1.0000 1.0000 1.0000"
-            ' Color difuso base
-            Print #hMtl, "Kd "; Format$(Color.Red(ColorActual) / 255, "0.0000"); " "; Format$(Color.Green(ColorActual) / 255, "0.0000"); " "; Format$(Color.Blue(ColorActual) / 255, "0.0000")
-            Print #hMtl, "Ks 0.2000 0.2000 0.2000" ' Brillo moderado para texturas
-            Print #hMtl, "d 1.0000"
-            Print #hMtl, "illum 2"
-
-            ' ASIGNACIÓN DE TEXTURA: Si la cara tiene textura, se vincula su imagen
-            If Cara.texture_name <> "" Then
-                Print #hMtl, "map_Kd " & Cara.texture_name
+            ' El identificador único del material será el nombre de la textura (si tiene) o su color hex
+            If eMesh.texture.name <> "" Then
+                NombreMaterial = "Mat_" & File.BaseName(eMesh.texture.name)
+            Else
+                NombreMaterial = "Mat_Color_" & Hex$(ColorActual)
             Endif
 
-            Print #hMtl, ""
-            DiccionarioMateriales.Add(True, NombreMaterial)
-        Endif
+            ' Si el material no se ha registrado en el archivo .mtl, lo configuramos
+            If Not DiccionarioMateriales.Exist(NombreMaterial) Then
+                Print #hMtl, "newmtl " & NombreMaterial
+                Print #hMtl, "Ka 1.0000 1.0000 1.0000"
+                ' Color difuso base
+                Print #hMtl, "Kd "; Format$(Color.Red(ColorActual) / 255, "0.0000"); " "; Format$(Color.Green(ColorActual) / 255, "0.0000"); " "; Format$(Color.Blue(ColorActual) / 255, "0.0000")
+                Print #hMtl, "Ks 0.2000 0.2000 0.2000" ' Brillo moderado para texturas
+                Print #hMtl, "d 1.0000"
+                Print #hMtl, "illum 2"
+
+                ' ASIGNACIÓN DE TEXTURA: Si la cara tiene textura, se vincula su imagen
+                If eMesh.texture.name <> "" Then
+                    Print #hMtl, "map_Kd " & eMesh.texture.name
+                Endif
+
+                Print #hMtl, ""
+                DiccionarioMateriales.Add(True, NombreMaterial)
+            Endif
+        Next
     Next
     Close #hMtl
 
@@ -86,52 +89,53 @@ Public Sub ExportarObjeto3D(RutaBase As String, ColeccionVertices As Collection,
 
     ' PASO B: Procesar las caras de forma secuencial escribiendo sus UVs y Normales locales
     Print #hObj, "# Definición de Polígonos con Mapeo y Normales"
-    For Each Cara In ColeccionCaras
-
+    For Each eMesh In ColeccionMeshes
         ' Agrupación por capas/grupos ('g')
-        If Cara.Grupo <> GrupoActual Then
-            GrupoActual = Cara.Grupo
+        If eMesh.player.name <> GrupoActual Then
+            GrupoActual = eMesh.player.name
             Print #hObj, "g " & Replace$(GrupoActual, " ", "_")
         Endif
+        For Each Cara In eMesh
 
-        ' Asignar el material (con o sin textura) a este polígono
-        If Cara.texture_name <> "" Then
-            NombreMaterial = "Mat_" & File.BaseName(Cara.texture_name)
-        Else
-            NombreMaterial = "Mat_Color_" & Hex$(Cara.color)
-        Endif
-        Print #hObj, "usemtl " & NombreMaterial
+            ' Asignar el material (con o sin textura) a este polígono
+            If eMesh.texture.name <> "" Then
+                NombreMaterial = "Mat_" & File.BaseName(eMesh.texture.name)
+            Else
+                NombreMaterial = "Mat_Color_" & Hex$(eMesh.Colour)
+            Endif
+            Print #hObj, "usemtl " & NombreMaterial
 
-        ' 1. Escribir las coordenadas UV (vt) de esta cara en el flujo general del archivo
-        Dim IndicesVT_Cara As New Integer[]
-        For i = 0 To Cara.uvs.Max
-            Print #hObj, "vt " & Str$(Cara.uvs[i].X) & " " & Str$(Cara.uvs[i].Y) ' Usamos .X y .Y del Punto2D como U y V
-            IndicesVT_Cara.Add(ContadorVT)
-            ContadorVT += 1
+            ' 1. Escribir las coordenadas UV (vt) de esta cara en el flujo general del archivo
+            Dim IndicesVT_Cara As New Integer[]
+            For i = 0 To Cara.uvs.Max
+                Print #hObj, "vt " & Str$(Cara.UVs[i].X) & " " & Str$(Cara.uvs[i].Y) ' Usamos .X y .Y del Punto2D como U y V
+                IndicesVT_Cara.Add(ContadorVT)
+                ContadorVT += 1
+            Next
+
+            ' 2. Escribir los vectores Normales (vn) específicos de esta cara
+            Dim IndicesVN_Cara As New Integer[]
+            For i = 0 To Cara.normals.Max
+                Print #hObj, "vn " & Str$(Cara.normals[i].X) & " " & Str$(Cara.normals[i].Y) & " " & Str$(Cara.normals[i].Z)
+                IndicesVN_Cara.Add(ContadorVN)
+                ContadorVN += 1
+            Next
+
+            ' 3. Construir y guardar la línea de la cara combinando los tres índices: vértice/uv/normal
+            Dim CadenaCara As String = "f"
+
+            For i = 0 To Cara.vertices.Max
+                Dim ClaveBusqueda As String = Str$(Pointer@(Cara.vertices[i]))
+                Dim IdVertice As Integer = MapaIndicesVertice[ClaveBusqueda]
+                Dim IdUV As Integer = IndicesVT_Cara[i]
+                Dim IdNormal As Integer = IndicesVN_Cara[i]
+
+                ' Sintaxis OBJ estándar: vértice/textura/normal
+                CadenaCara &= " " & Str$(IdVertice) & "/" & Str$(IdUV) & "/" & Str$(IdNormal)
+            Next
+
+            Print #hObj, CadenaCara
         Next
-
-        ' 2. Escribir los vectores Normales (vn) específicos de esta cara
-        Dim IndicesVN_Cara As New Integer[]
-        For i = 0 To Cara.normals.Max
-            Print #hObj, "vn " & Str$(Cara.normals[i].X) & " " & Str$(Cara.normals[i].Y) & " " & Str$(Cara.normals[i].Z)
-            IndicesVN_Cara.Add(ContadorVN)
-            ContadorVN += 1
-        Next
-
-        ' 3. Construir y guardar la línea de la cara combinando los tres índices: vértice/uv/normal
-        Dim CadenaCara As String = "f"
-
-        For i = 0 To Cara.vertices.Max
-            Dim ClaveBusqueda As String = Str$(Pointer@(Cara.vertices[i]))
-            Dim IdVertice As Integer = MapaIndicesVertice[ClaveBusqueda]
-            Dim IdUV As Integer = IndicesVT_Cara[i]
-            Dim IdNormal As Integer = IndicesVN_Cara[i]
-
-            ' Sintaxis OBJ estándar: vértice/textura/normal
-            CadenaCara &= " " & Str$(IdVertice) & "/" & Str$(IdUV) & "/" & Str$(IdNormal)
-        Next
-
-        Print #hObj, CadenaCara
     Next
 
     Close #hObj
@@ -184,7 +188,7 @@ End
 ' Vamos a interpretar el OBJ y adaptarlo a gbcad
 ' Cada "Grupo" es una entidad nueva
 
-Public Sub ImportarObjeto3D(RutaObj As String, ColeccionVertices As Collection, ColeccionCaras As Collection)
+Public Sub ImportarObjeto3D(RutaObj As String, ColeccionVertices As Collection, eMesh As Collection)
 
     Dim hFile As File
     Dim Linea As String
@@ -323,7 +327,7 @@ Public Sub ImportarObjeto3D(RutaObj As String, ColeccionVertices As Collection, 
 
             Case "f" ' Declaración de una Cara (Polígono N-gon)
                 Dim NuevaCara As New Face
-                NuevaCara.Grupo = GrupoActual
+                Nuevacara.layer.name = GrupoActual
                 NuevaCara.color = ColorActual
                 NuevaCara.texture_name = TexturaActual
 
@@ -376,7 +380,7 @@ Public Sub ImportarObjeto3D(RutaObj As String, ColeccionVertices As Collection, 
                 Endif
                 ' =========================================================================
 
-                ColeccionCaras.Add(NuevaCara)
+                eMesh.Add(NuevaCara)
 
         End Select
     Wend
