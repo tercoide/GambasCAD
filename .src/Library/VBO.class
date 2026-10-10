@@ -40,6 +40,7 @@ Public IdNormalsTriangle As Integer
 
 Public UseNormals As Boolean = False
 Public UseTexture As Boolean = False
+Public TriangleAlpha As Single = 1          '' transparencia de los triangulos: 1 = opacos, 0 = invisibles
 
 Public SelectedDraw As Boolean
 Public HoveredDraw As Boolean
@@ -148,6 +149,8 @@ Public Sub Draw(Optional mode As Integer = 0)
 
     Dim UseShader As Boolean = glx.Matrices.Active
     Dim Lit As Boolean
+    Dim Transparent As Boolean
+    Dim PrevBlend As Boolean
 
     '--------HIGHLIGHTING-------------------------------------------------
     If HoveredDraw Then
@@ -201,7 +204,23 @@ Public Sub Draw(Optional mode As Integer = 0)
 
     If Lit Then SetTriangleNormals()
 
+    ' transparencia: alfa constante para todos los triangulos, sirve con o sin shader
+    Transparent = TriangleAlpha < 1
+    If Transparent Then
+        PrevBlend = gl.IsEnabled(gl.BLEND)
+        glx.glEnable(glx.BLEND)
+        glx.glBlendColor(0, 0, 0, Max(TriangleAlpha, 0))
+        glx.glBlendFunc(glx.CONSTANT_ALPHA, glx.ONE_MINUS_CONSTANT_ALPHA)
+        glx.glDepthMask(0)                      ' las caras transparentes no tapan lo que esta detras
+    End If
+
     glx.glDrawArrays(gl.TRIANGLES, 0, VertexTriangle.Count / 3)
+
+    If Transparent Then
+        glx.glDepthMask(1)
+        glx.glBlendFunc(glx.ONE, glx.ZERO)      ' la funcion por defecto de OpenGL
+        If Not PrevBlend Then glx.glDisable(glx.BLEND)
+    End If
 
     If Lit Then
         glx.glDisableVertexAttribArray(ShaderMatrices.ATTRIB_NORMAL)
