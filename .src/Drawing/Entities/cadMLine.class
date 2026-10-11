@@ -68,7 +68,7 @@ Public Function MakePolyLine(oE As Entity)
 
     For i = 0 To m.Elements
 
-        oe.PolyLine.Insert(oe.P.Copy())
+        oe.PolyLine.Insert(puntos.ToXY(oe.P))
 
     Next
 
@@ -100,11 +100,11 @@ Public Sub Draw(oE As Entity)
         iY = i * 2 + 1
         If Me.iContext = 0 Then
 
-            puntos.Translate(oe.p, ml.Direction[1] * oe.fParam[Me.ipaScale] * m.ElemOffset[i] + fOffsetX, ml.Direction[0] * oe.fParam[Me.ipaScale] * m.ElemOffset[i] + fOffsetY)
+            puntos.TranslateP(oe.P, ml.Direction[1] * oe.fParam[Me.ipaScale] * m.ElemOffset[i] + fOffsetX, ml.Direction[0] * oe.fParam[Me.ipaScale] * m.ElemOffset[i] + fOffsetY)
 
-            glx.PolyLines(oE.P, gcd.GetGBColor(m.ElemColor[i], oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), gcd.Drawing.LineTypes[m.ElemLinetype[i]].TrameLength)
+            glx.PolyLinesP(oE.P, gcd.GetGBColor(m.ElemColor[i], oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), gcd.Drawing.LineTypes[m.ElemLinetype[i]].TrameLength)
 
-            puntos.Translate(oe.p, -(ml.Direction[1] * oe.fParam[Me.ipaScale] * m.ElemOffset[i] + fOffsetX), -(ml.Direction[0] * oe.fParam[Me.ipaScale] * m.ElemOffset[i] + fOffsetY))
+            puntos.TranslateP(oe.P, -(ml.Direction[1] * oe.fParam[Me.ipaScale] * m.ElemOffset[i] + fOffsetX), -(ml.Direction[0] * oe.fParam[Me.ipaScale] * m.ElemOffset[i] + fOffsetY))
         Else If Me.iContext = 1 Then
             paintPlus.LineStripe(oe.PolyLine)
 
@@ -115,7 +115,7 @@ End
 
 Public Sub DrawSelected(oE As Entity)
 
-    glx.PolyLines(oE.PolyLine, Color.Gradient(gcd.GetGBColor(oE.Colour, oe.pLayer), Config.ModelBackgroundColor), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
+    glx.PolyLines(oE.PolyLine, Gcd.ColorSelected(gcd.GetGBColor(oE.Colour, oe.pLayer)), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
 
 End
 
@@ -160,16 +160,16 @@ Public Function SaveDxfData(e As Entity) As Boolean
     ' stxExport.insert(["LWPOLYLINE", dxf.codEntity])
     ' Los datos comunes a todas las entidades son guardados por la rutina que llama a esta
     dxf.SaveCodeInv("AcDbPolyline", "100")
-    dxf.SaveCodeInv(e.P.Count / 2, "90")              ' n puntos
+    dxf.SaveCodeInv(e.P.Count, "90")              ' n puntos
     dxf.SaveCodeInv(CStr(e.iParam[Me.iiiPolylineType]), "70")      ' abierta =1 o cerrada =0
     dxf.SaveCodeInv("0", "43")
     imax = e.P.max
-    If e.iParam[Me.iiiPolylineType] Then imax -= 2
-    For i = 0 To e.p.Max Step 2
-        dxf.SaveCodeInv(CStr(e.p[i]), dxf.codX0)
-        dxf.SaveCodeInv(CStr(e.p[i + 1]), dxf.codY0)
+    If e.iParam[Me.iiiPolylineType] Then imax -= 1
+    For i = 0 To e.P.Max
+        dxf.SaveCodeInv(CStr(e.P[i].x), dxf.codX0)
+        dxf.SaveCodeInv(CStr(e.P[i].y), dxf.codY0)
 
-        If i / 2 <= e.fParam.max Then dxf.SaveCodeInv(CStr(e.fParam[i / 2]), "42")
+        If i <= e.fParam.max Then dxf.SaveCodeInv(CStr(e.fParam[i]), "42")
     Next
     If e.Extrusion[2] <> 1 Then
         dxf.SaveCodeInv(CStr(e.Extrusion[0]), "210")
@@ -360,11 +360,11 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     For i2 = 1 To Vertives
 
         i = dxf.ReadCodePlus(11, sClaves, sValues, ByRef fDummy, i)
-        e.P.Add(fDummy)
+        e.P.Add(puntos.P3d(fDummy, 0))
         If i < 0 Then Break
 
         i = dxf.ReadCodePlus(21, sClaves, sValues, ByRef fDummy, i)
-        e.P.Add(fDummy)
+        e.P[e.P.Max].y = fDummy
         If i < 0 Then Return
 
         i = dxf.ReadCodePlus(31, sClaves, sValues, ByRef fDummy, i)
@@ -397,9 +397,8 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
     Next
 
-    If e.iParam[Me.Closed] And e.p.Count > 0 Then ' agrego el primer punto de nuevo
-        e.p.Add(e.p[0])
-        e.p.Add(e.p[1])
+    If e.iParam[Me.Closed] And e.P.Count > 0 Then ' agrego el primer punto de nuevo
+        e.P.Add(e.P[0].Copy())
     End If
 
     Return True
@@ -429,19 +428,19 @@ Public Function GripEdit(g As Grip) As Boolean
 
     e = g.AsociatedEntity
     If g.AsociatedPoint >= 0 Then
-        e.P[g.AsociatedPoint * 2] = g.X
-        e.P[g.AsociatedPoint * 2 + 1] = g.Y
+        e.P[g.AsociatedPoint].x = g.X
+        e.P[g.AsociatedPoint].y = g.Y
 
         If g.AsociatedPoint = 0 Then
             If e.iParam[Me.iiiPolylineType] Then
-                e.P[e.P.Max - 1] = g.X
-                e.P[e.P.Max] = g.Y
+                e.P[e.P.Max].x = g.X
+                e.P[e.P.Max].y = g.Y
 
             Endif
         Else If g.AsociatedPoint = e.P.Max Then
             If e.iParam[Me.iiiPolylineType] Then
-                e.P[0] = g.X
-                e.P[1] = g.Y
+                e.P[0].x = g.X
+                e.P[0].y = g.Y
 
             Endif
         Endif
@@ -458,12 +457,7 @@ Public Sub Scale(e As Entity, sX As Float, sY As Float, Optional sZ As Float = 1
 
     Dim i As Integer
 
-    For i = 0 To e.p.max Step 2
-
-        e.P[i] = e.P[i] * sX
-        e.P[i + 1] = e.P[i + 1] * sY
-
-    Next
+    puntos.ScaleP(e.P, sX, sY, sZ)
 
     ' ' si alguna escala es negativa, tengo que invertir los bulges
     ' signo = Sgn(sx) * Sgn(sy)

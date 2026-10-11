@@ -40,10 +40,10 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
     If vParam[0] <> "point2d" Then Return False
 
     If Me.ExpectedParam = "start" Then
-        Try eBuild.P[0] = vParam[1]
-        Try eBuild.P[1] = vParam[2]
-        eBuild.P[2] = eBuild.P[0]
-        eBuild.P[3] = eBuild.P[1]
+        Try eBuild.P[0].x = vParam[1]
+        Try eBuild.P[0].y = vParam[2]
+        eBuild.P[1].x = eBuild.P[0].x
+        eBuild.P[1].y = eBuild.P[0].y
         If Definitive Then
 
             Me.ExpectedParam = "end"
@@ -52,8 +52,8 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
         End If
     Else If Me.ExpectedParam = "end" Then
 
-        Try eBuild.P[2] = vParam[1]
-        Try eBuild.P[3] = vParam[2]
+        Try eBuild.P[1].x = vParam[1]
+        Try eBuild.P[1].y = vParam[2]
         If Definitive Then Return ["command": "end"]
 
     Endif
@@ -64,10 +64,8 @@ Public Sub Draw(oE As Entity)
 
     Dim i As Integer
 
-    oe.glVboVertexOffset = glx.VBOCurrent.Vertex.Count
-
     If oe.LineType.TrameLength.Count > 0 Then
-        oE.PolyLine = puntos.DashedLineStrip(oe.P, oe.LineType.TrameLength)
+        oE.PolyLine = puntos.DashedLineStrip(puntos.ToXY(oe.P), oe.LineType.TrameLength)
 
         Dim fPoints As New Float[]
 
@@ -80,25 +78,24 @@ Public Sub Draw(oE As Entity)
 
         Next
         glx.Drawpoints(fPoints, gcd.GetGBColor(oE.Colour, oe.pLayer), 1)
-        glx.DrawLines(oe.p, gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
+        glx.DrawLinesP(oe.P, gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
     Else
-        glx.DrawLines(oe.p, gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
+        glx.DrawLinesP(oe.P, gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
     End If
-    oe.glVboVertexCount = glx.VBOCurrent.Vertex.Count - oe.glVboVertexOffset
 
 End
 
 '' Hides the entity
 Public Sub DrawShadow(e As Entity)
 
-    glx.DrawLines(e.p, Config.ModelBackgroundColor)
+    glx.DrawLinesP(e.P, Config.ModelBackgroundColor)
 
 End
 
 '' A fat version of the line
 Public Sub DrawSelected(oE As Entity)
 
-    glx.DrawLines(oE.p, Color.Gradient(gcd.GetGBColor(oE.Colour, oe.pLayer), Config.ModelBackgroundColor), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
+    glx.DrawLinesP(oE.P, Gcd.ColorSelected(gcd.GetGBColor(oE.Colour, oe.pLayer)), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
 
 End
 '' A fat version of the line
@@ -107,14 +104,14 @@ Public Sub DrawRemark(oE As Entity)
 
     If Not oE.Visible Then Return
 
-    glx.DrawLines(oE.P, Color.Gradient(gcd.GetGBColor(oE.Colour, oe.pLayer), Config.WindowBackColor), gcd.GetLineWt(oE.LineWIdth, oe.pLayer) + 1, oe.LineType.TrameLength)
+    glx.DrawLinesP(oE.P, Gcd.ColorRemark(gcd.GetGBColor(oE.Colour, oe.pLayer)), gcd.GetLineWt(oE.LineWIdth, oe.pLayer) + 1, oe.LineType.TrameLength)
 
 End
 
 '' The paint version of the entity
 Public Function Draw2(oE As Entity)
 
-    paintPlus.Lines(oE.p)
+    paintPlus.Lines(puntos.ToXY(oE.P))
 
 End
 
@@ -152,10 +149,10 @@ Public Function SaveDxfData(e As Entity) As Boolean
     ' stxExport.insert(["LINE", dxf.codEntity])
     ' Los datos comunes a todas las entidades son guardados por la rutina que llama a esta
     dxf.SaveCodeInv("AcDbLine", "100")
-    dxf.SaveCodeInv(CStr(e.p[0]), dxf.codX0)
-    dxf.SaveCodeInv(CStr(e.p[1]), dxf.codY0)
-    dxf.SaveCodeInv(CStr(e.p[2]), DXF.codX1)
-    dxf.SaveCodeInv(CStr(e.p[3]), dxf.codY1)
+    dxf.SaveCodeInv(CStr(e.P[0].x), dxf.codX0)
+    dxf.SaveCodeInv(CStr(e.P[0].y), dxf.codY0)
+    dxf.SaveCodeInv(CStr(e.P[1].x), DXF.codX1)
+    dxf.SaveCodeInv(CStr(e.P[1].y), dxf.codY1)
     If e.Extrusion[2] <> 1 Then
         dxf.SaveCodeInv(CStr(e.Extrusion[0]), "210")
         dxf.SaveCodeInv(CStr(e.Extrusion[1]), "220")
@@ -167,16 +164,17 @@ End
 Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
 
     Dim i As Integer
+    Dim flxP As New Float[]
 
-    e.P.Clear
     For i = 0 To sClaves.Max
 
-        If sClaves[i] = "10" Then e.P.Add(CFloat(sValues[i]))
-        If sClaves[i] = "20" Then e.P.Add(CFloat(sValues[i]))
-        If sClaves[i] = "11" Then e.P.Add(CFloat(sValues[i]))
-        If sClaves[i] = "21" Then e.P.Add(CFloat(sValues[i]))
+        If sClaves[i] = "10" Then flxP.Add(CFloat(sValues[i]))
+        If sClaves[i] = "20" Then flxP.Add(CFloat(sValues[i]))
+        If sClaves[i] = "11" Then flxP.Add(CFloat(sValues[i]))
+        If sClaves[i] = "21" Then flxP.Add(CFloat(sValues[i]))
 
     Next
+    e.P = puntos.FromXY(flxP)
     Return True
 
     ' catch
@@ -190,6 +188,6 @@ End
 Fast Public Function OverMe(e As Entity, Xr As Float, Yr As Float, tolerance As Float) As Boolean
 
     'If Abs(puntos.PointToLineDistance([xr, yr], e.p)) <= tolerance Then Return True Else Return False
-    If puntos.PointOverLine([xr, yr], e.p, tolerance) Then Return True Else Return False
+    If puntos.PointOverLine([xr, yr], puntos.ToXY(e.P), tolerance) Then Return True Else Return False
 
 End

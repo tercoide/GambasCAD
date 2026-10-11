@@ -57,8 +57,9 @@ Public Finished As Boolean
 Public ColorOverride As Integer'2026 color override
 Public Comm As Variant
 
-'' Creates a new LWpolyline entity and prepares arrays
-Public Function NewEntity(Optional fPoints As Float[], bNewid As Boolean = False) As Entity
+'' Creates a new entity and prepares arrays.
+'' vPoints puede ser un Punto3d[] (se copia) o un Float[] x,y,x,y... (x,y,z,... si la entidad es 3D)
+Public Function NewEntity(Optional vPoints As Variant, bNewid As Boolean = False) As Entity
 
     Dim e As New Entity
 
@@ -71,7 +72,9 @@ Public Function NewEntity(Optional fPoints As Float[], bNewid As Boolean = False
     e.iParam.Resize(Me.iTotalParams)
     e.fParam.Resize(Me.TotalParams)
     e.sParam.Resize(Me.sdaTotalParams)
-    If fPoints Then e.P.Insert(fPoints.Copy()) Else e.P.Resize(Me.TotalPoints * 2)
+    e.Is3D = gcd.CCC[e.Gender].Is3D
+    e.P = PointsFrom(vPoints, e.Is3D)
+    If e.P.Count = 0 Then e.P = puntos.NewPoints(Me.TotalPoints)
 
     ' this may fails on some scopes, but we should Try
     Try e.pLayer = gcd.Drawing.CurrLayer
@@ -81,11 +84,36 @@ Public Function NewEntity(Optional fPoints As Float[], bNewid As Boolean = False
     Try e.pStyle = gcd.Drawing.CurrTextStyle
     e.Extrusion[2] = 1      ' los otros son 0
 
-    e.Is3D = gcd.CCC[e.Gender].Is3D
-
     Me.Prompt = Me.CmdLineHelper
 
     Return e
+
+End
+
+'' Convierte lo que recibe NewEntity en un Punto3d[] nuevo:
+'' un array de Punto3d (se copian), o numeros x,y,x,y... (x,y,z,... si Is3D)
+Public Function PointsFrom(vPoints As Variant, Optional Is3D As Boolean = False) As Punto3d[]
+
+    Dim pRet As New Punto3d[]
+    Dim i As Integer
+
+    If IsNull(vPoints) Then Return pRet
+    If vPoints.Count = 0 Then Return pRet
+
+    If TypeOf(vPoints[0]) = gb.Object Then
+        For i = 0 To vPoints.Max
+            pRet.Add(vPoints[i].Copy())
+        Next
+    Else If Is3D Then
+        For i = 0 To vPoints.Max - 2 Step 3
+            pRet.Add(puntos.P3d(vPoints[i], vPoints[i + 1], vPoints[i + 2]))
+        Next
+    Else
+        For i = 0 To vPoints.Max - 1 Step 2
+            pRet.Add(puntos.P3d(vPoints[i], vPoints[i + 1]))
+        Next
+    Endif
+    Return pRet
 
 End
 
@@ -103,22 +131,10 @@ End
 
 Public Sub Translate(e As Entity, dX As Float, dY As Float, dZ As Float, Optional OnlySelected As Boolean = False)
 
-    Dim i As Integer
-
     If OnlySelected Then
-
-        For i = 0 To e.Psel.Max
-            If e.Psel[i] Then
-
-                e.P[i * 2] += dx
-                e.P[i * 2 + 1] += dy
-
-            Endif
-        Next
-
+        puntos.TranslateConditionalP(e.P, dX, dY, e.Psel, dZ)
     Else
-
-        puntos.Translate(e.p, dx, dy)
+        puntos.TranslateP(e.P, dX, dY, dZ)
     Endif
 
     puntos.Translate(e.Polygon, dx, dy)
@@ -129,23 +145,13 @@ End
 
 Public Sub Rotate(e As Entity, radians As Float)
 
-    puntos.Rotate(e.p, radians)
+    puntos.RotateP(e.P, radians)
 
 End
 
 Public Sub Scale(e As Entity, sX As Float, sY As Float, Optional sZ As Float = 1)
 
-    Dim i, paso As Integer
-
-    If e.Is3D Then paso = 3 Else paso = 2
-
-    For i = 0 To e.p.max Step paso
-
-        e.P[i] = e.P[i] * sX
-        e.P[i + 1] = e.P[i + 1] * sY
-        If e.Is3D Then e.P[i + 2] = e.P[i + 2] * sZ
-
-    Next
+    puntos.ScaleP(e.P, sX, sY, sZ)
 
 End
 
@@ -185,7 +191,7 @@ End
 ' True means all is good, False will instruct the clsENTITYBUILDER to delete it
 Public Sub Finish(e As Entity) As Boolean
 
-    e.psel.resize(e.p.count / 2)
+    e.psel.resize(e.P.count)
 
 End
 
@@ -203,7 +209,7 @@ End
 '' Por defecto guarda los arrays de parametros; las clases con datos extra (pBlock) agregan los suyos.
 Public Function SaveJsonData(e As Entity, j As Collection) As Boolean
 
-    j["p"] = e.P
+    j["pts"] = puntos.ToXYZ(e.P)            ' x,y,z,x,y,z...
     j["fparam"] = e.fParam
     j["iparam"] = e.iParam
     j["sparam"] = e.sParam
@@ -216,7 +222,11 @@ End
 '' Lee los datos propios de la entidad, lo inverso de SaveJsonData. Despues JsonFile llama a Finish.
 Public Function ImportJson(e As Entity, c As Collection) As Boolean
 
-    If c.Exist("p") Then e.P = JsonFile.ToFloats(c["p"])
+    If c.Exist("pts") Then
+        e.P = puntos.FromXYZ(JsonFile.ToFloats(c["pts"]))
+    Else If c.Exist("p") Then               ' formato viejo: x,y,x,y... (x,y,z si la entidad es 3D)
+        e.P = PointsFrom(JsonFile.ToFloats(c["p"]), e.Is3D)
+    Endif
     If c.Exist("fparam") Then e.fParam = JsonFile.ToFloats(c["fparam"])
     If c.Exist("iparam") Then e.iParam = JsonFile.ToIntegers(c["iparam"])
     If c.Exist("sparam") Then e.sParam = JsonFile.ToStrings(c["sparam"])
@@ -330,7 +340,7 @@ Public Sub ClonEntity(eOrigen As Entity, Optional GetNewid As Boolean = True) As
     eNueva.Polygon.Clear
     eNueva.PolyLine.Clear
 
-    eNueva.p.Insert(eOrigen.p.Copy())
+    eNueva.P = puntos.CopyP(eOrigen.P)
     eNueva.fparam.Insert(eOrigen.fparam.Copy())
     eNueva.iparam.Insert(eOrigen.iparam.Copy())
     eNueva.Psel.Insert(eOrigen.psel.Copy())
@@ -366,15 +376,12 @@ Public Function GenerateGrips(e As Entity) As Integer
     Dim g As Grip
     Dim iCount As Integer
     Dim xg, yg As Float
-    Dim s As Integer
 
-    s = e.P.Count Mod 2
-
-    For i = 0 To e.P.Max Step 2 + s
+    For i = 0 To e.P.Max
         g = New Grip
         g.Shape = 0
-        g.X = e.P[i]
-        g.Y = e.P[i + 1]
+        g.X = e.P[i].x
+        g.Y = e.P[i].y
         xg += g.X
         yg += g.y
         g.Action = 0 ' mover
@@ -422,18 +429,18 @@ Public Function GripEdit(g As Grip) As Boolean
 
     e = g.AsociatedEntity
     If g.AsociatedPoint >= 0 Then
-        e.P[g.AsociatedPoint * 2] = g.X
-        e.P[g.AsociatedPoint * 2 + 1] = g.Y
+        e.P[g.AsociatedPoint].x = g.X
+        e.P[g.AsociatedPoint].y = g.Y
 
-        If e.P.Count / 2 > 1 Then
+        If e.P.Count > 1 Then
             p2 = g.AsociatedPoint + 1
-            If p2 = e.P.Count / 2 Then
+            If p2 = e.P.Count Then
                 p2 = g.AsociatedPoint - 1
             Endif
         Endif
 
         gcd.Drawing.LastPoint.clear
-        gcd.Drawing.LastPoint.Insert([e.P[p2 * 2], e.P[p2 * 2 + 1]])
+        gcd.Drawing.LastPoint.Insert([e.P[p2].x, e.P[p2].y])
     Else
         clsEntities.Translate(e, g.X - g.xr, g.Y - g.yr, 0)
         g.Xr = g.X
@@ -477,10 +484,9 @@ Public Function SelFull(eTesting As Entity, X1real As Float, Y1real As Float, X2
 
             Else    ' no tengo un poligono, entonces verifico que todos los puntos definitorios de al entidad esten dentro
 
-                If eTesting.p.Count > 0 Then puedo = True Else puedo = False                     ' supongamos que puedo, por ahora, si hay puntos
-                For ii = 0 To eTesting.p.max Step 2
-                    If ii + 1 > eTesting.p.max Then Break
-                    If Not ((eTesting.p[ii] >= X1real And eTesting.p[ii] <= X2real) And (eTesting.p[ii + 1] >= Y1real And eTesting.p[ii + 1] <= Y2real)) Then
+                If eTesting.P.Count > 0 Then puedo = True Else puedo = False                     ' supongamos que puedo, por ahora, si hay puntos
+                For ii = 0 To eTesting.P.max
+                    If Not ((eTesting.P[ii].x >= X1real And eTesting.P[ii].x <= X2real) And (eTesting.P[ii].y >= Y1real And eTesting.P[ii].y <= Y2real)) Then
                         puedo = False
                     End If
                 Next
@@ -613,7 +619,7 @@ Fast Public Function SelPartial(eTesting As Entity, X1real As Float, Y1real As F
                 ' Next
                 If MarkPoints Then GoSub SearchPoints
 
-                If puntos.IsPoligonCrossingRect(eTesting.p, X1real, Y1real, X2real, Y2real) Then puedo = True
+                If puntos.IsPoligonCrossingRect(puntos.ToXY(eTesting.P), X1real, Y1real, X2real, Y2real) Then puedo = True
 
             End If
 
@@ -638,12 +644,11 @@ Fast Public Function SelPartial(eTesting As Entity, X1real As Float, Y1real As F
 
 SearchPoints:
 
-    For Ii = 0 To eTesting.p.max Step 2
-        If ii + 1 > eTesting.p.max Then Break
-        If ii / 2 > eTesting.Psel.Max Then Break
-        eTesting.PSel[iI / 2] = False
-        If ((eTesting.p[iI] >= X1real And eTesting.p[Ii] <= X2real) And (eTesting.p[iI + 1] >= Y1real And eTesting.p[iI + 1] <= Y2real)) Then
-            eTesting.PSel[iI / 2] = True
+    For Ii = 0 To eTesting.P.max
+        If ii > eTesting.Psel.Max Then Break
+        eTesting.PSel[iI] = False
+        If ((eTesting.P[iI].x >= X1real And eTesting.P[Ii].x <= X2real) And (eTesting.P[iI].y >= Y1real And eTesting.P[iI].y <= Y2real)) Then
+            eTesting.PSel[iI] = True
             puedo = True
         End If
 
@@ -693,7 +698,7 @@ Public Sub Limits(e As Entity)
                 If flxLimits[0] > 1e10 Then Stop
 
             Else If e.P.Count > 0 Then
-                flxLimits = puntos.Limits(e.P)
+                flxLimits = puntos.LimitsP(e.P)
             Else
                 flxLimits = flxLimitsMax
 
@@ -735,7 +740,7 @@ Public Function SelFullPoly(eTesting As Entity, Poly As Float[]) As Boolean
 
             Else
 
-                Return puntos.isInsIdePolygons(eTesting.P, POLY)
+                Return puntos.isInsIdePolygons(puntos.ToXY(eTesting.P), POLY)
 
             End If
 
@@ -796,11 +801,10 @@ Public Function SelPartialPoly(eTesting As Entity, Poly As Float[]) As Boolean
             Else
                 ' si cualquier linea cruza alguna linea de la eentiidad, esta queda seleccionada
 
-                For i = 0 To eTesting.p.max Step 2
-                    If i + 1 > eTesting.p.max Then Break
-                    If i / 2 > eTesting.Psel.Max Then Break
-                    If puntos.isInsIde(poly, eTesting.P[i], eTesting.P[i + 1]) Then
-                        eTesting.PSel[i / 2] = True
+                For i = 0 To eTesting.P.max
+                    If i > eTesting.Psel.Max Then Break
+                    If puntos.isInsIde(poly, eTesting.P[i].x, eTesting.P[i].y) Then
+                        eTesting.PSel[i] = True
                         puedo = True
                     End If
 

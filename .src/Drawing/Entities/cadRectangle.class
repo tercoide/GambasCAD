@@ -40,18 +40,18 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
     If vParam[0] <> "point2d" Then Return False
 
     If Me.ExpectedParam = "start" Then
-        Try eBuild.P[0] = vParam[1]
-        Try eBuild.P[1] = vParam[2]
-        eBuild.P[2] = eBuild.P[0]
-        eBuild.P[3] = eBuild.P[1]
+        Try eBuild.P[0].x = vParam[1]
+        Try eBuild.P[0].y = vParam[2]
+        eBuild.P[1].x = eBuild.P[0].x
+        eBuild.P[1].y = eBuild.P[0].y
         If Definitive Then
             Me.ExpectedParam = "end"
             Return ["prompt": "Diagonal point", "next": "point2d"]
         End If
     Else If Me.ExpectedParam = "end" Then
 
-        Try eBuild.P[2] = vParam[1]
-        Try eBuild.P[3] = vParam[2]
+        Try eBuild.P[1].x = vParam[1]
+        Try eBuild.P[1].y = vParam[2]
         If Definitive Then Return ["command": "end"]
 
     Endif
@@ -65,18 +65,18 @@ Public Sub Draw(oE As Entity)
 
     Dim w, h As Float
 
-    w = oE.p[2] - oE.p[0]
-    h = oE.p[3] - oE.p[1]
-    flxPoly.Add(oE.p[0])
-    flxPoly.Add(oE.p[1])
-    flxPoly.Add(oE.p[0] + w)
-    flxPoly.Add(oE.p[1])
-    flxPoly.Add(oE.p[0] + w)
-    flxPoly.Add(oE.p[1] + h)
-    flxPoly.Add(oE.p[0])
-    flxPoly.Add(oE.p[1] + h)
-    flxPoly.Add(oE.p[0])
-    flxPoly.Add(oE.p[1])
+    w = oE.P[1].x - oE.P[0].x
+    h = oE.P[1].y - oE.P[0].y
+    flxPoly.Add(oE.P[0].x)
+    flxPoly.Add(oE.P[0].y)
+    flxPoly.Add(oE.P[0].x + w)
+    flxPoly.Add(oE.P[0].y)
+    flxPoly.Add(oE.P[0].x + w)
+    flxPoly.Add(oE.P[0].y + h)
+    flxPoly.Add(oE.P[0].x)
+    flxPoly.Add(oE.P[0].y + h)
+    flxPoly.Add(oE.P[0].x)
+    flxPoly.Add(oE.P[0].y)
 
     glx.PolyLines(flxPoly, gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oe.LineType.TrameLength)
 
@@ -92,16 +92,13 @@ Public Sub Finish(oE As Entity) As Boolean
 
     oe.gender = cadLWPolyline.Gender
     Dim w, h As Float
-    w = oE.p[2] - oE.p[0]
-    h = oE.p[3] - oE.p[1]
-    oE.p[2] = oE.p[0] + w
-    oe.P[3] = oE.p[1]
-    oE.P.add(oE.p[0] + w)
-    oe.P.add(oE.p[1] + h)
-    oE.P.add(oE.p[0])
-    oe.P.add(oE.p[1] + h)
-    oE.P.add(oE.p[0])
-    oe.P.add(oE.p[1])
+    w = oE.P[1].x - oE.P[0].x
+    h = oE.P[1].y - oE.P[0].y
+    oE.P[1].x = oE.P[0].x + w
+    oe.P[1].y = oE.P[0].y
+    oE.P.Add(puntos.P3d(oE.P[0].x + w, oE.P[0].y + h, oE.P[0].z))
+    oE.P.Add(puntos.P3d(oE.P[0].x, oE.P[0].y + h, oE.P[0].z))
+    oE.P.Add(oE.P[0].Copy())
 
     ' cadLWPolyline.BuildPOI(oe)
 
@@ -109,6 +106,6 @@ Public Sub Finish(oE As Entity) As Boolean
 
     ' tareas finales de armado del objeto
 
-    oE.psel.resize(oE.p.count / 2)
+    oE.psel.resize(oE.P.Count)
 
 End

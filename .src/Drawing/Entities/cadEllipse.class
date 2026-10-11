@@ -45,10 +45,10 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
 
         If vParam[0] <> "point2d" Then Return
 
-        Try eBuild.P[0] = vParam[1]
-        Try eBuild.P[1] = vParam[2]
-        eBuild.P[2] = eBuild.P[0]
-        eBuild.P[3] = eBuild.P[1]
+        Try eBuild.P[0].x = vParam[1]
+        Try eBuild.P[0].y = vParam[2]
+        eBuild.P[1].x = eBuild.P[0].x
+        eBuild.P[1].y = eBuild.P[0].y
         If Definitive Then
             Me.ExpectedParam = "axis"
             Return ["prompt": "axis", "nextparamtype": "point2d"]
@@ -57,8 +57,8 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
 
         If vParam[0] <> "point2d" Then Return False
 
-        Try eBuild.P[2] = vParam[1]
-        Try eBuild.P[3] = vParam[2]
+        Try eBuild.P[1].x = vParam[1]
+        Try eBuild.P[1].y = vParam[2]
         eBuild.fParam[0] = 0.5
         eBuild.fParam[1] = 0
         eBuild.fParam[2] = 360
@@ -73,7 +73,7 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
         If vParam[0] = "point2d" Then  ' vino como un punto, entonces la calculo de otra manera
 
             ' return the angle from horizontal to us
-            eBuild.fParam[0] = Abs(puntos.PointToLineDistance([vParam[1], vParam[2]], [eBuild.p[0], eBuild.p[1], eBuild.p[2], eBuild.p[3]])) / puntos.distancia(eBuild.p[0], eBuild.p[1], eBuild.p[2], eBuild.p[3])
+            eBuild.fParam[0] = Abs(puntos.PointToLineDistance([vParam[1], vParam[2]], [eBuild.P[0].x, eBuild.P[0].y, eBuild.P[1].x, eBuild.P[1].y])) / puntos.distancia(eBuild.P[0].x, eBuild.P[0].y, eBuild.P[1].x, eBuild.P[1].y)
 
         Else If vParam[0] = "float" Then  ' vino como un punto, entonces la calculo de otra manera
             eBuild.fParam[0] = vParam[1]
@@ -107,7 +107,7 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
         If vParam[0] = "float" Then  ' vino como un punto, entonces la calculo de otra manera
             eBuild.fParam[2] = vParam[1]
 
-    Else If vParam[0] = "point2d" Then
+        Else If vParam[0] = "point2d" Then
             eBuild.fParam[2] = PointToParam(eBuild, vParam[1], vParam[2])
         Else
             Return
@@ -126,9 +126,9 @@ Private Function PointToParam(e As Entity, x As Float, y As Float) As Float
 
     Dim axisAngle, dx, dy, xl, yl As Float
 
-    axisAngle = Ang(e.P[2] - e.P[0], e.P[3] - e.P[1])
-    dx = x - e.P[0]
-    dy = y - e.P[1]
+    axisAngle = Ang(e.P[1].x - e.P[0].x, e.P[1].y - e.P[0].y)
+    dx = x - e.P[0].x
+    dy = y - e.P[0].y
 
     ' rotate the point into the ellipse frame
     xl = dx * Cos(axisAngle) + dy * Sin(axisAngle)
@@ -141,15 +141,7 @@ End
 
 Public Sub Scale(e As Entity, sX As Float, sY As Float, Optional sZ As Float = 1)
 
-    Dim i As Integer
-
-    For i = 0 To e.p.max Step 2
-
-        e.P[i] = e.P[i] * sX
-
-        e.P[i + 1] = e.P[i + 1] * sY
-
-    Next
+    puntos.ScaleP(e.P, sX, sY, sZ)
 
     ' start/end
     If sx < 0 Then
@@ -175,8 +167,8 @@ Public Sub MakePolyline(oe As Entity)
     Dim major, minor As Float
     Dim i, n As Integer
 
-    major = Sqr((oE.p[2] - oE.p[0]) ^ 2 + (oE.p[3] - oE.p[1]) ^ 2)
-    angle = Ang(oE.p[2] - oE.p[0], oE.p[3] - oE.p[1])          ' Los coordenadas del eje mayor son relativas al centro
+    major = Sqr((oE.P[1].x - oE.P[0].x) ^ 2 + (oE.P[1].y - oE.P[0].y) ^ 2)
+    angle = Ang(oE.P[1].x - oE.P[0].x, oE.P[1].y - oE.P[0].y)          ' Los coordenadas del eje mayor son relativas al centro
 
     Minor = major * oE.fParam[0]
     If major = 0 Then major = 1
@@ -196,8 +188,8 @@ Public Sub MakePolyline(oe As Entity)
         ' el punto considerando 0,0 al centro
         x = major * Cos(theta) * Cos(angle) - minor * Sin(theta) * Sin(angle)
         y = major * Cos(theta) * Sin(angle) + minor * Sin(theta) * Cos(angle)
-        oE.PolyLine.Add(x + oE.p[0])
-        oE.PolyLine.Add(y + oE.p[1])
+        oE.PolyLine.Add(x + oE.P[0].x)
+        oE.PolyLine.Add(y + oE.P[0].y)
 
     Next
 
@@ -209,8 +201,8 @@ Public Sub Draw(oE As Entity)
 
     If Not oE.Visible Then Return
 
-    major = Sqr((oE.p[2] - oE.p[0]) ^ 2 + (oE.p[3] - oE.p[1]) ^ 2)
-    angle = Ang(oE.p[2] - oE.p[0], oE.p[3] - oE.p[1])          ' Los coordenadas del eje mayor son relativas al centro
+    major = Sqr((oE.P[1].x - oE.P[0].x) ^ 2 + (oE.P[1].y - oE.P[0].y) ^ 2)
+    angle = Ang(oE.P[1].x - oE.P[0].x, oE.P[1].y - oE.P[0].y)          ' Los coordenadas del eje mayor son relativas al centro
 
     Minor = major * oE.fParam[0]
     If major = 0 Then major = 1
@@ -225,8 +217,8 @@ Public Sub Draw(oE As Entity)
         Dim x0, y0, x1, y1 As Float
 
         If gcd.StepsDone = 3 Then ip = 1 Else ip = 2
-        x0 = oe.P[0]          ' centro de la elipse
-        y0 = oe.P[1]
+        x0 = oe.P[0].x          ' centro de la elipse
+        y0 = oe.P[0].y
         ' a line to the ellipse point at that parametric angle, a bit longer
         x1 = x0 + (major * Cos(Rad(oe.fParam[ip])) * Cos(angle) - minor * Sin(Rad(oe.fParam[ip])) * Sin(angle)) * 1.1
         y1 = y0 + (major * Cos(Rad(oe.fParam[ip])) * Sin(angle) + minor * Sin(Rad(oe.fParam[ip])) * Cos(angle)) * 1.1
@@ -240,7 +232,7 @@ End
 '' A fat version of the entity
 Public Sub DrawSelected(oE As Entity)
 
-    glx.PolyLines(oE.PolyLine, Color.Gradient(gcd.GetGBColor(oE.Colour, oe.pLayer), Config.ModelBackgroundColor), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
+    glx.PolyLines(oE.PolyLine, Gcd.ColorSelected(gcd.GetGBColor(oE.Colour, oe.pLayer)), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
 
 End
 
@@ -255,15 +247,15 @@ Public Function Draw2(oE As Entity)
 
     Dim major, minor As Float
 
-    major = Sqr((oE.p[2] - oE.p[0]) ^ 2 + (oE.p[3] - oE.p[1]) ^ 2)
-    angle = Ang(oE.p[2] - oE.p[0], oE.p[3] - oE.p[1])          ' Los coordenadas del eje mayor son relativas al centro
+    major = Sqr((oE.P[1].x - oE.P[0].x) ^ 2 + (oE.P[1].y - oE.P[0].y) ^ 2)
+    angle = Ang(oE.P[1].x - oE.P[0].x, oE.P[1].y - oE.P[0].y)          ' Los coordenadas del eje mayor son relativas al centro
 
     Minor = major * oE.fParam[0]
     If major = 0 Then major = 1
 
     paint.Save
 
-    paint.Translate(oE.p[0], oE.p[1])
+    paint.Translate(oE.P[0].x, oE.P[0].y)
     paint.Rotate(-angle)
     Paint.Scale(1, Minor / major)
     paint.arc(0, 0, major, oE.fParam[1] / 180 * Pi, ((oE.fParam[2] - oE.fParam[1]) / 180 * Pi))
@@ -310,7 +302,7 @@ Public Sub Finish(oE As Entity) As Boolean
 
     ' tareas finales de armado del objeto
 
-    oE.psel.resize(oE.p.count / 2)
+    oE.psel.resize(oE.P.Count)
 
     If oE.fParam[2] < oE.fParam[1] Then oE.fParam[2] += 360
 
@@ -323,10 +315,10 @@ Public Function SaveDxfData(e As Entity) As Boolean
     ' stxExport.insert(["ELLIPSE", dxf.codEntity])
     ' Los datos comunes a todas las entidades son guardados por la rutina que llama a esta
     dxf.SaveCodeInv("AcDbEllipse", "100")
-    dxf.SaveCodeInv(CStr(e.p[0]), dxf.codCenterX)
-    dxf.SaveCodeInv(CStr(e.p[1]), dxf.codCenterY)
-    dxf.SaveCodeInv(CStr(e.p[2] - e.p[0]), dxf.codX1)
-    dxf.SaveCodeInv(CStr(e.p[3] - e.p[1]), dxf.codY1)
+    dxf.SaveCodeInv(CStr(e.P[0].x), dxf.codCenterX)
+    dxf.SaveCodeInv(CStr(e.P[0].y), dxf.codCenterY)
+    dxf.SaveCodeInv(CStr(e.P[1].x - e.P[0].x), dxf.codX1)
+    dxf.SaveCodeInv(CStr(e.P[1].y - e.P[0].y), dxf.codY1)
     dxf.SaveCodeInv(CStr(e.fParam[0]), dxf.codRadius)         ' minor/major
     dxf.SaveCodeInv(CStr(e.fParam[1] / 180 * Pi), "41")       ' start angle radians
     dxf.SaveCodeInv(CStr(e.fParam[2] / 180 * Pi), "42")       ' end angle
@@ -341,20 +333,20 @@ End
 Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
 
     Dim i As Integer
-
-    e.P.Clear
+    Dim flxP As New Float[]
 
     For i = 0 To sClaves.Max
 
-        If sClaves[i] = "10" Then e.P.Add(CFloat(sValues[i]))     ' centro
-        If sClaves[i] = "20" Then e.P.Add(CFloat(sValues[i]))
-        If sClaves[i] = "11" Then e.P.Add(CFloat(sValues[i]) + e.P[0])     ' eje mayor, relativo al centro
-        If sClaves[i] = "21" Then e.P.Add(CFloat(sValues[i]) + e.P[1])
+        If sClaves[i] = "10" Then flxP.Add(CFloat(sValues[i]))     ' centro
+        If sClaves[i] = "20" Then flxP.Add(CFloat(sValues[i]))
+        If sClaves[i] = "11" Then flxP.Add(CFloat(sValues[i]) + flxP[0])     ' eje mayor, relativo al centro
+        If sClaves[i] = "21" Then flxP.Add(CFloat(sValues[i]) + flxP[1])
         If sClaves[i] = "40" Then e.fParam[0] = (CFloat(sValues[i]))
         If sClaves[i] = "41" Then e.fParam[1] = Deg(CFloat(sValues[i]))
         If sClaves[i] = "42" Then e.fParam[2] = Deg(CFloat(sValues[i]))
 
     Next
+    e.P = puntos.FromXY(flxP)
     Return True
 
     ' catch
@@ -368,14 +360,14 @@ Fast Public Function OverMe(e As Entity, Xr As Float, Yr As Float, tolerance As 
 
     Dim axisAngle, major, minor, t, x, y, sweep, d As Float
 
-    major = Sqr((E.p[2] - E.p[0]) ^ 2 + (E.p[3] - E.p[1]) ^ 2)
+    major = Sqr((E.P[1].x - E.P[0].x) ^ 2 + (E.P[1].y - E.P[0].y) ^ 2)
     Minor = major * E.fParam[0]
-    axisAngle = Ang(E.p[2] - E.p[0], E.p[3] - E.p[1])
+    axisAngle = Ang(E.P[1].x - E.P[0].x, E.P[1].y - E.P[0].y)
 
     ' the ellipse point in the direction of the cursor
     t = PointToParam(e, Xr, Yr)
-    x = E.p[0] + major * Cos(Rad(t)) * Cos(axisAngle) - minor * Sin(Rad(t)) * Sin(axisAngle)
-    y = E.p[1] + major * Cos(Rad(t)) * Sin(axisAngle) + minor * Sin(Rad(t)) * Cos(axisAngle)
+    x = E.P[0].x + major * Cos(Rad(t)) * Cos(axisAngle) - minor * Sin(Rad(t)) * Sin(axisAngle)
+    y = E.P[0].y + major * Cos(Rad(t)) * Sin(axisAngle) + minor * Sin(Rad(t)) * Cos(axisAngle)
 
     If puntos.distancia(Xr, Yr, x, y) < tolerance Then
         ' tengo que ver si esta en la porcion
@@ -390,7 +382,7 @@ Fast Public Function OverMe(e As Entity, Xr As Float, Yr As Float, tolerance As 
 
     ' ademas verifico si esta sobre el centro
 
-    If puntos.Around(xr, yr, E.P[0], E.P[1], tolerance) Then Return True
+    If puntos.Around(xr, yr, E.P[0].x, E.P[0].y, tolerance) Then Return True
 
     Return False
 

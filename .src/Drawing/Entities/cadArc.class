@@ -43,8 +43,8 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
 
         If vParam[0] <> "point2d" Then Return False
 
-        Try eBuild.P[0] = vParam[1]
-        Try eBuild.P[1] = vParam[2]
+        Try eBuild.P[0].x = vParam[1]
+        Try eBuild.P[0].y = vParam[2]
 
         If Definitive Then
             eBuild.fParam.Add(0)
@@ -94,7 +94,7 @@ End
 
 Public Sub Rotate(e As Entity, radians As Float)
 
-    puntos.Rotate(e.p, radians)
+    puntos.RotateP(e.P, radians)
 
     ' el parametro lo tengo que pasar a grados porque la rutina que dibuja el texto usa eso
     E.fParam[1] += Deg(radians)
@@ -106,7 +106,7 @@ Public Sub Scale(e As Entity, sX As Float, sY As Float, Optional sZ As Float = 1
 
     E.fParam[0] *= Abs(sX)
 
-    puntos.Scale(e.P, sx, sy)
+    puntos.ScaleP(e.P, sx, sy)
 
     ' start/end
     If sx < 0 Then
@@ -162,28 +162,28 @@ Public Sub makepolyline(oe As Entity)
     If oe.iParam[0] = 0 Then
         For theta = fStart To fEnd Step angle_increment
             ' el punto considerando 0,0 al centro
-            x = oE.p[0] + fRadio * Cos(theta)
-            y = oE.p[1] + fRadio * Sin(theta)
+            x = oE.P[0].x + fRadio * Cos(theta)
+            y = oE.P[0].y + fRadio * Sin(theta)
             oE.polyline.Add(x)
             oE.polyline.Add(y)
 
         Next
 
-        x = oE.p[0] + fRadio * Cos(fEnd)
-        y = oE.p[1] + fRadio * Sin(fEnd)
+        x = oE.P[0].x + fRadio * Cos(fEnd)
+        y = oE.P[0].y + fRadio * Sin(fEnd)
     Else
 
         For theta = fStart To fEnd Step angle_increment
             ' el punto considerando 0,0 al centro
-            x = oE.p[0] + fRadio * Cos(theta)
-            y = oE.p[1] - fRadio * Sin(theta)
+            x = oE.P[0].x + fRadio * Cos(theta)
+            y = oE.P[0].y - fRadio * Sin(theta)
             oE.polyline.Add(x)
             oE.polyline.Add(y)
 
         Next
 
-        x = oE.p[0] + fRadio * Cos(fEnd)
-        y = oE.p[1] - fRadio * Sin(fEnd)
+        x = oE.P[0].x + fRadio * Cos(fEnd)
+        y = oE.P[0].y - fRadio * Sin(fEnd)
 
     End If
     oE.polyline.Add(x)
@@ -199,7 +199,7 @@ Public Sub Draw(oE As Entity)
 
     If gcd.StepsDone = 2 Then
 
-        glx.DrawLines([oE.p[0], oE.p[1], oE.p[0] + oE.fParam[0] * Cos(oE.fParam[1] / 180 * Pi), oE.p[1] + oE.fParam[0] * Sin(oE.fParam[1] / 180 * Pi)], gcd.GetGBColor(oE.Colour, oe.pLayer))
+        glx.DrawLines([oE.P[0].x, oE.P[0].y, oE.P[0].x + oE.fParam[0] * Cos(oE.fParam[1] / 180 * Pi), oE.P[0].y + oE.fParam[0] * Sin(oE.fParam[1] / 180 * Pi)], gcd.GetGBColor(oE.Colour, oe.pLayer))
         DrawingAIds.Helper.texto = Format$(oE.fParam[1], "0.0 deg")
         Me.makepolyline(oe)
     Else If gcd.StepsDone = 3 Then
@@ -234,7 +234,7 @@ Public Function Draw2(oE As Entity)
     fEnd = Rad(oe.fParam[2])
     If fEnd < fStart Then fEnd += 2 * Pi
 
-    paint.ARC(oE.p[0], oE.p[1], oE.fParam[0], fStart, (fEnd - fStart))
+    paint.ARC(oE.P[0].x, oE.P[0].y, oE.fParam[0], fStart, (fEnd - fStart))
 
     paint.Stroke
 
@@ -272,8 +272,8 @@ Public Function SaveDxfData(e As Entity) As Boolean
     ' stxExport.insert(["ARC", dxf.codEntity])
     ' Los datos comunes a todas las entidades son guardados por la rutina que llama a esta
     dxf.SaveCodeInv("AcDbCircle", "100")
-    dxf.SaveCodeInv(CStr(e.p[0]), dxf.codCenterX)
-    dxf.SaveCodeInv(CStr(e.p[1]), dxf.codCenterY)
+    dxf.SaveCodeInv(CStr(e.P[0].x), dxf.codCenterX)
+    dxf.SaveCodeInv(CStr(e.P[0].y), dxf.codCenterY)
     dxf.SaveCodeInv(CStr(e.fParam[0]), dxf.codRadius)
     dxf.SaveCodeInv("AcDbArc", "100")
     dxf.SaveCodeInv(CStr(e.fParam[1]), dxf.codAngleStart)
@@ -289,18 +289,19 @@ End
 Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
 
     Dim i As Integer
+    Dim flxP As New Float[]
 
     'If e.id = "17047" Then Stop
-    e.P.Clear
 
     For i = 0 To sClaves.Max
-        If sClaves[i] = "10" Then e.P.Add(CFloat(sValues[i]))
-        If sClaves[i] = "20" Then e.P.Add(CFloat(sValues[i]))
+        If sClaves[i] = "10" Then flxP.Add(CFloat(sValues[i]))
+        If sClaves[i] = "20" Then flxP.Add(CFloat(sValues[i]))
         If sClaves[i] = "40" Then e.fParam[0] = (CFloat(sValues[i]))
         If sClaves[i] = "50" Then e.fParam[1] = (CFloat(sValues[i]))
         If sClaves[i] = "51" Then e.fParam[2] = (CFloat(sValues[i]))
 
     Next
+    e.P = puntos.FromXY(flxP)
 
     If e.fParam.Count = 0 Then Stop ' e.fParam.Add(0)  ' TODO: averiguar q pasa aca q algunas entidades CIRCLE
     ' vienen sin el radio
@@ -318,16 +319,16 @@ Fast Public Function OverMe(e As Entity, Xr As Float, Yr As Float, tolerance As 
 
     Dim angle, a1, a2 As Float
 
-    If puntos.Around(xr, yr, E.P[0], E.P[1], tolerance) Then Return True
+    If puntos.Around(xr, yr, E.P[0].x, E.P[0].y, tolerance) Then Return True
     a1 = E.fParam[1]
     a2 = E.fParam[2]
     If a1 < 0 Then a1 += 360
     If a2 < 0 Then a2 += 360
 
-    If Abs(puntos.distancia(xr, yr, E.P[0], E.P[1]) - E.fParam[0]) < tolerance Then
+    If Abs(puntos.distancia(xr, yr, E.P[0].x, E.P[0].y) - E.fParam[0]) < tolerance Then
 
         ' tengo que ver si esa en la porcion
-        angle = Deg(Ang(xr - E.P[0], yr - E.P[1]))
+        angle = Deg(Ang(xr - E.P[0].x, yr - E.P[0].y))
         If angle < 0 Then angle += 360
 
         If a1 <= a2 Then

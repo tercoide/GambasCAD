@@ -355,14 +355,12 @@ Public Function DgnToDrw(cDGN As Collection, drw As Drawing) As Boolean
             Case "line"
                 e = cadLine.NewEntity()
                 SetCommonStuff(cElement, e, drw)
-                e.p = New Float[]
-                e.p.Insert(Point3DtoArray2D(cElement["points"]))
+                e.P = Point3DtoPunto3d(cElement["points"])
 
             Case "text"
                 e = cadText.NewEntity()
                 SetCommonStuff(cElement, e, drw)
-                e.p = New Float[]
-                e.p.Insert([cElement["points"][0], cElement["points"][1]])
+                e.P = puntos.FromXY([cElement["points"][0], cElement["points"][1]])
                 e.sParam[cadText.sdaText] = cElement["text"]
                 e.fParam[cadText.ipaTextAngle] = cElement["rotation"]   ' ver si son radianes o grados (Entity espera grados)
                 e.fParam[cadText.ipaTextHeight] = cElement["height"]
@@ -385,6 +383,24 @@ Public Sub SetCommonStuff(cElement As Collection, e As Entity, drw As Drawing)
     e.LineType = drw.LineTypes[drw.LineTypes.First]
     e.LineWIdth = cElement["weight"]
     e.Id = gcd.NewId()
+
+End
+
+'' Convierte una lista de puntos [x, y, z] en Punto3d[]
+Public Function Point3DtoPunto3d(p3 As Float[][]) As Punto3d[]
+
+    Dim fPoint3 As Float[]
+    Dim pRet As New Punto3d[]
+
+    For Each fPoint3 In p3
+        If fPoint3.Count > 2 Then
+            pRet.Add(puntos.P3d(fPoint3[0], fPoint3[1], fPoint3[2]))
+        Else
+            pRet.Add(puntos.P3d(fPoint3[0], fPoint3[1]))
+        Endif
+    Next
+
+    Return pRet
 
 End
 

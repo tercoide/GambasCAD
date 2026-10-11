@@ -29,11 +29,11 @@ Public Const CmdLineHelper As String = ("Insert a linear acotation")
 Public Const ParamType As String = "PP"                             ' that is Point, Point, Float; could be Color Text, etc
 Public Const ParamHelper As String = "Start point;End point"
 
-Public Function NewEntity(Optional fPoints As Float[], bNewHandle As Boolean = False) As Entity
+Public Function NewEntity(Optional vPoints As Variant, bNewHandle As Boolean = False) As Entity
 
     Dim e As Entity
 
-    e = Super.NewEntity(fPoints, bNewHandle)
+    e = Super.NewEntity(vPoints, bNewHandle)
     If e.Gender = cadDIMENSION_RADIUS.Gender Then
         e.iParam[Me.iiiDimType] = 4
     Else
@@ -54,8 +54,8 @@ Public Function SaveDxfData(e As Entity) As Boolean
     End If
     ' ===========================================================================
 
-    dxf.SaveCodeInv(CStr(e.p[20]), "15")                ' text att point
-    dxf.SaveCodeInv(CStr(e.p[21]), "25")
+    dxf.SaveCodeInv(CStr(e.P[10].x), "15")                ' text att point
+    dxf.SaveCodeInv(CStr(e.P[10].y), "25")
     dxf.SaveCodeInv("0", "40")               ' leader lenght
 
 End
@@ -81,8 +81,8 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
         If sClaves[i] = "100" And (sValues[i] = "AcDbRadialDimension" Or sValues[i] = "AcDbDiametricDimension") Then AfterSubclassmarker = True
         If AfterSubclassmarker Then ' lo siguientes codigos
 
-            If sClaves[i] = "15" Then e.P[4] = CFloat(sValues[i])
-            If sClaves[i] = "25" Then e.P[5] = CFloat(sValues[i])
+            If sClaves[i] = "15" Then e.P[2].x = CFloat(sValues[i])
+            If sClaves[i] = "25" Then e.P[2].y = CFloat(sValues[i])
 
         End If
 
@@ -114,15 +114,15 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
 
     If gcd.StepsDone = 0 Then            ' center
 
-        Try eBuild.P[0] = vParam[1]
-        Try eBuild.P[1] = vParam[2]
-        eBuild.P[2] = eBuild.P[0]
-        eBuild.P[3] = eBuild.P[1]
+        Try eBuild.P[0].x = vParam[1]
+        Try eBuild.P[0].y = vParam[2]
+        eBuild.P[1].x = eBuild.P[0].x
+        eBuild.P[1].y = eBuild.P[0].y
         If Definitive Then Return True
     Else If gcd.StepsDone = 1 Then       ' definition point
 
-        Try eBuild.P[2] = vParam[1]
-        Try eBuild.P[3] = vParam[2]
+        Try eBuild.P[1].x = vParam[1]
+        Try eBuild.P[1].y = vParam[2]
         eBuild.pBlock = RebuildBlock(eBuild, eBuild.iParam[Me.iiiDimType] And 31)
         If Definitive Then Return True
 
@@ -156,12 +156,12 @@ Public Sub RebuildBlock(E As Entity, Optional iMode As Integer = 0) As Block
     newBlock.entities = New Collection
 
     ' Pasamos los puntos que viene marcando el user a nuestros puntos.
-    Me.DefPoint1.x = e.P[0]
-    Me.DefPoint1.y = e.P[1]
-    Me.DefPoint2.x = e.P[2]
-    Me.DefPoint2.y = e.P[3]
-    Me.DefTextMIdPoint.x = e.P[4]
-    Me.DefTextMIdPoint.y = e.P[5]
+    Me.DefPoint1.x = e.P[0].x
+    Me.DefPoint1.y = e.P[0].y
+    Me.DefPoint2.x = e.P[1].x
+    Me.DefPoint2.y = e.P[1].y
+    Me.DefTextMIdPoint.x = e.P[2].x
+    Me.DefTextMIdPoint.y = e.P[2].y
 
     Me.DefAngle = Ang(Me.DefPoint2.x - Me.DefPoint1.x, Me.DefPoint2.y - Me.DefPoint1.y)
 
@@ -276,26 +276,26 @@ Public Sub RebuildBlock(E As Entity, Optional iMode As Integer = 0) As Block
 
     ' guardo los puntos para exportar a DXF
 
-    e.P[10] = Me.DefPoint1.x        '  10 20 30
-    e.P[11] = Me.DefPoint1.y
+    e.P[5].x = Me.DefPoint1.x        '  10 20 30
+    e.P[5].y = Me.DefPoint1.y
 
-    e.P[12] = Me.DefTextMIdPoint.x  '  11 21 31
-    e.P[13] = Me.DefTextMIdPoint.y
+    e.P[6].x = Me.DefTextMIdPoint.x  '  11 21 31
+    e.P[6].y = Me.DefTextMIdPoint.y
 
-    e.P[14] = 0 ' baseline          ' 12 22 32
-    e.P[15] = 0
+    e.P[7].x = 0 ' baseline          ' 12 22 32
+    e.P[7].y = 0
 
-    e.P[16] = 0                      ' 13 23 33
-    e.P[17] = 0
+    e.P[8].x = 0                      ' 13 23 33
+    e.P[8].y = 0
 
-    e.P[14] = 0                      ' 14 24 34
-    e.P[15] = 0
+    e.P[7].x = 0                      ' 14 24 34
+    e.P[7].y = 0
 
-    e.P[20] = Me.DefPoint2.x         ' 15 25 35
-    e.P[21] = Me.DefPoint2.y
+    e.P[10].x = Me.DefPoint2.x         ' 15 25 35
+    e.P[10].y = Me.DefPoint2.y
 
-    e.P[22] = 0                      ' 16 26 36
-    e.P[23] = 0
+    e.P[11].x = 0                      ' 16 26 36
+    e.P[11].y = 0
 
     Return newBlock
 
@@ -308,8 +308,8 @@ Public Function GenerateGrips(e As Entity) As Integer
 
     g = New Grip
     g.Shape = 0
-    g.X = e.P[0]
-    g.Y = e.P[1]
+    g.X = e.P[0].x
+    g.Y = e.P[0].y
     g.Action = 0 ' mover
     g.AsociatedEntity = e
     g.AsociatedPoint = 0
@@ -318,8 +318,8 @@ Public Function GenerateGrips(e As Entity) As Integer
 
     g = New Grip
     g.Shape = 0
-    g.X = e.P[2]
-    g.Y = e.P[3]
+    g.X = e.P[1].x
+    g.Y = e.P[1].y
     g.Xr = g.X
     g.Yr = g.Y
     ' flxGrip.Add(g.X)
@@ -356,8 +356,8 @@ Public Function GripEdit(g As Grip) As Boolean
     Dim e As Entity
 
     e = g.AsociatedEntity
-    e.P[g.AsociatedPoint * 2] = g.X
-    e.P[g.AsociatedPoint * 2 + 1] = g.Y
+    e.P[g.AsociatedPoint].x = g.X
+    e.P[g.AsociatedPoint].y = g.Y
 
     e.pBlock = RebuildBlock(e, e.iParam[Me.iiiMode])
 

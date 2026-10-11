@@ -14,7 +14,7 @@ Open-source 2D CAD program (GPL) written in **Gambas 3**, being extended into 3D
 | Entry point | `.src/main.module` | Detects installed vs. IDE run, loads config from `~/.config/gambascad`, creates working folders, loads colors/menus/patterns/cursors, opens `fMain` |
 | Global state | `.src/gcd.module` | Current drawing, snap mode, active tool (`gcd.clsJob`), redraws, DWG conversion |
 | Document model | `.src/Drawing/Drawing.class`, `.src/Drawing/Tables/*` | Mirrors the DXF structure: headers, tables (layers, line types, text/dim styles, UCS, views), blocks, inserts, objects, sheets |
-| Entities | `.src/Drawing/Entities/cad*.class` | One static class per entity type, built on `EntityBase`: drawing, selection tests, grips, transforms, DXF/JSON import/export, geometry building. `Entity.class` holds the data |
+| Entities | `.src/Drawing/Entities/cad*.class` | One static class per entity type, built on `EntityBase`: drawing, selection tests, grips, transforms, DXF/JSON import/export, geometry building. `Entity.class` holds the data; its defining points `Entity.P` are a `Punto3d[]` (one object per point, `.x .y .z`), while the derived `Polygon`/`PolyLine` stay flat `Float[]` x,y |
 | Tools | `.src/Tools/cad*.class` | One class per command, built on `ToolsBase` (mouse/key events, `Start`, `Run`, `Finish`, `Cancel`) |
 | UI | `.src/Forms/`, `.src/actions.module` | Main window `fMain` and dialogs; `actions.module` handles menu and file actions (New, Open, Save) |
 | Drawing aids | `.src/DrawingAids.class`, `.src/clsMouseTracking.class` | Object snaps, tracking, command-line prompts |
@@ -27,6 +27,7 @@ Open-source 2D CAD program (GPL) written in **Gambas 3**, being extended into 3D
 Moving from 2D toward 3D: 2D/3D code split, drawing on the three main planes, GLSL matrix/shader manager, 3D scene and camera, ray-plane tests, and a working Extrude tool (`.src/Tools/3D/cadExtrude.class`, uses Newell's method for face normals). Navigation (`cadNavigate`) and 3D shapes (box, cylinder, mesh) are in progress.
 
 ## Things worth knowing
+- Working with `Entity.P`: use the helpers in `puntos` (`P3d`, `FromXY`, `ToXY`, `ToXYZ`, `CopyP`, `ResizeP`, `TranslateP`, `RotateP`, `ScaleP`, `LimitsP`) and in `glx` (`DrawLinesP`, `PolyLinesP`, `DrawpointsP`). `New` can't be used inside an expression in Gambas, so build points with `puntos.P3d(x, y, z)`. `Array.Copy()` is shallow for objects, so copy point arrays with `puntos.CopyP`. `NewEntity` accepts a `Punto3d[]` or flat x,y numbers. `.gcd` files store points as `"pts"` (x,y,z triplets); the old `"p"` (x,y pairs) is still read.
 - `.class~` / `.module~` files are editor backups committed next to the real sources; edit the files without `~`.
 - On every start, `Initialize` in `main.module` runs `rm -R` on the user's dwgin/dxfin/dwgout/dxfout/printstyles/templates folders, wiping anything in them.
 - Resources and design notes live in `.hidden/`: `TODO`, `ISSUES`, `LIMITATIONS`, `CHANGELOG`, and spreadsheets on data flow and internal data structures.

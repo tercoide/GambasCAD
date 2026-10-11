@@ -32,8 +32,8 @@ Public Const TotalParams As Integer = 1
 ' If definitive = true, means the parameter is set
 Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Variant
 
-    Try eBuild.P[0] = vParam[1]
-    Try eBuild.P[1] = vParam[2]
+    Try eBuild.P[0].x = vParam[1]
+    Try eBuild.P[0].y = vParam[2]
 
     If Definitive Then Return ["command": "end"]
 
@@ -43,7 +43,7 @@ Public Sub Draw(oE As Entity)
 
     If Not oE.Visible Then Return
 
-    glx.Drawpoints([oe.P[0], oe.P[1]], gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer))
+    glx.Drawpoints([oe.P[0].x, oe.P[0].y], gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer))
 
 End
 
@@ -51,10 +51,10 @@ Public Sub DrawSelected(oE As Entity)
 
     If Not oE.Visible Then Return
 
-    glx.glColorRGB(Color.Gradient(gcd.GetGBColor(oE.Colour, oe.pLayer), Config.ModelBackgroundColor))
+    glx.glColorRGB(Gcd.ColorSelected(gcd.GetGBColor(oE.Colour, oe.pLayer)))
     gl.PointSize(oe.LineWIdth)
     gl.Begin(gl.POINTS)
-    gl.Vertex2f(oe.P[0], oe.P[1])
+    gl.Vertex2f(oe.P[0].x, oe.P[0].y)
     gl.End
 
 End
@@ -64,7 +64,7 @@ Public Function Draw2(oE As Entity)
 
     If gcd.PrintingScale = 0 Then gcd.PrintingScale = 1
 
-    Paint.ARC(oE.p[0], oE.p[1], 0.1 / gcd.PrintingScale)
+    Paint.ARC(oE.P[0].x, oE.P[0].y, 0.1 / gcd.PrintingScale)
     paint.Stroke
 
 End
@@ -90,8 +90,8 @@ Public Function SaveDxfData(e As Entity) As Boolean
     ' stxExport.insert(["POINT", dxf.codEntity])
     ' Los datos comunes a todas las entidades son guardados por la rutina que llama a esta
     dxf.SaveCodeInv("AcDbPoint", "100")
-    dxf.SaveCodeInv(CStr(e.p[0]), dxf.codX0)
-    dxf.SaveCodeInv(CStr(e.p[1]), dxf.codY0)
+    dxf.SaveCodeInv(CStr(e.P[0].x), dxf.codX0)
+    dxf.SaveCodeInv(CStr(e.P[0].y), dxf.codY0)
     dxf.SaveCodeInv("0", DXF.codZ0)
     dxf.SaveCodeInv(CStr(e.fParam[0]), "39")
 
@@ -100,16 +100,17 @@ End
 Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
 
     Dim i As Integer
+    Dim flxP As New Float[]
 
-    e.P.Clear
     For i = 0 To sClaves.Max
 
-        If sClaves[i] = "10" Then e.P.Add(CFloat(sValues[i]))
-        If sClaves[i] = "20" Then e.P.Add(CFloat(sValues[i]))
-        'If sClaves[i] = "30" Then e.P.Add(CFloat(sValues[i]))
+        If sClaves[i] = "10" Then flxP.Add(CFloat(sValues[i]))
+        If sClaves[i] = "20" Then flxP.Add(CFloat(sValues[i]))
+        'If sClaves[i] = "30" Then flxP.Add(CFloat(sValues[i]))
         If sClaves[i] = "39" Then e.fParam.Add(CFloat(sValues[i]))
 
     Next
+    e.P = puntos.FromXY(flxP)
 
     If e.fParam.Count = 0 Then e.fParam.Add(1)
     Return True
@@ -123,7 +124,7 @@ End
 '' Return if that position is over the entity within the tolerance
 Fast Public Function OverMe(e As Entity, Xr As Float, Yr As Float, tolerance As Float) As Boolean
 
-    If puntos.Around(xr, yr, E.P[0], E.P[1], tolerance) Then Return True
+    If puntos.Around(xr, yr, E.P[0].x, E.P[0].y, tolerance) Then Return True
 
     Return False
 

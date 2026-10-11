@@ -31,11 +31,11 @@ Public Const ParamHelper As String = "Base point;Point or [Baseline,Horizontal,V
 'Public Const USEWITH As String = ""
 
 '' Creates a new LWpolyline entity and prepares arrays
-Public Function NewEntity(Optional fPoints As Float[], bNewId As Boolean = False) As Entity
+Public Function NewEntity(Optional vPoints As Variant, bNewId As Boolean = False) As Entity
 
     Dim e As Entity
 
-    e = cadDimension.NewEntity(fPoints, bNewId)
+    e = cadDimension.NewEntity(vPoints, bNewId)
     e.Gender = Me.Gender
     gcd.StepsDone = 1
 
@@ -59,11 +59,11 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
         If sClaves[i] = "100" And sValues[i] = "AcDbOrdinateDimension" Then AfterSubclassmarker = True
         If AfterSubclassmarker Then ' lo siguientes codigos
 
-            If sClaves[i] = "13" Then e.P[6] = CFloat(sValues[i])
-            If sClaves[i] = "23" Then e.P[7] = CFloat(sValues[i])
+            If sClaves[i] = "13" Then e.P[3].x = CFloat(sValues[i])
+            If sClaves[i] = "23" Then e.P[3].y = CFloat(sValues[i])
 
-            If sClaves[i] = "14" Then e.P[8] = CFloat(sValues[i])
-            If sClaves[i] = "24" Then e.P[9] = CFloat(sValues[i])
+            If sClaves[i] = "14" Then e.P[4].x = CFloat(sValues[i])
+            If sClaves[i] = "24" Then e.P[4].y = CFloat(sValues[i])
 
         End If
 
@@ -98,12 +98,12 @@ Public Function SaveDxfData(e As Entity) As Boolean
 
     dxf.SaveCodeInv("AcDbOrdinateDimension", "100")
     ' ===========================================================================
-    dxf.SaveCodeInv(CStr(e.p[14]), dxf.codX3)                ' first def point
-    dxf.SaveCodeInv(CStr(e.p[15]), dxf.codY3)
+    dxf.SaveCodeInv(CStr(e.P[7].x), dxf.codX3)                ' first def point
+    dxf.SaveCodeInv(CStr(e.P[7].y), dxf.codY3)
     dxf.SaveCodeInv("0", dxf.codz0)
 
-    dxf.SaveCodeInv(CStr(e.p[16]), "14")                ' text att point
-    dxf.SaveCodeInv(CStr(e.p[17]), "24")
+    dxf.SaveCodeInv(CStr(e.P[8].x), "14")                ' text att point
+    dxf.SaveCodeInv(CStr(e.P[8].y), "24")
     dxf.SaveCodeInv("0", "34")
 
 End
@@ -129,23 +129,23 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
 
     If gcd.StepsDone = 0 Then                ' BASEPOINT
 
-        Try eBuild.P[0] = vParam[1]
-        Try eBuild.P[1] = vParam[2]
-        eBuild.P[2] = eBuild.P[0]
-        eBuild.P[3] = eBuild.P[1]
+        Try eBuild.P[0].x = vParam[1]
+        Try eBuild.P[0].y = vParam[2]
+        eBuild.P[1].x = eBuild.P[0].x
+        eBuild.P[1].y = eBuild.P[0].y
         If Definitive Then Return True
     Else If gcd.StepsDone = 1 Then           ' SECOND POINT
 
-        Try eBuild.P[2] = vParam[1]
-        Try eBuild.P[3] = vParam[2]
-        eBuild.P[4] = eBuild.P[2]
-        eBuild.P[5] = eBuild.P[3]
+        Try eBuild.P[1].x = vParam[1]
+        Try eBuild.P[1].y = vParam[2]
+        eBuild.P[2].x = eBuild.P[1].x
+        eBuild.P[2].y = eBuild.P[1].y
         eBuild.pBlock = RebuildBlock(eBuild, 100, Me.DefAngle)
         If Definitive Then Return True
     Else If gcd.StepsDone = 2 Then           ' EXTENSION
         If vParam[0] = "point2d" Then  ' vino como un punto, entonces la calculo de otra manera
-            Try eBuild.P[4] = vParam[1]
-            Try eBuild.P[5] = vParam[2]
+            Try eBuild.P[2].x = vParam[1]
+            Try eBuild.P[2].y = vParam[2]
             ' return the angle from horizontal to us
 
         End If
@@ -186,12 +186,12 @@ Public Sub RebuildBlock(E As Entity, Optional iMode As Integer = 0, fAngle As Fl
     newBlock.entities = New Collection
 
     ' Pasamos los puntos que viene marcando el user a nuestros puntos.
-    Me.DefBaselinePoint.x = e.P[0]
-    Me.DefBaselinePoint.y = e.P[1]
-    Me.DefPoint2b.x = e.P[2]
-    Me.DefPoint2b.y = e.P[3]
-    Me.DefPoint2.x = e.P[4]
-    Me.DefPoint2.y = e.P[5]
+    Me.DefBaselinePoint.x = e.P[0].x
+    Me.DefBaselinePoint.y = e.P[0].y
+    Me.DefPoint2b.x = e.P[1].x
+    Me.DefPoint2b.y = e.P[1].y
+    Me.DefPoint2.x = e.P[2].x
+    Me.DefPoint2.y = e.P[2].y
 
     ' reduzco este valor a -89.99 -> 90
     Me.DefAngle = Utils.fMod(Me.DefAngle, Pi)
@@ -262,7 +262,7 @@ Public Sub RebuildBlock(E As Entity, Optional iMode As Integer = 0, fAngle As Fl
             Me.DefTextMIdPoint.y = Me.DefPoint2.y + flxTextExt[0] * 0.7
 
         End If
-        eLineaPpal.P.Insert([Me.DefPoint2.x + flxTextExt[0] * 1.2 * Cos(Me.DefAngle), Me.DefPoint2.y + flxTextExt[0] * 1.2 * Sin(Me.DefAngle), Me.DefPoint2.x, Me.DefPoint2.y])
+        eLineaPpal.P.Insert(puntos.FromXY([Me.DefPoint2.x + flxTextExt[0] * 1.2 * Cos(Me.DefAngle), Me.DefPoint2.y + flxTextExt[0] * 1.2 * Sin(Me.DefAngle), Me.DefPoint2.x, Me.DefPoint2.y]))
 
     Else
 
@@ -274,7 +274,7 @@ Public Sub RebuildBlock(E As Entity, Optional iMode As Integer = 0, fAngle As Fl
             Me.DefTextMIdPoint.y = Me.DefPoint2.y - flxTextExt[0] * 0.7
         End If
 
-        eLineaPpal.P.Insert([Me.DefPoint2.x - flxTextExt[0] * 1.2 * Cos(Me.DefAngle), Me.DefPoint2.y - flxTextExt[0] * 1.2 * Sin(Me.DefAngle), Me.DefPoint2.x, Me.DefPoint2.y])
+        eLineaPpal.P.Insert(puntos.FromXY([Me.DefPoint2.x - flxTextExt[0] * 1.2 * Cos(Me.DefAngle), Me.DefPoint2.y - flxTextExt[0] * 1.2 * Sin(Me.DefAngle), Me.DefPoint2.x, Me.DefPoint2.y]))
 
     End If
 
@@ -285,8 +285,8 @@ Public Sub RebuildBlock(E As Entity, Optional iMode As Integer = 0, fAngle As Fl
     Me.DefPointAux2.x = Me.DefPoint2.x + e.pDimStyle.DIMDLE * Sgn(Me.DefPoint2.x - Me.DefPoint2b.x)
     Me.DefPointAux2.y = Me.DefPoint2.y + e.pDimStyle.DIMDLE * Sgn(Me.DefPoint2.y - Me.DefPoint2b.y)
 
-    eText.P.Insert([Me.DefTextMIdPoint.x, Me.DefTextMIdPoint.y])
-    eExtension2.P.Insert([Me.DefPointAux1.x, Me.DefPointAux1.y, Me.DefPointAux2.x, Me.DefPointAux2.y])
+    eText.P.Insert(puntos.FromXY([Me.DefTextMIdPoint.x, Me.DefTextMIdPoint.y]))
+    eExtension2.P.Insert(puntos.FromXY([Me.DefPointAux1.x, Me.DefPointAux1.y, Me.DefPointAux2.x, Me.DefPointAux2.y]))
     ' flechas
 
     eOblique2 = cadInsert.NewEntity([Me.DefPoint2.x, Me.DefPoint2.y], True)
@@ -320,26 +320,26 @@ Public Sub RebuildBlock(E As Entity, Optional iMode As Integer = 0, fAngle As Fl
 
     ' guardo los puntos para exportar a DXF
 
-    e.P[10] = Me.DefPoint2b.x
-    e.P[11] = Me.DefPoint2b.y
+    e.P[5].x = Me.DefPoint2b.x
+    e.P[5].y = Me.DefPoint2b.y
 
-    e.P[12] = Me.DefTextMIdPoint.x
-    e.P[13] = Me.DefTextMIdPoint.y
+    e.P[6].x = Me.DefTextMIdPoint.x
+    e.P[6].y = Me.DefTextMIdPoint.y
 
-    e.P[14] = Me.DefBaselinePoint.x ' baseline
-    e.P[15] = Me.DefBaselinePoint.y
+    e.P[7].x = Me.DefBaselinePoint.x ' baseline
+    e.P[7].y = Me.DefBaselinePoint.y
 
-    e.P[16] = Me.DefPoint1.x
-    e.P[17] = Me.DefPoint1.y
+    e.P[8].x = Me.DefPoint1.x
+    e.P[8].y = Me.DefPoint1.y
 
-    e.P[18] = Me.DefPoint2.x
-    e.P[19] = Me.DefPoint2.y
+    e.P[9].x = Me.DefPoint2.x
+    e.P[9].y = Me.DefPoint2.y
 
-    e.P[20] = 0
-    e.P[21] = 0
+    e.P[10].x = 0
+    e.P[10].y = 0
 
-    e.P[22] = 0
-    e.P[23] = 0
+    e.P[11].x = 0
+    e.P[11].y = 0
 
     Return newBlock
 
@@ -352,8 +352,8 @@ Public Function GenerateGrips(e As Entity) As Integer
 
     g = New Grip
     g.Shape = 0
-    g.X = e.P[0]
-    g.Y = e.P[1]
+    g.X = e.P[0].x
+    g.Y = e.P[0].y
     g.Action = 0 ' mover
     g.AsociatedEntity = e
     g.AsociatedPoint = 0
@@ -362,8 +362,8 @@ Public Function GenerateGrips(e As Entity) As Integer
 
     g = New Grip
     g.Shape = 0
-    g.X = e.P[2]
-    g.Y = e.P[3]
+    g.X = e.P[1].x
+    g.Y = e.P[1].y
     g.Xr = g.X
     g.Yr = g.Y
     g.Action = 1 ' este dato es propio de la clase
@@ -375,8 +375,8 @@ Public Function GenerateGrips(e As Entity) As Integer
 
     g = New Grip
     g.Shape = 0
-    g.X = e.P[4]
-    g.Y = e.P[5]
+    g.X = e.P[2].x
+    g.Y = e.P[2].y
     g.Xr = g.X
     g.Yr = g.Y
     g.Action = 1 ' este dato es propio de la clase
@@ -392,8 +392,8 @@ Public Function GripEdit(g As Grip) As Boolean
     Dim e As Entity
 
     e = g.AsociatedEntity
-    e.P[g.AsociatedPoint * 2] = g.X
-    e.P[g.AsociatedPoint * 2 + 1] = g.Y
+    e.P[g.AsociatedPoint].x = g.X
+    e.P[g.AsociatedPoint].y = g.Y
 
     e.pBlock = RebuildBlock(e)
 

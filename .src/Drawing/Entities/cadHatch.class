@@ -250,12 +250,12 @@ Public Sub DrawSelected(oE As Entity)
     '
     ' For Each oBound In oe.pBlock.Polylines
     '
-    '     glx.DrawLines(obound, Color.Gradient(gcd.GetGBColor(oE.Colour, oe.pLayer), Config.ModelBackgroundColor), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
+    '     glx.DrawLines(obound, Gcd.ColorSelected(gcd.GetGBColor(oE.Colour, oe.pLayer)), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
     ' Next
     '
-    ' glx.DrawLines(oE.PolyLine, Color.Gradient(gcd.GetGBColor(oE.Colour, oe.pLayer), Config.ModelBackgroundColor))
+    ' glx.DrawLines(oE.PolyLine, Gcd.ColorSelected(gcd.GetGBColor(oE.Colour, oe.pLayer)))
 
-    Me.ColorOverride = Color.Gradient(gcd.GetGBColor(oE.Colour, oe.pLayer), Config.ModelBackgroundColor)
+    Me.ColorOverride = Gcd.ColorSelected(gcd.GetGBColor(oE.Colour, oe.pLayer))
     Draw(oe)
     Me.ColorOverride = 0
 
@@ -508,13 +508,13 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
                         eContour.P.Clear
                         ' leo los dos puntos
                         i = dxf.ReadCode(10, sClaves, sValues, ByRef r, i)
-                        eContour.P.Add(CFloat(r))
+                        eContour.P.Add(puntos.P3d(CFloat(r), 0))
                         i = dxf.ReadCode(20, sClaves, sValues, ByRef r, i)
-                        eContour.P.Add(CFloat(r))
+                        eContour.P[eContour.P.Max].y = CFloat(r)
                         i = dxf.ReadCode(11, sClaves, sValues, ByRef r, i)
-                        eContour.P.Add(CFloat(r))
+                        eContour.P.Add(puntos.P3d(CFloat(r), 0))
                         i = dxf.ReadCode(21, sClaves, sValues, ByRef r, i)
-                        eContour.P.Add(CFloat(r))
+                        eContour.P[eContour.P.Max].y = CFloat(r)
 
                     Case 2 ' arc o circle
 
@@ -523,9 +523,9 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
                         eContour.fParam.Clear
                         eContour.iParam.Clear
                         i = dxf.ReadCode(10, sClaves, sValues, ByRef r, i)
-                        eContour.P.Add(CFloat(r))
+                        eContour.P.Add(puntos.P3d(CFloat(r), 0))
                         i = dxf.ReadCode(20, sClaves, sValues, ByRef r, i)
-                        eContour.P.Add(CFloat(r))
+                        eContour.P[eContour.P.Max].y = CFloat(r)
                         i = dxf.ReadCode(40, sClaves, sValues, ByRef r, i)
                         eContour.fParam.Add(CFloat(r))
                         i = dxf.ReadCode(50, sClaves, sValues, ByRef r, i)
@@ -541,13 +541,13 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
                         eContour.P.Clear
                         eContour.fParam.Clear
                         i = dxf.ReadCode(10, sClaves, sValues, ByRef r, i)
-                        eContour.P.Add(CFloat(r))
+                        eContour.P.Add(puntos.P3d(CFloat(r), 0))
                         i = dxf.ReadCode(20, sClaves, sValues, ByRef r, i)
-                        eContour.P.Add(CFloat(r))
+                        eContour.P[eContour.P.Max].y = CFloat(r)
                         i = dxf.ReadCode(11, sClaves, sValues, ByRef r, i)
-                        eContour.P.Add(CFloat(r) + eContour.P[0])
+                        eContour.P.Add(puntos.P3d(CFloat(r) + eContour.P[0].x, 0))
                         i = dxf.ReadCode(21, sClaves, sValues, ByRef r, i)
-                        eContour.P.Add(CFloat(r) + eContour.P[1])
+                        eContour.P[eContour.P.Max].y = CFloat(r) + eContour.P[0].y
                         i = dxf.ReadCode(40, sClaves, sValues, ByRef r, i)
                         eContour.fParam.Add(CFloat(r))
                         i = dxf.ReadCode(50, sClaves, sValues, ByRef r, i)
@@ -693,15 +693,15 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
 
             ' numero de vertice
             i = dxf.ReadCodePlus(93, sClaves, sValues, ByRef r, i)
-            eContour.P.Resize(CInt(r * 2))
+            puntos.ResizeP(eContour.P, CInt(r))
 
-            For iPoints = 0 To eContour.P.Count / 2 - 1
+            For iPoints = 0 To eContour.P.Count - 1
 
                 i = dxf.ReadCodePlus(10, sClaves, sValues, ByRef r, i)
-                eContour.P[iPoints * 2] = CFloat(r)
+                eContour.P[iPoints].x = CFloat(r)
 
                 i = dxf.ReadCodePlus(20, sClaves, sValues, ByRef r, i)
-                eContour.P[iPoints * 2 + 1] = CFloat(r)
+                eContour.P[iPoints].y = CFloat(r)
 
                 ' ahora chequeo el bulge, que es opcional
                 If sClaves[i] = "42" Then
@@ -1289,8 +1289,8 @@ Public Function SaveDxfData(e As Entity) As Boolean
     ' Los datos comunes a todas las entidades son guardados por la rutina que llama a esta
     dxf.SaveCodeInv("AcDbHatch", "100")                          'sub class
 
-    dxf.SaveCodeInv(CStr(e.p[0]), dxf.codX0)                     ' elevation point
-    dxf.SaveCodeInv(CStr(e.p[1]), dxf.codY0)
+    dxf.SaveCodeInv(CStr(e.P[0].x), dxf.codX0)                     ' elevation point
+    dxf.SaveCodeInv(CStr(e.P[0].y), dxf.codY0)
     dxf.SaveCodeInv("0", dxf.codZ0)
 
     dxf.SaveCodeInv("0", "210")                                   ' plano de extrusion
@@ -1420,7 +1420,7 @@ Fast Unsafe Public Sub MakeBorder2(oPath As Hatch)
             Select Case eBorder.gender
 
                 Case cadLWPolyline.Gender
-                    drwPath.Insert(eborder.P.Copy())
+                    drwPath.Insert(puntos.ToXY(eborder.P))
 
                     FirstX = drwPath[0]
                     FirstY = drwPath[1]
@@ -1446,14 +1446,14 @@ Fast Unsafe Public Sub MakeBorder2(oPath As Hatch)
                 Case "LINE"
 
                     If Not FirstPointSet Then
-                        drwPath.Insert(eborder.P.Copy())
+                        drwPath.Insert(puntos.ToXY(eborder.P))
 
-                        FirstX = eborder.P[0]
-                        FirstY = eborder.P[1]
+                        FirstX = eborder.P[0].x
+                        FirstY = eborder.P[0].y
                         FirstPointSet = True
 
                     Else
-                        drwPath.Insert(eborder.P.Copy(2, 2))
+                        drwPath.Insert([eborder.P[1].x, eborder.P[1].y])
                     End If
 
             End Select

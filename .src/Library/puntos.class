@@ -3306,3 +3306,225 @@ Public Function RayPlaneIntersection(ray As Ray, plane As Plane) As Punto3d
     Return hitPoint
 
 End Function
+
+' ---------------------------------------------------------------------------------
+' Punto3d[] helpers: Entity.P es un array de Punto3d.
+' Las funciones de dibujo y de poligonos 2D siguen usando Float[] x,y,x,y...
+' ---------------------------------------------------------------------------------
+
+'' Crea un Punto3d nuevo (New no se puede usar dentro de una expresion)
+Public Function P3d(x As Float, y As Float, Optional z As Float = 0) As Punto3d
+
+    Dim p As Punto3d
+
+    p = New Punto3d(x, y, z)
+    Return p
+
+End
+
+'' Convierte un array x,y,x,y... en Punto3d[] (z = fZ)
+Public Function FromXY(fPoints As Float[], Optional fZ As Float = 0) As Punto3d[]
+
+    Dim pPoints As New Punto3d[]
+    Dim i As Integer
+
+    If Not fPoints Then Return pPoints
+    For i = 0 To fPoints.Max - 1 Step 2
+        pPoints.Add(P3d(fPoints[i], fPoints[i + 1], fZ))
+    Next
+    Return pPoints
+
+End
+
+'' Convierte un array x,y,z,x,y,z... en Punto3d[]
+Public Function FromXYZ(fPoints As Float[]) As Punto3d[]
+
+    Dim pPoints As New Punto3d[]
+    Dim i As Integer
+
+    If Not fPoints Then Return pPoints
+    For i = 0 To fPoints.Max - 2 Step 3
+        pPoints.Add(P3d(fPoints[i], fPoints[i + 1], fPoints[i + 2]))
+    Next
+    Return pPoints
+
+End
+
+'' Devuelve un array plano x,y,x,y... (descarta z) para las funciones 2D
+Public Function ToXY(pPoints As Punto3d[]) As Float[]
+
+    Dim fPoints As New Float[]
+    Dim p As Punto3d
+    Dim i As Integer
+
+    If Not pPoints Then Return fPoints
+    fPoints.Resize(pPoints.Count * 2)
+    For Each p In pPoints
+        fPoints[i] = p.x
+        fPoints[i + 1] = p.y
+        i += 2
+    Next
+    Return fPoints
+
+End
+
+'' Devuelve un array plano x,y,z,x,y,z...
+Public Function ToXYZ(pPoints As Punto3d[]) As Float[]
+
+    If Not pPoints Then Return New Float[]
+    Return Create3dArray(pPoints)
+
+End
+
+'' Copia profunda: cada punto es un objeto nuevo
+Public Function CopyP(pPoints As Punto3d[]) As Punto3d[]
+
+    Dim pCopy As New Punto3d[]
+    Dim p As Punto3d
+
+    If Not pPoints Then Return pCopy
+    For Each p In pPoints
+        If p Then pCopy.Add(p.Copy()) Else pCopy.Add(P3d(0, 0))
+    Next
+    Return pCopy
+
+End
+
+'' Devuelve n puntos nuevos en 0,0,0
+Public Function NewPoints(nPoints As Integer) As Punto3d[]
+
+    Dim pPoints As New Punto3d[]
+    Dim i As Integer
+
+    For i = 1 To nPoints
+        pPoints.Add(P3d(0, 0))
+    Next
+    Return pPoints
+
+End
+
+'' Agrega o completa puntos hasta tener nPoints (los nuevos en 0,0,0) o recorta si sobran
+Public Sub ResizeP(pPoints As Punto3d[], nPoints As Integer)
+
+    If nPoints < 0 Then nPoints = 0
+    If pPoints.Count > nPoints Then pPoints.Resize(nPoints)
+    While pPoints.Count < nPoints
+        pPoints.Add(P3d(0, 0))
+    Wend
+
+End
+
+Public Sub TranslateP(pPoints As Punto3d[], dx As Float, dy As Float, Optional dz As Float = 0)
+
+    Dim p As Punto3d
+
+    For Each p In pPoints
+        p.x += dx
+        p.y += dy
+        p.z += dz
+    Next
+
+End
+
+Public Sub TranslateConditionalP(pPoints As Punto3d[], dx As Float, dy As Float, bCondition As Boolean[], Optional dz As Float = 0)
+
+    Dim i As Integer
+
+    For i = 0 To pPoints.Max
+        If i > bCondition.Max Then Break
+        If bCondition[i] Then
+            pPoints[i].x += dx
+            pPoints[i].y += dy
+            pPoints[i].z += dz
+        End If
+    Next
+
+End
+
+'' Rota alrededor del eje Z por el origen. Angle must be in Radians
+Public Sub RotateP(pPoints As Punto3d[], Radians As Float)
+
+    Dim p As Punto3d
+    Dim s, c, xnew, ynew As Float
+
+    s = Sin(Radians)
+    c = Cos(Radians)
+
+    For Each p In pPoints
+        xnew = p.x * c - p.y * s
+        ynew = p.x * s + p.y * c
+        p.x = xnew
+        p.y = ynew
+    Next
+
+End
+
+'' Rota alrededor del eje Z por el punto CenterX,CenterY. Angle must be in Radians
+Public Sub RotatePointsFromBaseP(CenterX As Float, CenterY As Float, fAngle As Float, pPoints As Punto3d[])
+
+    Dim p As Punto3d
+    Dim s, c, dx, dy As Float
+
+    s = Sin(fAngle)
+    c = Cos(fAngle)
+
+    For Each p In pPoints
+        dx = p.x - CenterX
+        dy = p.y - CenterY
+        p.x = CenterX + dx * c - dy * s
+        p.y = CenterY + dx * s + dy * c
+    Next
+
+End
+
+Public Sub ScaleP(pPoints As Punto3d[], Sx As Float, Sy As Float, Optional Sz As Float = 1)
+
+    Dim p As Punto3d
+
+    For Each p In pPoints
+        p.x *= Sx
+        p.y *= Sy
+        p.z *= Sz
+    Next
+
+End
+
+'' Limites 2D [xmin, ymin, xmax, ymax]
+Public Function LimitsP(pPoints As Punto3d[]) As Float[]
+
+    Dim Xmenor, Ymenor, Xmayor, Ymayor As Float
+    Dim p As Punto3d
+
+    If Not pPoints Then Return [0, 0, 0, 0]
+    If pPoints.Count = 0 Then Return [0, 0, 0, 0]
+
+    Xmenor = 1e100
+    Ymenor = 1e100
+    Xmayor = -1e100
+    Ymayor = -1e100
+
+    For Each p In pPoints
+        If Xmenor > p.x Then Xmenor = p.x
+        If Ymenor > p.y Then Ymenor = p.y
+        If Xmayor < p.x Then Xmayor = p.x
+        If Ymayor < p.y Then Ymayor = p.y
+    Next
+    Return [Xmenor, Ymenor, Xmayor, Ymayor]
+
+End
+
+'' Devuelve [x, y] del punto (para las funciones 2D que esperan Float[])
+Public Function XY(p As Punto3d) As Float[]
+
+    Return [p.x, p.y]
+
+End
+
+'' Asigna x,y (y z opcional) a un punto existente
+Public Sub SetXY(p As Punto3d, x As Float, y As Float, Optional z As Float = 0)
+
+    p.x = x
+    p.y = y
+    If Not IsMissing(z) Then p.z = z
+
+End
