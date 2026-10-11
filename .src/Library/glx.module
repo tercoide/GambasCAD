@@ -3786,28 +3786,11 @@ Public Function DrawText(UTFstring As String, posX As Float, posY As Float, colo
 
 End
 
-'' Draws text flat on the screen, over whatever is drawn (2D or 3D): saves the GL matrices,
-'' switches to a 2D projection in window pixels, draws the glyph lines from DrawTextPoly and
-'' restores the matrices. Must be called inside the GLArea Draw event.
-''   X, Y      start of the text baseline, window pixels, origin top left (same as Mouse.X / Mouse.Y)
-''   TextH     text height in pixels
-''   AngleRad  rotation, radians, counterclockwise
-Public Sub DrawText2DOverlay(UTFstring As String, X As Float, Y As Float, Optional Colour As Integer = Color.White, TextH As Float = 12, AngleRad As Float = 0, Italic As Float = 0, LineWidth As Float = 1)
+'' Save all matrices and go 2D
+Public Sub Begin2D()
 
-    Dim fGlyphs As Float[]
     Dim aViewport As Integer[]
-    Dim i As Integer
-    Dim r, g, b As Single
-    Dim bDepth As Boolean
-    Dim fPrevWidth As Float[]
-
-    If Not UTFstring Then Return
-    fGlyphs = DrawTextPoly(UTFstring, TextH, AngleRad, Italic)
-    If Not fGlyphs Then Return
-    If fGlyphs.Count < 4 Then Return
-
     aViewport = gl.GetIntegerv(gl.VIEWPORT_)
-
     ' 2D: un pixel por unidad, origen abajo a la izquierda como OpenGL
     Matrices.PushMatrix()
     Matrices.Projection = Matrices.Projection.Orthographic(0, aViewport[2], 0, aViewport[3], -1, 1)
@@ -3816,10 +3799,46 @@ Public Sub DrawText2DOverlay(UTFstring As String, X As Float, Y As Float, Option
     Matrices.Upload()
 
     ' el texto va encima de todo
-    bDepth = gl.IsEnabled(gl.DEPTH_TEST)
     gl.Disable(gl.DEPTH_TEST)
-    fPrevWidth = gl.GetFloatv(gl.LINE_WIDTH)
-    gl.LineWidth(LineWidth)
+
+End
+
+' restore matrices 3D
+Public Sub End2D()
+
+    gl.Enable(gl.DEPTH_TEST)
+    Matrices.PopMatrix()
+
+End
+
+'' Draws text flat on the screen, over whatever is drawn (2D or 3D): saves the GL matrices,
+'' switches to a 2D projection in window pixels, draws the glyph lines from DrawTextPoly and
+'' restores the matrices. Must be called inside the GLArea Draw event.
+''   X, Y      start of the text baseline, window pixels, origin top left (same as Mouse.X / Mouse.Y)
+''   TextH     text height in pixels
+''   AngleRad  rotation, radians, counterclockwise
+Public Sub DrawText2DOverlay(UTFstring As String, X As Float, Y As Float, Optional Colour As Integer = Color.White, TextH As Float = 12, AngleRad As Float = 0, Italic As Float = 0)
+
+    Dim fGlyphs As Float[]
+    Dim aViewport As Integer[]
+    Dim i As Integer
+    Dim r, g, b As Single
+
+    If Not UTFstring Then Return
+    fGlyphs = DrawTextPoly(UTFstring, TextH, AngleRad, Italic)
+    If Not fGlyphs Then Return
+    If fGlyphs.Count < 4 Then Return
+
+    aViewport = gl.GetIntegerv(gl.VIEWPORT_)
+    ' 2D: un pixel por unidad, origen abajo a la izquierda como OpenGL
+    Matrices.PushMatrix()
+    Matrices.Projection = Matrices.Projection.Orthographic(0, aViewport[2], 0, aViewport[3], -1, 1)
+    Matrices.View.SetIdentity()
+    Matrices.Model.SetIdentity()
+    Matrices.Upload()
+
+    ' el texto va encima de todo
+    gl.Disable(gl.DEPTH_TEST)
 
     ' segmentos de los glifos, en z = 0 (sin pasar por XYZ, que los llevaria al plano de trabajo)
     If Not $overlayVBO Then $overlayVBO = New VBO
@@ -3840,8 +3859,8 @@ Public Sub DrawText2DOverlay(UTFstring As String, X As Float, Y As Float, Option
     $overlayVBO.Draw()
 
     ' vuelvo al 3D
-    gl.LineWidth(fPrevWidth[0])
-    If bDepth Then gl.Enable(gl.DEPTH_TEST)
+
+    gl.Enable(gl.DEPTH_TEST)
     Matrices.PopMatrix()
 
 End

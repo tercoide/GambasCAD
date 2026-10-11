@@ -342,7 +342,7 @@ Public Sub CheckPOI3D(e As Entity, Eye As Ray, Optional ToolRay As Ray, RefPoint
     Dim d As Float
     Dim ShortestDistance As Float
     Dim v As Vertex
-    Dim v2 As Vertex
+    Dim v0 As Vertex
 
     ' If Me.flgSearchingPOI Then Return   ' no nesting this
 
@@ -393,31 +393,30 @@ Public Sub CheckPOI3D(e As Entity, Eye As Ray, Optional ToolRay As Ray, RefPoint
             If Not pInFace Then Return rData 'Stop ' no deberia ocurrir
 
             ' vertex mas cercano
-            For Each v In f.vertex
-                d = puntos.Distancia3D(pInFace, v.pPunto3D)
+            For i = 0 To f.vertex.Max
+                d = puntos.Distancia3D(pInFace, f.vertex[i].pPunto3D)
                 If d < DistEnd1 Then
                     DistEnd1 = d
-                    puntoA = pInFace
+                    puntoA = f.vertex[i].pPunto3D
                 Endif
             Next
 
             ' Arista mas cercana
-            v2 = Null
-            For Each v In f.vertex
-                If Not v2 Then Continue                             ' me falrta un punto
-                If v = f.vertex.Last Then v2 = f.vertex.First       ' cierro la poli
-                pTesting = puntos.ClosestPointOnLine3D(pInFace, v.pPunto3D, v2.pPunto3D)
+
+            For i = 0 To f.vertex.Max
+                If i = 0 Then v0 = f.vertex[f.vertex.Max] Else v0 = f.vertex[i - 1]
+                v = f.vertex[i]
+                pTesting = puntos.ClosestPointOnLine3D(pInFace, v.pPunto3D, v0.pPunto3D)
                 d = puntos.Distancia3D(pInFace, pTesting)
                 If d < DistNearest Then
                     DistNearest = d
                     pNea = pTesting
                     ' y de paso, agrego el mid
-                    pMid.x = (v.X + v2.x) / 2
-                    pMid.y = (v.y + v2.y) / 2
-                    pMid.z = (v.z + v2.z) / 2
+                    pMid.x = (v.X + v0.x) / 2
+                    pMid.y = (v.y + v0.y) / 2
+                    pMid.z = (v.z + v0.z) / 2
                     DistMId = puntos.Distancia3D(pMid, pTesting)
                 Endif
-                v2 = v
             Next
 
             '     Case "INSERT"
