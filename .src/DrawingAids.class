@@ -60,6 +60,7 @@ Public Poi3dVbo As New VBO
 Public OrbitHandlesVbo As New VBO
 Public AxisVbo As New VBO
 Public GroundVbo As New VBO
+Public SphereVbo As New VBO
 
 Public Sub DrawLocalAxis(f As Face)
 
@@ -73,6 +74,82 @@ Public Sub DrawLocalAxis(f As Face)
     glx.DrawLines3D(puntos.Create3dArray([gcd.Drawing.Sheet.LastPoint, puntos.LocalToGlobal(gcd.Drawing.Sheet.LastPoint, f.GetPlane().Normal, 0, 10)]), Color.Blue)
     glx.EndVBO()
     AxisVbo.Draw()
+
+End
+
+'' Dibuja una esfera chica centrada en x,y,z, de diametro d en pixeles
+'' El tamaño en pantalla es el mismo con cualquier zoom o perspectiva
+Public Sub DrawSphere(x As Float, y As Float, z As Float, d As Float, Optional colour As Integer = Color.Red, Segments As Integer = 12)
+
+    Dim r As Float
+    Dim i, j As Integer
+    Dim t1, t2, f1, f2 As Float
+    Dim fTri As New Float[]
+
+    r = PixelsToWorld(x, y, z, d / 2)
+    If r <= 0 Then Return
+    If Segments < 4 Then Segments = 4
+
+    ' esfera UV: i recorre la latitud (0 en +Z, Pi en -Z), j la longitud
+    For i = 0 To Segments - 1
+        t1 = Pi * i / Segments
+        t2 = Pi * (i + 1) / Segments
+        For j = 0 To Segments * 2 - 1
+            f1 = Pi * j / Segments
+            f2 = Pi * (j + 1) / Segments
+            ' triangulos en sentido antihorario vistos desde afuera, sin los degenerados de los polos
+            If i > 0 Then fTri.Insert(SpherePoint(x, y, z, r, t1, f1).Insert(SpherePoint(x, y, z, r, t2, f1)).Insert(SpherePoint(x, y, z, r, t1, f2)))
+            If i < Segments - 1 Then fTri.Insert(SpherePoint(x, y, z, r, t2, f1).Insert(SpherePoint(x, y, z, r, t2, f2)).Insert(SpherePoint(x, y, z, r, t1, f2)))
+        Next
+    Next
+
+    SphereVbo.Clear
+    SphereVbo.TriangleAlpha = 1
+    glx.BeginVBO(SphereVbo)
+    glx.DrawTriangles3D(fTri, colour)
+    glx.EndVBO()
+    SphereVbo.Draw()
+
+End
+
+Private Function SpherePoint(x As Float, y As Float, z As Float, r As Float, Theta As Float, Phi As Float) As Float[]
+
+    Return [x + r * Sin(Theta) * Cos(Phi), y + r * Sin(Theta) * Sin(Phi), z + r * Cos(Theta)]
+
+End
+
+'' Devuelve cuantas unidades del dibujo mide un largo de fPixels pixeles en pantalla, en el punto x,y,z
+'' Usa las matrices actuales (Model, View, Projection) asi que sirve en 2D, ortogonal y perspectiva
+Public Function PixelsToWorld(x As Float, y As Float, z As Float, fPixels As Float) As Float
+
+    Dim mv As Matrix4
+    Dim P As Float[]
+    Dim vp As Integer[]
+    Dim pe As Punto3d, v As Punto3d
+    Dim w, s As Float
+
+    mv = glx.Matrices.View.Multiply(glx.Matrices.Model)
+    P = glx.Matrices.Projection.m
+    vp = gl.GetIntegerv(GL.VIEWPORT_)
+    If vp[3] <= 0 Or P[5] = 0 Then Return 0
+
+    ' punto en coordenadas del ojo y su w de recorte (1 en ortogonal, la profundidad en perspectiva)
+    pe = mv.TransformPoint(x, y, z)
+    w = P[3] * pe.x + P[7] * pe.y + P[11] * pe.z + P[15]
+    If w <= 0 Then Return 0     ' detras de la camara
+
+    ' escala de Model*View (zoom 2D incluido): promedio de los largos de los ejes transformados
+    v = mv.TransformVector(1, 0, 0)
+    s = Sqr(v.x ^ 2 + v.y ^ 2 + v.z ^ 2)
+    v = mv.TransformVector(0, 1, 0)
+    s += Sqr(v.x ^ 2 + v.y ^ 2 + v.z ^ 2)
+    v = mv.TransformVector(0, 0, 1)
+    s += Sqr(v.x ^ 2 + v.y ^ 2 + v.z ^ 2)
+    s /= 3
+    If s = 0 Then Return 0
+
+    ' un pixel vertical equivale a 2 / alto del viewport en coordenadas normalizadas
+    Return fPixels * 2 * w / (P[5] * vp[3]) / s
 
 End
 
