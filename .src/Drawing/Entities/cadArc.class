@@ -45,6 +45,7 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
 
         Try eBuild.P[0].x = vParam[1]
         Try eBuild.P[0].y = vParam[2]
+        Try eBuild.P[0].z = vParam[3]
 
         If Definitive Then
             eBuild.fParam.Add(0)
@@ -106,7 +107,7 @@ Public Sub Scale(e As Entity, sX As Float, sY As Float, Optional sZ As Float = 1
 
     E.fParam[0] *= Abs(sX)
 
-    puntos.ScaleP(e.P, sx, sy)
+    puntos.ScaleP(e.P, sx, sy, sz)
 
     ' start/end
     If sx < 0 Then
@@ -131,7 +132,7 @@ Public Sub makepolyline(oe As Entity)
 
     Dim x, y, theta, fRadio, fStart, fEnd, angle_increment As Float
     Dim iTramos As Integer
-
+    Dim PolyAux As New Float[]
     Dim LargoPixels, LargoReal As Float
 
     fRadio = oE.fParam[0]
@@ -161,33 +162,41 @@ Public Sub makepolyline(oe As Entity)
     oE.polyline.Clear
     If oe.iParam[0] = 0 Then
         For theta = fStart To fEnd Step angle_increment
+
             ' el punto considerando 0,0 al centro
-            x = oE.P[0].x + fRadio * Cos(theta)
-            y = oE.P[0].y + fRadio * Sin(theta)
-            oE.polyline.Add(x)
-            oE.polyline.Add(y)
+            x = fRadio * Cos(theta)
+            y = fRadio * Sin(theta)
+            PolyAux.Add(x)
+            PolyAux.Add(y)
 
         Next
 
-        x = oE.P[0].x + fRadio * Cos(fEnd)
-        y = oE.P[0].y + fRadio * Sin(fEnd)
+        x = fRadio * Cos(fEnd)
+        y = fRadio * Sin(fEnd)
     Else
 
         For theta = fStart To fEnd Step angle_increment
             ' el punto considerando 0,0 al centro
-            x = oE.P[0].x + fRadio * Cos(theta)
-            y = oE.P[0].y - fRadio * Sin(theta)
-            oE.polyline.Add(x)
-            oE.polyline.Add(y)
+            x = fRadio * Cos(theta)
+            y = -fRadio * Sin(theta)
+            PolyAux.Add(x)
+            PolyAux.Add(y)
 
         Next
 
-        x = oE.P[0].x + fRadio * Cos(fEnd)
-        y = oE.P[0].y - fRadio * Sin(fEnd)
+        x = fRadio * Cos(fEnd)
+        y = -fRadio * Sin(fEnd)
 
     End If
-    oE.polyline.Add(x)
-    oE.polyline.Add(y)
+    PolyAux.Add(x)
+    PolyAux.Add(y)
+
+    Dim pp As Punto3D
+    'centro3 = oe.P[0].Copy()
+    For iTramos = 0 To PolyAux.Max Step 2
+        pp = puntos.LocalToGlobal(oe.P[0], gcd.Drawing.Sheet.LastNormal, PolyAux[iTramos], PolyAux[iTramos + 1])
+        If pp Then oe.polyline.insert([pp.x, pp.y, pp.z])
+    Next
 
 End
 
@@ -239,33 +248,6 @@ Public Function Draw2(oE As Entity)
     paint.Stroke
 
 End
-
-' Public Function BuildPOI(oE As Entity) As Integer
-'
-'     oe.PoiPoints.Clear
-'     oe.PoiType.Clear
-'
-'     ' CENTER
-'     oe.poiPoints.insert([oE.p[0], oE.p[1]])
-'     oe.poiType.Add(gcd.poiCenter)
-'
-'     ' ' quadrant
-'     ' oe.poiPoints.insert([oE.p[0] + oe.fParam[0], oE.p[1]])
-'     ' oe.poiType.Add(gcd.poiQuadrant)
-'     '
-'     ' ' quadrant
-'     ' oe.poiPoints.insert([oE.p[0] - oe.fParam[0], oE.p[1]])
-'     ' oe.poiType.Add(gcd.poiQuadrant)
-'     '
-'     ' ' quadrant
-'     ' oe.poiPoints.insert([oE.p[0], oE.p[1] + oe.fParam[0]])
-'     ' oe.poiType.Add(gcd.poiQuadrant)
-'     '
-'     ' ' quadrant
-'     ' oe.poiPoints.insert([oE.p[0], oE.p[1] - oe.fParam[0]])
-'     ' oe.poiType.Add(gcd.poiQuadrant)
-'
-' End
 
 Public Function SaveDxfData(e As Entity) As Boolean
 

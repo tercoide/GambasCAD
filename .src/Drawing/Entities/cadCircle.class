@@ -42,7 +42,7 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
     If eBuild.Is3D Then eBuild.p3 = New Punto3d[]
     If Me.ExpectedParam = "center" Then
 
-        If (vParam[0] <> "point3d") And (vParam[0] <> "point3d") Then Return
+        If (vParam[0] <> "point3d") Then Return
         puntos.ResizeP(eBuild.P, 1)
 
         Try eBuild.P[0].x = vParam[1]
@@ -70,8 +70,8 @@ End
 
 Public Sub Scale(e As Entity, sX As Float, sY As Float, Optional sZ As Float = 1)
 
-    E.fParam[0] *= sX
-    puntos.ScaleP(e.P, sx, sy)
+    E.fParam[0] *= (sX + sy + sz) / 3
+    puntos.ScaleP(e.P, sx, sy, sz)
 
 End
 
@@ -79,12 +79,7 @@ Public Sub Draw(oE As Entity)
 
     If Not oE.Visible Then Return
 
-    ' clsEntities.VBOEntityStart(oe)
-    If oe.Is3D Then
-        glx.PolyLines(puntos.Create3dArray(oe.p3), gcd.GetGBColor(oE.Colour, oe.pLayer),,, True)
-    Else
-        glx.PolyLines(oe.PolyLine, gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
-    End If
+    glx.PolyLines(oe.PolyLine, gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
 
     ' clsEntities.VboEntityDone(oe)
 
@@ -96,6 +91,7 @@ Public Sub makepolyline(oe As Entity)
     Dim iTramos As Integer
     Dim centro3 As Punto3d
     Dim px As Punto3D
+    Dim PolyAux As New Float[]
 
     If oE.fParam[0] = 0 Then Return
 
@@ -110,27 +106,25 @@ Public Sub makepolyline(oe As Entity)
 
     For theta = 0 To 2 * Pi Step angle_increment
         ' el punto considerando 0,0 al centro
-        x = oE.P[0].x + oE.fParam[0] * Cos(theta)
-        y = oE.P[0].y + oE.fParam[0] * Sin(theta)
-        oE.polyline.Add(x)
-        oE.polyline.Add(y)
+        x = oE.fParam[0] * Cos(theta)
+        y = oE.fParam[0] * Sin(theta)
+        PolyAux.Add(x)
+        PolyAux.Add(y)
 
     Next
-    x = oE.P[0].x + oE.fParam[0]
-    y = oE.P[0].y
+    x = oE.fParam[0]
+    y = 0
 
-    oE.polyline.Add(x)
-    oE.polyline.Add(y)
+    PolyAux.Add(x)
+    PolyAux.Add(y)
 
-    If oe.Is3D Then
-        oe.p3 = New Punto3d[]
-        ' determino el plano
-        centro3 = oe.P[0].Copy()
-        For iTramos = 0 To oe.PolyLine.Max Step 2
-            px = puntos.LocalToGlobal(centro3, gcd.Drawing.Sheet.LastNormal, oe.PolyLine[iTramos] - oe.P[0].x, oe.PolyLine[iTramos + 1] - oe.P[0].y)
-            If px Then oe.p3.Add(px)
-        Next
-    Endif
+   
+    ' determino el plano
+    centro3 = oe.P[0].Copy()
+    For iTramos = 0 To PolyAux.Max Step 2
+        px = puntos.LocalToGlobal(centro3, gcd.Drawing.Sheet.LastNormal, PolyAux[iTramos], PolyAux[iTramos + 1])
+        If px Then oe.polyline.insert([px.x, px.y, px.z])
+    Next
 
 End
 
@@ -146,27 +140,6 @@ Public Sub DrawRemark(oE As Entity)
     glx.PolyLines(oE.PolyLine, gcd.ColorRemark(gcd.GetGBColor(oE.Colour, oe.pLayer)), gcd.GetLineWt(oE.LineWIdth, oe.pLayer) + 1, oE.LineType.TrameLength)
 
 End
-' '' A fat version of the entity
-'
-' Public Sub DrawSelected(oE As Entity)
-'
-'     glx.circle(oE.P, oe.fParam[0], config.ColorForSelected, False, gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
-'
-' End
-'
-' '' Hides the entity
-' Public Sub DrawShadow(e As Entity)
-'
-'     glx.circle(E.P, e.fParam[0], Config.BackgroundColor, False, gcd.GetLineWt(e.LineWIdth, e.pLayer), e.LineType.TrameLength)
-'
-' End
-'
-' '' A fat version of the entity
-' Public Sub DrawRemark(oE As Entity)
-'
-'     glx.CIRCLE(oE.P, oe.fParam[0], Config.ColorForRemark,, gcd.GetLineWt(oE.LineWIdth, oe.pLayer) + 1, oE.LineType.TrameLength)
-'
-' End
 
 Public Function Draw2(oE As Entity)
 

@@ -412,7 +412,7 @@ Public Function IsPoligonSelfIntersecting3D(pPolygon As Punto3d[]) As Boolean
         axis = 1
     End If
 
-    fPolyXY = RemoveAxis(Create3dArray(pPolygon), axis)
+    fPolyXY = RemoveAxis(ToXYZ(pPolygon), axis)
 
     Return IsPoligonSelfIntersecting(fPolyXY)
 
@@ -454,7 +454,7 @@ Public Function PolygonTriangulation3D(pPolygon As Punto3d[]) As Float[]
     ' La idea es tomar un tramo, comparar ambos puntos a la derecha e izquierda y
     ' chequear si el triangulo formado esta dentro del poligono, en ese caso elimino el punto
     ' pivot
-    If pPoly.Count <= 3 Then Return Create3dArray(pPoly)
+    If pPoly.Count <= 3 Then Return ToXYZ(pPoly)
 
     ' ' verifico que no haya puntos coincidentes
     ' For i = 0 To pPoly.Count / 2 - 2
@@ -478,7 +478,7 @@ Public Function PolygonTriangulation3D(pPolygon As Punto3d[]) As Float[]
     ' Endif
 
     Do
-        fPolyXY = RemoveAxis(Create3dArray(pPoly), axis)
+        fPolyXY = RemoveAxis(ToXYZ(pPoly), axis)
         iAnterior = pPoly.Count
 
         i = 0
@@ -569,7 +569,7 @@ Public Function PolygonTriangulation3D(pPolygon As Punto3d[]) As Float[]
     ' agrego el ultimo triangulo
     If pPoly.Count = 3 Then pTriangles.Insert(pPoly.Copy())
 
-    Triangles = Create3dArray(pTriangles)
+    Triangles = ToXYZ(pTriangles)
     If IsNull(Triangles) Then Stop
 
     Return Triangles
@@ -2223,7 +2223,299 @@ Public Function DashedLineStrip(flxStrip As Float[], flxDash As Float[], Optiona
 
 End
 
+'' Devuelve una linea de puntos confinada en los segmentos flxStrip, segun el patron estilo CAD flxDashes, usando el punto base.
+'' flxStrip viene en XYZ
+Public Function DashedLineStrip3d(fStrip As Float[], flxDash As Float[], Optional fScale As Float = 1, fOffset As Float = 0, bInvertDashes As Boolean = False, bIntercalateLines As Boolean = False, fWIdth As Float = 1) As Float[]
+
+    Dim fTrame, fDashTotal, fDistance, DashLength, DashTrame As Float
+    Dim iPatternOffset, iPatternN As Integer
+    Dim ie, i, i2, AlPedo, Sirve, nTrames, iDashTrame As Integer
+    Dim flxDashes, flxTrimmedLine, flxPatternLimits, flxContorno, flxFirstPass, flxSecondPass, flxInter As New Float[]
+    Dim CosA, SinA, DashBaseX, DashBaseY, DashBaseZ, DashFinalX, DashFinalY, DashFinalZ As Float
+    Dim SeedX, SeedY, SeedIndex, CosB, SinB, TanB, CosAB, SinAB, TanAB, fAngle As Float
+    Dim X0, X1, Y0, Y1, Z0, Z1, dX, dY, dZ As Float
+    Dim DashCut As Float
+    Dim bSpace, bSkip As Boolean
+
+    ' DEBUG FIXME: fix this
+
+    'Return pStrip
+
+    ' Veo si tengo q invertir lo dashes
+
+    If bInvertDashes Then
+        flxDashes.Resize(flxDash.Count)
+        For i = flxDash.Max To 0 Step -1
+            flxDashes[i2] = flxDash[i]
+            Inc i2
+        Next
+    Else
+        flxDashes = flxDash
+    Endif
+
+    ' calculamos el largo total de los dashes
+    For i = 0 To flxDashes.Max
+        flxDashes[i] *= fScale
+        ' aplico la escala aqui mismo
+        fDashTotal += Abs(flxDashes[i])
+    Next
+
+    If fDashTotal = 0 Then Return fStrip
+    If fStrip.Count < 3 Then Return fStrip
+
+    fOffset = Utils.fMod(fOffset, fDashTotal)                             ' el offset donde arranco
+
+    '
+
+    For i = 0 To fStrip.Max - 3 Step 3   ' 3D
+
+        X0 = fStrip[i].x
+        Y0 = fStrip[i + 1]
+        Z0 = fStrip[i + 2]
+
+        X1 = fStrip[i + 3]
+        Y1 = fStrip[i + 4]
+        Z1 = fStrip[i + 5]
+
+        fTrame = fDistancia(x0, y0, z0, x1, y1, z1)      ' largo del tramo a rellenar
+
+        ' veo si tengo que descartar este tramo
+        If bIntercalateLines Then
+            If bSkip Then
+                bSkip = False
+                fOffset += fTrame
+                fOffset = fMod(fOffset, fDashTotal)
+                Continue
+            Else
+                bSkip = True
+            Endif
+        End If
+
+        ' fAngle = Ang(X1 - X0, Y1 - Y0)
+        ' 'Debug "FAngle", fangle, cosB, sinB
+        If fTrame = 0 Then fTrame = 1
+        '
+        dX = (x1 - x0) / fTrame
+        dY = (y1 - y0) / fTrame
+        dZ = (z1 - z0) / fTrame
+
+        DashBaseX = X0
+        DashBaseY = Y0
+        DashBaseZ = Z0
+
+        Do                                      ' Trazo los dashed a lo largo de la linea
+
+            ' Repaso:
+            ' fOffset es lo que resto al dash para trazarlo, porque ya se trazo antes
+            '        ---------------------   Trazo
+            '         fOffset ^ DashCut
+            '        <-    DashTrame    ->
+            ' DashTrame = fOffset + DashCut
+
+            DashTrame = flxDashes[iDashTrame]
+
+            ' ace veo si es trazo o es espacio
+            If DashTrame < 0 Then
+                bSpace = True
+            Else
+                bSpace = False
+            End If
+
+            DashTrame = Abs(DashTrame)
+
+            DashCut = DashTrame - fOffset
+
+            ' aqui puede ocurrir que el offset sea mayor que el tramito
+            If DashCut < 0 Then
+
+                fOffset = -DashCut
+            Else
+
+                ' Esto es lo que me queda por trazar, pero puede ocurrir que el tramo donde trazarlo sea mas corto
+                ' ahora verifico que no me pase de la linea
+                If DashCut >= fTrame Then            ' me estoy pasando
+                    fOffset += fTrame               ' este offset pasa al siguiente tramo a rellenar
+                    DashCut = fTrame                ' trazo solo lo que me queda
+                    fTrame = 0
+
+                Else                                ' el trazo completo entra en lo que me queda de tramo
+                    fTrame -= DashCut               ' resto el trazo al tramo
+                    fOffset = 0
+                End If
+
+                DashFinalX = DashBaseX + DashCut * dx
+                DashFinalY = DashBaseY + DashCut * dy
+                DashFinalZ = DashBaseZ + DashCut * dz
+
+                If Not bSpace Then
+                    flxFirstPass.insert([DashBaseX, DashBaseY, DashBaseZ, DashFinalX, DashFinalY, DashFinalZ])
+                End If
+
+                DashBaseX = DashFinalX
+                DashBaseY = DashFinalY
+                DashBaseZ = DashFinalZ
+            End If
+
+            If fTrame = 0 Then Break                                ' el tramo ya se completo con los dashes
+
+            Inc iDashTrame                                          ' paso al siguiente dash
+            If iDashTrame > flxDashes.Max Then iDashTrame = 0       ' ya hice todos los dashes, pero vuelvo al inicial para completar el tramo
+
+        Loop
+
+    Next
+
+    Return flxFirstPass
+
+End
+
+'' Devuelve una linea de puntos confinada en los segmentos flxStrip, segun el patron estilo CAD flxDashes, usando el punto base.
+'' flxStrip viene en XYZ
+Public Function DashedLineStrip3dP(pStrip As Punto3d[], flxDash As Float[], Optional fScale As Float = 1, fOffset As Float = 0, bInvertDashes As Boolean = False, bIntercalateLines As Boolean = False, fWIdth As Float = 1) As Float[]
+
+    Dim fTrame, fDashTotal, fDistance, DashLength, DashTrame As Float
+    Dim iPatternOffset, iPatternN As Integer
+    Dim ie, i, i2, AlPedo, Sirve, nTrames, iDashTrame As Integer
+    Dim flxDashes, flxTrimmedLine, flxPatternLimits, flxContorno, flxFirstPass, flxSecondPass, flxInter As New Float[]
+    Dim CosA, SinA, DashBaseX, DashBaseY, DashBaseZ, DashFinalX, DashFinalY, DashFinalZ As Float
+    Dim SeedX, SeedY, SeedIndex, CosB, SinB, TanB, CosAB, SinAB, TanAB, fAngle As Float
+    Dim X0, X1, Y0, Y1, Z0, Z1, dX, dY, dZ As Float
+    Dim DashCut As Float
+    Dim bSpace, bSkip As Boolean
+
+    ' DEBUG FIXME: fix this
+
+    'Return pStrip
+
+    ' Veo si tengo q invertir lo dashes
+
+    If bInvertDashes Then
+        flxDashes.Resize(flxDash.Count)
+        For i = flxDash.Max To 0 Step -1
+            flxDashes[i2] = flxDash[i]
+            Inc i2
+        Next
+    Else
+        flxDashes = flxDash
+    Endif
+
+    ' calculamos el largo total de los dashes
+    For i = 0 To flxDashes.Max
+        flxDashes[i] *= fScale
+        ' aplico la escala aqui mismo
+        fDashTotal += Abs(flxDashes[i])
+    Next
+
+    If fDashTotal = 0 Then Return ToXYZ(pStrip)
+    If pStrip.Count < 2 Then Return ToXYZ(pStrip)
+
+    fOffset = Utils.fMod(fOffset, fDashTotal)                             ' el offset donde arranco
+
+    '
+
+    For i = 0 To pStrip.Max - 1   ' 3D
+
+        X0 = pStrip[i].x
+        Y0 = pStrip[i].y
+        Z0 = pStrip[i].z
+
+        X1 = pStrip[i + 1].x
+        Y1 = pStrip[i + 1].y
+        Z1 = pStrip[i + 1].z
+
+        fTrame = Distancia3D(pStrip[i], pStrip[i + 1])      ' largo del tramo a rellenar
+
+        ' veo si tengo que descartar este tramo
+        If bIntercalateLines Then
+            If bSkip Then
+                bSkip = False
+                fOffset += fTrame
+                fOffset = fMod(fOffset, fDashTotal)
+                Continue
+            Else
+                bSkip = True
+            Endif
+        End If
+
+        ' fAngle = Ang(X1 - X0, Y1 - Y0)
+        ' 'Debug "FAngle", fangle, cosB, sinB
+        If fTrame = 0 Then fTrame = 1
+        '
+        dX = (x1 - x0) / fTrame
+        dY = (y1 - y0) / fTrame
+        dZ = (z1 - z0) / fTrame
+
+        DashBaseX = X0
+        DashBaseY = Y0
+        DashBaseZ = Z0
+
+        Do                                      ' Trazo los dashed a lo largo de la linea
+
+            ' Repaso:
+            ' fOffset es lo que resto al dash para trazarlo, porque ya se trazo antes
+            '        ---------------------   Trazo
+            '         fOffset ^ DashCut
+            '        <-    DashTrame    ->
+            ' DashTrame = fOffset + DashCut
+
+            DashTrame = flxDashes[iDashTrame]
+
+            ' ace veo si es trazo o es espacio
+            If DashTrame < 0 Then
+                bSpace = True
+            Else
+                bSpace = False
+            End If
+
+            DashTrame = Abs(DashTrame)
+
+            DashCut = DashTrame - fOffset
+
+            ' aqui puede ocurrir que el offset sea mayor que el tramito
+            If DashCut < 0 Then
+
+                fOffset = -DashCut
+            Else
+
+                ' Esto es lo que me queda por trazar, pero puede ocurrir que el tramo donde trazarlo sea mas corto
+                ' ahora verifico que no me pase de la linea
+                If DashCut >= fTrame Then            ' me estoy pasando
+                    fOffset += fTrame               ' este offset pasa al siguiente tramo a rellenar
+                    DashCut = fTrame                ' trazo solo lo que me queda
+                    fTrame = 0
+
+                Else                                ' el trazo completo entra en lo que me queda de tramo
+                    fTrame -= DashCut               ' resto el trazo al tramo
+                    fOffset = 0
+                End If
+
+                DashFinalX = DashBaseX + DashCut * dx
+                DashFinalY = DashBaseY + DashCut * dy
+                DashFinalZ = DashBaseZ + DashCut * dz
+
+                If Not bSpace Then
+                    flxFirstPass.insert([DashBaseX, DashBaseY, DashBaseZ, DashFinalX, DashFinalY, DashFinalZ])
+                End If
+
+                DashBaseX = DashFinalX
+                DashBaseY = DashFinalY
+                DashBaseZ = DashFinalZ
+            End If
+
+            If fTrame = 0 Then Break                                ' el tramo ya se completo con los dashes
+
+            Inc iDashTrame                                          ' paso al siguiente dash
+            If iDashTrame > flxDashes.Max Then iDashTrame = 0       ' ya hice todos los dashes, pero vuelvo al inicial para completar el tramo
+
+        Loop
+
+    Next
+
+    Return flxFirstPass
+
+End
 '' Returns a point inthe line p0-p1 that extends l from p1
+
 Public Function ExtendLine2D(p0 As Punto2d, p1 As Punto2d, l As Float) As Punto2d
 
     Dim p As New Punto2d
@@ -2369,31 +2661,6 @@ Public Sub fMod(fNumber As Float, fDivi As Float) As Float
 End
 
 '' Creates a XYZ array from a Punto3D[]
-Public Function Create3dArray(p3dPoints As Variant[]) As Float[]
-
-    ' Dim vp As Punto3d
-    ' Dim ve As Vertex
-    Dim p As Variant
-    Dim fPoints As New Float[]
-    Dim i As Integer
-    Dim v As Variant
-
-    ' If p3dPoints Is Punto3d Then
-    '     p = vp
-    ' Else
-    '     p = ve
-    ' Endif
-
-    fPoints.Resize(p3dPoints.Count * 3)
-    For Each p In p3dPoints
-        fPoints[i] = p.x
-        fPoints[i + 1] = p.y
-        fPoints[i + 2] = p.z
-        i += 3
-    Next
-    Return fPoints
-
-End
 
 Public Function VertexToPunto3D(vs As Punto3d[]) As Punto3d[]
 
@@ -3369,10 +3636,20 @@ Public Function ToXY(pPoints As Punto3d[]) As Float[]
 End
 
 '' Devuelve un array plano x,y,z,x,y,z...
-Public Function ToXYZ(pPoints As Punto3d[]) As Float[]
+Public Function ToXYZ(p3dPoints As Punto3d[]) As Float[]
 
-    If Not pPoints Then Return New Float[]
-    Return Create3dArray(pPoints)
+    Dim p As Punto3d
+    Dim fPoints As New Float[]
+    Dim i As Integer
+
+    fPoints.Resize(p3dPoints.Count * 3)
+    For Each p In p3dPoints
+        fPoints[i] = p.x
+        fPoints[i + 1] = p.y
+        fPoints[i + 2] = p.z
+        i += 3
+    Next
+    Return fPoints
 
 End
 
