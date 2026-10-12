@@ -213,7 +213,7 @@ Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD
 
     Select Case NextParamType
 
-        Case "point2d", "M", "point3d"
+        Case "point3d", "M"
             errtxt = ", expected a valId point like 12.4,9.5  or @12.34,10.5"
             ' lets filter
             EnteredText = Trim$(UCase$(EnteredText))
@@ -243,12 +243,8 @@ Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD
                 Me.LastY = yt
                 Me.LastZ = zt
 
-                If elem.Is3D Then
-                    GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point3d", xt, yt, zt], True))
-                Else
-                    GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point2d", xt, yt], True))
+                GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point3d", xt, yt, zt], True))
 
-                Endif
                 If Good Then
                     ' last point
                     gcd.Drawing.LastPoint.Clear
@@ -377,7 +373,7 @@ Public Sub MouseMove()
 
     If NextParamType = "relation" Then
 
-        GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point2d", x, y]))
+        GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point3d", x, y]))
         gcd.redraw
 
         Return              ' nothing more to do here
@@ -403,8 +399,8 @@ Public Sub MouseMove()
 
         ' esto re enganchado
 
-        X = gcd.Drawing.iEntity["point2d"].x
-        Y = gcd.Drawing.iEntity["point2d"].y
+        X = gcd.Drawing.iEntity["point3d"].x
+        Y = gcd.Drawing.iEntity["point3d"].y
 
         ' aca tengo que verificar el ortogonal
 
@@ -425,19 +421,13 @@ Public Sub MouseMove()
     Dy = Y - LastY
 
     If LastPoint Then
-        If NextParamType = "point2d" Then
-            fMain.txtCommand.Text = "@" & Str(x - lastx) & "," & Str(y - lastY)
-        Else If NextParamType = "point3d" Then
+        If NextParamType = "point3d" Then
             fMain.txtCommand.Text = "@" & Str(x - lastx) & "," & Str(y - lastY)
         End If
 
     Endif
 
-    If NextParamType = "point2d" Then
-
-        GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point2d", x, y], False))
-
-    Else If NextParamType = "point3d" Then
+    If NextParamType = "point3d" Then
         Dim p As Punto3d
         p = glx.XYZ(x, y)
         ' y si estoy en 3D?
@@ -460,7 +450,7 @@ End
 
 Public Sub MouseUp()
 
-    Dim X, Y, f As Float
+    Dim X, Y, Z, f As Float
 
     If Mouse.Right Then
         gcd.clsJob.KeyText("U")
@@ -484,7 +474,7 @@ Public Sub MouseUp()
 
     If NextParamType = "relation" Then
 
-        If GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point2d", gcd.Xreal(mouse.x), gcd.Yreal(mouse.y)], True)) Then
+        If GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point3d", gcd.Xreal(mouse.x), gcd.Yreal(mouse.y)], True)) Then
 
             ' last point
             gcd.Drawing.LastPoint.Clear
@@ -517,8 +507,8 @@ Public Sub MouseUp()
 
         ' esto re enganchado
 
-        X = gcd.Drawing.iEntity["point2d"].x
-        Y = gcd.Drawing.iEntity["point2d"].y
+        X = gcd.Drawing.iEntity["point3d"].x
+        Y = gcd.Drawing.iEntity["point3d"].y
 
         ' aca tengo que verificar el ortogonal
 
@@ -538,16 +528,8 @@ Public Sub MouseUp()
     LastX = X
     LastY = Y
     LastPoint = True
-    ' y si estoy en 3D?
-    If gcd.Drawing.Sheet.Is3D Then
-        NextParamType = "point3d"
-    Endif
 
-    If NextParamType = "point2d" Then
-
-        GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point2d", x, y], True))
-
-    Else If NextParamType = "point3d" Then
+    If NextParamType = "point3d" Then
         Dim p As Punto3d
 
         p = glx.XYZ(x, y)
@@ -592,7 +574,7 @@ Public Sub Draw()
     VBO.SendBuffersToGPU()
     VBO.Draw()
     DrawingAids.DrawSnapText()
-    If gcd.Drawing.iEntity.Exist("point2d") Then DrawingAids.DrawSphere(gcd.Drawing.iEntity["point2d"], 6)
+    If gcd.Drawing.iEntity.Exist("point3d") Then DrawingAids.DrawSphere(gcd.Drawing.iEntity["point3d"], 6)
     ' Debug "ENTITYBUILDER: Drawn " & iCounter
     ' Inc iCounter
 

@@ -9,7 +9,7 @@ Public Const Gender As String = "MESH"
 Public Const DrawingOrder As Integer = 1        ' 1 = draws first
 Public Const CmdLineHelper As String = ("a polyface of segments: First point: ")
 Public Const ParamType As String = "point3d"                             ' that is Point, Point, Float; could be Color Text, etc
-Public Const ParamHelper As String = "point2d"      ' a little text that is shown at the prompt waiting for user input during build
+Public Const ParamHelper As String = "point3d"      ' a little text that is shown at the prompt waiting for user input during build
 Public Const ParamDefault As String = "Close/Undo"
 Public Const ContextMenu As String = ("Close polyline;_CLOSE;;;Undo last point;_UNDO;;;End in last point;_ENDP;;") ' el menu para el boton derecho, los comandos
 Public Const Is3D As Boolean = True
@@ -48,7 +48,7 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
         f.vertex.Add(p)
         ' f.colour = eBuild.Colour
     End If
-    If Me.ExpectedParam = "point2d"
+    If Me.ExpectedParam = "point3d"
         If vParam[0] = "point3d" Then
 
             f.vertex.Last.x = vParam[1]
@@ -113,6 +113,14 @@ Public Sub Draw(oE As Entity)
 
     Next
 
+    If oe.pLayer.ShowWireframe Then
+        If f.wireframe.Count > 0 Then
+            fPoints = puntos.Create3dArray(Wireframe(oe))    ' paso de Punto3D a XYZ triplets
+            glx.PolyLines(fPoints, gcd.ColorRemark(gcd.GetGBColor(oE.Colour, oe.pLayer)), 1,, True)
+        End If
+
+    End If
+
 End
 
 Public Sub DrawRemark(oE As Entity)
@@ -150,20 +158,24 @@ Public Sub ClonEntity(eOrigen As Entity, Optional GetNewid As Boolean = True) As
     e = Super.ClonEntity(eOrigen, GetNewid)
     Dim f, fn As Face
     Dim v, vn As Vertex
-
+    ClearFlags(e)
     For Each f In eOrigen.faces
         fn = New Face
         e.faces.Add(fn)
         For Each v In f.vertex
-            vn = gcd.NewVertex(v.X, v.Y, v.z, True)
+            If v.WasMoved Then
+                vn = v
+            Else
+
+                v.WasMoved = True
+                vn = gcd.NewVertex(v.X, v.Y, v.z, True)
+            End If
             fn.vertex.Add(vn)
         Next
-        For Each v In f.wireframe
-            vn = gcd.NewVertex(v.X, v.Y, v.z)
-            fn.wireframe.Add(vn)
-        Next
+        fn.wireframe.Insert(f.wireframe.Copy())
 
     Next
+    ClearFlags(e)
     Return e
 
 End
@@ -175,10 +187,8 @@ Public Sub Finish(e As Entity) As Boolean
 
     For Each f In e.faces
 
-        For Each v In f.vertex
-            f.wireframe.Add(v)
-        Next
-
+        f.wireframe.Resize(f.vertex.Count)
+        f.wireframe.Fill(True)
     Next
 
     For Each f In e.faces
@@ -302,21 +312,69 @@ Public Sub Translate(e As Entity, dX As Float, dY As Float, dZ As Float, Optiona
     Dim v As Vertex
     Dim p As Vertex
 
+    ClearFlags(e)
+
+    ' Tener en cuenta que los puntos son Ref entonces pueden recibir movimientos varias veces !!!
     For Each f In e.faces
         For Each v In f.vertex
-            If Not OnlySelected Or (OnlySelected And v.IsSelected) Then
+            If (Not OnlySelected Or (OnlySelected And v.IsSelected)) And Not v.WasMoved Then
                 v.x += dx
                 v.y += dy
                 v.z += dz
+                v.WasMoved = True
             End If
         Next
 
     Next
-
+    ClearFlags(e)
     ' Endif
     '
     ' puntos.Translate(e.Polygon, dx, dy)
     ' puntos.Translate(e.PolyLine, dx, dy)
     Me.BuildGeometry(e)
+
+End
+
+Public Sub ClearFlags(e As Entity)
+
+    Dim i As Integer
+    Dim f As Face
+    Dim v As Vertex
+    Dim p As Vertex
+
+    ' Tener en cuenta que los puntos son Ref entonces pueden recibir movimientos varias veces !!!
+    For Each f In e.faces
+        For Each v In f.vertex
+            v.WasMoved = False
+            v.IsSelected = False
+        Next
+
+    Next
+
+End
+
+Public Function Wireframe(e As Entity) As Punto3d[]
+
+    Dim w As New Punto3d[]
+    Dim i As Integer
+    Dim f As Face
+    Dim v As Vertex
+    Dim p As Vertex
+
+    ' Tener en cuenta que los puntos son Ref entonces pueden recibir movimientos varias veces !!!
+    For Each f In e.faces
+        For i = 1 To f.vertex.Count
+            If f.wireframe[i - 1] Then ' agrego el tramo
+                w.Add(f.vertex[i - 1].pPunto3D)
+                If i = f.vertex.Count Then
+                    w.Add(f.vertex[0].pPunto3D)
+                Else
+                    w.Add(f.vertex[i].pPunto3D)
+                End If
+            End If
+        Next
+
+    Next
+    Return w
 
 End
