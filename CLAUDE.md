@@ -28,6 +28,7 @@ Moving from 2D toward 3D: 2D/3D code split, drawing on the three main planes, GL
 
 ## Things worth knowing
 - Working with `Entity.P`: use the helpers in `puntos` (`P3d`, `FromXY`, `ToXY`, `ToXYZ`, `CopyP`, `ResizeP`, `TranslateP`, `RotateP`, `ScaleP`, `LimitsP`) and in `glx` (`DrawLinesP`, `PolyLinesP`, `DrawpointsP`). `New` can't be used inside an expression in Gambas, so build points with `puntos.P3d(x, y, z)`. `Array.Copy()` is shallow for objects, so copy point arrays with `puntos.CopyP`. `NewEntity` accepts a `Punto3d[]` or flat x,y numbers. `.gcd` files store points as `"pts"` (x,y,z triplets); the old `"p"` (x,y pairs) is still read.
+- Local coordinate systems: `puntos.LocalToGlobal` and `puntos.GlobalToLocal`/`GlobalToLocalP` (inverse, quaternion-based) share the axes from `puntos.EjesLocales(Normal)`. For many points, compute `CuaternionGlobalToLocal` once and call `GlobalToLocalQ` per point.
 - `.class~` / `.module~` files are editor backups committed next to the real sources; edit the files without `~`.
 - On every start, `Initialize` in `main.module` runs `rm -R` on the user's dwgin/dxfin/dwgout/dxfout/printstyles/templates folders, wiping anything in them.
 - Resources and design notes live in `.hidden/`: `TODO`, `ISSUES`, `LIMITATIONS`, `CHANGELOG`, and spreadsheets on data flow and internal data structures.

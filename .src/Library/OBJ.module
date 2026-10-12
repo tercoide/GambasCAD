@@ -188,7 +188,7 @@ End
 ' Vamos a interpretar el OBJ y adaptarlo a gbcad
 ' Cada "Grupo" es una entidad nueva
 
-Public Sub ImportarObjeto3D(RutaObj As String, ColeccionVertices As Collection, eMesh As Collection)
+Public Function ImportarObjeto3D(RutaObj As String, cPolyMeshes As Collection) As Boolean
 
     Dim hFile As File
     Dim Linea As String
@@ -210,6 +210,9 @@ Public Sub ImportarObjeto3D(RutaObj As String, ColeccionVertices As Collection, 
     Dim DiccionarioMateriales As New Collection
 
     Dim MisMateriales As Collection
+    Dim eMesh As Entity
+    Dim ePolyMesh As Entity
+
     ' Cargamos todos los materiales del archivo al iniciar el parser
     DiccionarioMateriales = CargarArchivoMTL("")
 
@@ -264,13 +267,18 @@ Public Sub ImportarObjeto3D(RutaObj As String, ColeccionVertices As Collection, 
     ' =========================================================================
     ' PASO 2: ANALIZAR Y CARGAR EL ARCHIVO GEOMÉTRICO (.OBJ)
     ' =========================================================================
+    ePolyMesh = cadPolyFaceMesh.NewEntity(, True)
+    eMesh = cadMesh.NewEntity()
+    ePolyMesh.Children.Add(eMesh)
+    cPolyMeshes.Add(ePolyMesh, ePolyMesh.id)
+
     hFile = Open RutaObj For Read
 
     While Not Eof(hFile)
         Line Input #hFile, Linea
         Linea = Trim$(Linea)
 
-        ' Ignorar líneas vacías o comentarios
+        ' Ignorar lineas vacias o comentarios
         If Linea = "" Or If Left$(Linea, 1) = "#" Then Continue
 
         ' Dividir la línea por espacios en blanco eliminando espacios extra
@@ -278,15 +286,22 @@ Public Sub ImportarObjeto3D(RutaObj As String, ColeccionVertices As Collection, 
 
         Select Case Componentes[0]
 
-            Case "v" ' Vértice espacial (X, Y, Z)
+            Case "o" ' Nuevo objeto
+                ePolyMesh = cadPolyFaceMesh.NewEntity(, True)
+                eMesh = cadMesh.NewEntity()
+                ePolyMesh.Children.Add(eMesh)
+                cPolyMeshes.Add(ePolyMesh, ePolyMesh.id)
+
+            Case "v" ' Vertice espacial (X, Y, Z)
                 ' Instanciamos tu objeto dinámico (Asumiendo que se llama Punto3D)
-                Dim NuevoVertice As New Punto3D
+                Dim NuevoVertice As New Punto3d
+
                 NuevoVertice.X = Val(Componentes[1])
                 NuevoVertice.Y = Val(Componentes[2])
                 NuevoVertice.Z = Val(Componentes[3])
 
                 ' Lo añadimos tanto a la colección global de salida como a nuestra lista de mapeo
-                ColeccionVertices.Add(NuevoVertice)
+                eMesh.P.Add(NuevoVertice)
                 ListaTemporalVertices.Add(NuevoVertice)
 
             Case "vt" ' Coordenada de textura UV (U, V)
@@ -324,6 +339,9 @@ Public Sub ImportarObjeto3D(RutaObj As String, ColeccionVertices As Collection, 
                 '         ColorActual = DiccionarioMateriales[MaterialActual]["color"]
                 '         TexturaActual = DiccionarioMateriales[MaterialActual]["texture"]
                 '     Endif
+                eMesh = cadMesh.NewEntity()
+                ePolyMesh.Children.Add(eMesh)
+                eMesh.texture = MisMateriales[NombreMat]
 
             Case "f" ' Declaración de una Cara (Polígono N-gon)
                 Dim NuevaCara As New Face
@@ -335,7 +353,7 @@ Public Sub ImportarObjeto3D(RutaObj As String, ColeccionVertices As Collection, 
                 NuevaCara.uvs = New Punto2D[]
                 NuevaCara.normals = New Punto3D[]
 
-                ' Procesar cada tripleta (vértice/uv/normal)
+                ' Procesar cada tripleta (vertice/uv/normal)
                 For i = 1 To Componentes.Max
                     SubComponentes = Split(Componentes[i], "/")
 
@@ -349,7 +367,7 @@ Public Sub ImportarObjeto3D(RutaObj As String, ColeccionVertices As Collection, 
                         NuevaCara.uvs.Add(ListaTemporalVT[IndiceVT])
                     Endif
 
-                    ' 3. Normal (Opcional - Si viene en el archivo se carga aquí)
+                    ' 3. Normal (Opcional - Si viene en el archivo se carga aqui)
                     If SubComponentes.Max >= 2 And If SubComponentes <> "" Then
                         Dim IndiceVN As Integer = CInt(Val(SubComponentes))
                         NuevaCara.normals.Add(ListaTemporalVN[IndiceVN])
@@ -357,7 +375,7 @@ Public Sub ImportarObjeto3D(RutaObj As String, ColeccionVertices As Collection, 
                 Next
 
                 ' =========================================================================
-                ' AUTOCÁLCULO DE NORMALES (Si el archivo .obj no las traía)
+                ' AUTOCALCULO DE NORMALES (Si el archivo .obj no las traia)
                 ' =========================================================================
                 If NuevaCara.normals.Count = 0 Then
                     ' Necesitamos al menos 3 vértices para definir un plano y calcular su normal

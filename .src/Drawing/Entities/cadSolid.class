@@ -27,7 +27,7 @@ Public Const PointsToDraw As Integer = 0             ' minimal point requered fo
 Public Const CmdLineHelper As String = ("Solid: first point")
 Public Const ParamType As String = "point3d"                             ' that is Point, Point, Float; could be Color Text, etc
 Public Const ParamHelper As String = "point3d"      ' a little text that is shown at the prompt waiting for user input during build
-Public Const TotalPoints As Integer = 4
+Public Const TotalPoints As Integer = 1
 
 Public iPoint As Integer
 
@@ -38,43 +38,20 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
     If vParam[0] <> "point3d" Then Return False
     If Me.ExpectedParam = "point3d" Then
         'If gcd.StepsDone = 0 Then
-        Try eBuild.P[gcd.StepsDone].x = vParam[1]
-        Try eBuild.P[gcd.StepsDone].y = vParam[2]
-        If gcd.StepsDone < 3 Then
-            eBuild.P[gcd.StepsDone + 1].x = eBuild.P[0].x
-            eBuild.P[gcd.StepsDone + 1].y = eBuild.P[0].y
-        End If
+        eBuild.P.Last.x = vParam[1]
+        eBuild.P.Last.y = vParam[2]
+        eBuild.P.Last.z = vParam[3]
+
         If Definitive Then
 
-            If gcd.StepsDone = 3 Then Return ["command": "end"]
-            Inc gcd.StepsDone
+            If eBuild.P.Count = 4 Then
+                Return ["command": "end"]
+            End If
+            Dim p As New Punto3d(eBuild.P.Last.x, eBuild.P.Last.y, eBuild.P.Last.z)
+            eBuild.P.Add(p)
             Return ["prompt": "next Point", "next": "point3d"]
         End If
     Endif
-    ' Else If gcd.StepsDone = 1 Then
-    '
-    '     Try eBuild.P[2] = vParam[1]
-    '     Try eBuild.P[3] = vParam[2]
-    '     eBuild.P[4] = eBuild.P[0]
-    '     eBuild.P[5] = eBuild.P[1]
-    '
-    '     If Definitive Then Return True
-    '
-    ' Else If gcd.StepsDone = 2 Then
-    '
-    '     Try eBuild.P[4] = vParam[1]
-    '     Try eBuild.P[5] = vParam[2]
-    '     eBuild.P[6] = eBuild.P[0]
-    '     eBuild.P[7] = eBuild.P[1]
-    '
-    '     If Definitive Then Return True
-    ' Else If gcd.StepsDone = 3 Then
-    '
-    '     Try eBuild.P[6] = vParam[1]
-    '     Try eBuild.P[7] = vParam[2]
-    '     If Definitive Then Return True
-
-    'Endif
 
 End
 
@@ -82,11 +59,11 @@ Public Sub Draw(oE As Entity)
 
     If Not oE.Visible Then Return
 
-    If oe.P.Count < 1 Then Return
-    If gcd.StepsDone = 1 Then
-        glx.DrawLines([oE.P[0].x, oE.P[0].y, oE.P[1].x, oE.P[1].y], gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
+    If oe.P.Count < 2 Then Return
+    If oe.P.Count = 2 Then
+        glx.PolyLinesP([oE.P[0], oE.P[1]], gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
     Else
-        glx.DrawTriangles(puntos.PolygonTriangulation(puntos.ToXY(oE.P)), gcd.GetGBColor(oE.Colour, oe.pLayer),, gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
+        glx.DrawTriangles3d(puntos.PolygonTriangulation3D(oe.p), gcd.GetGBColor(oE.Colour, oe.pLayer))
     End If
 
 End
@@ -94,7 +71,7 @@ End
 '' A fat version of the entity
 Public Sub DrawSelected(oE As Entity)
 
-    glx.Polygon(puntos.ToXY(oE.P), Gcd.ColorSelected(gcd.GetGBColor(oE.Colour, oe.pLayer)), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
+    glx.Polygon(puntos.ToXY(oE.P), Gcd.ColorSelected(gcd.GetGBColor(oE.Colour, oe.pLayer))) ', gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
 
 End
 

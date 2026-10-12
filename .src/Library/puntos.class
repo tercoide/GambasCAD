@@ -109,6 +109,51 @@ Public Function Arc3Point(px1 As Float, py1 As Float, px2 As Float, py2 As Float
 
 End
 
+'' Igual que Arc3Point pero con tres puntos 3D: el arco esta en el plano que forman los tres puntos.
+'' Devuelve [cx, cy, cz, radio, angulo inicial, angulo final, nx, ny, nz], o [] si los puntos estan alineados.
+'' Los angulos (radianes) se miden en el plano del arco con los ejes de EjesLocales(normal), los mismos que usa LocalToGlobal,
+'' y van en sentido antihorario visto desde la punta de la normal. El angulo final puede ser mayor que 2*Pi.
+'' La normal (normalizada) sale del lado de Normal si se pasa; si no, del lado positivo: Z > 0, o si es horizontal Y > 0, o si no X > 0.
+'' Con los tres puntos en un plano Z constante da los mismos valores que Arc3Point.
+Public Function Arc3Point3d(p1 As Punto3d, p2 As Punto3d, p3 As Punto3d, Optional Normal As Punto3d) As Float[]
+
+    Dim n, a, b, c As Punto3d
+    Dim q As Quaternion
+    Dim l1, l2, l3 As Punto3d
+    Dim arco As Float[]
+
+    a = Operate(p2, p1, 1)
+    b = Operate(p3, p1, 1)
+    n = Cross(a, b)
+    If longitud(n) <= NumericTolerance * longitud(a) * longitud(b) Then Return []      ' alineados
+    Normalizar(n)
+
+    ' elijo el lado de la normal
+    If Normal Then
+        If Dot3P(n, Normal) < 0 Then Mult3D(n, -1)
+    Else If Abs(n.z) > NumericTolerance Then
+        If n.z < 0 Then Mult3D(n, -1)
+    Else If Abs(n.y) > NumericTolerance Then
+        If n.y < 0 Then Mult3D(n, -1)
+    Else
+        If n.x < 0 Then Mult3D(n, -1)
+    Endif
+
+    ' paso los puntos al plano del arco (origen en p1, z local = 0 para los tres) y resuelvo en 2D
+    q = CuaternionGlobalToLocal(n)
+    l1 = GlobalToLocalQ(p1, p1, q)
+    l2 = GlobalToLocalQ(p2, p1, q)
+    l3 = GlobalToLocalQ(p3, p1, q)
+    arco = Arc3Point(l1.x, l1.y, l2.x, l2.y, l3.x, l3.y)
+    If arco.Count < 5 Then Return []
+
+    ' el centro vuelve a coordenadas globales
+    c = LocalToGlobal(p1, n, arco[0], arco[1])
+
+    Return [c.x, c.y, c.z, arco[2], arco[3], arco[3] + arco[4], n.x, n.y, n.z]
+
+End
+
 ' '' return the size of the point cloud: sX, sY, sZ
 ' Public Function PointCloudSize(fPoints3D As Float[]) As Float[]
 '
@@ -3368,13 +3413,29 @@ End
 '' Devuelve Null si la normal es nula.
 Public Function LocalToGlobal(Origen As Punto3d, Normal As Punto3d, x As Float, y As Float) As Punto3d
 
-    Dim n As New Punto3d
-    Dim ejeX, ejeY As Punto3d
+    Dim ejes As Punto3d[]
     Dim p As New Punto3d
 
-    If Not normal Then Return
     If Not origen Then Return
+    ejes = EjesLocales(Normal)
+    If Not ejes Then Return
 
+    p.x = Origen.x + x * ejes[0].x + y * ejes[1].x
+    p.y = Origen.y + x * ejes[0].y + y * ejes[1].y
+    p.z = Origen.z + x * ejes[0].z + y * ejes[1].z
+    Return p
+
+End
+
+'' Devuelve los ejes [X, Y, Z] (normalizados) del sistema local definido por una normal,
+'' con el mismo criterio que LocalToGlobal: Z = Normal, X = Y global x Normal (o X global si la normal es paralela a Y), Y = Z x X.
+'' Es un sistema derecho. Devuelve Null si la normal es nula.
+Public Function EjesLocales(Normal As Punto3d) As Punto3d[]
+
+    Dim n As New Punto3d
+    Dim ejeX, ejeY As Punto3d
+
+    If Not normal Then Return
     If longitud(Normal) < NumericTolerance Then Return Null
     Normalizar2(Normal, n)
 
@@ -3387,10 +3448,127 @@ Public Function LocalToGlobal(Origen As Punto3d, Normal As Punto3d, x As Float, 
     Endif
     ejeY = Cross(n, ejeX)
 
-    p.x = Origen.x + x * ejeX.x + y * ejeY.x
-    p.y = Origen.y + x * ejeX.y + y * ejeY.y
-    p.z = Origen.z + x * ejeX.z + y * ejeY.z
-    Return p
+    Return [ejeX, ejeY, n]
+
+End
+
+'' Cuaternion de la rotacion que lleva los ejes globales a los ejes dados (ortonormales y derechos).
+'' Es decir, rota un vector expresado en el sistema local al sistema global.
+'' Usa el metodo de Shepperd (elige el divisor mas grande para no perder precision).
+Public Function CuaternionDesdeEjes(ejeX As Punto3d, ejeY As Punto3d, ejeZ As Punto3d) As Quaternion
+
+    Dim q As New Quaternion
+    Dim s, traza As Float
+
+    ' matriz de rotacion con los ejes como columnas:
+    ' | ejeX.x ejeY.x ejeZ.x |
+    ' | ejeX.y ejeY.y ejeZ.y |
+    ' | ejeX.z ejeY.z ejeZ.z |
+    traza = ejeX.x + ejeY.y + ejeZ.z
+
+    If traza > 0 Then
+        s = Sqr(traza + 1) * 2
+        q.W = 0.25 * s
+        q.X = (ejeY.z - ejeZ.y) / s
+        q.Y = (ejeZ.x - ejeX.z) / s
+        q.Z = (ejeX.y - ejeY.x) / s
+    Else If ejeX.x > ejeY.y And ejeX.x > ejeZ.z Then
+        s = Sqr(1 + ejeX.x - ejeY.y - ejeZ.z) * 2
+        q.W = (ejeY.z - ejeZ.y) / s
+        q.X = 0.25 * s
+        q.Y = (ejeY.x + ejeX.y) / s
+        q.Z = (ejeZ.x + ejeX.z) / s
+    Else If ejeY.y > ejeZ.z Then
+        s = Sqr(1 + ejeY.y - ejeX.x - ejeZ.z) * 2
+        q.W = (ejeZ.x - ejeX.z) / s
+        q.X = (ejeY.x + ejeX.y) / s
+        q.Y = 0.25 * s
+        q.Z = (ejeZ.y + ejeY.z) / s
+    Else
+        s = Sqr(1 + ejeZ.z - ejeX.x - ejeY.y) * 2
+        q.W = (ejeX.y - ejeY.x) / s
+        q.X = (ejeZ.x + ejeX.z) / s
+        q.Y = (ejeZ.y + ejeY.z) / s
+        q.Z = 0.25 * s
+    Endif
+
+    Return q
+
+End
+
+'' Cuaternion que pasa vectores del sistema global (WCS) al sistema local definido por Normal
+'' (los mismos ejes que LocalToGlobal / EjesLocales). Devuelve Null si la normal es nula.
+'' Calcularlo una vez y usarlo con GlobalToLocalQ para convertir muchos puntos.
+Public Function CuaternionGlobalToLocal(Normal As Punto3d) As Quaternion
+
+    Dim ejes As Punto3d[]
+    Dim q As Quaternion
+
+    ejes = EjesLocales(Normal)
+    If Not ejes Then Return
+
+    ' la rotacion inversa (local -> global) es la conjugada
+    q = CuaternionDesdeEjes(ejes[0], ejes[1], ejes[2])
+    q.X = -q.X
+    q.Y = -q.Y
+    q.Z = -q.Z
+    Return q
+
+End
+
+'' Convierte un punto del sistema global (WCS) a un sistema local con origen en Origen,
+'' usando un cuaternion ya calculado con CuaternionGlobalToLocal. Devuelve un punto nuevo.
+'' En el resultado, x e y estan sobre el plano local y z es la distancia (con signo) al plano.
+Public Function GlobalToLocalQ(Punto As Punto3d, Origen As Punto3d, Q As Quaternion) As Punto3d
+
+    Dim r As New Punto3d
+    Dim vx, vy, vz, tx, ty, tz As Float
+
+    vx = Punto.x - Origen.x
+    vy = Punto.y - Origen.y
+    vz = Punto.z - Origen.z
+
+    ' v' = v + w*t + q x t , con t = 2 * (q x v)
+    tx = 2.0 * (Q.Y * vz - Q.Z * vy)
+    ty = 2.0 * (Q.Z * vx - Q.X * vz)
+    tz = 2.0 * (Q.X * vy - Q.Y * vx)
+
+    r.x = vx + Q.W * tx + (Q.Y * tz - Q.Z * ty)
+    r.y = vy + Q.W * ty + (Q.Z * tx - Q.X * tz)
+    r.z = vz + Q.W * tz + (Q.X * ty - Q.Y * tx)
+    Return r
+
+End
+
+'' Convierte un punto del sistema global (WCS) al sistema local definido por un origen y una normal
+'' (inversa de LocalToGlobal). Para muchos puntos usar GlobalToLocalP, que calcula el cuaternion una sola vez.
+'' Devuelve Null si la normal es nula.
+Public Function GlobalToLocal(Punto As Punto3d, Origen As Punto3d, Normal As Punto3d) As Punto3d
+
+    Dim q As Quaternion
+
+    q = CuaternionGlobalToLocal(Normal)
+    If Not q Then Return
+    Return GlobalToLocalQ(Punto, Origen, q)
+
+End
+
+'' Convierte un array de puntos del sistema global (WCS) al sistema local definido por un origen y una normal.
+'' El cuaternion se calcula una sola vez para todos los puntos. Devuelve un array nuevo; los puntos originales no cambian.
+'' Devuelve Null si la normal es nula.
+Public Function GlobalToLocalP(pPoints As Punto3d[], Origen As Punto3d, Normal As Punto3d) As Punto3d[]
+
+    Dim q As Quaternion
+    Dim pResult As New Punto3d[]
+    Dim p As Punto3d
+
+    q = CuaternionGlobalToLocal(Normal)
+    If Not q Then Return
+
+    For Each p In pPoints
+        pResult.Add(GlobalToLocalQ(p, Origen, q))
+    Next
+    Return pResult
 
 End
 

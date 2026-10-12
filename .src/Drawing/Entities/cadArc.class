@@ -61,6 +61,9 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
         eBuild.fParam[2] = 360
 
         If Definitive Then
+
+            'DrawingAIds.Helper.texto = Format$(ebuild.fParam[1], "0.0 deg") & (" to ") & Format$(ebuild.fParam[2], "0.0 deg")
+            Me.makepolyline(eBuild)
             Me.ExpectedParam = "start"
             Return ["next": "angle", "prompt": "start angle"]
         End If
@@ -69,7 +72,9 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
         If vParam[0] <> "float" Then Return False
 
         eBuild.fParam[1] = vParam[1]
-
+        glx.DrawLines([ebuild.P[0].x, ebuild.P[0].y, ebuild.P[0].x + ebuild.fParam[0] * Cos(ebuild.fParam[1] / 180 * Pi), ebuild.P[0].y + ebuild.fParam[0] * Sin(ebuild.fParam[1] / 180 * Pi)], gcd.GetGBColor(ebuild.Colour, ebuild.pLayer))
+        DrawingAIds.Helper.texto = Format$(ebuild.fParam[1], "0.0 deg")
+        Me.makepolyline(ebuild)
         If Definitive Then
             Me.ExpectedParam = "end"
             Return ["next": "angle", "prompt": "end angle"]
@@ -198,24 +203,13 @@ Public Sub makepolyline(oe As Entity)
         If pp Then oe.polyline.insert([pp.x, pp.y, pp.z])
     Next
 
+    oe.Extrusion.Insert(gcd.Drawing.Sheet.LastNormal.ToXYZ())
+
 End
 
 Public Sub Draw(oE As Entity)
 
     If Not oE.Visible Then Return
-
-    If oE.fParam[2] = oE.fParam[1] Then Return
-
-    If gcd.StepsDone = 2 Then
-
-        glx.DrawLines([oE.P[0].x, oE.P[0].y, oE.P[0].x + oE.fParam[0] * Cos(oE.fParam[1] / 180 * Pi), oE.P[0].y + oE.fParam[0] * Sin(oE.fParam[1] / 180 * Pi)], gcd.GetGBColor(oE.Colour, oe.pLayer))
-        DrawingAIds.Helper.texto = Format$(oE.fParam[1], "0.0 deg")
-        Me.makepolyline(oe)
-    Else If gcd.StepsDone = 3 Then
-
-        DrawingAIds.Helper.texto = Format$(oE.fParam[1], "0.0 deg") & (" to ") & Format$(oE.fParam[2], "0.0 deg")
-        Me.makepolyline(oe)
-    End If
 
     glx.PolyLines(oe.PolyLine, gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
 
