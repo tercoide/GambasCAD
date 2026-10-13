@@ -1625,7 +1625,7 @@ Public Extern glDepthRange(n As Float, f As Float)
 Public Extern glViewport(x As Integer, y As Integer, iWIdth As Integer, iHeight As Integer)
 
 Public Extern glDrawArrays(Mode As Integer, first As Integer, iSize As Integer)
-Public Extern glDrawElements(Mode As Integer, iSize As Integer, iType As Integer, indices As Byte[]) ' verificar si es byte
+Public Extern glDrawElements(Mode As Integer, iSize As Integer, iType As Integer, indices As Pointer) ' with an ELEMENT_ARRAY_BUFFER bound, indices is a byte offset into it
 Public Extern glGetPointerv(iPname As Integer, params As Pointer)
 Public Extern glPolygonOffset(factor As Single, units As Single)
 Public Extern glCopyTexImage1D(iTarget As Integer, iLevel As Integer, internalformat As Integer, x As Integer, y As Integer, iWIdth As Integer, iBorder As Integer)
@@ -4221,18 +4221,19 @@ Public Function CreateVAO(vertices As Float[], colors As Float[], Optional usage
 
 End
 
-Public Function createVBO(data As Pointer, dataSizeBytes As Integer, usage As Integer) As Integer
+'' Target: ARRAY_BUFFER for vertex data, ELEMENT_ARRAY_BUFFER for indices
+Public Function createVBO(data As Pointer, dataSizeBytes As Integer, usage As Integer, Optional Target As Integer = ARRAY_BUFFER) As Integer
 
     Dim e, Id As Integer = 0 ' 0 Is Reserved, glGenBuffersARB()will Return non - zero id If success
     Dim iParams As New Integer[1]
 
     glGenBuffers(1, VarPtr(Id))                                      'Create a VBO
-    glBindBuffer(ARRAY_BUFFER, Id)                                   'activate VBO id To Use
-    glBufferData(ARRAY_BUFFER, dataSizeBytes, data, usage)           'upload data To video card
+    glBindBuffer(Target, Id)                                   'activate VBO id To Use
+    glBufferData(Target, dataSizeBytes, data, usage)           'upload data To video card
     e = glGetError()
 
     ' check data size In VBO Is Same As Input array, If Not Return 0 And delete VBO
-    glGetBufferParameteriv(ARRAY_BUFFER, BUFFER_SIZE, iParams.Data)
+    glGetBufferParameteriv(Target, BUFFER_SIZE, iParams.Data)
 
     If (dataSizeBytes <> iParams[0]) Then
         glDeleteBuffers(1, VarPtr(Id))
