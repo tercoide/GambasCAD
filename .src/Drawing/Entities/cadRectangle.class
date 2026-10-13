@@ -28,57 +28,76 @@ Public Const DrawingOrder As Integer = 1        ' 1 = draws first
 Public Const CmdLineHelper As String = ("a ractangle : start")
 Public Const ParamType As String = "point3d"                             ' that is Point, Point; could be Color Text, etc
 Public Const ParamHelper As String = "start"
-Public Const TotalPoints As Integer = 2
+Public Const TotalPoints As Integer = 5 ' porque el punto inicial se repite
 
 ' The entity handler receives a user action, and returns the number of expected parameter
 ' If definitive = true, means the parameter is set
 Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Variant
 
+    eBuild.Extrusion[0] = gcd.Drawing.Sheet.LastNormal.x  ' not null !!!
+    eBuild.Extrusion[1] = gcd.Drawing.Sheet.LastNormal.y
+    eBuild.Extrusion[2] = gcd.Drawing.Sheet.LastNormal.z
     ' la linea solo recibe puntos
     If eBuild.fParam.Count = 0 Then eBuild.fParam.Add(0)
 
     If vParam[0] <> "point3d" Then Return False
 
     If Me.ExpectedParam = "start" Then
+        'eBuild.P.Resize(4)
         Try eBuild.P[0].x = vParam[1]
         Try eBuild.P[0].y = vParam[2]
-        eBuild.P[1].x = eBuild.P[0].x
-        eBuild.P[1].y = eBuild.P[0].y
+        Try eBuild.P[0].z = vParam[3]
+        eBuild.P[2].x = eBuild.P[0].x
+        eBuild.P[2].y = eBuild.P[0].y
+        eBuild.P[2].z = eBuild.P[0].z
         If Definitive Then
             Me.ExpectedParam = "end"
             Return ["prompt": "Diagonal point", "next": "point3d"]
         End If
     Else If Me.ExpectedParam = "end" Then
+        Try eBuild.P[2].x = vParam[1]
+        Try eBuild.P[2].y = vParam[2]
+        Try eBuild.P[2].z = vParam[3]
+        Me.MakePolyline(eBuild)
+        If Definitive Then
 
-        Try eBuild.P[1].x = vParam[1]
-        Try eBuild.P[1].y = vParam[2]
-        If Definitive Then Return ["command": "end"]
+            Return ["command": "end"]
+        End If
 
     Endif
 
 End
 
-Public Sub Draw(oE As Entity)
+Public Sub MakePolyline(oe As Entity)
 
     ' En esta entidad , la rutina Draw funciona solo durante la construccion
     Dim flxPoly As New Float[]
 
     Dim w, h As Float
 
-    w = oE.P[1].x - oE.P[0].x
-    h = oE.P[1].y - oE.P[0].y
-    flxPoly.Add(oE.P[0].x)
-    flxPoly.Add(oE.P[0].y)
-    flxPoly.Add(oE.P[0].x + w)
-    flxPoly.Add(oE.P[0].y)
-    flxPoly.Add(oE.P[0].x + w)
-    flxPoly.Add(oE.P[0].y + h)
-    flxPoly.Add(oE.P[0].x)
-    flxPoly.Add(oE.P[0].y + h)
-    flxPoly.Add(oE.P[0].x)
-    flxPoly.Add(oE.P[0].y)
+    oe.PolyLine.Clear
 
-    glx.PolyLines(flxPoly, gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oe.LineType.TrameLength)
+    ' puntos sobre el plano de trabajo
+    Dim P1, P0 As New Punto3d
+    Dim pn As New Punto3D(oe.Extrusion[0], oe.Extrusion[1], oe.Extrusion[2])
+
+    ' en 3D debo determinar este angulo segun el plano de trabajo
+    p0 = puntos.GlobalToLocal(oe.P[0], oe.P[0], pn)
+    p1 = puntos.GlobalToLocal(oe.P[2], oe.P[0], pn)
+
+    oe.P[1] = puntos.LocalToGlobal(oe.P[0], pn, p1.x, 0)
+    'oe.P[2] = puntos.LocalToGlobal(oe.P[0], pn, p1.x, p1.y)
+    oe.P[3] = puntos.LocalToGlobal(oe.P[0], pn, 0, p1.y)
+
+    oe.P[4] = oe.P[0]
+
+    oe.PolyLine.Insert(puntos.ToXYZ(oe.P))
+
+End
+
+Public Sub Draw(oE As Entity)
+
+    glx.PolyLines(oe.PolyLine, gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oe.LineType.TrameLength)
 
     ' test
 
@@ -91,21 +110,5 @@ Public Sub Finish(oE As Entity) As Boolean
     ' aca vamos a trasnformar la entidad en una polilinea
 
     oe.gender = cadLWPolyline.Gender
-    Dim w, h As Float
-    w = oE.P[1].x - oE.P[0].x
-    h = oE.P[1].y - oE.P[0].y
-    oE.P[1].x = oE.P[0].x + w
-    oe.P[1].y = oE.P[0].y
-    oE.P.Add(puntos.P3d(oE.P[0].x + w, oE.P[0].y + h, oE.P[0].z))
-    oE.P.Add(puntos.P3d(oE.P[0].x, oE.P[0].y + h, oE.P[0].z))
-    oE.P.Add(oE.P[0].Copy())
-
-    ' cadLWPolyline.BuildPOI(oe)
-
-    ' busco el tipo de linea, si hace falta
-
-    ' tareas finales de armado del objeto
-
-    oE.psel.resize(oE.P.Count)
 
 End
