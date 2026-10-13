@@ -1625,7 +1625,7 @@ Public Extern glDepthRange(n As Float, f As Float)
 Public Extern glViewport(x As Integer, y As Integer, iWIdth As Integer, iHeight As Integer)
 
 Public Extern glDrawArrays(Mode As Integer, first As Integer, iSize As Integer)
-Public Extern glDrawElements(Mode As Integer, iSize As Integer, iType As Integer, indices As Pointer) ' with an ELEMENT_ARRAY_BUFFER bound, indices is a byte offset into it
+Public Extern glDrawElements(Mode As Integer, iSize As Integer, iType As Integer, indices As Byte[]) ' verificar si es byte
 Public Extern glGetPointerv(iPname As Integer, params As Pointer)
 Public Extern glPolygonOffset(factor As Single, units As Single)
 Public Extern glCopyTexImage1D(iTarget As Integer, iLevel As Integer, internalformat As Integer, x As Integer, y As Integer, iWIdth As Integer, iBorder As Integer)
@@ -2907,6 +2907,7 @@ Public Function DrawCubic(pCenter As Punto3d, fWidth As Float, fHeight As Float,
     Dim cara4 As New Punto3d[]
     Dim cara5 As New Punto3d[]
     Dim cara6 As New Punto3d[]
+    Dim CarasTodas As New Punto3d[]
 
     Dim p As Punto3d
     'If gbcolor > 0 Then Stop
@@ -2931,7 +2932,7 @@ Public Function DrawCubic(pCenter As Punto3d, fWidth As Float, fHeight As Float,
     p.z = pCenter.z + fDeph / 2
     p3d.Add(p)
     p = New Punto3d
-    p.x = pCenter.x + fWIdth / 2
+    p.x = pCenter.x - fWIdth / 2
     p.y = pCenter.y + fHeight / 2
     p.z = pCenter.z + fDeph / 2
     p3d.Add(p)
@@ -2953,33 +2954,30 @@ Public Function DrawCubic(pCenter As Punto3d, fWidth As Float, fHeight As Float,
     p.z = pCenter.z + fDeph / 2
     p3d.Add(p)
     p = New Punto3d
-    p.x = pCenter.x + fWIdth / 2
+    p.x = pCenter.x - fWIdth / 2
     p.y = pCenter.y - fHeight / 2
     p.z = pCenter.z + fDeph / 2
     p3d.Add(p)
 
-    cara1.Insert([p3d[0], p3d[1], p3d[2], p3d[3]])
-    cara2.Insert([p3d[4], p3d[5], p3d[6], p3d[7]])
+    ' caras compuestas de dos triangulitos
+    cara1.Insert([p3d[0], p3d[1], p3d[2], p3d[0], p3d[2], p3d[3]])
+    cara2.Insert([p3d[4], p3d[5], p3d[6], p3d[4], p3d[6], p3d[7]])
 
-    cara3.Insert([p3d[0], p3d[1], p3d[4], p3d[5]])
-    cara4.Insert([p3d[2], p3d[3], p3d[6], p3d[7]])
+    cara3.Insert([p3d[0], p3d[1], p3d[5], p3d[0], p3d[5], p3d[4]])
+    cara4.Insert([p3d[3], p3d[2], p3d[6], p3d[3], p3d[6], p3d[7]])
 
-    cara5.Insert([p3d[0], p3d[3], p3d[7], p3d[4]])
-    cara6.Insert([p3d[1], p3d[2], p3d[6], p3d[7]])
+    cara5.Insert([p3d[0], p3d[4], p3d[7], p3d[0], p3d[7], p3d[3]])
+    cara6.Insert([p3d[1], p3d[5], p3d[6], p3d[1], p3d[6], p3d[2]])
 
-    Dim q As New QuateRnion
+    ' pero voy a mostrar todo junto
+    CarasTodas.Insert(cara1.Copy())
+    CarasTodas.Insert(cara2.Copy())
+    CarasTodas.Insert(cara3.Copy())
+    CarasTodas.Insert(cara4.Copy())
+    CarasTodas.Insert(cara5.Copy())
+    CarasTodas.Insert(cara6.Copy())
 
-    q = puntos.AngulosACuaternion(fYaw, fPitch, fRoll)
-    For Each p In p3d
-        puntos.RotateP3(p, q)
-    Next
-
-    Polygon(puntos.ToXYZ(cara1), ContourColor,,, True)
-    Polygon(puntos.ToXYZ(cara2), ContourColor,,, True)
-    Polygon(puntos.ToXYZ(cara3), ContourColor,,, True)
-    Polygon(puntos.ToXYZ(cara4), ContourColor,,, True)
-    Polygon(puntos.ToXYZ(cara5), ContourColor,,, True)
-    Polygon(puntos.ToXYZ(cara6), ContourColor,,, True)
+    DrawTriangles3D(puntos.ToXYZ(CarasTodas), FillColor)
 
 End
 
@@ -4221,19 +4219,18 @@ Public Function CreateVAO(vertices As Float[], colors As Float[], Optional usage
 
 End
 
-'' Target: ARRAY_BUFFER for vertex data, ELEMENT_ARRAY_BUFFER for indices
-Public Function createVBO(data As Pointer, dataSizeBytes As Integer, usage As Integer, Optional Target As Integer = ARRAY_BUFFER) As Integer
+Public Function createVBO(data As Pointer, dataSizeBytes As Integer, usage As Integer) As Integer
 
     Dim e, Id As Integer = 0 ' 0 Is Reserved, glGenBuffersARB()will Return non - zero id If success
     Dim iParams As New Integer[1]
 
     glGenBuffers(1, VarPtr(Id))                                      'Create a VBO
-    glBindBuffer(Target, Id)                                   'activate VBO id To Use
-    glBufferData(Target, dataSizeBytes, data, usage)           'upload data To video card
+    glBindBuffer(ARRAY_BUFFER, Id)                                   'activate VBO id To Use
+    glBufferData(ARRAY_BUFFER, dataSizeBytes, data, usage)           'upload data To video card
     e = glGetError()
 
     ' check data size In VBO Is Same As Input array, If Not Return 0 And delete VBO
-    glGetBufferParameteriv(Target, BUFFER_SIZE, iParams.Data)
+    glGetBufferParameteriv(ARRAY_BUFFER, BUFFER_SIZE, iParams.Data)
 
     If (dataSizeBytes <> iParams[0]) Then
         glDeleteBuffers(1, VarPtr(Id))

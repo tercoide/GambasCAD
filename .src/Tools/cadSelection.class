@@ -207,7 +207,7 @@ Public Function MouseDown()
         ' veo si esta en un grip(solo si ToolActive = False)
 
         ' chequeo si estoy sobre un grip
-        If AllowGripEdit Then GripPoint = FindGrip(Me.SelStartXr, Me.SelStartYr) Else GripPoint = Null
+        If AllowGripEdit Then GripPoint = FindGrip(Me.SelStartX, Me.SelStartY) Else GripPoint = Null
 
         If GripPoint Then
 
@@ -669,7 +669,8 @@ Public Sub MouseMove()
         ' (ni siquiera deberiamos estar aca, deberiamos estar en cadPan.class)
     Else
         ' busco algun grip
-        GripHovered = FindGrip(Me.SelEndXr, Me.SelEndYr)
+        GripHovered = FindGrip(Me.SelEndX, Me.SelEndY)
+
         ' B.4 ActionActive = 0: nada
 
         If gcd.Drawing.HoveredEntity Then
@@ -860,8 +861,7 @@ Public Sub Draw()
 
         Else If GripHovered Then
 
-            DrawingAids.Helper.texto = GripHovered.ToolTip
-            DrawingAids.Helper.dX = 15
+            DrawingAids.Texting(GripHovered.ToolTip)
             DrawingAids.Helper.dY = 15
         Else
             DrawingAids.Helper.texto = ""
@@ -907,15 +907,25 @@ End
 Public Function FindGrip(x As Float, y As Float) As Grip
 
     Dim g As Grip
+    Dim p2 As New Punto3d
 
     For Each g In gcd.Drawing.Sheet.Grips
-        If puntos.Around(x, y, g.x, g.y, gcd.Metros(Config.GripProximityDistance)) Then
+        ' paso el grip a 2D
+        p2 = gcd.Drawing.Sheet.camera.Get2DpointFrom3Dworld(g.p)
+
+        ' gcd.Metros(Config.GripProximityDistance)
+        If puntos.Around(x, gcd.Drawing.Sheet.GLSheet.Height - y, p2.x, p2.y, 8) Then
+
+            gcd.Drawing.Sheet.GLSheet.Mouse = Mouse.SizeAll
 
             Return g
+
         Endif
         '
     Next
+    'Debug x, gcd.Drawing.Sheet.GLSheet.Height - y, p2.x, p2.y
     DrawingAids.txtFrom = ""
+    gcd.Drawing.Sheet.GLSheet.Mouse = Mouse.Cross
     Return Null
 
 End
