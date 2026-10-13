@@ -329,7 +329,7 @@ Public Sub MouseMove()
     Dim MouseTry As Integer = -1000000
     Dim Dx As Float
     Dim Dy As Float
-
+    Dim p As Punto3d
     '  If gcd.Drawing.HoveredEntity Then Stop
 
     Try MouseTry = Mouse.X
@@ -349,7 +349,7 @@ Public Sub MouseMove()
 
     X = gcd.Near(X)
     Y = gcd.Near(Y)
-
+    p = glx.XYZ(x, y)
     ' pero veo si tengo un POI
 
     'If InStr("LAPRM", NextParamType) = 0 Then Return ' we are expecting a parameter
@@ -373,7 +373,7 @@ Public Sub MouseMove()
 
     If NextParamType = "relation" Then
 
-        GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point3d", x, y]))
+        GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point3d", p.x, p.y, p.z]))
         gcd.redraw
 
         Return              ' nothing more to do here
@@ -428,8 +428,7 @@ Public Sub MouseMove()
     Endif
 
     If NextParamType = "point3d" Then
-        Dim p As Punto3d
-        p = glx.XYZ(x, y)
+
         ' y si estoy en 3D?
         If gcd.Drawing.Sheet.Is3D Then
             If gcd.Drawing.Sheet.LastPoint Then
@@ -452,49 +451,21 @@ Public Sub MouseUp()
 
     Dim X, Y, Z, f As Float
 
-    If Mouse.Right Then
-        gcd.clsJob.KeyText("U")
+    If Mouse.Right Then ' si tengo un valor default, lo mando
+        If Me.ParamDefault.Count > 0 Then
+            Dim i As Integer
+            Dim s, si As String
+            s = Me.ParamDefault[0]
+            For i = 1 To Me.ParamDefault.Max
+                s &= ", " & si
+            Next
+        Endif
+        gcd.clsJob.KeyText(s)
         Return
     End If
 
     DrawingAIds.ErrorMessage = ""
     'If InStr("LAPRM", NextParamType) = 0 Then Return ' we are expecting a parameter
-
-    ' if we expect a parameter, it will be passed
-    If NextParamType = "angle" Then
-
-        ' return the angle from horizontal to us
-        f = Ang(gcd.Xreal(mouse.x) - Me.LastX, gcd.Yreal(mouse.y) - Me.lastY)
-        f *= 180 / Pi
-        GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["float", f], True))
-
-        gcd.redraw
-        Return              ' nothing more to do here
-    End If
-
-    If NextParamType = "relation" Then
-
-        If GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point3d", gcd.Xreal(mouse.x), gcd.Yreal(mouse.y)], True)) Then
-
-            ' last point
-            gcd.Drawing.LastPoint.Clear
-            gcd.Drawing.LastPoint.Insert([gcd.Xreal(mouse.x), gcd.Yreal(mouse.y)])
-
-        End If
-        gcd.redraw
-        Return
-    End If
-
-    If NextParamType = "lenght" Then
-
-        ' return the angle from horizontal to us
-        f = puntos.distancia(gcd.Xreal(mouse.x), gcd.Yreal(mouse.y), Me.LastX, Me.lastY)
-
-        GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["float", f], True))
-        gcd.redraw
-        Return              ' nothing more to do here
-
-    End If
 
     ' we are waiting for a point
 
@@ -529,10 +500,47 @@ Public Sub MouseUp()
     LastY = Y
     LastPoint = True
 
-    If NextParamType = "point3d" Then
-        Dim p As Punto3d
+    Dim p As Punto3d
 
-        p = glx.XYZ(x, y)                           ' esta funcion transforma coord de pantalla en 3D de acuerdo al plano de trabajo sie stoy en 2D
+    p = glx.XYZ(x, y)                           ' esta funcion transforma coord de pantalla en 3D de acuerdo al plano de trabajo sie stoy en 2D
+
+    ' if we expect a parameter, it will be passed
+    If NextParamType = "angle" Then
+
+        ' return the angle from horizontal to us
+        f = Ang(gcd.Xreal(mouse.x) - Me.LastX, gcd.Yreal(mouse.y) - Me.lastY)
+        f *= 180 / Pi
+        GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["float", f], True))
+
+        gcd.redraw
+        Return              ' nothing more to do here
+    End If
+
+    If NextParamType = "relation" Then
+
+        If GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point3d", p.x, p.y, p.z], True)) Then
+
+            ' last point
+            gcd.Drawing.LastPoint.Clear
+            gcd.Drawing.LastPoint.Insert([gcd.Xreal(mouse.x), gcd.Yreal(mouse.y)])
+
+        End If
+        gcd.redraw
+        Return
+    End If
+
+    If NextParamType = "lenght" Then
+
+        ' return the angle from horizontal to us
+        f = puntos.distancia(gcd.Xreal(mouse.x), gcd.Yreal(mouse.y), Me.LastX, Me.lastY)
+
+        GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["float", f], True))
+        gcd.redraw
+        Return              ' nothing more to do here
+
+    End If
+
+    If NextParamType = "point3d" Then
 
         ' y si estoy en 3D?
         If gcd.Drawing.Sheet.Is3D Then
@@ -678,7 +686,13 @@ Public Function GetAnswer(Answer As Variant) As Boolean
             If answer.key = "prompt" Then Me.prompt = v
             If answer.key = "nextparamtype" Then Me.NextParamType = v
             If answer.key = "next" Then Me.NextParamType = v
+            If answer.key = "default" Then
+                Dim xs As String[]
+                xs = Split(v, ",")
+                Me.ParamDefault = xs
+            End If
         Next
+        If Not answer.Exist("default") Then Me.ParamDefault = []
 
         ' Else If answer Is Variant Then
         '     If Answer.Command = "end" Then Me.Finish()
@@ -686,6 +700,17 @@ Public Function GetAnswer(Answer As Variant) As Boolean
         '     Me.NextParamType = Answer.ParamType
         '     Me.prompt = Answer.Prompt
     End If
+
+    ' una vez analizado, armo el prompt
+    If Me.ParamDefault.Count > 0 Then
+        Dim i As Integer
+        Dim s, si As String
+        s = Me.ParamDefault[0]
+        For i = 1 To Me.ParamDefault.Max
+            s &= ", " & si
+        Next
+    Endif
+    Me.prompt &= "[" & s & "]"
 
     Return True                     ' the class enjoyed the user input
 
