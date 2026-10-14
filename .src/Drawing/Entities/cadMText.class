@@ -948,8 +948,8 @@ Public Function GenerateGrips(e As Entity) As Integer
 
     g = New Grip
     g.Shape = 0
-    g.X = e.P[0].x
-    g.Y = e.P[0].y
+    g.p = e.P[0].Copy()
+    g.pRef = g.P.Copy()
     g.Action = 0 ' mover
     g.AsociatedEntity = e
     g.AsociatedPoint = -1
@@ -971,10 +971,8 @@ Public Function GenerateGrips(e As Entity) As Integer
     flxGrip.Clear
     flxGrip.Insert([OffsetWidth, 0])
     puntos.Rotate(flxGrip, e.fParam[Me.ipaTextAngle])
-    g.X = e.P[0].x + flxGrip[0]
-    g.y = e.P[0].y + flxGrip[1]
-    g.Xr = g.X
-    g.Yr = g.Y
+    g.p = puntos.P3d(e.P[0].x + flxGrip[0], e.P[0].y + flxGrip[1], e.P[0].z)
+    g.pRef = g.P.Copy()
     g.Action = 1 ' este dato es propio de la clase
     g.AsociatedEntity = e
     g.AsociatedPoint = 0
@@ -988,10 +986,8 @@ Public Function GenerateGrips(e As Entity) As Integer
     flxGrip.Clear
     flxGrip.Insert([0, e.fParam[Me.ipaTextHeight]])
     puntos.Rotate(flxGrip, e.fParam[Me.ipaTextAngle])
-    g.X = e.P[0].x + flxGrip[0]
-    g.y = e.P[0].y + flxGrip[1]
-    g.Xr = g.X
-    g.Yr = g.Y
+    g.p = puntos.P3d(e.P[0].x + flxGrip[0], e.P[0].y + flxGrip[1], e.P[0].z)
+    g.pRef = g.P.Copy()
     g.Value = e.fParam[Me.ipaTextHeight]
     g.Action = 2
     g.AsociatedEntity = e
@@ -1005,10 +1001,8 @@ Public Function GenerateGrips(e As Entity) As Integer
     flxGrip.Clear
     flxGrip.Insert([-e.fParam[Me.ipaTextHeight], 0])
     puntos.Rotate(flxGrip, e.fParam[Me.ipaTextAngle])
-    g.X = e.P[0].x + flxGrip[0]
-    g.y = e.P[0].y + flxGrip[1]
-    g.Xr = g.X
-    g.Yr = g.Y
+    g.p = puntos.P3d(e.P[0].x + flxGrip[0], e.P[0].y + flxGrip[1], e.P[0].z)
+    g.pRef = g.P.Copy()
     g.Action = 3
     g.AsociatedEntity = e
     g.AsociatedPoint = 0
@@ -1051,28 +1045,29 @@ Public Function GripEdit(g As Grip) As Boolean
     e = g.AsociatedEntity
     Select Case g.Action
         Case 0 ' mover la base
-            e.P[0].x = g.X
-            e.P[0].y = g.Y
+            ' el texto se construye en XY, el z de la base se conserva
+            e.P[0].x = g.P.x
+            e.P[0].y = g.P.y
         Case 1 ' cambiar el ancho
             ' Angulo entre la posicion del grip original y la nueva
-            fAngle = Ang((g.x - e.P[0].x), (g.y - e.P[0].y)) - Ang((g.xr - e.P[0].x), (g.yr - e.P[0].y))
+            fAngle = Ang((g.P.x - e.P[0].x), (g.P.y - e.P[0].y)) - Ang((g.pRef.x - e.P[0].x), (g.pRef.y - e.P[0].y))
             ' la nueva altura del texto sera
-            r1 = puntos.distancia(e.P[0].x, e.P[0].y, g.x, g.Y)
+            r1 = puntos.distancia(e.P[0].x, e.P[0].y, g.P.x, g.P.y)
 
             e.fParam[Me.ipaRectangleWIdth] = r1 * Cos(fAngle)
 
         Case 2 ' cambiar la altura
             ' Angulo entre la posicion del grip original y la nueva
-            fAngle = Ang((g.x - e.P[0].x), (g.y - e.P[0].y)) - Ang((g.xr - e.P[0].x), (g.yr - e.P[0].y))
+            fAngle = Ang((g.P.x - e.P[0].x), (g.P.y - e.P[0].y)) - Ang((g.pRef.x - e.P[0].x), (g.pRef.y - e.P[0].y))
             ' la nueva altura del texto sera
-            r1 = puntos.distancia(e.P[0].x, e.P[0].y, g.x, g.Y)
+            r1 = puntos.distancia(e.P[0].x, e.P[0].y, g.P.x, g.P.y)
 
             e.fParam[Me.ipaTextHeight] = r1 * Cos(fAngle)
 
         Case 3 ' rotar
-            fAngle = Ang((g.x - e.P[0].x), (g.y - e.P[0].y)) - Ang((g.xr - e.P[0].x), (g.yr - e.P[0].y))
+            fAngle = Ang((g.P.x - e.P[0].x), (g.P.y - e.P[0].y)) - Ang((g.pRef.x - e.P[0].x), (g.pRef.y - e.P[0].y))
 
-            fAngle = Ang((g.x - e.P[0].x), (g.y - e.P[0].y))
+            fAngle = Ang((g.P.x - e.P[0].x), (g.P.y - e.P[0].y))
 
             'rotate(e, fAngle - e.fParam[Me.ipaTextAngle])
             e.fParam[Me.ipaTextAngle] = fAngle - Pi'- e.fParam[Me.ipaTextAngle]

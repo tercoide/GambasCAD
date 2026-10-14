@@ -202,57 +202,37 @@ End
 Public Function GenerateGrips(e As Entity) As Integer
 
     Dim g As Grip
-    Dim iCount As Integer
+    Dim i, iCount As Integer
+    Dim fAngle As Float
+    Dim pQuad As Punto3d
 
     g = New Grip
     g.Shape = 0
-    g.X = e.P[0].x
-    g.Y = e.P[0].y
+    g.p = e.P[0].Copy()
+    g.pRef = g.P.Copy()
     g.Action = 0 ' mover
     g.AsociatedEntity = e
     g.AsociatedPoint = 0
     gcd.Drawing.Sheet.Grips.Add(g)
     g.ToolTip = ("Move center")
+    Inc iCount
 
-    g = New Grip
-    g.Shape = 1
-    g.X = e.P[0].x + e.fParam[0]
-    g.Y = e.P[0].y
-    g.Action = 1 ' este dato es propio de la clase
-    g.AsociatedEntity = e
-    g.AsociatedPoint = 0
-    g.ToolTip = ("Change radius")
-    gcd.Drawing.Sheet.Grips.Add(g)
-
-    g = New Grip
-    g.Shape = 1
-    g.X = e.P[0].x - e.fParam[0]
-    g.Y = e.P[0].y
-    g.Action = 1
-    g.AsociatedEntity = e
-    g.AsociatedPoint = 0
-    g.ToolTip = ("Change radius")
-    gcd.Drawing.Sheet.Grips.Add(g)
-
-    g = New Grip
-    g.Shape = 1
-    g.X = e.P[0].x
-    g.Y = e.P[0].y + e.fParam[0]
-    g.Action = 1
-    g.AsociatedEntity = e
-    g.AsociatedPoint = 0
-    g.ToolTip = ("Change radius")
-    gcd.Drawing.Sheet.Grips.Add(g)
-
-    g = New Grip
-    g.Shape = 1
-    g.X = e.P[0].x
-    g.Y = e.P[0].y - e.fParam[0]
-    g.Action = 1
-    g.AsociatedEntity = e
-    g.AsociatedPoint = 0
-    g.ToolTip = ("Change radius")
-    gcd.Drawing.Sheet.Grips.Add(g)
+    ' cuadrantes, en el mismo plano que usa makepolyline
+    For i = 0 To 3
+        fAngle = i * Pi / 2
+        pQuad = puntos.LocalToGlobal(e.P[0], gcd.Drawing.Sheet.LastNormal, e.fParam[0] * Cos(fAngle), e.fParam[0] * Sin(fAngle))
+        If Not pQuad Then Break
+        g = New Grip
+        g.Shape = 1
+        g.p = pQuad
+        g.pRef = g.P.Copy()
+        g.Action = 1 ' este dato es propio de la clase
+        g.AsociatedEntity = e
+        g.AsociatedPoint = 0
+        g.ToolTip = ("Change radius")
+        gcd.Drawing.Sheet.Grips.Add(g)
+        Inc iCount
+    Next
 
     Return iCount
 
@@ -261,19 +241,17 @@ End
 Public Function GripEdit(g As Grip) As Boolean
 
     Dim e As Entity
-    Dim r, r1, r2 As Float
+    Dim pLocal As Punto3d
 
     e = g.AsociatedEntity
     Select Case g.Action
         Case 0
-            e.P[0].x = g.X
-            e.P[0].y = g.Y
+            e.P[0] = g.P.Copy()
+
         Case 1
-            r1 = Abs(e.P[0].x - g.X)
-            r2 = Abs(e.P[0].y - g.y)
-            If r1 > r2 Then r = r1 Else r = r2
-            r = Sqr(r1 * r1 + r2 * r2)
-            e.fParam[0] = r
+            ' distancia al centro medida en el plano del circulo
+            pLocal = puntos.GlobalToLocal(g.P, e.P[0], gcd.Drawing.Sheet.LastNormal)
+            If pLocal Then e.fParam[0] = Sqr(pLocal.x ^ 2 + pLocal.y ^ 2)
     End Select
 
     Me.BuildGeometry(e)

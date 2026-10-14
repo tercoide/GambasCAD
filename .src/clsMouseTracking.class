@@ -186,6 +186,7 @@ Public Function CheckBestPOI(xr As Float, Yr As Float, Optional eExclude As Enti
     Dim d, ShortestDistance As Float
     Dim e As Entity
     Dim rJson As Collection
+    Dim p As Punto3d
 
     rJson = ["mode": 0]
     BestPoint.Add(0)
@@ -195,6 +196,11 @@ Public Function CheckBestPOI(xr As Float, Yr As Float, Optional eExclude As Enti
 
     If gcd.Drawing.Sheet.Is3D Then
         rJson = CheckPOI3D(gcd.Drawing.HoveredEntity, gcd.Drawing.Sheet.ray)
+        If rJson["mode"] = 0 Then ' no encontro nada, devuelvo un punto generico
+
+            p = puntos.RayPlaneIntersection(gcd.Drawing.Sheet.ray, gcd.Drawing.Sheet.GetPlane())
+            rJson = ["mode": 0, "point3d": p]
+        Endif
         Return rJson
     End If
 
@@ -389,7 +395,7 @@ Public Sub CheckPOI3D(e As Entity, Eye As Ray, Optional ToolRay As Ray, RefPoint
             Dim f As Face
             f = clsEntities.FaceCloserToRay(e.faces, eye)
             If Not f Then Return rData' Stop ' no deberia ocurrir
-            pInFace = puntos.RayPolygonIntersection3D(eye.Origin, eye.Direction, f.ToPuntos3D())
+            pInFace = puntos.RayPolygonIntersection3D(eye, f.ToPuntos3D())
             If Not pInFace Then Return rData 'Stop ' no deberia ocurrir
 
             ' vertex mas cercano

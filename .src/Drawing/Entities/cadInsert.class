@@ -483,7 +483,7 @@ Public Function GripEdit(g As Grip) As Boolean
 
     e = g.AsociatedEntity
     If g.Action = 0 Then                        ' mover
-        translate(e, g.X - e.P[0].x, g.Y - e.P[0].y, 0)
+        translate(e, g.P.x - e.P[0].x, g.P.y - e.P[0].y, g.P.z - e.P[0].z)
 
     Else If g.Action = 2 Then                   ' escalar
 
@@ -492,9 +492,9 @@ Public Function GripEdit(g As Grip) As Boolean
         xr = e.P[0].x
         yr = e.P[0].y
 
-        l = (g.X - xr) ^ 2 + (g.Y - yr) ^ 2
-        d = puntos.PointToLineDistance([g.x, g.y], [xr, yr, g.xr, g.yr]) ^ 2
-        l0 = ((g.Xr - xr) ^ 2 + (g.Yr - yr) ^ 2) ^ 0.5
+        l = (g.P.x - xr) ^ 2 + (g.P.y - yr) ^ 2
+        d = puntos.PointToLineDistance([g.P.x, g.P.y], [xr, yr, g.pRef.x, g.pRef.y]) ^ 2
+        l0 = ((g.pRef.x - xr) ^ 2 + (g.pRef.y - yr) ^ 2) ^ 0.5
         x = (l - d) ^ 0.5
 
         If l0 = 0 Then Return
@@ -513,18 +513,15 @@ Public Function GripEdit(g As Grip) As Boolean
         gcd.CCC["SCALE"].glScale[1] = xs
         gcd.CCC["SCALE"].glScale[2] = xs
 
-        g.X = xr + (g.Xr - xr) * xs
-
-        g.Y = yr + (g.yr - yr) * xs
-
-        g.Xr = g.X
-        g.Yr = g.Y
+        g.P.x = xr + (g.pRef.x - xr) * xs
+        g.P.y = yr + (g.pRef.y - yr) * xs
+        g.pRef = g.P.Copy()
 
     Else If g.Action = 1 Then                           ' rotate
 
         xr = e.P[0].x
         yr = e.P[0].y
-        fAngle = Ang(g.X - xr, g.Y - yr) '- Ang(g.xr - xr, g.yr - yr)
+        fAngle = Ang(g.P.x - xr, g.P.y - yr) '- Ang(g.pRef.x - xr, g.pRef.y - yr)
         translate(e, -xr, -yr, 0)
         rotate(e, fAngle - Rad(e.fParam[Me.ipaRotacion]))
         translate(e, xr, yr, 0)
@@ -556,8 +553,8 @@ Public Function GenerateGrips(e As Entity) As Integer
 
     g = New Grip
     g.Shape = 0
-    g.X = e.P[0].x
-    g.Y = e.P[0].y
+    g.p = e.P[0].Copy()
+    g.pRef = g.P.Copy()
     g.Action = 0 ' mover
     g.AsociatedEntity = e
     g.AsociatedPoint = 0
@@ -566,17 +563,11 @@ Public Function GenerateGrips(e As Entity) As Integer
 
     g = New Grip
     g.Shape = 2
-    g.X = gcd.Metros(120)
-    g.Y = 0
-    g.Xr = g.X
-    g.Yr = g.Y
-    flxGrip.Add(g.X)
-    flxGrip.Add(g.y)
+    flxGrip.Add(gcd.Metros(120))
+    flxGrip.Add(0)
     puntos.Rotate(flxGrip, Rad(e.fParam[Me.ipaRotacion]))
-    g.X = e.P[0].x + flxGrip[0]
-    g.y = e.P[0].y + flxGrip[1]
-    g.Xr = g.X
-    g.Yr = g.Y
+    g.p = puntos.P3d(e.P[0].x + flxGrip[0], e.P[0].y + flxGrip[1], e.P[0].z)
+    g.pRef = g.P.Copy()
     g.Action = 1 ' este dato es propio de la clase
     g.AsociatedEntity = e
     g.AsociatedPoint = 0
@@ -588,17 +579,13 @@ Public Function GenerateGrips(e As Entity) As Integer
 
     g = New Grip
     g.Shape = 2
-    g.X = 0
-    g.Y = gcd.Metros(120)
     g.Value = gcd.Metros(120)   ' el valor original
     flxGrip.Clear
-    flxGrip.Add(g.X)
-    flxGrip.Add(g.y)
+    flxGrip.Add(0)
+    flxGrip.Add(gcd.Metros(120))
     puntos.Rotate(flxGrip, Rad(e.fParam[Me.ipaRotacion]))
-    g.X = e.P[0].x + flxGrip[0]
-    g.y = e.P[0].y + flxGrip[1]
-    g.Xr = g.X
-    g.Yr = g.Y
+    g.p = puntos.P3d(e.P[0].x + flxGrip[0], e.P[0].y + flxGrip[1], e.P[0].z)
+    g.pRef = g.P.Copy()
     g.Action = 2 ' este dato es propio de la clase
     g.AsociatedEntity = e
     g.AsociatedPoint = 0
@@ -610,17 +597,13 @@ Public Function GenerateGrips(e As Entity) As Integer
 
     g = New Grip
     g.Shape = 2
-    g.X = 0
-    g.Y = -gcd.Metros(20)
     g.Value = IIf(e.fParam[Me.ipaEscX] > 0, 1, -1)            ' el valor original
     flxGrip.Clear
-    flxGrip.Add(g.X)
-    flxGrip.Add(g.y)
+    flxGrip.Add(0)
+    flxGrip.Add(-gcd.Metros(20))
     puntos.Rotate(flxGrip, Rad(e.fParam[Me.ipaRotacion]))
-    g.X = e.P[0].x + flxGrip[0]
-    g.y = e.P[0].y + flxGrip[1]
-    g.Xr = g.X
-    g.Yr = g.Y
+    g.p = puntos.P3d(e.P[0].x + flxGrip[0], e.P[0].y + flxGrip[1], e.P[0].z)
+    g.pRef = g.P.Copy()
     g.Action = 3                            ' este dato es propio de la clase
     g.AsociatedEntity = e
     g.AsociatedPoint = 0
@@ -632,17 +615,13 @@ Public Function GenerateGrips(e As Entity) As Integer
 
     g = New Grip
     g.Shape = 2
-    g.Y = 0
-    g.X = -gcd.Metros(20)
     g.Value = IIf(e.fParam[Me.ipaEscY] > 0, 1, -1)            ' el valor original
     flxGrip.Clear
-    flxGrip.Add(g.X)
-    flxGrip.Add(g.y)
+    flxGrip.Add(-gcd.Metros(20))
+    flxGrip.Add(0)
     puntos.Rotate(flxGrip, Rad(e.fParam[Me.ipaRotacion]))
-    g.X = e.P[0].x + flxGrip[0]
-    g.y = e.P[0].y + flxGrip[1]
-    g.Xr = g.X
-    g.Yr = g.Y
+    g.p = puntos.P3d(e.P[0].x + flxGrip[0], e.P[0].y + flxGrip[1], e.P[0].z)
+    g.pRef = g.P.Copy()
     g.Action = 4                            ' este dato es propio de la clase
     g.AsociatedEntity = e
     g.AsociatedPoint = 0

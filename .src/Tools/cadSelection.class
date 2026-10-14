@@ -218,8 +218,7 @@ Public Function MouseDown()
             gcd.Drawing.Sheet.SkipSearch = GripPoint.AsociatedEntity
 
             ' rectifico la posicion del punto
-            Me.SelStartXr = GripPoint.X
-            Me.SelStartYr = GripPoint.Y
+            Me.SelStartP = GripPoint.p.Copy()
 
             Return
         Else If gcd.Drawing.HoveredEntity Then 'Or Me.ModeRectSelection Then
@@ -242,6 +241,11 @@ Public Function MouseDown()
             '     clsEntities.glGenVboSelected
             '     gcd.Redraw
             ' End If
+        Else
+            '  No estoy sobre ninguna entidad ni grip, tengo dos opciones:
+            '   1-Inicio seleccion por recuadro
+            '   2-Navego por el dibujo tipo Pan u Orbit
+            gcd.Drawing.Sheet.camera.MouseDown()
 
         Endif
 
@@ -637,14 +641,11 @@ Public Sub MouseMove()
         ' B.2 ActionActive = ActionGripActive: modifico la entidad con la nueva posicion del punto
         gcd.Drawing.iEntity = clsMouseTracking.CheckBestPOI(Me.SelEndXr, Me.SelEndYr)
 
-        If (gcd.Drawing.iEntity["mode"] > 0) Then
-
-            Me.SelEndXr = gcd.Drawing.iEntity["point3d"].x
-            Me.SelEndYr = gcd.Drawing.iEntity["point3d"].y
-
-            ' Else
-        Else                                     ' puedo hacer ortogonal
-            If gcd.Orthogonal Then          ' hablame de operadores logicos
+        Me.SelEndP = gcd.Drawing.iEntity["point3d"]
+        If gcd.Orthogonal Then          ' hablame de operadores logicos
+            ' TODO: proveer un punto otrogonal
+            If Me.SelStartP Then' tengo un punto anterior
+                ' paso a 2D ambos
 
                 If Abs(Me.SelEndX - Me.SelStartX) > Abs(Me.SelEndY - Me.SelStartY) Then ' prevalece X
                     Me.SelEndYr = Me.SelStartYr
@@ -654,6 +655,7 @@ Public Sub MouseMove()
                 Endif
 
             End If
+        Else
 
         End If        '
         If GripCopying Then
@@ -678,6 +680,8 @@ Public Sub MouseMove()
         Else
             'FInspector.Close()
         Endif
+
+        gcd.Drawing.Sheet.camera.MouseMove()
     End If
 
     ' Else
@@ -894,8 +898,8 @@ Public Sub GripEdit()
 
         Endif
 
-        GripPoint.X = Me.SelEndXr
-        GripPoint.Y = Me.SelEndYr
+        GripPoint.p = Me.SelEndP.Copy()
+
         gcd.CCC[GripPoint.AsociatedEntity.Gender].GripEdit(GripPoint)
         gcd.CCC[GripPoint.AsociatedEntity.Gender].buildgeometry(GripPoint.AsociatedEntity)
         gcd.redraw
@@ -912,6 +916,10 @@ Public Function FindGrip(x As Float, y As Float) As Grip
     For Each g In gcd.Drawing.Sheet.Grips
         ' paso el grip a 2D
         p2 = gcd.Drawing.Sheet.camera.Get2DpointFrom3Dworld(g.p)
+
+        If Not p2 Then
+            p2 = glx.XYZ(x, y)
+        Endif
 
         ' gcd.Metros(Config.GripProximityDistance)
         If puntos.Around(x, gcd.Drawing.Sheet.GLSheet.Height - y, p2.x, p2.y, 8) Then

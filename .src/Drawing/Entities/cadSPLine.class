@@ -644,8 +644,12 @@ Public Function GenerateGrips(e As Entity) As Integer
     For i = 0 To s.ControlPoints.Count - s.Dims Step s.Dims
         g = New Grip
         g.Shape = 0
-        g.X = s.ControlPoints[i]
-        g.Y = s.ControlPoints[i + 1]
+        If s.Dims = 3 Then
+            g.p = puntos.P3d(s.ControlPoints[i], s.ControlPoints[i + 1], s.ControlPoints[i + 2])
+        Else
+            g.p = puntos.P3d(s.ControlPoints[i], s.ControlPoints[i + 1])
+        Endif
+        g.pRef = g.P.Copy()
         g.Action = 0 ' mover
         g.AsociatedEntity = e
         g.AsociatedPoint = iCount
@@ -658,14 +662,26 @@ Public Function GenerateGrips(e As Entity) As Integer
 
 End
 
-'' Moves the control point in X and Y, its Z stays
+'' Moves the control point in X, Y and Z (only X and Y on a 2D spline)
 Public Function GripEdit(g As Grip) As Boolean
 
     Dim e As Entity, s As SPline
+    Dim i As Integer
 
     e = g.AsociatedEntity
     s = e.pBlock
-    s.ControlPoints[g.AsociatedPoint * s.Dims] = g.X
-    s.ControlPoints[g.AsociatedPoint * s.Dims + 1] = g.y
+    i = g.AsociatedPoint * s.Dims
+    s.ControlPoints[i] = g.P.x
+    s.ControlPoints[i + 1] = g.P.y
+    If s.Dims = 3 Then s.ControlPoints[i + 2] = g.P.z
+
+    ' los puntos definitorios son los extremos
+    If e.P.Count = 2 Then
+        If g.AsociatedPoint = 0 Then
+            e.P[0] = g.P.Copy()
+        Else If i = s.ControlPoints.Count - s.Dims Then
+            e.P[1] = g.P.Copy()
+        Endif
+    Endif
 
 End
