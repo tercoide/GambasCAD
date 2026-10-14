@@ -306,6 +306,7 @@ Public Sub CheckPOI3D(e As Entity, Eye As Ray, Optional ToolRay As Ray, RefPoint
     Dim i, iInter, iPoligon, iLine As Integer
     Dim pend1, base1, pend2, base2 As Float ' vars para las ecuacionesde las rectas
     Dim pTesting, pMid, pInFace, pNea, puntoB, puntoA, pIntersection, pInter, pInterPoly, pInterPoly2 As New Punto3d
+
     Dim end1X, end1Y, end2X, end2Y As Float
     Dim P0, P1, Pr As Punto3d, yr As Float
     ' distancias  los enganches, para determinar cual es el mas cercano al puntero
@@ -619,46 +620,59 @@ Public Sub CheckPOI3D(e As Entity, Eye As Ray, Optional ToolRay As Ray, RefPoint
 
             pNea = puntos.RayPlaneIntersection(r, pl)
 
-            ' Case "Text", "MText"
+        Case "Text", "MText"
+
+            DistBase = puntos.RayToPointDistance(eye, e.P[0])
+
+        Case "CIRCLE"
+            DistCenter = puntos.RayToPointDistance(eye, e.P[0])
+
+            ' pNea = puntos.NearestToPolyLine(xr, yr, e.PolyLine)
             '
-            '     DistBase = puntos.distancia(e.P[0], e.P[1], xr, yr)
+            ' DistNearest = puntos.distancia(xr, yr, pNea[0], pNea[1])
             '
-            ' Case "CIRCLE"
-            '     DistCenter = puntos.distancia(e.P[0], e.P[1], xr, yr)
+        Case "ELLIPSE", "ARC", "SPLINE"
+
+            DistCenter = puntos.RayToPointDistance(eye, e.P[0])
+
+            ' If e.PolyLine.count > 0 Then
+            '     DistEnd1 = puntos.distancia(e.PolyLine[0], e.PolyLine[1], xr, yr)
+            '     end1X = e.PolyLine[0]
+            '     end1Y = e.PolyLine[1]
+            '     DistEnd2 = puntos.distancia(e.PolyLine[e.PolyLine.Max - 1], e.PolyLine[e.PolyLine.max], xr, yr)
+            '     end2X = e.PolyLine[e.PolyLine.Max - 1]
+            '     end2Y = e.PolyLine[e.PolyLine.Max]
             '
             '     pNea = puntos.NearestToPolyLine(xr, yr, e.PolyLine)
-            '
-            '     DistNearest = puntos.distancia(xr, yr, pNea[0], pNea[1])
-            '
-            ' Case "ELLIPSE", "ARC", "SPLINE"
-            '
-            '     DistCenter = puntos.distancia(e.P[0], e.P[1], xr, yr)
-            '
-            '     If e.PolyLine.count > 0 Then
-            '         DistEnd1 = puntos.distancia(e.PolyLine[0], e.PolyLine[1], xr, yr)
-            '         end1X = e.PolyLine[0]
-            '         end1Y = e.PolyLine[1]
-            '         DistEnd2 = puntos.distancia(e.PolyLine[e.PolyLine.Max - 1], e.PolyLine[e.PolyLine.max], xr, yr)
-            '         end2X = e.PolyLine[e.PolyLine.Max - 1]
-            '         end2Y = e.PolyLine[e.PolyLine.Max]
-            '
-            '         pNea = puntos.NearestToPolyLine(xr, yr, e.PolyLine)
-            '     End If
-            '     DistNearest = puntos.distancia(xr, yr, pNea[0], pNea[1])
+            ' End If
+            ' DistNearest = puntos.distancia(xr, yr, pNea[0], pNea[1])
             '
         Case "LWPOLYLINE", "SOLID"
             ' tengo que ver cual es el mas cercano
 
-            For i = 0 To e.P.count - 1
+            For i = 0 To e.P.count - 2
 
-                DistEnd1 = puntos.RayToPointDistance(eye, e.P[i])
-                puntoA = e.P[i].Copy()
+                d = puntos.RayToPointDistance(eye, e.P[i])
+                If DistEnd1 > d Then
+                    DistEnd1 = d
+                    puntoA = e.P[i].Copy()
+                End If
 
-                DistEnd2 = puntos.RayToPointDistance(eye, e.P[i + 1])
-                puntoB = e.P[i + 1].Copy()
+                D = puntos.RayToPointDistance(eye, e.P[i + 1])
 
-                pMid = New Punto3d((e.P[i + 1].X + e.P[i].x) / 2, (e.P[i + 1].y + e.P[i].y) / 2, (e.P[i + 1].z + e.P[i].z) / 2)
-                DistMId = puntos.RayToPointDistance(eye, pMid)
+                If DistEnd2 > d Then
+                    DistEnd2 = d
+                    puntoB = e.P[i + 1].Copy()
+                End If
+
+                pTesting = New Punto3d((e.P[i + 1].X + e.P[i].x) / 2, (e.P[i + 1].y + e.P[i].y) / 2, (e.P[i + 1].z + e.P[i].z) / 2)
+
+                d = puntos.RayToPointDistance(eye, pTesting)
+
+                If DistMId > d Then
+                    DistMId = d
+                    pMid = pTesting.Copy()
+                Endif
 
                 ' ' perpendicular
                 ' If gcd.Drawing.Sheet.LastPointPrevious Then                     ' tengo un punto anterior
@@ -791,14 +805,12 @@ Public Sub CheckPOI3D(e As Entity, Eye As Ray, Optional ToolRay As Ray, RefPoint
     '     rData[2] = gcd.poiTangent
     '     DrawingAIds.txtSnapTo = "Tangent"
     ' End If
-    '
-    ' If dist = DistCenter Then
-    '
-    '     rData[0] = e.p[0]
-    '     rData[1] = e.p[1]
-    '     rData[2] = gcd.poiCenter
-    '     DrawingAIds.txtSnapTo = "Center"
-    ' End If
+
+    ' ofrezco ese punto
+    If dist = DistCenter Then
+        rData = ["point3d": e.p[0].Copy(), "desc": "Center", "mode": gcd.poiCenter]
+        DrawingAIds.txtSnapTo = "Center"
+    End If
     '
     ' If dist = DistQuad Then
     '     rData[0] = qx
@@ -806,13 +818,11 @@ Public Sub CheckPOI3D(e As Entity, Eye As Ray, Optional ToolRay As Ray, RefPoint
     '     rData[2] = gcd.poiQuadrant
     '     DrawingAIds.txtSnapTo = "Quadrant"
     ' End If
-    '
-    ' If dist = DistBase Then
-    '     rData[0] = e.P[0]
-    '     rData[1] = e.P[1]
-    '     rData[2] = gcd.poiBasePoint
-    '     DrawingAIds.txtSnapTo = "BasePoint"
-    ' End If
+
+    If dist = DistBase Then
+        rData = ["point3d": e.p[0].Copy(), "desc": "Base point", "mode": gcd.poiBasePoint]
+        DrawingAIds.txtSnapTo = "Base point"
+    End If
 
     If dist = DistNearest Then
         rData = ["point3d": pNea, "desc": "Nearest"]
