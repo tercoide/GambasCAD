@@ -3796,6 +3796,94 @@ Public Function RayToPointDistance(ray As Ray, p As Punto3d) As Float
 End Function
 
 ' ---------------------------------------------------------------------------------
+' NURBS: compartido por SPLINE (curvas) y NURBSSURFACE (superficies)
+' ---------------------------------------------------------------------------------
+
+'' Clamped uniform knot vector for n control points of degree p: p + 1 zeros, evenly spaced inner knots, p + 1 ones.
+'' Returns n + p + 1 knots, or an empty array if n <= p.
+Public Function UniformKnots(n As Integer, p As Integer) As Float[]
+
+    Dim i As Integer
+    Dim k As New Float[]
+
+    If n <= p Then Return k                 ' no alcanzan los puntos para este grado
+
+    For i = 0 To p
+        k.Add(0)
+    Next
+    For i = 1 To n - p - 1
+        k.Add(i / (n - p))
+    Next
+    For i = 0 To p
+        k.Add(1)
+    Next
+
+    Return k                                ' n + p + 1 nudos
+
+End
+
+'' Point of the curve at parameter t (de Boor). Points has D values per control point.
+'' Weights may be Null (all 1). Returns D values.
+Public Function DeBoor(t As Float, p As Integer, D As Integer, Points As Float[], Knots As Float[], Weights As Float[]) As Float[]
+
+    Dim n, k, i, j, r, iPoint As Integer
+    Dim w, alpha, den As Float
+    Dim v As New Float[]          ' p + 1 puntos homogeneos de D + 1 valores: x*w, y*w, z*w, w
+    Dim res As New Float[]
+    Dim D1 As Integer = D + 1
+
+    n = Points.Count / D
+
+    ' tramo k: Knots[k] <= t < Knots[k + 1], con p <= k <= n - 1
+    If t >= Knots[n] Then
+        k = n - 1
+        While k > p And Knots[k] >= Knots[n]      ' nudos repetidos al final
+            Dec k
+        Wend
+    Else
+        k = p
+        While k < n - 1 And Knots[k + 1] <= t
+            Inc k
+        Wend
+    End If
+
+    ' los p + 1 puntos de control que afectan a este tramo
+    v.Resize((p + 1) * D1)
+    For j = 0 To p
+        iPoint = j + k - p
+        If Weights Then w = Weights[iPoint] Else w = 1
+        For i = 0 To D - 1
+            v[j * D1 + i] = Points[iPoint * D + i] * w
+        Next
+        v[j * D1 + D] = w
+    Next
+
+    For r = 1 To p
+        For j = p DownTo r
+            den = Knots[j + 1 + k - r] - Knots[j + k - p]
+            If den = 0 Then
+                alpha = 0
+            Else
+                alpha = (t - Knots[j + k - p]) / den
+            End If
+            For i = 0 To D
+                v[j * D1 + i] = (1 - alpha) * v[(j - 1) * D1 + i] + alpha * v[j * D1 + i]
+            Next
+        Next
+    Next
+
+    ' de homogeneas a cartesianas
+    w = v[p * D1 + D]
+    If w = 0 Then w = 1
+    For i = 0 To D - 1
+        res.Add(v[p * D1 + i] / w)
+    Next
+
+    Return res
+
+End
+
+' ---------------------------------------------------------------------------------
 ' Punto3d[] helpers: Entity.P es un array de Punto3d.
 ' Las funciones de dibujo y de poligonos 2D siguen usando Float[] x,y,x,y...
 ' ---------------------------------------------------------------------------------

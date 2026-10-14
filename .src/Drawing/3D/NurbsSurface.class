@@ -1,0 +1,107 @@
+' Gambas class file
+
+' Superficie NURBS (producto tensorial de curvas NURBS en U y en V).
+' Es el pBlock de las entidades NURBSSURFACE, como SPline lo es de las SPLINE.
+'
+' La grilla de puntos de control es de CountU x CountV, guardada por filas de V:
+' el punto (iu, iv) esta en ControlPoints[(iv * CountU + iu) * 3], y su peso en Weights[iv * CountU + iu].
+
+Public Name As String = "NurbsSurface"     '' cadEntityBuilder y clsEntities leen pBlock.name
+Public DegreeU As Integer = 3
+Public DegreeV As Integer = 3
+Public CountU As Integer                    '' puntos de control en U
+Public CountV As Integer                    '' puntos de control en V
+Public KnotsU As New Float[]                '' CountU + DegreeU + 1 nudos; si no, se usan nudos uniformes
+Public KnotsV As New Float[]                '' CountV + DegreeV + 1 nudos; si no, se usan nudos uniformes
+Public ControlPoints As New Float[]         '' x,y,z
+Public Weights As New Float[]               '' CountU * CountV pesos; vacio = todos 1
+Public SamplesU As Integer                  '' tramos en U para dibujar, 0 = automatico
+Public SamplesV As Integer                  '' tramos en V para dibujar, 0 = automatico
+
+'' Devuelve una copia independiente
+Public Function Copy() As NurbsSurface
+
+    Dim s As New NurbsSurface
+
+    s.DegreeU = DegreeU
+    s.DegreeV = DegreeV
+    s.CountU = CountU
+    s.CountV = CountV
+    s.KnotsU = KnotsU.Copy()
+    s.KnotsV = KnotsV.Copy()
+    s.ControlPoints = ControlPoints.Copy()
+    s.Weights = Weights.Copy()
+    s.SamplesU = SamplesU
+    s.SamplesV = SamplesV
+    Return s
+
+End
+
+'' Evaluates the surface on a grid of (nU + 1) x (nV + 1) points, in rows of V:
+'' point (i, j) is at [(j * (nU + 1) + i) * 3]. Returns x,y,z,x,y,z... or an empty array if the surface is not valid.
+Public Function Tessellate(nU As Integer, nV As Integer) As Float[]
+
+    Dim pU, pV, i, j, iu, iv, k As Integer
+    Dim u, v, w As Float
+    Dim aKnotsU, aKnotsV, aRow, aCol, aPoint As Float[]
+    Dim aRows As New Float[][]
+    Dim aCols As New Float[][]
+    Dim res As New Float[]
+
+    If CountU < 2 Or CountV < 2 Then Return res
+    If ControlPoints.Count < CountU * CountV * 3 Then Return res
+    If nU < 1 Then nU = 1
+    If nV < 1 Then nV = 1
+
+    ' con pocos puntos el grado baja, como en la SPLINE
+    pU = Max(1, Min(DegreeU, CountU - 1))
+    pV = Max(1, Min(DegreeV, CountV - 1))
+
+    aKnotsU = KnotsU
+    If aKnotsU.Count <> CountU + pU + 1 Then aKnotsU = puntos.UniformKnots(CountU, pU)
+    aKnotsV = KnotsV
+    If aKnotsV.Count <> CountV + pV + 1 Then aKnotsV = puntos.UniformKnots(CountV, pV)
+
+    ' las filas en coordenadas homogeneas x*w, y*w, z*w, w: asi evaluar primero en U y despues en V
+    ' es exacto tambien para superficies racionales (con pesos)
+    For iv = 0 To CountV - 1
+        aRow = New Float[]
+        For iu = 0 To CountU - 1
+            k = iv * CountU + iu
+            If Weights.Count = CountU * CountV Then w = Weights[k] Else w = 1
+            aRow.Add(ControlPoints[k * 3] * w)
+            aRow.Add(ControlPoints[k * 3 + 1] * w)
+            aRow.Add(ControlPoints[k * 3 + 2] * w)
+            aRow.Add(w)
+        Next
+        aRows.Add(aRow)
+    Next
+
+    ' para cada u, los puntos de control de la curva en V: uno por fila
+    For i = 0 To nU
+        u = aKnotsU[pU] + (aKnotsU[CountU] - aKnotsU[pU]) * i / nU
+        aCol = New Float[]
+        For iv = 0 To CountV - 1
+            aCol.Insert(puntos.DeBoor(u, pU, 4, aRows[iv], aKnotsU, Null))
+        Next
+        aCols.Add(aCol)
+    Next
+
+    res.Resize((nU + 1) * (nV + 1) * 3)
+    For j = 0 To nV
+        v = aKnotsV[pV] + (aKnotsV[CountV] - aKnotsV[pV]) * j / nV
+        For i = 0 To nU
+            aPoint = puntos.DeBoor(v, pV, 4, aCols[i], aKnotsV, Null)
+            ' de homogeneas a cartesianas
+            w = aPoint[3]
+            If w = 0 Then w = 1
+            k = (j * (nU + 1) + i) * 3
+            res[k] = aPoint[0] / w
+            res[k + 1] = aPoint[1] / w
+            res[k + 2] = aPoint[2] / w
+        Next
+    Next
+
+    Return res
+
+End
