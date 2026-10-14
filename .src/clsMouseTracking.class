@@ -182,60 +182,36 @@ Public SearchingSpeed As Integer = 250   ' la cantidad de entidades que busco po
 
 Public Function CheckBestPOI(xr As Float, Yr As Float, Optional eExclude As Entity) As Collection
 
-    Dim CurrentPoint, BestPoint As New Float[]
+    Dim CurrentPoint, BestPoint As Punto3d
     Dim d, ShortestDistance As Float
     Dim e As Entity
-    Dim rJson As Collection
+    Dim rJson, rta As Collection
     Dim p As Punto3d
 
-    rJson = ["mode": 0]
-    BestPoint.Add(0)
-    BestPoint.Add(0)
-    BestPoint.Add(0)
     ShortestDistance = 1e10
 
-    If gcd.Drawing.Sheet.Is3D Then
-        rJson = CheckPOI3D(gcd.Drawing.HoveredEntity, gcd.Drawing.Sheet.ray)
-        If rJson["mode"] = 0 Then ' no encontro nada, devuelvo un punto generico
-
-            p = puntos.RayPlaneIntersection(gcd.Drawing.Sheet.ray, gcd.Drawing.Sheet.GetPlane())
-            rJson = ["mode": 0, "point3d": p]
-        Endif
-        Return rJson
-    End If
-
-    If IsNull(gcd.Drawing.HoveredEntities) Then Return BestPoint
+    rta = ["mode": 0, "point3d": gcd.Drawing.Sheet.LastPoint, "distance": ShortestDistance]
 
     For Each e In gcd.Drawing.HoveredEntities
-        If gcd.flgQuitSearch Then Break
+
         If e = eExclude Then Continue
         If e = gcd.Drawing.Sheet.SkipSearch Then Continue
 
         If e.Gender = "INSERT" Then Continue
-        CurrentPoint = CheckPOI(xr, yr, e)
 
-        ' OBSOLETO, ahora verifico que el punto encontrado este cerca del mouse
-        ' ' veo si el punto cae dentro de la pantalla
-        ' If gcd.XPix(CurrentPoint[0]) <= 0 Or gcd.XPix(CurrentPoint[0]) >= gcd.Drawing.Sheet.GlSheet.w Then Continue
-        ' If gcd.YPix(CurrentPoint[1]) <= 0 Or gcd.YPix(CurrentPoint[1]) >= gcd.Drawing.Sheet.GlSheet.h Then Continue
-
-        If CurrentPoint[2] > 0 Then
-            d = puntos.distancia(xr, yr, CurrentPoint[0], CurrentPoint[1])
-
-            'el punto no puede estar lejos del mouse
-            If d > gcd.Metros(Config.SnapDistancePix) Then Continue
-
-            If d < ShortestDistance Then
-                ShortestDistance = d
-                BestPoint[0] = CurrentPoint[0]
-                BestPoint[1] = CurrentPoint[1]
-                BestPoint[2] = CurrentPoint[2]
-            Endif
-
+        '  If gcd.Drawing.Sheet.Is3D Then
+        rJson = CheckPOI3D(gcd.Drawing.HoveredEntity, gcd.Drawing.Sheet.ray)
+        If rJson["mode"] = 0 Then
+            'p = puntos.RayPlaneIntersection(gcd.Drawing.Sheet.ray, gcd.Drawing.Sheet.GetPlane())
+        Else
+            If rJson["distance"] < rta["distance"] Then ' es un mejor punto
+                rta = rJson.Copy()
+            End If
         Endif
+
     Next
 
-    Return rJson
+    Return rta
 
 End
 
@@ -331,7 +307,7 @@ Public Sub CheckPOI3D(e As Entity, Eye As Ray, Optional ToolRay As Ray, RefPoint
     Dim pend1, base1, pend2, base2 As Float ' vars para las ecuacionesde las rectas
     Dim pTesting, pMid, pInFace, pNea, puntoB, puntoA, pIntersection, pInter, pInterPoly, pInterPoly2 As New Punto3d
     Dim end1X, end1Y, end2X, end2Y As Float
-    Dim x0, y0, x1, y1, xr, yr As Float
+    Dim P0, P1, Pr As Punto3d, yr As Float
     ' distancias  los enganches, para determinar cual es el mas cercano al puntero
     Dim DistPer As Float = 1e6
     Dim DistEnd1 As Float = 1e6
@@ -612,132 +588,133 @@ Public Sub CheckPOI3D(e As Entity, Eye As Ray, Optional ToolRay As Ray, RefPoint
             '
     End Select
     '
-    ' ' otros puntos
-    ' Select Case e.Gender
-    '     Case "LINE"
-    '
-    '         DistEnd1 = puntos.distancia(e.P[0], e.P[1], xr, yr)
-    '         end1X = e.P[0]
-    '         end1Y = e.P[1]
-    '
-    '         end2X = e.P[2]
-    '         end2Y = e.P[3]
-    '         DistEnd2 = puntos.distancia(e.P[2], e.P[3], xr, yr)
-    '
-    '         DistMId = puntos.distancia((e.P[2] + e.P[0]) / 2, (e.P[3] + e.P[1]) / 2, xr, yr)
-    '         i = 0
-    '
-    '         pNea = puntos.NearestToLine(xr, yr, e.P[0], e.P[1], e.P[2], e.P[3])
-    '
-    '         DistNearest = puntos.distancia(xr, yr, pNea[0], pNea[1])
-    '
-    '     Case "Text", "MText"
-    '
-    '         DistBase = puntos.distancia(e.P[0], e.P[1], xr, yr)
-    '
-    '     Case "CIRCLE"
-    '         DistCenter = puntos.distancia(e.P[0], e.P[1], xr, yr)
-    '
-    '         pNea = puntos.NearestToPolyLine(xr, yr, e.PolyLine)
-    '
-    '         DistNearest = puntos.distancia(xr, yr, pNea[0], pNea[1])
-    '
-    '     Case "ELLIPSE", "ARC", "SPLINE"
-    '
-    '         DistCenter = puntos.distancia(e.P[0], e.P[1], xr, yr)
-    '
-    '         If e.PolyLine.count > 0 Then
-    '             DistEnd1 = puntos.distancia(e.PolyLine[0], e.PolyLine[1], xr, yr)
-    '             end1X = e.PolyLine[0]
-    '             end1Y = e.PolyLine[1]
-    '             DistEnd2 = puntos.distancia(e.PolyLine[e.PolyLine.Max - 1], e.PolyLine[e.PolyLine.max], xr, yr)
-    '             end2X = e.PolyLine[e.PolyLine.Max - 1]
-    '             end2Y = e.PolyLine[e.PolyLine.Max]
-    '
-    '             pNea = puntos.NearestToPolyLine(xr, yr, e.PolyLine)
-    '         End If
-    '         DistNearest = puntos.distancia(xr, yr, pNea[0], pNea[1])
-    '
-    '     Case "LWPOLYLINE", "SOLID"
-    '         ' tengo que ver cual es el mas cercano
-    '
-    '         For i = 0 To e.P.count - 4 Step 2
-    '
-    '             x0 = e.P[i + 0]
-    '             y0 = e.P[i + 1]
-    '             x1 = e.P[i + 2]
-    '             y1 = e.P[i + 3]
-    '             ' busco en que tramo estoy
-    '             If puntos.doIntersect(xr - tolerance, Yr, Xr + tolerance, Yr, x0, y0, x1, y1) Or puntos.doIntersect(xr, Yr - tolerance, Xr, Yr + tolerance, x0, y0, x1, y1) Then
-    '
-    '                 DistEnd1 = puntos.distancia(x0, y0, xr, yr)
-    '                 'If DistEnd1 > DistEnd1B Then DistEnd1 = DistEnd1B
-    '                 end1X = e.P[i]
-    '                 end1Y = y0
-    '
-    '                 DistEnd2 = puntos.distancia(x1, y1, xr, yr)
-    '                 'If DistEnd2 > DistEnd2B Then DistEnd2 = DistEnd2B
-    '                 end2X = x1
-    '                 end2Y = y1
-    '
-    '                 DistMId = puntos.distancia((x1 + x0) / 2, (y1 + y0) / 2, xr, yr)
-    '                 'If DistMid > DistMidB Then DistMid = DistMidB
-    '
-    '                 ' perpendicular
-    '                 If gcd.Drawing.LastPoint.max > 0 Then                     ' tengo un punto anterior
-    '
-    '                     If x1 - x0 <> 0 Then
-    '                         pend1 = (y1 - y0) / (x1 - x0)
-    '                         base1 = y1 - pend1 * x0                 ' Y = pend1 X + base1
-    '
-    '                         ' ecuacion de la recta perpendicular que pasa por el punto anterior
-    '                         If pend1 <> 0 Then
-    '                             pend2 = -1 / pend1
-    '                             base2 = gcd.Drawing.LastPoint[1] - pend2 * gcd.Drawing.LastPoint[0]
-    '
-    '                             ' necesito otro punto
-    '                             If gcd.Drawing.LastPoint[0] <> 0 Then
-    '                                 puntoA.Add(0)
-    '                                 puntoA.Add(base2)
-    '                             Else
-    '                                 puntoA.Add(1)
-    '                                 puntoA.Add(pend2 + base2)
-    '
-    '                             End If
-    '
-    '                             ' determino la interseccion de ambas
-    '                             puntoB = puntos.lineLineIntersection(gcd.Drawing.LastPoint, puntoA, [x0, y0], [x1, y1])
-    '                         Else ' la recta es horizontal
-    '
-    '                             puntoB.Add(gcd.Drawing.LastPoint[0])
-    '                             puntoB.Add(y0)
-    '
-    '                         End If
-    '                     Else        ' la recta es vertical
-    '
-    '                         puntoB.Add(x0)
-    '                         puntoB.Add(gcd.Drawing.LastPoint[1])
-    '
-    '                     End If
-    '
-    '                     ' veo si el punto b esta entre los extremos de la linea , aunque deberia estarlo!!!
-    '                     If puntos.onSegment(x0, y0, puntoB[0], puntoB[1], x1, y1) Then
-    '
-    '                         ' determino la distancia al puntero para ofrecerlo como opcion de enganche
-    '                         DistPer = puntos.distancia(puntoB[0], puntoB[1], xr, yr)
-    '
-    '                     Endif
-    '                 End If
-    '
-    '                 Break
-    '             End If
-    '         Next
-    '
-    '         pNea = puntos.NearestToPolyLine(xr, yr, puntos.ToXY(e.P))
-    '
-    '         DistNearest = puntos.distancia(xr, yr, pNea[0], pNea[1])
-    '
-    ' End Select
+    ' otros puntos contra elementos lineales
+    ' necsito una referencia dentro de la entidad lineal
+    ' tengo un rayo Eye y una entidad lineal, seria
+
+    Select Case e.Gender
+        Case "LINE"
+
+            DistEnd1 = puntos.RayToPointDistance(eye, e.P[0])
+            puntoA = e.P[0].Copy()
+
+            DistEnd2 = puntos.RayToPointDistance(eye, e.P[1])
+            puntoB = e.P[1].Copy()
+
+            pMid = New Punto3d((e.P[1].X + e.P[0].x) / 2, (e.P[1].y + e.P[0].y) / 2, (e.P[1].z + e.P[0].z) / 2)
+            DistMId = puntos.RayToPointDistance(eye, pMid)
+
+            ' para obtener el punto mas cercano necesito evaluar la interseccion de un plano del rayo Eye con la recta del segmento:
+            ' Caso 1: la recta esta contenida en el plano --> devuelvo el punto medio
+            ' Caso 2: la recta es // al plano --> no deberia esta en esta rutina!!!
+            ' Caso 3: la recta intersacta el plano
+
+            ' Armo un plano vertical
+            Dim pl As New Plane
+            pl.Point = gcd.Drawing.Sheet.LastPoint.Copy()
+            pl.Normal = New Punto3d(eye.Direction.z, eye.Direction.y, eye.Direction.x)  ' Flipo X y Z
+
+            Dim r As New Ray(e.P[0], e.P[1])
+            pl.Normal = New Punto3d(eye.Direction.x, eye.Direction.z, eye.Direction.y)  ' Flipo X y Y
+
+            pNea = puntos.RayPlaneIntersection(r, pl)
+
+            ' Case "Text", "MText"
+            '
+            '     DistBase = puntos.distancia(e.P[0], e.P[1], xr, yr)
+            '
+            ' Case "CIRCLE"
+            '     DistCenter = puntos.distancia(e.P[0], e.P[1], xr, yr)
+            '
+            '     pNea = puntos.NearestToPolyLine(xr, yr, e.PolyLine)
+            '
+            '     DistNearest = puntos.distancia(xr, yr, pNea[0], pNea[1])
+            '
+            ' Case "ELLIPSE", "ARC", "SPLINE"
+            '
+            '     DistCenter = puntos.distancia(e.P[0], e.P[1], xr, yr)
+            '
+            '     If e.PolyLine.count > 0 Then
+            '         DistEnd1 = puntos.distancia(e.PolyLine[0], e.PolyLine[1], xr, yr)
+            '         end1X = e.PolyLine[0]
+            '         end1Y = e.PolyLine[1]
+            '         DistEnd2 = puntos.distancia(e.PolyLine[e.PolyLine.Max - 1], e.PolyLine[e.PolyLine.max], xr, yr)
+            '         end2X = e.PolyLine[e.PolyLine.Max - 1]
+            '         end2Y = e.PolyLine[e.PolyLine.Max]
+            '
+            '         pNea = puntos.NearestToPolyLine(xr, yr, e.PolyLine)
+            '     End If
+            '     DistNearest = puntos.distancia(xr, yr, pNea[0], pNea[1])
+            '
+        Case "LWPOLYLINE", "SOLID"
+            ' tengo que ver cual es el mas cercano
+
+            For i = 0 To e.P.count - 1
+
+                DistEnd1 = puntos.RayToPointDistance(eye, e.P[i])
+                puntoA = e.P[i].Copy()
+
+                DistEnd2 = puntos.RayToPointDistance(eye, e.P[i + 1])
+                puntoB = e.P[i + 1].Copy()
+
+                pMid = New Punto3d((e.P[i + 1].X + e.P[i].x) / 2, (e.P[i + 1].y + e.P[i].y) / 2, (e.P[i + 1].z + e.P[i].z) / 2)
+                DistMId = puntos.RayToPointDistance(eye, pMid)
+
+                ' ' perpendicular
+                ' If gcd.Drawing.Sheet.LastPointPrevious Then                     ' tengo un punto anterior
+                '
+                '     If x1 - x0 <> 0 Then
+                '         pend1 = (y1 - y0) / (x1 - x0)
+                '         base1 = y1 - pend1 * x0                 ' Y = pend1 X + base1
+                '
+                '         ' ecuacion de la recta perpendicular que pasa por el punto anterior
+                '         If pend1 <> 0 Then
+                '             pend2 = -1 / pend1
+                '             base2 = gcd.Drawing.LastPoint[1] - pend2 * gcd.Drawing.LastPoint[0]
+                '
+                '             ' necesito otro punto
+                '             If gcd.Drawing.LastPoint[0] <> 0 Then
+                '                 puntoA.Add(0)
+                '                 puntoA.Add(base2)
+                '             Else
+                '                 puntoA.Add(1)
+                '                 puntoA.Add(pend2 + base2)
+                '
+                '             End If
+                '
+                '             ' determino la interseccion de ambas
+                '             puntoB = puntos.lineLineIntersection(gcd.Drawing.LastPoint, puntoA, [x0, y0], [x1, y1])
+                '         Else ' la recta es horizontal
+                '
+                '             puntoB.Add(gcd.Drawing.LastPoint[0])
+                '             puntoB.Add(y0)
+                '
+                '         End If
+                '     Else        ' la recta es vertical
+                '
+                '         puntoB.Add(x0)
+                '         puntoB.Add(gcd.Drawing.LastPoint[1])
+                '
+                '     End If
+                '
+                '     ' veo si el punto b esta entre los extremos de la linea , aunque deberia estarlo!!!
+                '     If puntos.onSegment(x0, y0, puntoB[0], puntoB[1], x1, y1) Then
+                '
+                '         ' determino la distancia al puntero para ofrecerlo como opcion de enganche
+                '         DistPer = puntos.distancia(puntoB[0], puntoB[1], xr, yr)
+                '
+                '     Endif
+                ' End If
+                '
+                ' Break
+
+            Next
+
+            ' pNea = puntos.NearestToPolyLine(xr, yr, puntos.ToXY(e.P))
+            '
+            ' DistNearest = puntos.distancia(xr, yr, pNea[0], pNea[1])
+
+    End Select
 
     ' veo cual es la opcion mas cercana al puntero
 
@@ -770,12 +747,17 @@ Public Sub CheckPOI3D(e As Entity, Eye As Ray, Optional ToolRay As Ray, RefPoint
     End If
 
     If gcd.SnapMode And gcd.poiNearest Then
-        If Dist > DistNearest Then dist = DistNearest
+        If Dist > DistNearest Then dist = 0 'DistNearest
     End If
 
     ' ofrezco ese punto
     If dist = DistEnd1 Then
         rData = ["point3d": puntoA, "desc": "EndPoint", "mode": gcd.poiEndPoint]
+        DrawingAIds.txtSnapTo = "EndPoint"
+    End If
+
+    If dist = DistEnd2 Then
+        rData = ["point3d": puntoB, "desc": "EndPoint", "mode": gcd.poiEndPoint]
         DrawingAIds.txtSnapTo = "EndPoint"
     End If
 
@@ -839,6 +821,7 @@ Public Sub CheckPOI3D(e As Entity, Eye As Ray, Optional ToolRay As Ray, RefPoint
 
     Me.LastPointToCursorDistance = dist
     gcd.Drawing.eLastEntity = e
+    rdata.Add(dist, "distance")
     Return rData
 
 End
@@ -1263,21 +1246,17 @@ Public Sub CheckPOI(xr As Float, Yr As Float, Optional e As Entity) As Float[]
         If Dist > DistNearest Then dist = DistNearest
     End If
 
-    ' ofrezco ese punto
-    If dist = DistEnd1 Then
-        rData[0] = end1X
-        rData[1] = end1Y
-        rData[2] = gcd.poiEndPoint
-        DrawingAIds.txtSnapTo = "EndPoint"
-    End If
-
-    ' ofrezco ese punto
-    If dist = DistEnd2 Then
-        rData[0] = end2X
-        rData[1] = end2Y
-        rData[2] = gcd.poiEndPoint
-        DrawingAIds.txtSnapTo = "EndPoint"
-    End If
+    ' ' ofrezco ese punto
+    ' If dist = DistEnd1 Then
+    '     rData = ["point3d": puntoA, "desc": "EndPoint", "mode": gcd.poiEndPoint]
+    '     DrawingAIds.txtSnapTo = "EndPoint"
+    ' End If
+    '
+    ' ' ofrezco ese punto
+    ' If dist = DistMId Then
+    '     rData = ["point3d": pMid, "desc": "MidPoint", "mode": gcd.poiMIdPoint]
+    '     DrawingAIds.txtSnapTo = "MidPoint"
+    ' End If
 
     ' ofrezco ese punto
     If dist = DistMId Then

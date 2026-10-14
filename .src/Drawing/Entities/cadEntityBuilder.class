@@ -46,6 +46,12 @@ Public LastPoint As Boolean
 Public LastMouseX As Integer               ' change in MouseMove/MouseUp
 Public LastMouseY As Integer
 
+'Para que sirva al 3D
+Public SelStartP As New Punto3d
+Public SelEndP As New Punto3d
+Public CurrentP As New Punto3d
+Public LastP As New Punto3d
+
 ' indicadores
 'Public StepsDone As Integer = 0          ' La cantidad de puntos que marco para el trabajo actual--->Gurdado en la entidad
 Public StepsTotal As Integer = 0          ' Tomado de la lista de tipo de paramtros
@@ -325,11 +331,12 @@ End
 
 Public Sub MouseMove()
 
-    Dim X, Y, f As Float
+    Dim X, Y, Z, f As Float
     Dim MouseTry As Integer = -1000000
     Dim Dx As Float
     Dim Dy As Float
     Dim p As Punto3d
+    Dim poi As Collection
     '  If gcd.Drawing.HoveredEntity Then Stop
 
     Try MouseTry = Mouse.X
@@ -342,14 +349,25 @@ Public Sub MouseMove()
 
     X = gcd.Xreal(LastMouseX)
     Y = gcd.Yreal(LastMouseY)
+    p = glx.XYZ(x, y)
 
-    ' yo soy el responsable de chequear POI
+    ' ' yo NO soy el responsable de chequear POI
+    ' poi = clsMouseTracking.CheckBestPOI(x, Y)
+    ' Me.LastP = poi["point3d"]
 
-    gcd.Drawing.iEntity = clsMouseTracking.CheckBestPOI(x, Y)
+    ' Version moderna 3D
+    If gcd.Drawing.Sheet.LastTrackedPoint Then
+        Me.LastP = gcd.Drawing.Sheet.LastTrackedPoint
+    Else
+        Me.LastP = gcd.Drawing.Sheet.LastPoint
+    End If
+
+    If Not Me.LastP Then Stop ' no deberia ocurrir
 
     X = gcd.Near(X)
     Y = gcd.Near(Y)
-    p = glx.XYZ(x, y)
+    Z = gcd.Near(Z)
+
     ' pero veo si tengo un POI
 
     'If InStr("LAPRM", NextParamType) = 0 Then Return ' we are expecting a parameter
@@ -395,25 +413,18 @@ Public Sub MouseMove()
 
     ' y si tengo enganche?
 
-    If (gcd.Drawing.iEntity["mode"] > 0) Then
+    X = Me.LastP.x
+    Y = Me.LastP.y
 
-        ' esto re enganchado
+    ' aca tengo que verificar el ortogonal
 
-        X = gcd.Drawing.iEntity["point3d"].x
-        Y = gcd.Drawing.iEntity["point3d"].y
+    If gcd.Orthogonal And LastPoint Then          ' hablame de operadores logicos
 
-        ' aca tengo que verificar el ortogonal
-
-    Else                                      ' puedo hacer ortogonal
-        If gcd.Orthogonal And LastPoint Then          ' hablame de operadores logicos
-
-            If Abs(X - LastX) > Abs(Y - LastY) Then ' prevalece X
-                Y = LastY
-            Else
-                X = LastX
-            Endif
-
-        End If
+        If Abs(X - LastX) > Abs(Y - LastY) Then ' prevalece X
+            Y = LastY
+        Else
+            X = LastX
+        Endif
 
     End If
 
@@ -429,14 +440,14 @@ Public Sub MouseMove()
 
     If NextParamType = "point3d" Then
 
-        ' y si estoy en 3D?
-        If gcd.Drawing.Sheet.Is3D Then
-            If gcd.Drawing.Sheet.LastPoint Then
-                p = gcd.Drawing.Sheet.LastPoint
-            Endif
-        Endif
+        ' ' y si estoy en 3D?
+        ' If gcd.Drawing.Sheet.Is3D Then
+        '     If gcd.Drawing.Sheet.LastPoint Then
+        '         p = gcd.Drawing.Sheet.LastPoint
+        '     Endif
+        ' Endif
 
-        GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point3d", p.x, p.y, p.z], False))
+        GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point3d", Me.LastP.x, Me.LastP.y, Me.LastP.z], False))
     End If
 
     gcd.redraw
@@ -472,29 +483,29 @@ Public Sub MouseUp()
     X = gcd.Near(gcd.Xreal(mouse.x))
     Y = gcd.Near(gcd.Yreal(mouse.y))
 
-    ' y si tengo enganche?
+    ' ' y si tengo enganche?
+    '
+    ' If (gcd.Drawing.iEntity["mode"] > 0) Then
+    '
+    '     ' esto re enganchado
+    '
+    '     X = gcd.Drawing.iEntity["point3d"].x
+    '     Y = gcd.Drawing.iEntity["point3d"].y
+    '
+    '     ' aca tengo que verificar el ortogonal
+    '
+    ' Else                                                                        ' puedo hacer ortogonal
+    If gcd.Orthogonal And LastPoint Then          ' hablame de operadores logicos
 
-    If (gcd.Drawing.iEntity["mode"] > 0) Then
-
-        ' esto re enganchado
-
-        X = gcd.Drawing.iEntity["point3d"].x
-        Y = gcd.Drawing.iEntity["point3d"].y
-
-        ' aca tengo que verificar el ortogonal
-
-    Else                                                                        ' puedo hacer ortogonal
-        If gcd.Orthogonal And LastPoint Then          ' hablame de operadores logicos
-
-            If Abs(X - LastX) > Abs(Y - LastY) Then ' prevalece X
-                Y = LastY
-            Else
-                X = LastX
-            Endif
-
-        End If
+        If Abs(X - LastX) > Abs(Y - LastY) Then ' prevalece X
+            Y = LastY
+        Else
+            X = LastX
+        Endif
 
     End If
+
+    'End If
 
     LastX = X
     LastY = Y
@@ -542,14 +553,14 @@ Public Sub MouseUp()
 
     If NextParamType = "point3d" Then
 
-        ' y si estoy en 3D?
-        If gcd.Drawing.Sheet.Is3D Then
-            If gcd.Drawing.Sheet.LastPoint Then
-                p = gcd.Drawing.Sheet.LastPoint     ' pero si estoy en 3D es otro el punto
-            Endif
-        Endif
+        ' ' y si estoy en 3D?
+        ' If gcd.Drawing.Sheet.Is3D Then
+        '     If gcd.Drawing.Sheet.LastPoint Then
+        '         p = gcd.Drawing.Sheet.LastPoint     ' pero si estoy en 3D es otro el punto
+        '     Endif
+        ' Endif
 
-        GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point3d", p.x, p.y, p.z], True))
+        GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point3d", Me.LastP.x, Me.LastP.y, Me.LastP.z], True))
     End If
     ' last point
     gcd.Drawing.LastPoint.Clear

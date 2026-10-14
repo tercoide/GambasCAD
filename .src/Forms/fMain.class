@@ -678,14 +678,36 @@ End
 
 Public Sub GLArea1_MouseMove()
 
-    If Not gcd.drawingready Then Return
-    'If flgWheelCounter > 0 Then Return
+    Dim poi As Collection
 
     Me.CursorX = Mouse.X
     Me.Cursory = Mouse.y
-    If Not gcd.clsJob Then Return
+
     Xr = gcd.Xreal(Mouse.x)
     Yr = gcd.Yreal(Mouse.y)
+    gcd.Drawing.Sheet.LastPoint = glx.XYZ(xr, yr)
+
+    If gcd.Drawing.HoveredEntity Then
+
+        ' If gcd.Drawing.HoveredEntity.faces Then
+        '
+        '     f = clsEntities.FaceCloserToRay(gcd.Drawing.HoveredEntity.faces, gcd.Drawing.Sheet.ray)
+        '
+        '     If f Then
+        '         gcd.Drawing.Sheet.LastFace = f
+        '         gcd.Drawing.Sheet.LastInFacePoint = puntos.RayPlaneIntersection(gcd.Drawing.Sheet.ray, f.GetPlane())
+        '         gcd.Drawing.Sheet.LastNormal = puntos.CalcularNormalNewell(f.ToPuntos3D())
+        '     End If
+        ' End If
+        ' ademas
+        poi = clsMouseTRacking.CheckBestPOI(Mouse.x, Mouse.y)
+        If poi["point3d"] Then gcd.Drawing.Sheet.LastTrackedPoint = poi["point3d"]
+        ' Else
+        '     gcd.Drawing.Sheet.LastFace = Null
+        '     gcd.Drawing.Sheet.LastPoint = puntos.RayPlaneIntersection(gcd.Drawing.Sheet.ray, gcd.drawing.Sheet.GetPlane())
+        '     gcd.Drawing.Sheet.LastNormal = gcd.Drawing.Sheet.Normal
+
+    End If
 
     ' Universal:
     gcd.clsJob.MouseMove()
@@ -794,7 +816,7 @@ End
 Public Sub glarea3D_mouseUp()
 
     ReSearch
-    gcd.Drawing.Sheet.camera.MouseDown()
+    'gcd.Drawing.Sheet.camera.MouseDown()
     gcd.clsJob.MouseUp()
 
 End
@@ -818,9 +840,13 @@ Public Sub glarea3D_mousemove()
 
     ' si tengo un rayo y una entidad en 3D puedo tener un punto
     Dim inside As Boolean
-
+    Dim poi As Collection
     Dim hit As Punto3d
     Dim f As Face
+    gcd.Drawing.Sheet.LastFace = Null
+    gcd.Drawing.Sheet.LastPoint = puntos.RayPlaneIntersection(gcd.Drawing.Sheet.ray, gcd.drawing.Sheet.GetPlane())
+    gcd.Drawing.Sheet.LastNormal = gcd.Drawing.Sheet.Normal
+    gcd.Drawing.Sheet.LastTrackedPoint = gcd.Drawing.Sheet.LastPoint
 
     If gcd.Drawing.HoveredEntity Then
 
@@ -830,14 +856,13 @@ Public Sub glarea3D_mousemove()
 
             If f Then
                 gcd.Drawing.Sheet.LastFace = f
-                gcd.Drawing.Sheet.LastPoint = puntos.RayPlaneIntersection(gcd.Drawing.Sheet.ray, f.GetPlane())
+                gcd.Drawing.Sheet.LastInFacePoint = puntos.RayPlaneIntersection(gcd.Drawing.Sheet.ray, f.GetPlane())
                 gcd.Drawing.Sheet.LastNormal = puntos.CalcularNormalNewell(f.ToPuntos3D())
             End If
         End If
-    Else
-        gcd.Drawing.Sheet.LastFace = Null
-        gcd.Drawing.Sheet.LastPoint = puntos.RayPlaneIntersection(gcd.Drawing.Sheet.ray, gcd.drawing.Sheet.GetPlane())
-        gcd.Drawing.Sheet.LastNormal = gcd.Drawing.Sheet.Normal
+        ' ademas
+        poi = clsMouseTRacking.CheckBestPOI(Mouse.x, Mouse.y)
+        If poi["point3d"] Then gcd.Drawing.Sheet.LastTrackedPoint = poi["point3d"]
 
     End If
     gcd.clsJob.MouseMove()
