@@ -211,6 +211,95 @@ Public Sub makepolyline(oe As Entity)
 
 End
 
+'' Returns the arc point at that angle (degrees), in the same plane used by makepolyline
+Private Function ArcPoint(e As Entity, fAngle As Float) As Punto3d
+
+    Dim y As Float
+
+    y = e.fParam[0] * Sin(Rad(fAngle))
+    If e.iParam[0] <> 0 Then y = -y
+    Return puntos.LocalToGlobal(e.P[0], gcd.Drawing.Sheet.LastNormal, e.fParam[0] * Cos(Rad(fAngle)), y)
+
+End
+
+Private Sub AddArcGrip(e As Entity, p As Punto3d, iAction As Integer, sToolTip As String)
+
+    Dim g As Grip
+
+    If Not p Then Return
+    g = New Grip
+    g.Shape = 1
+    g.p = p
+    g.pRef = g.P.Copy()
+    g.Action = iAction
+    g.AsociatedEntity = e
+    g.AsociatedPoint = 0
+    g.ToolTip = sToolTip
+    gcd.Drawing.Sheet.Grips.Add(g)
+
+End
+
+'' Genera un conjunto de grips para ser usados por cadSelection
+Public Function GenerateGrips(e As Entity) As Integer
+
+    Dim g As Grip
+    Dim a1, a2 As Float
+
+    g = New Grip
+    g.Shape = 0
+    g.p = e.P[0].Copy()
+    g.pRef = g.P.Copy()
+    g.Action = 0 ' mover
+    g.AsociatedEntity = e
+    g.AsociatedPoint = 0
+    gcd.Drawing.Sheet.Grips.Add(g)
+    g.ToolTip = ("Move center")
+
+    ' el punto medio del arco, igual que makepolyline: de start a end en sentido creciente
+    a1 = e.fParam[1]
+    a2 = e.fParam[2]
+    If a1 < 0 Then a1 += 360
+    If a2 < 0 Then a2 += 360
+    If a2 < a1 Then a2 += 360
+
+    AddArcGrip(e, ArcPoint(e, e.fParam[1]), 1, ("Change start angle"))
+    AddArcGrip(e, ArcPoint(e, e.fParam[2]), 2, ("Change end angle"))
+    AddArcGrip(e, ArcPoint(e, (a1 + a2) / 2), 3, ("Change radius"))
+
+    Return 4
+
+End
+
+Public Function GripEdit(g As Grip) As Boolean
+
+    Dim e As Entity
+    Dim pLocal As Punto3d
+    Dim y As Float
+
+    e = g.AsociatedEntity
+    If g.Action = 0 Then
+        e.P[0] = g.P.Copy()
+    Else
+        ' el grip medido en el plano del arco
+        pLocal = puntos.GlobalToLocal(g.P, e.P[0], gcd.Drawing.Sheet.LastNormal)
+        If Not pLocal Then Return
+        y = pLocal.y
+        If e.iParam[0] <> 0 Then y = -y
+
+        Select Case g.Action
+            Case 1
+                e.fParam[1] = Deg(Ang(pLocal.x, y))
+            Case 2
+                e.fParam[2] = Deg(Ang(pLocal.x, y))
+            Case 3
+                e.fParam[0] = Sqr(pLocal.x ^ 2 + pLocal.y ^ 2)
+        End Select
+    Endif
+
+    Me.BuildGeometry(e)
+
+End
+
 Public Sub Draw(oE As Entity)
 
     If Not oE.Visible Then Return

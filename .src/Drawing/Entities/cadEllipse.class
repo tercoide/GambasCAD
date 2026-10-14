@@ -232,6 +232,136 @@ Public Sub MakePolyline(oe As Entity)
 
 End
 
+'' The plane of the ellipse, the same used by MakePolyline
+Private Function EllipseNormal(e As Entity) As Punto3d
+
+    Return puntos.P3d(e.Extrusion[0], e.Extrusion[1], e.Extrusion[2])
+
+End
+
+'' Returns the angle of the major axis measured in the plane of the ellipse
+Private Function MajorAxisAngle(e As Entity) As Float
+
+    Dim p1 As Punto3d
+
+    p1 = puntos.GlobalToLocal(e.P[1], e.P[0], EllipseNormal(e))
+    If Not p1 Then Return 0
+    Return Ang(p1.x, p1.y)
+
+End
+
+'' Returns the ellipse point at that parametric angle (degrees), like MakePolyline
+Private Function EllipsePoint(e As Entity, t As Float) As Punto3d
+
+    Dim major, minor, a As Float
+
+    major = puntos.Distancia3D(e.P[0], e.P[1])
+    minor = major * e.fParam[0]
+    a = MajorAxisAngle(e)
+    t = Rad(t)
+    Return puntos.LocalToGlobal(e.P[0], EllipseNormal(e), major * Cos(t) * Cos(a) - minor * Sin(t) * Sin(a), major * Cos(t) * Sin(a) + minor * Sin(t) * Cos(a))
+
+End
+
+Private Sub AddEllipseGrip(e As Entity, p As Punto3d, iAction As Integer, sToolTip As String)
+
+    Dim g As Grip
+
+    If Not p Then Return
+    g = New Grip
+    g.Shape = 1
+    g.p = p
+    g.pRef = g.P.Copy()
+    g.Action = iAction
+    g.AsociatedEntity = e
+    g.AsociatedPoint = 1
+    g.ToolTip = sToolTip
+    gcd.Drawing.Sheet.Grips.Add(g)
+
+End
+
+'' Genera un conjunto de grips para ser usados por cadSelection
+Public Function GenerateGrips(e As Entity) As Integer
+
+    Dim g As Grip
+    Dim iCount As Integer = 5
+    Dim sweep As Float
+
+    g = New Grip
+    g.Shape = 0
+    g.p = e.P[0].Copy()
+    g.pRef = g.P.Copy()
+    g.Action = 0 ' mover
+    g.AsociatedEntity = e
+    g.AsociatedPoint = 0
+    gcd.Drawing.Sheet.Grips.Add(g)
+    g.ToolTip = ("Move center")
+
+    AddEllipseGrip(e, EllipsePoint(e, 0), 1, ("Change major axis"))
+    AddEllipseGrip(e, EllipsePoint(e, 180), 2, ("Change major axis"))
+    AddEllipseGrip(e, EllipsePoint(e, 90), 3, ("Change minor axis"))
+    AddEllipseGrip(e, EllipsePoint(e, 270), 3, ("Change minor axis"))
+
+    ' si no esta completa, los extremos
+    sweep = e.fParam[2] - e.fParam[1]
+    If sweep <= 0 Then sweep += 360
+    If sweep < 360 Then
+        AddEllipseGrip(e, EllipsePoint(e, e.fParam[1]), 4, ("Change start angle"))
+        AddEllipseGrip(e, EllipsePoint(e, e.fParam[2]), 5, ("Change end angle"))
+        iCount += 2
+    Endif
+
+    Return iCount
+
+End
+
+Public Function GripEdit(g As Grip) As Boolean
+
+    Dim e As Entity
+    Dim pn, pLocal As Punto3d
+    Dim major, a, xl, yl As Float
+
+    e = g.AsociatedEntity
+    pn = EllipseNormal(e)
+
+    If g.Action = 0 Then
+        ' el eje mayor se mueve con el centro
+        puntos.TranslateP(e.P, g.P.x - e.P[0].x, g.P.y - e.P[0].y, g.P.z - e.P[0].z)
+        Me.BuildGeometry(e)
+        Return
+    Endif
+
+    ' el grip medido en el plano de la elipse
+    pLocal = puntos.GlobalToLocal(g.P, e.P[0], pn)
+    If Not pLocal Then Return
+    If pLocal.x = 0 And If pLocal.y = 0 Then Return
+
+    Select Case g.Action
+        Case 1 ' extremo del eje mayor
+            e.P[1] = puntos.LocalToGlobal(e.P[0], pn, pLocal.x, pLocal.y)
+        Case 2 ' extremo opuesto
+            e.P[1] = puntos.LocalToGlobal(e.P[0], pn, -pLocal.x, -pLocal.y)
+        Case Else
+            ' paso el grip a los ejes de la elipse
+            major = puntos.Distancia3D(e.P[0], e.P[1])
+            If major = 0 Then Return
+            a = MajorAxisAngle(e)
+            xl = pLocal.x * Cos(a) + pLocal.y * Sin(a)
+            yl = -pLocal.x * Sin(a) + pLocal.y * Cos(a)
+            Select Case g.Action
+                Case 3 ' semieje menor
+                    e.fParam[0] = Abs(yl) / major
+                Case 4 ' x = major * Cos(t), y = minor * Sin(t)
+                    e.fParam[1] = Deg(Ang(xl * e.fParam[0], yl))
+                Case 5
+                    e.fParam[2] = Deg(Ang(xl * e.fParam[0], yl))
+            End Select
+    End Select
+
+    Me.BuildGeometry(e)
+
+End
+
 Public Sub Draw(oE As Entity)
 
     Dim major, minor As Float
