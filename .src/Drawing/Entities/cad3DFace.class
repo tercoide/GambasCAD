@@ -1,0 +1,236 @@
+' Gambas class file
+
+' 3DFACE: una cara plana de 3 o 4 vertices en el espacio, la entidad 3D mas comun en los DXF
+' (SketchUp, Revit y otros exportan asi sus caras).
+' e.P son los vertices; e.faces tiene una sola Face rearmada desde e.P por MakePolyLine.
+' iParam[0] son los lados invisibles, como el codigo 70 del DXF: 1 = primero, 2 = segundo, 4 = tercero, 8 = cuarto.
+' Un triangulo en el DXF repite el tercer vertice como cuarto; aca queda con 3 puntos.
+
+Create Static
+Inherits EntityBase
+
+Public Const Gender As String = "3DFACE"
+Public Const CmdLineHelper As String = ("3D face: first point")
+Public Const ParamType As String = "point3d"
+Public Const ParamHelper As String = "point3d"
+Public Const ContextMenu As String = ("End as triangle;_END;;;Undo last point;_UNDO;;")
+Public Const DrawingOrder As Integer = 1        ' 1 = draws first
+Public Const Is3D As Boolean = True
+Public Const iTotalParams As Integer = 1
+Public Const iiiInvisibleEdges As Integer = 0
+
+Public Function NewEntity(Optional vPoints As Variant, bNewid As Boolean = False) As Entity
+
+    Dim e As Entity
+
+    e = Super.NewEntity(vPoints, bNewid)
+    e.faces = New Face[]
+
+    Return e
+
+End
+
+'' The last point follows the mouse. The face ends at the 4th point, or at the 3rd with _END.
+Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Variant
+
+    If vParam[0] = "point3d" Then
+
+        eBuild.P[eBuild.P.Max] = puntos.P3d(vParam[1], vParam[2], vParam[3])
+
+        If Definitive Then
+            If eBuild.P.Count = 4 Then Return ["command": "end"]
+            eBuild.P.Add(eBuild.P[eBuild.P.Max].Copy())
+            Return ["prompt": ("Next point") & If(eBuild.P.Count = 4, " " & ("or End for a triangle"), "")]
+        End If
+
+    Else If vParam[0] = "text" Then
+
+        If vParam[1] = "_UNDO" Then
+            If eBuild.P.Count > 1 Then eBuild.P.Remove(eBuild.P.Max - 1)
+            Return ["prompt": ("Next point")]
+
+        Else If vParam[1] = "_END" Or vParam[1] = "" Then
+            ' el punto del mouse no cuenta
+            If eBuild.P.Count = 4 Then
+                eBuild.P.Remove(eBuild.P.Max)
+                Return ["command": "end"]
+            Endif
+            Return ["prompt": ("A 3D face needs at least 3 points")]
+
+        Endif
+    End If
+
+End
+
+'' Builds the face from the points, and the XY outline used for picking and limits
+Public Function MakePolyLine(e As Entity)
+
+    Dim f As Face
+    Dim v As Vertex
+    Dim p As Punto3d
+    Dim i, iFlags As Integer
+
+    If Not e.faces Then e.faces = New Face[]
+    e.faces.Clear
+    e.Polygon.Clear
+    e.PolyLine.Clear
+    If e.P.Count < 2 Then Return
+
+    If e.iParam.Count > iiiInvisibleEdges Then iFlags = e.iParam[iiiInvisibleEdges]
+
+    f = New Face
+    For i = 0 To e.P.Max
+        p = e.P[i]
+        v = New Vertex(p.x, p.y, p.z)
+        f.vertex.Add(v)
+        f.wireframe.Add(Not BTst(iFlags, i))
+        e.Polygon.Insert([p.x, p.y])
+    Next
+    e.faces.Add(f)
+
+End
+
+Public Sub Draw(e As Entity)
+
+    Dim iColour As Integer
+
+    iColour = gcd.GetGBColor(e.Colour, e.pLayer)
+    DrawFace(e, iColour, gcd.ColorRemark(iColour))
+
+End
+
+Public Sub DrawRemark(e As Entity)
+
+    Dim iColour As Integer
+
+    iColour = gcd.GetGBColor(e.Colour, e.pLayer)
+    DrawFace(e, gcd.ColorRemark(iColour), iColour)
+
+End
+
+Public Sub DrawSelected(e As Entity)
+
+    Dim iColour As Integer
+
+    iColour = gcd.GetGBColor(e.Colour, e.pLayer)
+    DrawFace(e, gcd.ColorSelected(iColour), iColour)
+
+End
+
+'' The face as 1 or 2 triangles, and its visible edges. With 2 points (while building) only the edge.
+Private Sub DrawFace(e As Entity, iFaceColour As Integer, iLineColour As Integer)
+
+    Dim f As Face
+    Dim i, n As Integer
+    Dim fTriangles As New Float[]
+    Dim fLines As New Float[]
+
+    If Not e.faces Then Return
+    If e.faces.Count = 0 Then Return
+    f = e.faces[0]
+    n = f.vertex.Count
+
+    If n >= 3 Then
+        fTriangles.Insert(f.vertex[0].XYZ)
+        fTriangles.Insert(f.vertex[1].XYZ)
+        fTriangles.Insert(f.vertex[2].XYZ)
+        If n = 4 Then
+            fTriangles.Insert(f.vertex[0].XYZ)
+            fTriangles.Insert(f.vertex[2].XYZ)
+            fTriangles.Insert(f.vertex[3].XYZ)
+        Endif
+        glx.DrawTriangles3D(fTriangles, iFaceColour)
+    Endif
+
+    For i = 0 To n - 1
+        If n = 2 And i = 1 Then Break                   ' una sola linea
+        If f.wireframe[i] Then
+            fLines.Insert(f.vertex[i].XYZ)
+            fLines.Insert(f.vertex[(i + 1) Mod n].XYZ)
+        Endif
+    Next
+    If fLines.Count > 0 Then glx.DrawLines3D(fLines, iLineColour)
+
+End
+
+Public Sub Finish(e As Entity) As Boolean
+
+    If e.iParam.Count <= iiiInvisibleEdges Then e.iParam.Resize(iiiInvisibleEdges + 1)
+    If e.faces.Count = 0 Then Me.BuildGeometry(e)
+    e.Psel.Resize(e.P.Count)
+
+End
+
+' EntityBase solo mueve los puntos: rearmo la cara
+
+Public Sub Rotate(e As Entity, radians As Float)
+
+    Super.Rotate(e, radians)
+    Me.BuildGeometry(e)
+
+End
+
+Public Sub Scale(e As Entity, sX As Float, sY As Float, Optional sZ As Float = 1)
+
+    Super.Scale(e, sX, sY, sZ)
+    Me.BuildGeometry(e)
+
+End
+
+'' 10/20/30 to 13/23/33 are the 4 vertices, 70 the invisible edges
+Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
+
+    Dim i, k As Integer
+    Dim fXYZ As New Float[12]
+    Dim bRead As New Boolean[4]
+
+    If e.iParam.Count <= iiiInvisibleEdges Then e.iParam.Resize(iiiInvisibleEdges + 1)
+    For i = 0 To sClaves.Max
+        Select Case CInt(sClaves[i])
+            Case 10 To 13, 20 To 23, 30 To 33
+                k = CInt(sClaves[i])
+                fXYZ[(k Mod 10) * 3 + (k \ 10) - 1] = CFloat(sValues[i])
+                bRead[k Mod 10] = True
+            Case 70
+                e.iParam[iiiInvisibleEdges] = CInt(sValues[i]) And 15
+        End Select
+    Next
+    If Not (bRead[0] And bRead[1] And bRead[2]) Then Return False
+
+    e.P = New Punto3d[]
+    For k = 0 To 3
+        If k = 3 And Not bRead[3] Then Break
+        e.P.Add(puntos.P3d(fXYZ[k * 3], fXYZ[k * 3 + 1], fXYZ[k * 3 + 2]))
+    Next
+
+    ' un triangulo repite el tercer vertice: su lado de cierre es el cuarto del DXF (8), aca el tercero (4)
+    If e.P.Count = 4 Then
+        If e.P[3].x = e.P[2].x And e.P[3].y = e.P[2].y And e.P[3].z = e.P[2].z Then
+            e.P.Remove(3)
+            e.iParam[iiiInvisibleEdges] = (e.iParam[iiiInvisibleEdges] And 3) Or If(BTst(e.iParam[iiiInvisibleEdges], 3), 4, 0)
+        Endif
+    Endif
+    Return True
+
+End
+
+Public Function SaveDxfData(e As Entity) As Boolean
+
+    Dim k, iFlags As Integer
+    Dim p As Punto3d
+
+    ' Los datos comunes a todas las entidades son guardados por la rutina que llama a esta
+    dxf.SaveCode("100", "AcDbFace")
+    For k = 0 To 3
+        p = e.P[Min(k, e.P.Max)]                        ' un triangulo repite el tercer vertice
+        dxf.SaveCode(CStr(10 + k), CStr(p.x))
+        dxf.SaveCode(CStr(20 + k), CStr(p.y))
+        dxf.SaveCode(CStr(30 + k), CStr(p.z))
+    Next
+    If e.iParam.Count > iiiInvisibleEdges Then iFlags = e.iParam[iiiInvisibleEdges]
+    ' en un triangulo el lado de cierre (4) pasa a ser el cuarto del DXF (8)
+    If e.P.Count = 3 Then iFlags = (iFlags And 3) Or If(BTst(iFlags, 2), 8, 0)
+    If iFlags <> 0 Then dxf.SaveCode("70", CStr(iFlags))
+    Return True
+
+End
