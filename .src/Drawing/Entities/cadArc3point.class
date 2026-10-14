@@ -3,50 +3,56 @@
 Inherits CadArc
 
 Public Const Gender As String = "ARC3POINT"
-Public X1 As Float
-Public y1 As Float
-Public X2 As Float
-Public y2 As Float
-Public X3 As Float
-Public y3 As Float
-Public Const ParamType As String = "point2d"
+
+Public Const ParamType As String = "point3d"
 Public Const ParamHelper As String = "point1"      ' a little text that is shown at the prompt waiting for user input during build
 Public Const ParamDefault As String = "0,0"
 Public Const Regenerable As Boolean = True
 
 Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Variant
 
+    Dim p As Punto3d
+
     If Me.ExpectedParam = "point1" Then
 
-        If vParam[0] <> "point2d" Then Return
-
-        x1 = vParam[1]
-        Try y1 = vParam[2]
+        If vParam[0] <> "point3d" Then Return
 
         If Definitive Then
+            eBuild.P.Clear
+            p = New Punto3d(vParam[1], vParam[2], vParam[3])
+            eBuild.P.Add(p)
+            ' agrego otro punto igual
+            p = New Punto3d(vParam[1], vParam[2], vParam[3])
+            eBuild.P.Add(p)
+
             eBuild.fParam.Add(0)
             Me.ExpectedParam = "point2"
-            Return ["prompt": "second point", "nextparamtype": "point2d"]
+            Return ["prompt": "second point", "nextparamtype": "point3d"]
         End If
     Else If Me.ExpectedParam = "point2" Then   ' radio
 
-        If vParam[0] <> "point2d" Then Return
-
-        Try x2 = vParam[1]
-        Try y2 = vParam[2]
+        If vParam[0] <> "point3d" Then Return
+        eBuild.P.Last.x = vParam[1]
+        eBuild.P.Last.y = vParam[2]
+        eBuild.P.Last.z = vParam[3]
 
         If Definitive Then
+            ' agrego otro punto igual
+            p = New Punto3d(vParam[1], vParam[2], vParam[3])
+            eBuild.P.Add(p)
+            Me.makepolyline(eBuild)
             Me.ExpectedParam = "point3"
-            Return ["prompt": "third point", "nextparamtype": "point2d"]
+            Return ["prompt": "third point", "nextparamtype": "point3d"]
         End If
 
     Else If Me.ExpectedParam = "point3" Then
 
-        If vParam[0] <> "point2d" Then Return
+        If vParam[0] <> "point3d" Then Return
 
-        Try x3 = vParam[1]
-        Try y3 = vParam[2]
-
+        eBuild.P.Last.x = vParam[1]
+        eBuild.P.Last.y = vParam[2]
+        eBuild.P.Last.z = vParam[3]
+        Me.makepolyline(eBuild)
         If Definitive Then Return ["command": "end"]
 
     Else
@@ -57,33 +63,104 @@ End
 
 Public Sub makepolyline(oe As Entity)
 
+    Dim x, y, theta, fRadio, fStart, fEnd, angle_increment As Float
+    Dim iTramos As Integer
+    Dim PolyAux As New Float[]
+    Dim LargoPixels, LargoReal As Float
+
     If Me.ExpectedParam = "point1" Then Return
     oe.PolyLine.Clear
 
     If Me.ExpectedParam = "point2" Then
 
-        oe.PolyLine.Insert([x1, y1, x2, y2])
+        oe.PolyLine.Insert([oe.P[0].x, oe.P[0].y, oe.P[0].x, oe.P[1].x, oe.P[1].y, oe.P[1].z])
         Return
     Endif
 
     Dim flx As New Float[]
-    flx = puntos.Arc3Point(x1, y1, x2, y2, x3, y3)
+    flx = puntos.Arc3Point3d(oe.P[0], oe.P[1], oe.P[2])
+    If flx.Count = 0 Then Return
 
-    oe.P[0] = flx[0]
-    oe.P[1] = flx[1]
-    oE.fParam[0] = flx[2]
-    oE.fParam[1] = Deg(flx[3])
-    oE.fParam[2] = Deg(flx[3] + flx[4])
+    Dim pCenter As New Punto3d(flx[0], flx[1], flx[2])
+    Dim pNormal As New Punto3d(flx[6], flx[7], flx[8])
 
-    Super.makepolyline(oe)
+    fRadio = flx[3]
+    fStart = flx[4]
+    fEnd = flx[5]
+
+    ' oe.P[0].x = flx[0]
+    ' oe.P[0].y = flx[1]
+    ' oE.fParam[0] = flx[2]
+    ' oE.fParam[1] = Deg(flx[3])
+    ' oE.fParam[2] = Deg(flx[3] + flx[4])
+    '
+    ' Super.makepolyline(oe)
+
+    If fStart < 0 Then fStart += 2 * Pi
+    If fend < 0 Then fEnd += 2 * Pi
+
+    If fStart = fEnd Then Return
+    If fRadio = 0 Then Return
+
+    If fEnd < fStart Then fEnd += 2 * Pi
+
+    ' veo el cuantos pixels tendria cada tramo
+    LargoReal = fRadio * Abs(fEnd - fStart)
+    LargoPixels = gcd.Pixels(LargoReal) ' > 0
+
+    ' si quiero tramos de 10 pixels como maximo...
+    iTramos = fRadio * Abs(fEnd - fStart) / gcd.metros(Config.ArcDensity)
+
+    If iTramos < 6 Then iTramos = 18
+    If iTramos > 360 Then iTramos = 360
+    angle_increment = (fEnd - fStart) / iTramos
+    'If angle_increment < Pi / 36 Then angle_increment = Pi / 36
+
+    oE.polyline.Clear
+    ' If oe.iParam[0] = 0 Then
+    For theta = fStart To fEnd Step angle_increment
+
+        ' el punto considerando 0,0 al centro
+        x = fRadio * Cos(theta)
+        y = fRadio * Sin(theta)
+        PolyAux.Add(x)
+        PolyAux.Add(y)
+
+    Next
+
+    x = fRadio * Cos(fEnd)
+    y = fRadio * Sin(fEnd)
+    ' Else
+    '
+    '     For theta = fStart To fEnd Step angle_increment
+    '         ' el punto considerando 0,0 al centro
+    '         x = fRadio * Cos(theta)
+    '         y = -fRadio * Sin(theta)
+    '         PolyAux.Add(x)
+    '         PolyAux.Add(y)
+    '
+    '     Next
+    '
+    '     x = fRadio * Cos(fEnd)
+    '     y = -fRadio * Sin(fEnd)
+    '
+    ' End If
+    PolyAux.Add(x)
+    PolyAux.Add(y)
+
+    Dim pp As Punto3D
+    'centro3 = oe.P[0].Copy()
+    For iTramos = 0 To PolyAux.Max Step 2
+        pp = puntos.LocalToGlobal(pCenter, pNormal, PolyAux[iTramos], PolyAux[iTramos + 1])
+        If pp Then oe.polyline.insert([pp.x, pp.y, pp.z])
+    Next
+    oe.Extrusion.Insert(pNormal.ToXYZ())
 
 End
 
 Public Sub Draw(oE As Entity)
 
     If Not oE.Visible Then Return
-
-    Me.makepolyline(oe)
 
     glx.PolyLines(oe.PolyLine, gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
 
@@ -95,6 +172,6 @@ Public Sub Finish(oE As Entity) As Boolean
 
     oe.gender = cadArc.Gender
 
-    oE.psel.resize(oE.p.count / 2)
+    oE.psel.resize(oE.P.Count)
 
 End

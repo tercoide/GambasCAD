@@ -35,12 +35,12 @@ Public Function SaveDxfData(e As Entity) As Boolean
 
     dxf.SaveCodeInv("AcDbAlignedDimension", "100")
     ' ===========================================================================
-    dxf.SaveCodeInv(CStr(e.p[14]), dxf.codX3)                ' first def point
-    dxf.SaveCodeInv(CStr(e.p[15]), dxf.codY3)
+    dxf.SaveCodeInv(CStr(e.P[7].x), dxf.codX3)                ' first def point
+    dxf.SaveCodeInv(CStr(e.P[7].y), dxf.codY3)
     dxf.SaveCodeInv("0", dxf.codz3)
 
-    dxf.SaveCodeInv(CStr(e.p[16]), "14")                ' text att point
-    dxf.SaveCodeInv(CStr(e.p[17]), "24")
+    dxf.SaveCodeInv(CStr(e.P[8].x), "14")                ' text att point
+    dxf.SaveCodeInv(CStr(e.P[8].y), "24")
     dxf.SaveCodeInv("0", "34")
 
 End
@@ -78,27 +78,27 @@ End
 
 Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Variant
 
-    If vParam[0] <> "point2d" Then Return False
+    If vParam[0] <> "point3d" Then Return False
 
     If gcd.StepsDone = 0 Then
         Me.DimType = gcd.dimAligned
         ' supongo que marca el punto de derecha a izq
         ' el primero es P3 o P67
-        Try eBuild.p[0] = vParam[1]
-        Try eBuild.p[1] = vParam[2]
-        eBuild.p[2] = eBuild.P[0]
-        eBuild.p[3] = eBuild.P[1]
-        eBuild.p[4] = eBuild.p[2]
-        eBuild.p[5] = eBuild.P[3]
+        Try eBuild.P[0].x = vParam[1]
+        Try eBuild.P[0].y = vParam[2]
+        eBuild.P[1].x = eBuild.P[0].x
+        eBuild.P[1].y = eBuild.P[0].y
+        eBuild.P[2].x = eBuild.P[1].x
+        eBuild.P[2].y = eBuild.P[1].y
         ' Me.DefPoint2.x = Me.DefPoint1.x
         ' Me.DefPoint2.y = Me.DefPoint1.y
         If Definitive Then Return True
     Else If gcd.StepsDone = 1 Then
 
-        Try eBuild.p[2] = vParam[1]
-        Try eBuild.p[3] = vParam[2]
-        eBuild.p[4] = eBuild.p[2]
-        eBuild.p[5] = eBuild.P[3]
+        Try eBuild.P[1].x = vParam[1]
+        Try eBuild.P[1].y = vParam[2]
+        eBuild.P[2].x = eBuild.P[1].x
+        eBuild.P[2].y = eBuild.P[1].y
 
         eBuild.pBlock = cadDIMENSION_LINEAR.RebuildBlock(eBuild, -1)
         If Definitive Then Return True
@@ -106,8 +106,8 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
 
         ' return the angle from horizontal to us
         'eBuild.fParam[Me.ipaExtension] = -puntos.PointToLineDistance([vParam[1], vParam[2]], [eBuild.p[0], eBuild.p[1], eBuild.p[2], eBuild.p[3]]) ' / puntos.distancia(eBuild.p[0], eBuild.p[1], eBuild.p[2], eBuild.p[3]
-        Try eBuild.p[4] = vParam[1]
-        Try eBuild.p[5] = vParam[2]
+        Try eBuild.P[2].x = vParam[1]
+        Try eBuild.P[2].y = vParam[2]
 
         eBuild.pBlock = cadDIMENSION_LINEAR.RebuildBlock(eBuild, -1)
         If Definitive Then
@@ -130,8 +130,9 @@ Public Function GripEdit(g As Grip) As Boolean
     Dim e As Entity
 
     e = g.AsociatedEntity
-    e.P[g.AsociatedPoint * 2] = g.X
-    e.P[g.AsociatedPoint * 2 + 1] = g.Y
+    ' las cotas se construyen en XY, el z del punto se conserva
+    e.P[g.AsociatedPoint].x = g.P.x
+    e.P[g.AsociatedPoint].y = g.P.y
 
     e.pBlock = cadDIMENSION_LINEAR.RebuildBlock(e, -1)
 

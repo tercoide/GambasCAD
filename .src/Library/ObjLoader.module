@@ -174,3 +174,174 @@ Private Function ResolveVertex(sToken As String) As Integer
     Return iOutIdx
 
 End
+
+'' Loads a .OBJ as one EBO per object ("o"; files without "o" are split by group "g").
+'' The materials come from the "mtllib" files and are shared between the EBOs that use them.
+'' Faces without normals: with SmoothNormals their vertices are shared and the normals averaged,
+'' otherwise each face gets its own vertices and a flat normal.
+Public Function LoadEBOs(sPath As String, Optional SmoothNormals As Boolean) As EBO[]
+
+    Dim aEBO As New EBO[]
+    Dim hEBO As EBO
+    Dim cMaterials As New Collection
+    Dim hMaterial As Material
+    Dim hCurrentMaterial As Material
+    Dim sLine, sName As String
+    Dim aTok As String[]
+    Dim hFile As File
+    Dim bHasObjects As Boolean
+    Dim iFace As Integer
+
+    hPositions = New Float[]
+    hNormals = New Float[]
+    hUV = New Float[]
+
+    If Not Exist(sPath) Then
+        Error.Raise("File not found: " & sPath)
+        Return aEBO
+    Endif
+
+    hFile = Open sPath For Input
+
+    While Not Eof(hFile)
+        Line Input #hFile, sLine
+        sLine = Trim(sLine)
+
+        If Len(sLine) = 0 Or Left(sLine, 1) = "#" Then Continue
+
+        aTok = Split(sLine, " \t", "", True)
+        If aTok.Count = 0 Then Continue
+
+        Select Case aTok[0]
+
+            Case "v"
+                hPositions.Add(CFloat(aTok[1]))
+                hPositions.Add(CFloat(aTok[2]))
+                hPositions.Add(CFloat(aTok[3]))
+
+            Case "vn"
+                hNormals.Add(CFloat(aTok[1]))
+                hNormals.Add(CFloat(aTok[2]))
+                hNormals.Add(CFloat(aTok[3]))
+
+            Case "vt"
+                hUV.Add(CFloat(aTok[1]))
+                If aTok.Count > 2 Then hUV.Add(CFloat(aTok[2])) Else hUV.Add(0)
+
+            Case "mtllib"
+                For Each hMaterial In Material.LoadMTL(File.Dir(sPath) &/ Trim(Mid$(sLine, 7)))
+                    cMaterials[hMaterial.Name] = hMaterial
+                Next
+
+            Case "usemtl"
+                hCurrentMaterial = cMaterials[Trim(Mid$(sLine, 7))]       ' Null si no esta en el .mtl
+                If hEBO Then hEBO.UseMaterial(hCurrentMaterial)
+
+            Case "o", "g"
+                If aTok[0] = "o" Then
+                    bHasObjects = True
+                Else If bHasObjects Then
+                    Continue                    ' con objetos, los grupos no separan
+                End If
+                sName = Trim(Mid$(sLine, 2))
+                hEBO = Null                     ' el EBO nuevo se crea con la primera cara
+
+            Case "f"
+                If Not hEBO Then
+                    hEBO = New EBO
+                    hEBO.Name = sName
+                    hEBO.UseMaterial(hCurrentMaterial)
+                    aEBO.Add(hEBO)
+                    hCache = New Collection     ' los indices son propios de cada EBO
+                End If
+                Inc iFace
+                ProcessFaceEBO(hEBO, aTok, IIf(SmoothNormals, 0, iFace))
+
+        End Select
+
+    Wend
+
+    Close #hFile
+
+    For Each hEBO In aEBO
+        hEBO.Pack()
+    Next
+
+    Return aEBO
+
+End
+
+' iFace <> 0: the face vertices without normal are not shared with other faces (flat normals)
+Private Sub ProcessFaceEBO(hEBO As EBO, aTok As String[], iFace As Integer)
+
+    Dim i As Integer
+    Dim aIdx As New Integer[]
+
+    For i = 1 To aTok.Count - 1
+        aIdx.Add(ResolveVertexEBO(hEBO, aTok[i], iFace))
+    Next
+
+    ' Fan triangulation: works for triangles and convex polygons
+    For i = 1 To aIdx.Count - 2
+        hEBO.AddTriangle(aIdx[0], aIdx[i], aIdx[i + 1])
+    Next
+
+End
+
+' Like ResolveVertex, but into the EBO arrays (Single), with v flipped for OpenGL textures
+Private Function ResolveVertexEBO(hEBO As EBO, sToken As String, iFace As Integer) As Integer
+
+    Dim aParts As String[]
+    Dim iPos, iUV, iNorm, iOutIdx As Integer
+    Dim sKey As String
+
+    aParts = Split(sToken, "/")
+
+    iPos = CInt(aParts[0])
+    If iPos < 0 Then iPos = (hPositions.Count \ 3) + iPos + 1
+
+    If aParts.Count >= 2 And If Len(aParts[1]) > 0 Then
+        iUV = CInt(aParts[1])
+        If iUV < 0 Then iUV = (hUV.Count \ 2) + iUV + 1
+    Endif
+
+    If aParts.Count >= 3 And If Len(aParts[2]) > 0 Then
+        iNorm = CInt(aParts[2])
+        If iNorm < 0 Then iNorm = (hNormals.Count \ 3) + iNorm + 1
+    Endif
+
+    sKey = iPos & "/" & iUV & "/" & iNorm
+    If iNorm = 0 And iFace <> 0 Then sKey &= "/" & iFace
+
+    If hCache.Exist(sKey) Then Return hCache[sKey]
+
+    hEBO.Vertex.Add(hPositions[(iPos - 1) * 3])
+    hEBO.Vertex.Add(hPositions[(iPos - 1) * 3 + 1])
+    hEBO.Vertex.Add(hPositions[(iPos - 1) * 3 + 2])
+
+    ' 0,0,0 = EBO.Pack la calcula
+    If iNorm > 0 Then
+        hEBO.Normals.Add(hNormals[(iNorm - 1) * 3])
+        hEBO.Normals.Add(hNormals[(iNorm - 1) * 3 + 1])
+        hEBO.Normals.Add(hNormals[(iNorm - 1) * 3 + 2])
+    Else
+        hEBO.Normals.Add(0)
+        hEBO.Normals.Add(0)
+        hEBO.Normals.Add(0)
+    Endif
+
+    ' en el .OBJ v = 0 es abajo de la imagen, en la textura cargada es la fila de arriba
+    If iUV > 0 Then
+        hEBO.TextureUV.Add(hUV[(iUV - 1) * 2])
+        hEBO.TextureUV.Add(1 - hUV[(iUV - 1) * 2 + 1])
+    Else
+        hEBO.TextureUV.Add(0)
+        hEBO.TextureUV.Add(0)
+    Endif
+
+    iOutIdx = (hEBO.Vertex.Count \ 3) - 1
+    hCache[sKey] = iOutIdx
+
+    Return iOutIdx
+
+End

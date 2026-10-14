@@ -60,7 +60,7 @@ Public Function EditEntities(sProperty As String, vValue As Variant, Optional Do
                 End If
 
             Case "points"
-                e.p = vValue
+                If vValue Is Punto3d[] Then e.P = puntos.CopyP(vValue) Else e.P = puntos.FromXY(vValue)
 
         End Select
     Next
@@ -406,9 +406,8 @@ End
 '
 ' End
 
-'' ReGenerates the GL list of the selected entities
-
-Public Sub glGenDrawListSel()
+'' ReGenerates the GL VBO of the selected entities
+Public Sub glGenVboSelected()
 
     Dim e As Entity
 
@@ -1064,7 +1063,7 @@ End
 '' determina la interseccion de un rayo a una cara, si la hay
 Public Function RayToFaceItersection(f As Face, r As Ray) As Punto3D
 
-    Return puntos.RayPolygonIntersection3D(ray.Origin, ray.Direction, f.ToPuntos3D())
+    Return puntos.RayPolygonIntersection3D(ray, f.ToPuntos3D())
 
 End
 
@@ -1077,7 +1076,7 @@ Public Function FaceCloserToRay(fx As Face[], r As Ray) As Face
     Dim zMin As Float = 1e100
 
     For Each f In fx
-        p = puntos.RayPolygonIntersection3D(r.Origin, r.Direction, f.ToPuntos3D())
+        p = puntos.RayPolygonIntersection3D(r, f.ToPuntos3D())
         If p Then   ' determino la cercania al user
             pProy = gcd.Drawing.Sheet.camera.Get2DpointFrom3Dworld(p)
             If pProy.z > 0 Then ' el punto es visible
@@ -1100,7 +1099,7 @@ Public Function RayToMeshIntersection(fx As Face[], r As Ray) As Punto3D[]
     Dim p As Punto3d
 
     For Each f In fx
-        p = puntos.RayPolygonIntersection3D(ray.Origin, ray.Direction, f.ToPuntos3D())
+        p = puntos.RayPolygonIntersection3D(ray, f.ToPuntos3D())
         If p Then px.Add(p)
     Next
 
@@ -1545,7 +1544,7 @@ Public Sub EntityToJsonString(e As Entity) As String
     Dim s As String
 
     j.Add(e.Gender, "Entity")
-    j.Add(e.p, "Points")                    '' X,Y pairs
+    j.Add(puntos.ToXYZ(e.P), "Points")      '' X,Y,Z triplets
     j.Add(e.sParam, "ParamString")      '' Array of Strings
     j.Add(e.fparam, "ParamFloat")           '' Array of floats
     j.Add(e.iParam, "ParamInt")             '' Array of integers
@@ -1663,10 +1662,6 @@ Public Sub VboEntitySetHighligth(e As Entity)
 
 End
 
-Public Sub glGenDrawListSel22()
-
-End
-
 '' Draws a Face in the current VBO
 '' Mode: 0 = normal, 1 = remark, 2 = selected
 '' Painting: -1 = No faces, 0 = use color, 1 = use material, 2 = use texture
@@ -1678,12 +1673,7 @@ Public Sub DrawFace(f As Face, colour As Integer, Optional mode As Integer = 0, 
 
     Dim fTriangles As Float[]
     fColor4 = colour
-    If DrawWireframe Then
-        If f.wireframe.Count > 1 Then ' dibujo el contorno
-            fPoints = puntos.Create3dArray(f.wireframe)    ' paso de Punto3D a XYZ triplets
-            glx.Polygon(fPoints, gcd.ColorRemark(Colour), 1,, True)
-        End If
-    End If
+
     'If f.vertex.Count = 4 Then Stop
     If (f.vertex.Count >= 3) And (mode >= 0) Then ' dibujo las caras
         fTriangles = puntos.PolygonTriangulation3D(f.ToPuntos3D())

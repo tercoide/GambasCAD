@@ -26,7 +26,7 @@ Inherits EntityBase
 
 Public Const Gender As String = "CIRCLE"
 Public Const CmdLineHelper As String = ("Draw a circle: center point")
-Public Const ParamType As String = "point2d"                             ' that is Point, Point, Float; could be Color Text, etc
+Public Const ParamType As String = "point3d"                             ' that is Point, Point, Float; could be Color Text, etc
 Public Const ParamHelper As String = "center"      ' a little text that is shown at the prompt waiting for user input during build
 Public Const ParamDefault As String = "0"
 Public Const TotalParams As Integer = 1
@@ -42,12 +42,12 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
     If eBuild.Is3D Then eBuild.p3 = New Punto3d[]
     If Me.ExpectedParam = "center" Then
 
-        If (vParam[0] <> "point2d") And (vParam[0] <> "point3d") Then Return
-        eBuild.P.Resize(3)
+        If (vParam[0] <> "point3d") Then Return
+        puntos.ResizeP(eBuild.P, 1)
 
-        Try eBuild.P[0] = vParam[1]
-        Try eBuild.P[1] = vParam[2]
-        Try eBuild.P[2] = vParam[3]
+        Try eBuild.P[0].x = vParam[1]
+        Try eBuild.P[0].y = vParam[2]
+        Try eBuild.P[0].z = vParam[3]
 
         If Definitive Then
             eBuild.fParam.Add(0)
@@ -70,8 +70,8 @@ End
 
 Public Sub Scale(e As Entity, sX As Float, sY As Float, Optional sZ As Float = 1)
 
-    E.fParam[0] *= sX
-    puntos.Scale(e.P, sx, sy)
+    E.fParam[0] *= (sX + sy + sz) / 3
+    puntos.ScaleP(e.P, sx, sy, sz)
 
 End
 
@@ -79,12 +79,7 @@ Public Sub Draw(oE As Entity)
 
     If Not oE.Visible Then Return
 
-    ' clsEntities.VBOEntityStart(oe)
-    If oe.Is3D Then
-        glx.PolyLines(puntos.Create3dArray(oe.p3), gcd.GetGBColor(oE.Colour, oe.pLayer),,, True)
-    Else
-        glx.PolyLines(oe.PolyLine, gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
-    End If
+    glx.PolyLines(oe.PolyLine, gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
 
     ' clsEntities.VboEntityDone(oe)
 
@@ -96,6 +91,7 @@ Public Sub makepolyline(oe As Entity)
     Dim iTramos As Integer
     Dim centro3 As Punto3d
     Dim px As Punto3D
+    Dim PolyAux As New Float[]
 
     If oE.fParam[0] = 0 Then Return
 
@@ -110,27 +106,25 @@ Public Sub makepolyline(oe As Entity)
 
     For theta = 0 To 2 * Pi Step angle_increment
         ' el punto considerando 0,0 al centro
-        x = oE.p[0] + oE.fParam[0] * Cos(theta)
-        y = oE.p[1] + oE.fParam[0] * Sin(theta)
-        oE.polyline.Add(x)
-        oE.polyline.Add(y)
+        x = oE.fParam[0] * Cos(theta)
+        y = oE.fParam[0] * Sin(theta)
+        PolyAux.Add(x)
+        PolyAux.Add(y)
 
     Next
-    x = oE.p[0] + oE.fParam[0]
-    y = oE.p[1]
+    x = oE.fParam[0]
+    y = 0
 
-    oE.polyline.Add(x)
-    oE.polyline.Add(y)
+    PolyAux.Add(x)
+    PolyAux.Add(y)
 
-    If oe.Is3D Then
-        oe.p3 = New Punto3d[]
-        ' determino el plano
-        centro3 = New Punto3d(oe.P[0], oe.P[1], oe.P[2])
-        For iTramos = 0 To oe.PolyLine.Max Step 2
-            px = puntos.LocalToGlobal(centro3, gcd.Drawing.Sheet.LastNormal, oe.PolyLine[iTramos] - oe.P[0], oe.PolyLine[iTramos + 1] - oe.P[1])
-            If px Then oe.p3.Add(px)
-        Next
-    Endif
+    ' determino el plano
+    centro3 = oe.P[0].Copy()
+    For iTramos = 0 To PolyAux.Max Step 2
+        px = puntos.LocalToGlobal(centro3, gcd.Drawing.Sheet.LastNormal, PolyAux[iTramos], PolyAux[iTramos + 1])
+        If px Then oe.polyline.insert([px.x, px.y, px.z])
+    Next
+    oe.Extrusion.Insert(gcd.Drawing.Sheet.LastNormal.ToXYZ())
 
 End
 
@@ -146,31 +140,10 @@ Public Sub DrawRemark(oE As Entity)
     glx.PolyLines(oE.PolyLine, gcd.ColorRemark(gcd.GetGBColor(oE.Colour, oe.pLayer)), gcd.GetLineWt(oE.LineWIdth, oe.pLayer) + 1, oE.LineType.TrameLength)
 
 End
-' '' A fat version of the entity
-'
-' Public Sub DrawSelected(oE As Entity)
-'
-'     glx.circle(oE.P, oe.fParam[0], config.ColorForSelected, False, gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
-'
-' End
-'
-' '' Hides the entity
-' Public Sub DrawShadow(e As Entity)
-'
-'     glx.circle(E.P, e.fParam[0], Config.BackgroundColor, False, gcd.GetLineWt(e.LineWIdth, e.pLayer), e.LineType.TrameLength)
-'
-' End
-'
-' '' A fat version of the entity
-' Public Sub DrawRemark(oE As Entity)
-'
-'     glx.CIRCLE(oE.P, oe.fParam[0], Config.ColorForRemark,, gcd.GetLineWt(oE.LineWIdth, oe.pLayer) + 1, oE.LineType.TrameLength)
-'
-' End
 
 Public Function Draw2(oE As Entity)
 
-    paint.ARC(oE.p[0], oE.p[1], oE.fParam[0])
+    paint.ARC(oE.P[0].x, oE.P[0].y, oE.fParam[0])
 
     paint.Stroke
 
@@ -181,8 +154,8 @@ Public Function SaveDxfData(e As Entity) As Boolean
     ' stxExport.insert(["CIRCLE", dxf.codEntity])
     ' Los datos comunes a todas las entidades son guardados por la rutina que llama a esta
     dxf.SaveCodeInv("AcDbCircle", "100")
-    dxf.SaveCodeInv(CStr(e.p[0]), dxf.codCenterX)
-    dxf.SaveCodeInv(CStr(e.p[1]), dxf.codCenterY)
+    dxf.SaveCodeInv(CStr(e.P[0].x), dxf.codCenterX)
+    dxf.SaveCodeInv(CStr(e.P[0].y), dxf.codCenterY)
     dxf.SaveCodeInv(CStr(e.fParam[0]), dxf.codRadius)
     If e.Extrusion[2] <> 1 Then
         dxf.SaveCodeInv(CStr(e.Extrusion[0]), "210")
@@ -195,13 +168,14 @@ End
 Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
 
     Dim i As Integer
+    Dim flxP As New Float[]
 
-    e.P.Clear
     For i = 0 To sClaves.Max
-        If sClaves[i] = "10" Then e.P.Add(CFloat(sValues[i]))
-        If sClaves[i] = "20" Then e.P.Add(CFloat(sValues[i]))
+        If sClaves[i] = "10" Then flxP.Add(CFloat(sValues[i]))
+        If sClaves[i] = "20" Then flxP.Add(CFloat(sValues[i]))
         If sClaves[i] = "40" Then e.fParam[0] = (CFloat(sValues[i]))
     Next
+    e.P = puntos.FromXY(flxP)
 
     If e.fParam.Count = 0 Then Stop ' e.fParam.Add(0)  ' TODO: averiguar q pasa aca q algunas entidades CIRCLE
     ' vienen sin el radio
@@ -217,8 +191,8 @@ End
 '' Return if that position is over the entity within the tolerance
 Fast Public Function OverMe(e As Entity, Xr As Float, Yr As Float, tolerance As Float) As Boolean
 
-    If Abs(puntos.distancia(xr, yr, E.P[0], E.P[1]) - E.fParam[0]) < tolerance Then Return True
-    If puntos.Around(xr, yr, E.P[0], E.P[1], tolerance) Then Return True
+    If Abs(puntos.distancia(xr, yr, E.P[0].x, E.P[0].y) - E.fParam[0]) < tolerance Then Return True
+    If puntos.Around(xr, yr, E.P[0].x, E.P[0].y, tolerance) Then Return True
 
     Return False
 
@@ -228,57 +202,37 @@ End
 Public Function GenerateGrips(e As Entity) As Integer
 
     Dim g As Grip
-    Dim iCount As Integer
+    Dim i, iCount As Integer
+    Dim fAngle As Float
+    Dim pQuad As Punto3d
 
     g = New Grip
     g.Shape = 0
-    g.X = e.P[0]
-    g.Y = e.P[1]
+    g.p = e.P[0].Copy()
+    g.pRef = g.P.Copy()
     g.Action = 0 ' mover
     g.AsociatedEntity = e
     g.AsociatedPoint = 0
     gcd.Drawing.Sheet.Grips.Add(g)
     g.ToolTip = ("Move center")
+    Inc iCount
 
-    g = New Grip
-    g.Shape = 1
-    g.X = e.P[0] + e.fParam[0]
-    g.Y = e.P[1]
-    g.Action = 1 ' este dato es propio de la clase
-    g.AsociatedEntity = e
-    g.AsociatedPoint = 0
-    g.ToolTip = ("Change radius")
-    gcd.Drawing.Sheet.Grips.Add(g)
-
-    g = New Grip
-    g.Shape = 1
-    g.X = e.P[0] - e.fParam[0]
-    g.Y = e.P[1]
-    g.Action = 1
-    g.AsociatedEntity = e
-    g.AsociatedPoint = 0
-    g.ToolTip = ("Change radius")
-    gcd.Drawing.Sheet.Grips.Add(g)
-
-    g = New Grip
-    g.Shape = 1
-    g.X = e.P[0]
-    g.Y = e.P[1] + e.fParam[0]
-    g.Action = 1
-    g.AsociatedEntity = e
-    g.AsociatedPoint = 0
-    g.ToolTip = ("Change radius")
-    gcd.Drawing.Sheet.Grips.Add(g)
-
-    g = New Grip
-    g.Shape = 1
-    g.X = e.P[0]
-    g.Y = e.P[1] - e.fParam[0]
-    g.Action = 1
-    g.AsociatedEntity = e
-    g.AsociatedPoint = 0
-    g.ToolTip = ("Change radius")
-    gcd.Drawing.Sheet.Grips.Add(g)
+    ' cuadrantes, en el mismo plano que usa makepolyline
+    For i = 0 To 3
+        fAngle = i * Pi / 2
+        pQuad = puntos.LocalToGlobal(e.P[0], gcd.Drawing.Sheet.LastNormal, e.fParam[0] * Cos(fAngle), e.fParam[0] * Sin(fAngle))
+        If Not pQuad Then Break
+        g = New Grip
+        g.Shape = 1
+        g.p = pQuad
+        g.pRef = g.P.Copy()
+        g.Action = 1 ' este dato es propio de la clase
+        g.AsociatedEntity = e
+        g.AsociatedPoint = 0
+        g.ToolTip = ("Change radius")
+        gcd.Drawing.Sheet.Grips.Add(g)
+        Inc iCount
+    Next
 
     Return iCount
 
@@ -287,19 +241,17 @@ End
 Public Function GripEdit(g As Grip) As Boolean
 
     Dim e As Entity
-    Dim r, r1, r2 As Float
+    Dim pLocal As Punto3d
 
     e = g.AsociatedEntity
     Select Case g.Action
         Case 0
-            e.P[0] = g.X
-            e.P[1] = g.Y
+            e.P[0] = g.P.Copy()
+
         Case 1
-            r1 = Abs(e.P[0] - g.X)
-            r2 = Abs(e.P[1] - g.y)
-            If r1 > r2 Then r = r1 Else r = r2
-            r = Sqr(r1 * r1 + r2 * r2)
-            e.fParam[0] = r
+            ' distancia al centro medida en el plano del circulo
+            pLocal = puntos.GlobalToLocal(g.P, e.P[0], gcd.Drawing.Sheet.LastNormal)
+            If pLocal Then e.fParam[0] = Sqr(pLocal.x ^ 2 + pLocal.y ^ 2)
     End Select
 
     Me.BuildGeometry(e)
@@ -311,7 +263,7 @@ End
 Public Function SelFull(eTesting As Entity, X1real As Float, Y1real As Float, X2real As Float, Y2real As Float) As Boolean
 
     eTesting.PSel[0] = False
-    If (eTesting.p[0] - eTesting.fParam[0] > X1real) And (eTesting.p[0] + eTesting.fParam[0] < X2real) And (eTesting.p[1] - eTesting.fParam[0] > y1real) And (eTesting.p[1] + eTesting.fParam[0] < y2real) Then
+    If (eTesting.P[0].x - eTesting.fParam[0] > X1real) And (eTesting.P[0].x + eTesting.fParam[0] < X2real) And (eTesting.P[0].y - eTesting.fParam[0] > y1real) And (eTesting.P[0].y + eTesting.fParam[0] < y2real) Then
         eTesting.PSel[0] = True
         Return True
 

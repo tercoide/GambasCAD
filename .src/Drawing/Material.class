@@ -31,6 +31,11 @@ Public Metallic As Float      ' Pm o map_Pm (Metalicidad: 0.0 dieléctrico/plásti
 Public RoughnessMap As String ' map_Pr (Imagen en escala de grises para la rugosidad)
 Public MetallicMap As String  ' map_Pm (Imagen en escala de grises para la metalicidad)
 
+' 6. TEXTURA DIFUSA EN LA GPU (se carga al dibujar, ver BindTexture)
+Public TextureId As Integer   ' 0 = no cargada
+Public TextureImage As Image
+Private $textureTried As Boolean
+
 ' Constructor: Inicializa el objeto con valores estándar por defecto
 Public Sub _new()
 
@@ -58,5 +63,178 @@ Public Sub _new()
     Me.Metallic = 0.0
     Me.RoughnessMap = ""
     Me.MetallicMap = ""
+
+End
+
+Public Sub _free()
+
+    FreeTexture()
+
+End
+
+'' Binds DiffuseMap to texture unit 0, loading it the first time (needs the GL context current, so call it while drawing).
+'' Returns False if the material has no texture or it could not be loaded.
+Public Function BindTexture() As Boolean
+
+    If TextureId = 0 Then
+        If $textureTried Then Return False
+        $textureTried = True
+        If Not LoadTexture() Then Return False
+    End If
+
+    glx.glActiveTexture(glx.TEXTURE0)
+    gl.BindTexture(gl.TEXTURE_2D, TextureId)
+    Return True
+
+End
+
+'' Loads DiffuseMap into a GL texture. A relative DiffuseMap is taken from sDir.
+Public Function LoadTexture(Optional sDir As String) As Boolean
+
+    Dim sPath As String
+
+    FreeTexture()
+    $textureTried = True
+    If Not DiffuseMap Then Return False
+
+    sPath = DiffuseMap
+    If Left(sPath) <> "/" And If sDir Then sPath = sDir &/ sPath
+
+    Try TextureImage = Image.Load(sPath)
+    If Error Then
+        Debug "Material " & Name & ": no se pudo cargar la textura " & sPath
+        Return False
+    End If
+
+    TextureId = gl.GenTextures(1)[0]
+    gl.BindTexture(gl.TEXTURE_2D, TextureId)
+    gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+    gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+    gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT)
+    gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT)
+    gl.TexImage2D(TextureImage)          ' la fila 0 de la imagen queda en v = 0, por eso ObjLoader invierte v
+    gl.BindTexture(gl.TEXTURE_2D, 0)
+
+    Return True
+
+End
+
+Public Sub FreeTexture()
+
+    If TextureId Then gl.DeleteTextures([TextureId])
+    TextureId = 0
+    TextureImage = Null
+    $textureTried = False
+
+End
+
+'' Reads a Wavefront .mtl file and returns its materials by name.
+'' Texture paths are made absolute (relative to the .mtl folder); the images load on the first draw.
+Static Public Function LoadMTL(sPath As String) As Collection
+
+    Dim cMaterials As New Collection
+    Dim hFile As File
+    Dim sLine, sDir As String
+    Dim aTok As String[]
+    Dim hMat As Material
+
+    If Not Exist(sPath) Then
+        Debug "No se encuentra el archivo de materiales " & sPath
+        Return cMaterials
+    End If
+
+    sDir = File.Dir(sPath)
+    hFile = Open sPath For Input
+
+    While Not Eof(hFile)
+        Line Input #hFile, sLine
+        sLine = Trim(sLine)
+        If Len(sLine) = 0 Or Left(sLine) = "#" Then Continue
+
+        aTok = Split(sLine, " \t", "", True)
+
+        If aTok[0] = "newmtl" Then
+            hMat = New Material
+            hMat.Name = Trim(Mid$(sLine, 7))
+            cMaterials[hMat.Name] = hMat
+            Continue
+        End If
+        If Not hMat Then Continue
+
+        Select Case aTok[0]
+            Case "Kd"
+                hMat.DiffuseColor = MtlColor(aTok)
+            Case "Ka"
+                hMat.AmbientColor = MtlColor(aTok)
+            Case "Ks"
+                hMat.SpecularColor = MtlColor(aTok)
+            Case "Ke"
+                hMat.EmissiveColor = MtlColor(aTok)
+            Case "Ns"
+                hMat.Shininess = MtlFloat(aTok, 1, hMat.Shininess)
+            Case "d"
+                hMat.Opacity = MtlFloat(aTok, 1, 1)
+            Case "Tr"
+                hMat.Opacity = 1 - MtlFloat(aTok, 1, 0)
+            Case "Ni"
+                hMat.Refraction = MtlFloat(aTok, 1, 1)
+            Case "illum"
+                hMat.IllumModel = CInt(MtlFloat(aTok, 1, 2))
+            Case "Pr"
+                hMat.Roughness = MtlFloat(aTok, 1, hMat.Roughness)
+            Case "Pm"
+                hMat.Metallic = MtlFloat(aTok, 1, hMat.Metallic)
+            Case "map_Kd"
+                hMat.DiffuseMap = MtlMap(aTok, sDir)
+            Case "map_Ks"
+                hMat.SpecularMap = MtlMap(aTok, sDir)
+            Case "map_Bump", "map_bump", "bump"
+                hMat.BumpMap = MtlMap(aTok, sDir)
+            Case "map_d"
+                hMat.OpacityMap = MtlMap(aTok, sDir)
+            Case "map_Pr"
+                hMat.RoughnessMap = MtlMap(aTok, sDir)
+            Case "map_Pm"
+                hMat.MetallicMap = MtlMap(aTok, sDir)
+        End Select
+    Wend
+
+    Close #hFile
+    Return cMaterials
+
+End
+
+' CFloat no depende del idioma, Val si (en castellano espera coma decimal)
+Static Private Function MtlFloat(aTok As String[], iIndex As Integer, fDefault As Float) As Float
+
+    Dim f As Float
+
+    If iIndex > aTok.Max Then Return fDefault
+    Try f = CFloat(aTok[iIndex])
+    If Error Then Return fDefault
+    Return f
+
+End
+
+Static Private Function MtlColor(aTok As String[]) As Integer
+
+    Dim r, g, b As Float
+
+    r = MtlFloat(aTok, 1, 0)
+    g = MtlFloat(aTok, 2, r)            ' "Kd 0.5" vale para los tres
+    b = MtlFloat(aTok, 3, r)
+    Return Color.RGB(CInt(Max(0, Min(1, r)) * 255), CInt(Max(0, Min(1, g)) * 255), CInt(Max(0, Min(1, b)) * 255))
+
+End
+
+' El archivo es el ultimo token (antes puede haber opciones como -s 1 1 1). Las barras de Windows se cambian.
+Static Private Function MtlMap(aTok As String[], sDir As String) As String
+
+    Dim sFile As String
+
+    sFile = Replace(aTok[aTok.Max], "\\", "/")
+    If Left(sFile) <> "/" Then sFile = sDir &/ sFile
+    If Not Exist(sFile) Then sFile = sDir &/ File.Name(sFile)     ' rutas de otra maquina: se busca al lado del .mtl
+    Return sFile
 
 End

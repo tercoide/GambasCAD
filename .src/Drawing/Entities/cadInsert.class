@@ -43,11 +43,11 @@ Public CurrLType As Integer
 Public CurrColor As Integer
 Public CurrLwt As Float
 
-Public Function NewEntity(Optional fPoints As Float[], bNewid As Boolean = False) As Entity
+Public Function NewEntity(Optional vPoints As Variant, bNewid As Boolean = False) As Entity
 
     Dim e As New Entity
 
-    e = Super.NewEntity(fPoints, bNewid)
+    e = Super.NewEntity(vPoints, bNewid)
     e.Gender = Me.Gender
     e.pBlock = New Block
     e.pBlock.Parent = e
@@ -89,7 +89,7 @@ Public Sub Translate(e As Entity, dX As Float, dY As Float, dZ As Float, Optiona
     ' ' los insertos se mueven de acuerdo al punto de insercion
     ' Select Case e.pBlock.InsertionPlace
     '     Case 0  ' simplemente muevo P
-    puntos.Translate(e.p, dx, dy)
+    puntos.TranslateP(e.P, dX, dY, dZ)
     puntos.Translate(e.Polygon, dx, dy)
 
     For Each eBlock In e.pBlock.entities
@@ -100,7 +100,7 @@ End
 
 Public Sub Rotate(e As Entity, radians As Float)
 
-    puntos.Rotate(e.P, radians)
+    puntos.RotateP(e.P, radians)
     puntos.Rotate(e.Polygon, radians)
     E.fParam[Me.ipaRotacion] += Deg(radians)
 
@@ -117,7 +117,7 @@ Public Sub Scale(e As Entity, sX As Float, sY As Float, Optional sZ As Float = 1
     E.fParam[Me.ipaEscX] *= sX
     E.fParam[Me.ipaEscY] *= sY
 
-    puntos.Scale(e.P, sx, sy)
+    puntos.ScaleP(e.P, sx, sy)
     puntos.Scale(e.Polygon, sx, sy)
 
     Dim eBlock As Entity
@@ -223,7 +223,7 @@ Public Sub Draw_List2(eList As Collection, eParent As Entity, Optional Insertion
     Paint.Save
 
     If InsertionPlace = 0 Then
-        Paint.Translate(gcd.Pixels(eParent.p[0]) / gcd.Drawing.Sheet.ScaleZoom, gcd.Pixels(eParent.p[1]) / gcd.Drawing.Sheet.ScaleZoom)
+        Paint.Translate(gcd.Pixels(eParent.P[0].x) / gcd.Drawing.Sheet.ScaleZoom, gcd.Pixels(eParent.P[0].y) / gcd.Drawing.Sheet.ScaleZoom)
     Else If InsertionPlace = 1 Then
         ' absolute coordinate, so each entity has its own position
         ' nothing to translate
@@ -291,8 +291,8 @@ Public Function SaveDxfData(e As Entity) As Boolean
     ' Los datos comunes a todas las entidades son guardados por la rutina que llama a esta
     dxf.SaveCodeInv("AcDbBlockReference", "100")
     dxf.SaveCodeInv(e.pBlock.name, dxf.codName)
-    dxf.SaveCodeInv(CStr(e.p[0]), dxf.codX0)
-    dxf.SaveCodeInv(CStr(e.p[1]), dxf.codY0)
+    dxf.SaveCodeInv(CStr(e.P[0].x), dxf.codX0)
+    dxf.SaveCodeInv(CStr(e.P[0].y), dxf.codY0)
     dxf.SaveCodeInv("0", dxf.codZ0)
 
     dxf.SaveCodeInv(CStr(e.fParam[Me.ipaEscX]), "41")           ' X scale factor
@@ -327,8 +327,8 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     e.pBlock = b 'gcd.Drawing.Blocks[sValues[i]]
 
     i = dxf.ReadCodePlus(2, sClaves, sValues, ByRef b.name,,, 0)
-    i = dxf.ReadCodePlus(10, sClaves, sValues, ByRef e.p[0],,, 0)
-    i = dxf.ReadCodePlus(20, sClaves, sValues, ByRef e.p[1],,, 0)
+    i = dxf.ReadCodePlus(10, sClaves, sValues, ByRef e.P[0].x,,, 0)
+    i = dxf.ReadCodePlus(20, sClaves, sValues, ByRef e.P[0].y,,, 0)
     i = dxf.ReadCodePlus(41, sClaves, sValues, ByRef e.fParam[Me.ipaEscX],,, 0)
     i = dxf.ReadCodePlus(42, sClaves, sValues, ByRef e.fParam[Me.ipaEscY],,, 0)
     i = dxf.ReadCodePlus(43, sClaves, sValues, ByRef e.fParam[Me.ipaEscZ],,, 0)
@@ -414,7 +414,7 @@ Public Function GetPartsFromBlock(eInsert As Entity, GetAttributes As Boolean) A
                 ' End If
                 gcd.CCC[e2.gender].scale(e2, eInsert.fParam[cadInsert.ipaEscX], eInsert.fParam[cadInsert.ipaEscY])
                 gcd.CCC[e2.gender].rotate(e2, Rad(eInsert.fParam[cadInsert.ipaRotacion]))
-                gcd.CCC[e2.gender].translate(e2, eInsert.p[0], eInsert.p[1], 0)
+                gcd.CCC[e2.gender].translate(e2, eInsert.P[0].x, eInsert.P[0].y, 0)
                 ' gcd.CCC[e2.gender].rotate(e2, eInsert.fParam[cadInsert.ipaRotacion])
                 ' gcd.CCC[e2.gender].scale(e2, eInsert.fParam[cadInsert.ipaEscX], eInsert.fParam[cadInsert.ipaEscY])
                 'e2.IdContainer = eInsert.Id
@@ -429,7 +429,7 @@ Public Function GetPartsFromBlock(eInsert As Entity, GetAttributes As Boolean) A
             gcd.CCC[e2.gender].DeExtrude(e2)
             gcd.CCC[e2.gender].scale(e2, eInsert.fParam[cadInsert.ipaEscX], eInsert.fParam[cadInsert.ipaEscY])
             gcd.CCC[e2.gender].rotate(e2, Rad(eInsert.fParam[cadInsert.ipaRotacion]))
-            gcd.CCC[e2.gender].translate(e2, eInsert.p[0], eInsert.p[1], 0)
+            gcd.CCC[e2.gender].translate(e2, eInsert.P[0].x, eInsert.P[0].y, 0)
             ' gcd.CCC[e2.gender].rotate(e2, eInsert.fParam[cadInsert.ipaRotacion])
             ' gcd.CCC[e2.gender].scale(e2, eInsert.fParam[cadInsert.ipaEscX], eInsert.fParam[cadInsert.ipaEscY])
 
@@ -452,7 +452,7 @@ Public Sub Finish(oE As Entity) As Boolean
 
     'Me.BuildGeometry(oe)
 
-    oE.psel.resize(oE.p.count / 2)
+    oE.psel.resize(oE.P.Count)
 
     'oE.Selected = False
 
@@ -483,18 +483,18 @@ Public Function GripEdit(g As Grip) As Boolean
 
     e = g.AsociatedEntity
     If g.Action = 0 Then                        ' mover
-        translate(e, g.X - e.P[0], g.Y - e.P[1], 0)
+        translate(e, g.P.x - e.P[0].x, g.P.y - e.P[0].y, g.P.z - e.P[0].z)
 
     Else If g.Action = 2 Then                   ' escalar
 
         ' acomodo
 
-        xr = e.P[0]
-        yr = e.P[1]
+        xr = e.P[0].x
+        yr = e.P[0].y
 
-        l = (g.X - xr) ^ 2 + (g.Y - yr) ^ 2
-        d = puntos.PointToLineDistance([g.x, g.y], [xr, yr, g.xr, g.yr]) ^ 2
-        l0 = ((g.Xr - xr) ^ 2 + (g.Yr - yr) ^ 2) ^ 0.5
+        l = (g.P.x - xr) ^ 2 + (g.P.y - yr) ^ 2
+        d = puntos.PointToLineDistance([g.P.x, g.P.y], [xr, yr, g.pRef.x, g.pRef.y]) ^ 2
+        l0 = ((g.pRef.x - xr) ^ 2 + (g.pRef.y - yr) ^ 2) ^ 0.5
         x = (l - d) ^ 0.5
 
         If l0 = 0 Then Return
@@ -513,18 +513,15 @@ Public Function GripEdit(g As Grip) As Boolean
         gcd.CCC["SCALE"].glScale[1] = xs
         gcd.CCC["SCALE"].glScale[2] = xs
 
-        g.X = xr + (g.Xr - xr) * xs
-
-        g.Y = yr + (g.yr - yr) * xs
-
-        g.Xr = g.X
-        g.Yr = g.Y
+        g.P.x = xr + (g.pRef.x - xr) * xs
+        g.P.y = yr + (g.pRef.y - yr) * xs
+        g.pRef = g.P.Copy()
 
     Else If g.Action = 1 Then                           ' rotate
 
-        xr = e.P[0]
-        yr = e.P[1]
-        fAngle = Ang(g.X - xr, g.Y - yr) '- Ang(g.xr - xr, g.yr - yr)
+        xr = e.P[0].x
+        yr = e.P[0].y
+        fAngle = Ang(g.P.x - xr, g.P.y - yr) '- Ang(g.pRef.x - xr, g.pRef.y - yr)
         translate(e, -xr, -yr, 0)
         rotate(e, fAngle - Rad(e.fParam[Me.ipaRotacion]))
         translate(e, xr, yr, 0)
@@ -556,8 +553,8 @@ Public Function GenerateGrips(e As Entity) As Integer
 
     g = New Grip
     g.Shape = 0
-    g.X = e.P[0]
-    g.Y = e.P[1]
+    g.p = e.P[0].Copy()
+    g.pRef = g.P.Copy()
     g.Action = 0 ' mover
     g.AsociatedEntity = e
     g.AsociatedPoint = 0
@@ -566,17 +563,11 @@ Public Function GenerateGrips(e As Entity) As Integer
 
     g = New Grip
     g.Shape = 2
-    g.X = gcd.Metros(120)
-    g.Y = 0
-    g.Xr = g.X
-    g.Yr = g.Y
-    flxGrip.Add(g.X)
-    flxGrip.Add(g.y)
+    flxGrip.Add(gcd.Metros(120))
+    flxGrip.Add(0)
     puntos.Rotate(flxGrip, Rad(e.fParam[Me.ipaRotacion]))
-    g.X = e.P[0] + flxGrip[0]
-    g.y = e.P[1] + flxGrip[1]
-    g.Xr = g.X
-    g.Yr = g.Y
+    g.p = puntos.P3d(e.P[0].x + flxGrip[0], e.P[0].y + flxGrip[1], e.P[0].z)
+    g.pRef = g.P.Copy()
     g.Action = 1 ' este dato es propio de la clase
     g.AsociatedEntity = e
     g.AsociatedPoint = 0
@@ -588,17 +579,13 @@ Public Function GenerateGrips(e As Entity) As Integer
 
     g = New Grip
     g.Shape = 2
-    g.X = 0
-    g.Y = gcd.Metros(120)
     g.Value = gcd.Metros(120)   ' el valor original
     flxGrip.Clear
-    flxGrip.Add(g.X)
-    flxGrip.Add(g.y)
+    flxGrip.Add(0)
+    flxGrip.Add(gcd.Metros(120))
     puntos.Rotate(flxGrip, Rad(e.fParam[Me.ipaRotacion]))
-    g.X = e.P[0] + flxGrip[0]
-    g.y = e.P[1] + flxGrip[1]
-    g.Xr = g.X
-    g.Yr = g.Y
+    g.p = puntos.P3d(e.P[0].x + flxGrip[0], e.P[0].y + flxGrip[1], e.P[0].z)
+    g.pRef = g.P.Copy()
     g.Action = 2 ' este dato es propio de la clase
     g.AsociatedEntity = e
     g.AsociatedPoint = 0
@@ -610,17 +597,13 @@ Public Function GenerateGrips(e As Entity) As Integer
 
     g = New Grip
     g.Shape = 2
-    g.X = 0
-    g.Y = -gcd.Metros(20)
     g.Value = IIf(e.fParam[Me.ipaEscX] > 0, 1, -1)            ' el valor original
     flxGrip.Clear
-    flxGrip.Add(g.X)
-    flxGrip.Add(g.y)
+    flxGrip.Add(0)
+    flxGrip.Add(-gcd.Metros(20))
     puntos.Rotate(flxGrip, Rad(e.fParam[Me.ipaRotacion]))
-    g.X = e.P[0] + flxGrip[0]
-    g.y = e.P[1] + flxGrip[1]
-    g.Xr = g.X
-    g.Yr = g.Y
+    g.p = puntos.P3d(e.P[0].x + flxGrip[0], e.P[0].y + flxGrip[1], e.P[0].z)
+    g.pRef = g.P.Copy()
     g.Action = 3                            ' este dato es propio de la clase
     g.AsociatedEntity = e
     g.AsociatedPoint = 0
@@ -632,17 +615,13 @@ Public Function GenerateGrips(e As Entity) As Integer
 
     g = New Grip
     g.Shape = 2
-    g.Y = 0
-    g.X = -gcd.Metros(20)
     g.Value = IIf(e.fParam[Me.ipaEscY] > 0, 1, -1)            ' el valor original
     flxGrip.Clear
-    flxGrip.Add(g.X)
-    flxGrip.Add(g.y)
+    flxGrip.Add(-gcd.Metros(20))
+    flxGrip.Add(0)
     puntos.Rotate(flxGrip, Rad(e.fParam[Me.ipaRotacion]))
-    g.X = e.P[0] + flxGrip[0]
-    g.y = e.P[1] + flxGrip[1]
-    g.Xr = g.X
-    g.Yr = g.Y
+    g.p = puntos.P3d(e.P[0].x + flxGrip[0], e.P[0].y + flxGrip[1], e.P[0].z)
+    g.pRef = g.P.Copy()
     g.Action = 4                            ' este dato es propio de la clase
     g.AsociatedEntity = e
     g.AsociatedPoint = 0

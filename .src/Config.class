@@ -114,6 +114,8 @@ Public FilesLastOpen8 As String = ""
 Public FilesLastOpen9 As String = ""
 Public FilesLastOpen10 As String = ""
 
+Private $cDefaults As Collection     '' default values of the variables in Behaviour(), see StoreDefaults
+
 Public oAlias As Collection = ["mm": "mesh", "ppp": "parallelepiped", "b": "block", "bg": "break", "c": "copy", "cc": "circle", "e": "erase", "ee": "ddedit", "f": "fillet", "ff": "offset", "l": "line", "lk": "layer", "ll": "mline", "m": "move", "m3": "mirror3d", "mn": "mirror", "p0": "pedit", "pp": "pline", "r": "reinit", "re": "rectang", "rr": "rotate", "rt": "extend", "s": "stretch", "sc": "scale", "sd": "matchprop", "tr": "trim", "ty": "attedit", "x": "explode", "xx": "xplode", "z": "zoom"]
 
 ''DIMENSIONS
@@ -124,56 +126,94 @@ Public oAlias As Collection = ["mm": "mesh", "ppp": "parallelepiped", "b": "bloc
 'Extension lines
 'Color for extension lines
 
-'' This function creates a list of parameters that allow you to define how to edit variables in a form.
-'' This list allows to know things like if the variables will be read-only, if a specific control will be used to edit them or if the data will be managed in a fully automatic way, among other things.
-
+'' Describes the variables the user can edit in fSettings, keyed by variable name:
+'' [section, title, editor, extra, help]
+'' editor: "switch" Boolean, "color" Gambas color, "integer" and "float" with extra = [min, max],
+'' "list" with extra = String[] of choices, or "@icons" / "@fonts" for lists read at run time.
+'' Variables not listed here are still loaded and saved, but are not shown to the user.
 Static Public Function Behaviour() As Collection
-    'o.Add(["section",("Title of the variable"), "e", "DirChooser","Section"], "Root")
-    ' r=Read only, e=Read Write, a=Automatic. Section is te group of the variable
-    ' El cuarto parámetro es la funcion que modificara el valor, por ejemplo:
-    ' toggle.2 = Es un boton togle que puede ofrecer dos estados, on y off por ejemplo
-    ' toggle.3 = Es un boton togle que puede ofrecer tres estados, on y off y standby, por ejemplo
-    ' color.choose.16x16 = Es un boton normal que al producirse el evento click llamara a un formulario de seleccion de colores
-    ' integer = Un SpinBox para un numero entero n donde n > -1 y n < 7
-    ' select.from.list = Un combobox solo lectura que presenta una lista de opciones.
 
     Dim o As New Collection
-    '' INTERFACE
-    o.Add(["interface", ("Show console tab"), "e", "toggle.2"], "ShowConsoleTab")
-    o.Add(["interface", ("Model Background Color"), "e", "color.choose.16x16"], "ModelBackgroundColor")
-    o.Add(["interface", ("Show entity inspector"), "e", "toggle.2"], "ShowEntityInspector")
-    o.Add(["interface", ("Decimal digits for coordinates"), "e", "integer", [0, 6]], "DecimalDigitsCoords")
-    o.Add(["interface", ("Decimal digits for inquiries"), "e", "integer", [0, 6]], "DecimalDigitsInquiries")
-    o.Add(["interface", ("Show console tab"), "e", "ToggleButton"], "toggle.2")
-    o.Add(["interface", ("Icon family"), "e", "select.from.list", ["CAD", "Sketch"]], "IconFamily")
 
-    '' GRID
-    o.Add(["grid", ("Grid size"), "e", "integer"], "GrIdSize") ' ¿Tiene limites?
-    o.Add(["grid", ("Show grid"), "e", "toggle.2"], "GrIdActive")
-    o.Add(["grid", ("Grid style"), "e", "integer"], "GrIdStyle") ' ¿Tiene limites?
-    o.Add(["grid", ("Show grid border"), "e", "toggle.2"], "GrIdBorder")
+    '' DISPLAY
+    o.Add(["Display", ("Background color"), "color", Null, ("Background of the drawing area. White and black entities switch automatically to stay visible.")], "ModelBackgroundColor")
+    o.Add(["Display", ("Grip link line color"), "color", Null, ("Line joining a grip to the grip it depends on.")], "GripLineColor")
+    o.Add(["Display", ("Icon set"), "list", "@icons", ("Takes effect after restarting GambasCAD.")], "IconFamily")
 
-    '' Como me interesa poder cambiar este parametro en el formulario de configuración entonces la agrego a la colección de comportamiento
-    '' SNAP
-    o.Add(["snap", ("Minimal distance to point"), "e", "integer", [0, 10]], "SnapDistancePix")
-    o.Add(["snap", ("Snap mode saved"), "e", "integer", [0, 10]], "SnapModeSaved")
-    o.Add(["snap", ("Background color"), "e", "color.choose.16x16"], "BackgroundColor")
+    '' DRAWING
+    o.Add(["Drawing", ("Default line weight (mm)"), "float", [0.0, 5.0], ("Used when the layer or block has no line weight.")], "DefLineWt")
+    o.Add(["Drawing", ("Arc segment length (pixels)"), "float", [1.0, 100.0], ("Smaller values draw smoother arcs, circles and splines.")], "ArcDensity")
+    o.Add(["Drawing", ("Regenerate on zoom"), "switch", Null, ("Rebuild the geometry when the zoom changes a lot.")], "AutoRegen")
+    o.Add(["Drawing", ("Zoom factor for regeneration"), "integer", [2, 20], ("How many times the zoom must change before regenerating.")], "AutoRegenFactor")
 
-    '' FORMATS
-    'TODO: ¿Esto es para los valores enteros de las coordenadas o para los decimales?
-    o.Add(["formats", ("Digits for coords"), "e", "integer", [0, 6]], "DigitsCoord")
-    'TODO: ¿Esto es para los valores enteros de las consultas o para los decimales?
-    o.Add(["formats", ("Digits for inquiries"), "e", "integer", [0, 6]], "DigitsInquiries")
+    '' SNAP AND SELECTION
+    o.Add(["Snap and selection", ("Snap distance (pixels)"), "integer", [2, 100], ("How close the cursor must be to snap to a point.")], "SnapDistancePix")
+    o.Add(["Snap and selection", ("Pick tolerance (pixels)"), "integer", [1, 50], ("How close the cursor must be to pick an entity.")], "SelectTolerancePixDistance")
+    o.Add(["Snap and selection", ("Grip size (pixels)"), "integer", [3, 30], ""], "GripSize")
+    o.Add(["Snap and selection", ("On-screen text font"), "list", "@fonts", ("Font of the measurements shown while drawing.")], "GripTextOnScreenFont")
 
-    'NOTE: ¿Esto se puede restringir o no? yo use una selección de parametros con una lista en vez de dejarlo totalmete libre
-    o.Add(["formats", ("Coordnates format"), "e", "select.from.list", ["0.00", "0,00"]], "FormatCoord")
-    o.Add(["formats", ("Inquires format"), "e", "select.from.list", ["0.00", "0,00"]], "FormatInquiries")
+    '' UNITS
+    o.Add(["Units", ("Decimals for coordinates"), "integer", [0, 8], ("Digits after the decimal point in the coordinates bar.")], "DigitsCoord")
+    o.Add(["Units", ("Decimals for inquiries"), "integer", [0, 8], ("Digits after the decimal point in distances, areas and other inquiries.")], "DigitsInquiries")
 
-    o.Add(["formats", ("File converter"), "e", "select.from.list", ["ODA", "LibreDWG"]], "FileConversion")
-    o.Add(["formats", ("Drawing area dark mode"), "e", "toggle.2"], "DrawingAreaDarkMode")
+    '' FILES
+    o.Add(["Files", ("DWG converter"), "list", ["ODA", "LibreDWG"], ("External program used to open and save DWG files.")], "FileConversion")
 
-    Return o.Copy()
-    o.Clear
+    Return o
+
+End
+
+'' Keeps the values the editable variables have before the configuration file is read
+Public Sub StoreDefaults()
+
+    Dim sName As String
+
+    $cDefaults = New Collection
+    For Each sName In Behaviour().Keys
+        $cDefaults[sName] = Object.GetProperty(Me, sName)
+    Next
+
+End
+
+Public Function HasDefault(sName As String) As Boolean
+
+    If Not $cDefaults Then Return False
+    Return $cDefaults.Exist(sName)
+
+End
+
+Public Function DefaultValue(sName As String) As Variant
+
+    Return $cDefaults[sName]
+
+End
+
+'' Returns the value of a configuration variable by name
+Public Function GetValue(sName As String) As Variant
+
+    Return Object.GetProperty(Me, sName)
+
+End
+
+'' Sets a configuration variable by name
+Public Sub SetValue(sName As String, vValue As Variant)
+
+    Object.SetProperty(Me, sName, vValue)
+
+End
+
+'' Sets the variables that are derived from the edited ones
+Public Sub UpdateDerived()
+
+    FormatCoord = DigitsFormat(DigitsCoord)
+    FormatInquiries = DigitsFormat(DigitsInquiries)
+
+End
+
+Private Function DigitsFormat(iDigits As Integer) As String
+
+    If iDigits <= 0 Then Return "0"
+    Return "0." & String(iDigits, "0")
 
 End
 
@@ -209,69 +249,20 @@ Static Public Sub Save(sFile As String, Optional j As JSONCollection)
     Endif
 
     If j Then
-        jConfig = j.Copy()
         For Each sSymbol In myClass.Symbols
-            If jConfig.Exist(sSymbol) Then
-                Object.SetProperty(obj, sSymbol, jConfig[sSymbol])
+            If j.Exist(sSymbol) Then
+                Object.SetProperty(obj, sSymbol, j[sSymbol])
             Endif
-        Next
-    Else
-        For Each Var In myClass.Symbols
-            If (MyClass[var].kind = Class.Variable) Or (MyClass[var].kind = Class.Property) Then
-                valor = Object.GetProperty(obj, var)
-                jConfig.Add(Valor, var)
-            End If
         Next
     Endif
 
-    File.Save(sFile, JSON.Encode2(jConfig))
-
-End
-
-Static Public Function List() As JSONCollection
-
-    Dim j As New JSONCollection
-    Dim obj As Object = Me
-    Dim MyClass As Class = Object.Class(obj)
-    Dim sName As String
-    Dim v1, v2 As Variant
-    Dim oBehaviour As Collection
-    Dim sTitle As String
-    Dim vTemp As New Variant[]
-    Dim i As Integer
-
-    oBehaviour = Behaviour()
-
-    'For Each sName In myClass.Symbols
-    For Each sName In oBehaviour.Keys
-        If myClass.Symbols.Exist(sName) Then
-            vTemp.Clear
-            If (MyClass[sName].kind = Class.Variable) Or (MyClass[sName].kind = Class.Property) Then
-                v1 = Object.GetProperty(obj, sName)
-
-                vTemp.Add(v1)
-                vTemp.Add(MyClass[sName].Type)
-                sTitle = sName
-                'If oBehaviour.Exist(sName) Then
-                If oBehaviour[sName][0] <> "" Then
-                    sTitle = oBehaviour[sName][0]
-                Endif
-                'Endif
-                vTemp.Add(sTitle)
-                'If oBehaviour.Exist(sName) Then
-                For i = 1 To oBehaviour[sName].Max
-                    v2 = oBehaviour[sName][i]
-                    vTemp.Add(v2)
-                Next
-                'Endif
-
-                j.Add(vTemp.Copy(), sName)
-                vTemp.Clear
-
-            Endif
-        Endif
+    For Each Var In myClass.Symbols
+        If (MyClass[var].kind = Class.Variable) Or (MyClass[var].kind = Class.Property) Then
+            valor = Object.GetProperty(obj, var)
+            jConfig.Add(Valor, var)
+        End If
     Next
 
-    Return j
+    File.Save(sFile, JSON.Encode2(jConfig))
 
 End

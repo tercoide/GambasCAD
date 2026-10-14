@@ -1,0 +1,304 @@
+' Gambas class file
+
+'' Settings dialog. The rows are built from Config.Behaviour(), so a new setting
+'' only needs a line there. Changes are kept apart and copied to Config on Apply or OK.
+
+Private $cBehaviour As Collection
+Private $cValues As New Collection          ' edited values, by variable name
+Private $cChoices As New Collection         ' String[] of values for the "list" editors
+Private $hEditors As New Collection         ' editor control, by variable name
+Private $bFilling As Boolean
+
+Public Sub Form_Open()
+
+    Dim v As Variant
+    Dim aSections As New String[]
+
+    $cBehaviour = Config.Behaviour()
+    For Each v In $cBehaviour
+        $cValues[$cBehaviour.Key] = Config.GetValue($cBehaviour.Key)
+        If Not aSections.Exist(v[0]) Then aSections.Add(v[0])
+    Next
+
+    $bFilling = True
+    lstSections.List = aSections
+    lstSections.Index = 0
+    $bFilling = False
+
+    FillRows()
+    btnApply.Enabled = False
+
+End
+
+Public Sub lstSections_Select()
+
+    If $bFilling Then Return
+    If bxSearch.Text Then
+        bxSearch.Text = ""      ' Change rebuilds the rows
+    Else
+        FillRows()
+    Endif
+
+End
+
+Public Sub bxSearch_Change()
+
+    FillRows()
+
+End
+
+'' Shows the settings of the selected section, or the ones matching the search in every section
+Private Sub FillRows()
+
+    Dim v As Variant
+    Dim sFilter, sLastSection As String
+
+    $bFilling = True
+    While svRows.Children.Count > 0
+        svRows.Children[0].Delete
+    Wend
+    $hEditors.Clear
+
+    sFilter = Trim(bxSearch.Text)
+    lstSections.Enabled = Not sFilter
+
+    For Each v In $cBehaviour
+        If sFilter Then
+            If InStr(v[1], sFilter, 1, gb.IgnoreCase) = 0 And If InStr(v[4], sFilter, 1, gb.IgnoreCase) = 0 And If InStr(v[0], sFilter, 1, gb.IgnoreCase) = 0 Then Continue
+            If v[0] <> sLastSection Then
+                AddHeader(v[0])
+                sLastSection = v[0]
+            Endif
+        Else
+            If v[0] <> lstSections.Text Then Continue
+        Endif
+        AddRow($cBehaviour.Key, v)
+    Next
+
+    If $hEditors.Count = 0 Then AddHeader(("No setting matches"))
+    $bFilling = False
+
+End
+
+Private Sub AddHeader(sText As String)
+
+    Dim hLabel As Label
+
+    hLabel = New Label(svRows)
+    hLabel.Text = sText
+    hLabel.Font.Bold = True
+    hLabel.Font.Size = Me.Font.Size * 1.15
+    hLabel.H = Desktop.Scale * 5
+
+End
+
+'' One row: title and help text on the left, the editor on the right
+Private Sub AddRow(sKey As String, v As Variant)
+
+    Dim hRow, hText, hHolder As Panel
+    Dim hLabel As Label
+    Dim hEditor As Control
+    Dim hSpin As SpinBox
+    Dim hCombo As ComboBox
+    Dim hSwitch As SwitchButton
+    Dim hColor As ColorButton
+    Dim aChoices As String[]
+    Dim sChoice As String
+
+    hRow = New Panel(svRows)
+    hRow.Arrangement = Arrange.Horizontal
+    hRow.Spacing = True
+    hRow.H = Desktop.Scale * 7
+
+    hText = New Panel(hRow)
+    hText.Arrangement = Arrange.Vertical
+    hText.Centered = True
+    hText.Expand = True
+
+    hLabel = New Label(hText)
+    hLabel.Text = v[1]
+    hLabel.AutoResize = True
+
+    If v[4] Then
+        hLabel = New Label(hText)
+        hLabel.Text = v[4]
+        hLabel.Foreground = Color.Gray
+        hLabel.Font.Size = Me.Font.Size * 0.9
+        hLabel.AutoResize = True
+    Endif
+
+    ' the editor is kept at its own height, centered in the row
+    hHolder = New Panel(hRow)
+    hHolder.Arrangement = Arrange.Vertical
+    hHolder.Centered = True
+    hHolder.W = Desktop.Scale * 24
+
+    Select Case v[2]
+        Case "switch"
+            hSwitch = New SwitchButton(hHolder) As "Editor"
+            hSwitch.Value = $cValues[sKey]
+            hSwitch.W = Desktop.Scale * 8
+            hEditor = hSwitch
+
+        Case "color"
+            hColor = New ColorButton(hHolder) As "Editor"
+            hColor.Value = $cValues[sKey]
+            hEditor = hColor
+
+        Case "integer", "float"
+            hSpin = New SpinBox(hHolder) As "Editor"
+            If v[3] Then
+                hSpin.MinValue = v[3][0]
+                hSpin.MaxValue = v[3][1]
+            Endif
+            If v[2] = "float" Then
+                hSpin.Precision = 2
+                hSpin.Step = 0.05
+            Endif
+            hSpin.Value = $cValues[sKey]
+            hSpin.Alignment = Align.Right
+            hEditor = hSpin
+
+        Case "list"
+            aChoices = Choices(v[3])
+            ' a value not in the list is kept as a choice, so it is not lost when saving
+            If Not aChoices.Exist($cValues[sKey]) Then aChoices.Add($cValues[sKey])
+            $cChoices[sKey] = aChoices
+            hCombo = New ComboBox(hHolder) As "Editor"
+            hCombo.ReadOnly = True
+            For Each sChoice In aChoices
+                If sChoice Then hCombo.Add(sChoice) Else hCombo.Add(("Default"))
+            Next
+            hCombo.Index = aChoices.Find($cValues[sKey])
+            hEditor = hCombo
+
+        Case Else
+            Return
+    End Select
+
+    hEditor.Tag = sKey
+    hEditor.H = Desktop.Scale * 4
+    hEditor.ToolTip = v[4]
+    $hEditors[sKey] = hEditor
+
+End
+
+'' The values offered by a "list" editor
+Private Function Choices(vList As Variant) As String[]
+
+    Dim aList As New String[]
+    Dim sName As String
+
+    If TypeOf(vList) = gb.Object Then
+        For Each sName In vList
+            aList.Add(sName)
+        Next
+        Return aList
+    Endif
+
+    Select Case vList
+        Case "@icons"
+            aList.Add("")       ' the icons in the svg folder itself
+            For Each sName In Dir(gcd.dirResources &/ "svg", "*", gb.Directory).Sort()
+                If sName <> "Cursors" Then aList.Add(sName)
+            Next
+
+        Case "@fonts"
+            For Each sName In Dir(gcd.dirResources &/ "fonts/lff", "*.lff").Sort()
+                aList.Add(File.BaseName(sName))
+            Next
+    End Select
+
+    Return aList
+
+End
+
+Public Sub Editor_Change()
+
+    If $bFilling Then Return
+    ReadEditor(Last)
+
+End
+
+Public Sub Editor_Click()
+
+    If $bFilling Then Return
+    ' SwitchButton has no Change event, a read-only ComboBox raises Click when an item is chosen
+    If Last Is SwitchButton Or If Last Is ComboBox Then ReadEditor(Last)
+
+End
+
+Private Sub ReadEditor(hEditor As Object)
+
+    Dim sKey As String = hEditor.Tag
+
+    Select Case Object.Type(hEditor)
+        Case "ComboBox"
+            If hEditor.Index < 0 Then Return
+            $cValues[sKey] = $cChoices[sKey][hEditor.Index]
+        Case Else
+            $cValues[sKey] = hEditor.Value
+    End Select
+    btnApply.Enabled = True
+
+End
+
+Public Sub btnDefaults_Click()
+
+    Dim sKey As String
+    Dim hEditor As Object
+
+    For Each hEditor In $hEditors
+        sKey = $hEditors.Key
+        If Not Config.HasDefault(sKey) Then Continue
+        $cValues[sKey] = Config.DefaultValue(sKey)
+    Next
+    FillRows()
+    btnApply.Enabled = True
+
+End
+
+Public Sub btnApply_Click()
+
+    Apply()
+
+End
+
+Public Sub btnOK_Click()
+
+    Apply()
+    Me.Close
+
+End
+
+Public Sub btnCancel_Click()
+
+    Me.Close
+
+End
+
+'' Copies the edited values to Config, saves them and updates what depends on them
+Private Sub Apply()
+
+    Dim v As Variant
+    Dim sOldIcons As String = Config.IconFamily
+
+    For Each v In $cValues
+        Config.SetValue($cValues.Key, v)
+    Next
+    Config.UpdateDerived()
+
+    ' the GL areas clear with ModelBackgroundColor, the buffers with WindowBackColor
+    Config.WindowBackColor = Config.ModelBackgroundColor
+    main.SetContrastColors(Config.WindowBackColor)
+
+    Config.Save(Config.Depot)
+    btnApply.Enabled = False
+
+    If Config.IconFamily <> sOldIcons Then
+        Message.Info(("The new icon set will be used after restarting GambasCAD."))
+    Endif
+
+    If gcd.Drawing Then gcd.Regen
+
+End

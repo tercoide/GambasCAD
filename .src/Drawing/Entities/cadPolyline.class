@@ -37,30 +37,30 @@ Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Def
 
     If vParam[0] = "point3d" Then
 
-        eBuild.P[eBuild.P.Max - 1] = vParam[1]
-        eBuild.P[eBuild.P.Max] = vParam[2]
+        eBuild.P[eBuild.P.Max].x = vParam[1]
+        eBuild.P[eBuild.P.Max].y = vParam[2]
+        Try eBuild.P[eBuild.P.Max].z = vParam[3]
 
         If Definitive Then
-            eBuild.P.Insert(eBuild.P.Copy(eBuild.P.Max - 1, 2))
+            eBuild.P.Add(eBuild.P[eBuild.P.Max].Copy())
             Return ["prompt": "next point"]
         End If
 
     Else If vParam[0] = "text" Then
 
         If vParam[1] = "_CLOSE" Then
-            If eBuild.P.Count > 4 Then eBuild.P.Remove(eBuild.P.Max - 1, 2)
-            eBuild.P.Add(eBuild.P[0])
-            eBuild.P.Add(eBuild.P[1])
+            If eBuild.P.Count > 2 Then eBuild.P.Remove(eBuild.P.Max)
+            eBuild.P.Add(eBuild.P[0].Copy())
             eBuild.iParam[0] = 1
             Inc gcd.StepsDone
             Return ["command": "end"]
 
         Else If vParam[1] = "_UNDO" Then
-            If eBuild.P.Count > 4 Then eBuild.P.Remove(eBuild.P.Max - 1, 2)
+            If eBuild.P.Count > 2 Then eBuild.P.Remove(eBuild.P.Max)
             eBuild.iParam[0] = 0
             Return ["prompt": "next point"]
         Else If vParam[1] = "_END" Then
-            If eBuild.P.Count > 4 Then eBuild.P.Remove(eBuild.P.Max - 1, 2)
+            If eBuild.P.Count > 2 Then eBuild.P.Remove(eBuild.P.Max)
             Inc gcd.StepsDone
             eBuild.iParam[0] = 0
             Return ["command": "end"]
@@ -74,7 +74,7 @@ Public Sub Draw(oE As Entity)
 
     If (oe.iParam[Me.iiiPolylineType] And 64) = 64 Then
 
-        'glx.PolyLines(puntos.Create3dArray(oe.faces[0].vertex), gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer),, True)
+        'glx.PolyLines(puntos.ToXYZ(oe.faces[0].vertex), gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer),, True)
     Else
         glx.PolyLines(oe.PolyLine, gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
     End If
@@ -103,8 +103,8 @@ Public Function BuildGeometry(E As Entity, Optional density As Float)
 
                 If ((CInt(ePart.fParam[cadVERTEX.ipaFlags70])) Xor 128) = 0 Then Continue
 
-                e.PolyLine.Add(ePart.P[0])
-                e.PolyLine.Add(ePart.P[1])
+                e.PolyLine.Add(ePart.P[0].x)
+                e.PolyLine.Add(ePart.P[0].y)
                 'Endif
                 ' ======================= Mesh 3D
 
@@ -225,7 +225,7 @@ Public Sub DrawSelected(oE As Entity)
 
     If (oe.iParam[Me.iiiPolylineType] And 64) = 64 Then
 
-        glx.DrawLines3D(puntos.Create3dArray(oe.faces[0].vertex), gcd.ColorRemark(gcd.GetGBColor(oE.Colour, oe.pLayer)), gcd.GetLineWt(oE.LineWIdth, oe.pLayer))
+        glx.DrawLines3D(puntos.ToXYZ(oe.faces[0].vertex), gcd.ColorRemark(gcd.GetGBColor(oE.Colour, oe.pLayer)), gcd.GetLineWt(oE.LineWIdth, oe.pLayer))
     Else
         glx.PolyLines(oe.PolyLine, gcd.ColorRemark(gcd.GetGBColor(oE.Colour, oe.pLayer)), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oE.LineType.TrameLength)
     End If
@@ -260,9 +260,9 @@ Public Function SaveDxfData(e As Entity) As Boolean
     ' stxExport.insert(["POLYLINE", dxf.codEntity])
     ' Los datos comunes a todas las entidades son guardados por la rutina que llama a esta
     dxf.SaveCodeInv("AcDb3dPolyline", "100")
-    dxf.SaveCodeInv(CStr(e.p[0]), dxf.codX0)
-    dxf.SaveCodeInv(CStr(e.p[1]), dxf.codY0)
-    dxf.SaveCodeInv(CStr(e.p[2]), DXF.codZ0)
+    dxf.SaveCodeInv(CStr(e.P[0].x), dxf.codX0)
+    dxf.SaveCodeInv(CStr(e.P[0].y), dxf.codY0)
+    dxf.SaveCodeInv(CStr(e.P[0].z), DXF.codZ0)
     Try dxf.SaveCodeInv(CStr(e.fParam[0]), "39")
     dxf.SaveCodeInv(CStr(e.iParam[Me.iiiPolylineType]), "70")
 
@@ -300,9 +300,9 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     e.P.Clear
     For i = 0 To sClaves.Max
 
-        If sClaves[i] = "10" Then e.P.Add(CFloat(sValues[i]))
-        If sClaves[i] = "20" Then e.P.Add(CFloat(sValues[i]))
-        If sClaves[i] = "30" Then e.P.Add(CFloat(sValues[i]))
+        If sClaves[i] = "10" Then e.P.Add(puntos.P3d(CFloat(sValues[i]), 0))
+        If sClaves[i] = "20" Then e.P[e.P.Max].y = CFloat(sValues[i])
+        If sClaves[i] = "30" Then e.P[e.P.Max].z = CFloat(sValues[i])
         'If sClaves[i] = "39" Then e.fParam.Add(CFloat(sValues[i]))
 
         If sClaves[i] = "70" Then e.iParam[Me.iiiPolylineType] = CInt(sValues[i])

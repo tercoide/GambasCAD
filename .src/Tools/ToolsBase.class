@@ -124,7 +124,7 @@ Public Sub Draw()               ' called by gcd.CurrDrawing.drwArea_Draw
     glx.Matrices.PopMatrix()
     glx.Matrices.Translate(-gcd.Drawing.Sheet.PanBaseRealX, -gcd.Drawing.Sheet.PanBaseRealY, 0)
     DrawingAids.DrawSnapText()
-    If gcd.Drawing.iEntity.Exist("point2d") Then DrawingAids.DrawSphere(gcd.Drawing.iEntity["point2d"], 6)
+    If gcd.Drawing.iEntity.Exist("point3d") Then DrawingAids.DrawSphere(gcd.Drawing.iEntity["point3d"], 6)
 
 End
 
@@ -223,7 +223,7 @@ Public Function KeyText(EnteredText As String)
         gcd.Drawing.LastPoint.Clear
         gcd.Drawing.LastPoint.Insert([xt, yt, zt])
 
-        Me.NewParameter("point2d", Me.LastP, True)
+        Me.NewParameter("point3d", Me.LastP, True)
     Else
         Me.NewParameter("text", EnteredText, True)
     End If
@@ -302,6 +302,8 @@ End
 
 Public Sub MouseUp()
 
+    ' muchas herramientas usan esta rutina para proveerse de puntos, 2D y 3D
+
     Dim x, y, z As Float
 
     If Mouse.Right Then
@@ -309,44 +311,52 @@ Public Sub MouseUp()
         Return
     Endif
 
+    ' ' revisamos si estamos en 3D
+
+    ' yo soy el responsable de chequear POI
     X = gcd.Xreal(Mouse.X)
     Y = gcd.Yreal(Mouse.Y)
 
-    ' yo soy el responsable de chequear POI
-
     gcd.Drawing.iEntity = clsMouseTracking.CheckBestPOI(x, Y)
+
     If (gcd.Drawing.iEntity["mode"] > 0) Then
 
         ' esto re enganchado
 
-        X = gcd.Drawing.iEntity["point2d"].x
-        Y = gcd.Drawing.iEntity["point2d"].y
-        Try z = gcd.Drawing.iEntity["point2d"].z
+        X = gcd.Drawing.iEntity["point3d"].x
+        Y = gcd.Drawing.iEntity["point3d"].y
+        z = gcd.Drawing.iEntity["point3d"].z
     End If
 
-    X = gcd.Near(X)
-    Y = gcd.Near(Y)
+    If Not gcd.Drawing.Sheet.Is3D Then
+        X = gcd.Near(X)
+        Y = gcd.Near(Y)
 
-    If Me.PointsDone > 0 Then ' puedo buscar un ortogonal
-        If gcd.Orthogonal Then
+        If Me.PointsDone > 0 Then ' puedo buscar un ortogonal
+            If gcd.Orthogonal Then
 
-            If Abs(x - LastX) > Abs(Y - LastY) Then ' X prevails
+                If Abs(x - LastX) > Abs(Y - LastY) Then ' X prevails
 
-                y = LastY
+                    y = LastY
 
-            Else
+                Else
 
-                X = LastX
+                    X = LastX
 
-            Endif
+                Endif
 
+            End If
         End If
-    End If
 
-    LastX = X
-    LastY = y
-    Me.LastP = New Punto3d(LastX, LastY, 0)
-    Me.NewParameter("point2d", Me.LastP, True)
+        LastX = X
+        LastY = y
+        Me.LastZ = gcd.Drawing.Sheet.level
+
+    Else
+
+        Me.LastP = New Punto3d(X, Y, Z)
+    End If
+    Me.NewParameter("point3d", Me.LastP, True)
 
 End
 '
@@ -365,8 +375,8 @@ Public Sub MouseMove()
 
         ' esto re enganchado
 
-        X = gcd.Drawing.iEntity["point2d"].x
-        Y = gcd.Drawing.iEntity["point2d"].y
+        X = gcd.Drawing.iEntity["point3d"].x
+        Y = gcd.Drawing.iEntity["point3d"].y
 
     End If
 
@@ -389,7 +399,7 @@ Public Sub MouseMove()
         End If
     End If
     Me.CurrentP = New Punto3d(X, Y, gcd.Drawing.Sheet.level)
-    Me.NewParameter("point2d", Me.CurrentP)
+    Me.NewParameter("point3d", Me.CurrentP)
     Me.MouseX = X
     Me.MouseY = Y
 
@@ -501,7 +511,7 @@ Public Sub Finish()
     Me.glScale[1] = 1
     Me.glScale[2] = 1
 
-    clsEntities.glGenDrawListSel()
+    clsEntities.glGenVboSelected()
     clsEntities.glGenDrawVBO()
     clsEntities.DeSelection()
     ' clsEntities.CollectVisibleEntities() DEPRE

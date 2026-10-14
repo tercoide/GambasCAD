@@ -93,13 +93,13 @@ Public StyleOverride As New DimStyle
 
 Public Const DXF_Export As Boolean = True
 
-Public Function NewEntity(Optional fPoints As Float[], bNewHandle As Boolean = False) As Entity
+Public Function NewEntity(Optional vPoints As Variant, bNewHandle As Boolean = False) As Entity
 
     Dim e As New Entity
 
-    e = Super.NewEntity(fPoints, bNewHandle)
+    e = Super.NewEntity(vPoints, bNewHandle)
 
-    If e.P.Count < 24 Then e.P.Resize(26)
+    If e.P.Count < 12 Then puntos.ResizeP(e.P, 13)
 
     e.pDimStyle = Utils.CloneObject(gcd.Drawing.CurrDimStyle)
     Me.DimContinued = False
@@ -130,10 +130,10 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
             End If
         End If
 
-        If sClaves[i] = "10" Then e.p[0] = CFloat(sValues[i])         ' X0  first definition point
-        If sClaves[i] = "20" Then e.P[1] = CFloat(sValues[i])         ' Y0
-        If sClaves[i] = "11" Then e.p[2] = CFloat(sValues[i])         ' X1  midpoint of text
-        If sClaves[i] = "21" Then e.P[3] = CFloat(sValues[i])         ' Y1
+        If sClaves[i] = "10" Then e.P[0].x = CFloat(sValues[i])         ' X0  first definition point
+        If sClaves[i] = "20" Then e.P[0].y = CFloat(sValues[i])         ' Y0
+        If sClaves[i] = "11" Then e.P[1].x = CFloat(sValues[i])         ' X1  midpoint of text
+        If sClaves[i] = "21" Then e.P[1].y = CFloat(sValues[i])         ' Y1
 
         If sClaves[i] = "3" Then
             e.pDimStyle = Utils.CloneObject(gcd.Drawing.DimStyles[sValues[i]])
@@ -237,12 +237,12 @@ Public Function SaveDxfData(e As Entity) As Boolean
 
     dxf.SaveCodeInv(E.pBlock.name, "2")                     ' block name
 
-    dxf.SaveCodeInv(CStr(e.p[10]), dxf.codX0)                ' first def point
-    dxf.SaveCodeInv(CStr(e.p[11]), dxf.codY0)
+    dxf.SaveCodeInv(CStr(e.P[5].x), dxf.codX0)                ' first def point
+    dxf.SaveCodeInv(CStr(e.P[5].y), dxf.codY0)
     dxf.SaveCodeInv("0", dxf.codz0)
 
-    dxf.SaveCodeInv(CStr(e.p[12]), dxf.codX1)                ' mid point text att point
-    dxf.SaveCodeInv(CStr(e.p[13]), dxf.codY1)
+    dxf.SaveCodeInv(CStr(e.P[6].x), dxf.codX1)                ' mid point text att point
+    dxf.SaveCodeInv(CStr(e.P[6].y), dxf.codY1)
     dxf.SaveCodeInv("0", dxf.codz0)
 
     dxf.SaveCodeInv(CStr(e.iParam[Me.iiiDimType]), "70")    ' dim type
@@ -309,7 +309,7 @@ Public Sub Translate(e As Entity, dX As Float, dY As Float, dZ As Float, Optiona
 
     Dim eBlock As Entity
     ' los insertos se mueven de acuerdo al punto de insercion
-    puntos.Translate(e.p, dx, dy)
+    puntos.TranslateP(e.P, dX, dY, dZ)
     For Each eBlock In e.pBlock.entities
         gcd.CCC[eBlock.gender].translate(eBlock, dx, dy, dz)
     Next
@@ -318,7 +318,7 @@ End
 
 Public Sub Rotate(e As Entity, radians As Float)
 
-    puntos.Rotate(e.P, radians)
+    puntos.RotateP(e.P, radians)
 
     Dim eBlock As Entity
 
@@ -334,12 +334,7 @@ Public Sub Scale(e As Entity, sX As Float, sY As Float, Optional sZ As Float = 1
 
     E.fParam[Me.ipaEscX] *= sX
     E.fParam[Me.ipaEscY] *= sY
-    For i = 0 To e.p.max Step 2
-
-        e.P[i] = e.P[i] * sX
-        e.P[i + 1] = e.P[i + 1] * sY
-
-    Next
+    puntos.ScaleP(e.P, sX, sY, sZ)
 
     Dim eBlock As Entity
 
@@ -408,7 +403,7 @@ Public Sub Finish(oE As Entity) As Boolean
 
     'Me.BuildGeometry(oe)
 
-    oE.psel.resize(oE.p.count / 2)
+    oE.psel.resize(oE.P.Count)
 
     'oE.Selected = False
 

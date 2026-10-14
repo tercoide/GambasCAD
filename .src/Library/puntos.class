@@ -109,6 +109,51 @@ Public Function Arc3Point(px1 As Float, py1 As Float, px2 As Float, py2 As Float
 
 End
 
+'' Igual que Arc3Point pero con tres puntos 3D: el arco esta en el plano que forman los tres puntos.
+'' Devuelve [cx, cy, cz, radio, angulo inicial, angulo final, nx, ny, nz], o [] si los puntos estan alineados.
+'' Los angulos (radianes) se miden en el plano del arco con los ejes de EjesLocales(normal), los mismos que usa LocalToGlobal,
+'' y van en sentido antihorario visto desde la punta de la normal. El angulo final puede ser mayor que 2*Pi.
+'' La normal (normalizada) sale del lado de Normal si se pasa; si no, del lado positivo: Z > 0, o si es horizontal Y > 0, o si no X > 0.
+'' Con los tres puntos en un plano Z constante da los mismos valores que Arc3Point.
+Public Function Arc3Point3d(p1 As Punto3d, p2 As Punto3d, p3 As Punto3d, Optional Normal As Punto3d) As Float[]
+
+    Dim n, a, b, c As Punto3d
+    Dim q As Quaternion
+    Dim l1, l2, l3 As Punto3d
+    Dim arco As Float[]
+
+    a = Operate(p2, p1, 1)
+    b = Operate(p3, p1, 1)
+    n = Cross(a, b)
+    If longitud(n) <= NumericTolerance * longitud(a) * longitud(b) Then Return []      ' alineados
+    Normalizar(n)
+
+    ' elijo el lado de la normal
+    If Normal Then
+        If Dot3P(n, Normal) < 0 Then Mult3D(n, -1)
+    Else If Abs(n.z) > NumericTolerance Then
+        If n.z < 0 Then Mult3D(n, -1)
+    Else If Abs(n.y) > NumericTolerance Then
+        If n.y < 0 Then Mult3D(n, -1)
+    Else
+        If n.x < 0 Then Mult3D(n, -1)
+    Endif
+
+    ' paso los puntos al plano del arco (origen en p1, z local = 0 para los tres) y resuelvo en 2D
+    q = CuaternionGlobalToLocal(n)
+    l1 = GlobalToLocalQ(p1, p1, q)
+    l2 = GlobalToLocalQ(p2, p1, q)
+    l3 = GlobalToLocalQ(p3, p1, q)
+    arco = Arc3Point(l1.x, l1.y, l2.x, l2.y, l3.x, l3.y)
+    If arco.Count < 5 Then Return []
+
+    ' el centro vuelve a coordenadas globales
+    c = LocalToGlobal(p1, n, arco[0], arco[1])
+
+    Return [c.x, c.y, c.z, arco[2], arco[3], arco[3] + arco[4], n.x, n.y, n.z]
+
+End
+
 ' '' return the size of the point cloud: sX, sY, sZ
 ' Public Function PointCloudSize(fPoints3D As Float[]) As Float[]
 '
@@ -412,7 +457,7 @@ Public Function IsPoligonSelfIntersecting3D(pPolygon As Punto3d[]) As Boolean
         axis = 1
     End If
 
-    fPolyXY = RemoveAxis(Create3dArray(pPolygon), axis)
+    fPolyXY = RemoveAxis(ToXYZ(pPolygon), axis)
 
     Return IsPoligonSelfIntersecting(fPolyXY)
 
@@ -454,7 +499,7 @@ Public Function PolygonTriangulation3D(pPolygon As Punto3d[]) As Float[]
     ' La idea es tomar un tramo, comparar ambos puntos a la derecha e izquierda y
     ' chequear si el triangulo formado esta dentro del poligono, en ese caso elimino el punto
     ' pivot
-    If pPoly.Count <= 3 Then Return Create3dArray(pPoly)
+    If pPoly.Count <= 3 Then Return ToXYZ(pPoly)
 
     ' ' verifico que no haya puntos coincidentes
     ' For i = 0 To pPoly.Count / 2 - 2
@@ -478,7 +523,7 @@ Public Function PolygonTriangulation3D(pPolygon As Punto3d[]) As Float[]
     ' Endif
 
     Do
-        fPolyXY = RemoveAxis(Create3dArray(pPoly), axis)
+        fPolyXY = RemoveAxis(ToXYZ(pPoly), axis)
         iAnterior = pPoly.Count
 
         i = 0
@@ -569,7 +614,7 @@ Public Function PolygonTriangulation3D(pPolygon As Punto3d[]) As Float[]
     ' agrego el ultimo triangulo
     If pPoly.Count = 3 Then pTriangles.Insert(pPoly.Copy())
 
-    Triangles = Create3dArray(pTriangles)
+    Triangles = ToXYZ(pTriangles)
     If IsNull(Triangles) Then Stop
 
     Return Triangles
@@ -760,6 +805,18 @@ Public Function Around(p1x As Float, p1z As Float, p2x As Float, p2z As Float, p
     ' this is valid for negative values
 
     If InBetween(p1x, p2x - prox, p2x + prox) And InBetween(p1z, p2z - prox, p2z + prox) Then Return True Else Return False
+
+End
+
+'' determines if a XZ point is in the area of other by proximity parameter
+'' this is valid for negative values
+'' Float version
+Public Function Around3D(p1 As Punto3d, p2 As Punto3d, prox As Float) As Boolean
+
+    ' determines if a XZ point is in the area of other by proximity parameter
+    ' this is valid for negative values
+
+    If InBetween(p1.x, p2.x - prox, p2.x + prox) And InBetween(p1.y, p2.y - prox, p2.y + prox) And InBetween(p1.z, p2.z - prox, p2.z + prox) Then Return True Else Return False
 
 End
 
@@ -2223,7 +2280,299 @@ Public Function DashedLineStrip(flxStrip As Float[], flxDash As Float[], Optiona
 
 End
 
+'' Devuelve una linea de puntos confinada en los segmentos flxStrip, segun el patron estilo CAD flxDashes, usando el punto base.
+'' flxStrip viene en XYZ
+Public Function DashedLineStrip3d(fStrip As Float[], flxDash As Float[], Optional fScale As Float = 1, fOffset As Float = 0, bInvertDashes As Boolean = False, bIntercalateLines As Boolean = False, fWIdth As Float = 1) As Float[]
+
+    Dim fTrame, fDashTotal, fDistance, DashLength, DashTrame As Float
+    Dim iPatternOffset, iPatternN As Integer
+    Dim ie, i, i2, AlPedo, Sirve, nTrames, iDashTrame As Integer
+    Dim flxDashes, flxTrimmedLine, flxPatternLimits, flxContorno, flxFirstPass, flxSecondPass, flxInter As New Float[]
+    Dim CosA, SinA, DashBaseX, DashBaseY, DashBaseZ, DashFinalX, DashFinalY, DashFinalZ As Float
+    Dim SeedX, SeedY, SeedIndex, CosB, SinB, TanB, CosAB, SinAB, TanAB, fAngle As Float
+    Dim X0, X1, Y0, Y1, Z0, Z1, dX, dY, dZ As Float
+    Dim DashCut As Float
+    Dim bSpace, bSkip As Boolean
+
+    ' DEBUG FIXME: fix this
+
+    'Return pStrip
+
+    ' Veo si tengo q invertir lo dashes
+
+    If bInvertDashes Then
+        flxDashes.Resize(flxDash.Count)
+        For i = flxDash.Max To 0 Step -1
+            flxDashes[i2] = flxDash[i]
+            Inc i2
+        Next
+    Else
+        flxDashes = flxDash
+    Endif
+
+    ' calculamos el largo total de los dashes
+    For i = 0 To flxDashes.Max
+        flxDashes[i] *= fScale
+        ' aplico la escala aqui mismo
+        fDashTotal += Abs(flxDashes[i])
+    Next
+
+    If fDashTotal = 0 Then Return fStrip
+    If fStrip.Count < 3 Then Return fStrip
+
+    fOffset = Utils.fMod(fOffset, fDashTotal)                             ' el offset donde arranco
+
+    '
+
+    For i = 0 To fStrip.Max - 3 Step 3   ' 3D
+
+        X0 = fStrip[i].x
+        Y0 = fStrip[i + 1]
+        Z0 = fStrip[i + 2]
+
+        X1 = fStrip[i + 3]
+        Y1 = fStrip[i + 4]
+        Z1 = fStrip[i + 5]
+
+        fTrame = fDistancia(x0, y0, z0, x1, y1, z1)      ' largo del tramo a rellenar
+
+        ' veo si tengo que descartar este tramo
+        If bIntercalateLines Then
+            If bSkip Then
+                bSkip = False
+                fOffset += fTrame
+                fOffset = fMod(fOffset, fDashTotal)
+                Continue
+            Else
+                bSkip = True
+            Endif
+        End If
+
+        ' fAngle = Ang(X1 - X0, Y1 - Y0)
+        ' 'Debug "FAngle", fangle, cosB, sinB
+        If fTrame = 0 Then fTrame = 1
+        '
+        dX = (x1 - x0) / fTrame
+        dY = (y1 - y0) / fTrame
+        dZ = (z1 - z0) / fTrame
+
+        DashBaseX = X0
+        DashBaseY = Y0
+        DashBaseZ = Z0
+
+        Do                                      ' Trazo los dashed a lo largo de la linea
+
+            ' Repaso:
+            ' fOffset es lo que resto al dash para trazarlo, porque ya se trazo antes
+            '        ---------------------   Trazo
+            '         fOffset ^ DashCut
+            '        <-    DashTrame    ->
+            ' DashTrame = fOffset + DashCut
+
+            DashTrame = flxDashes[iDashTrame]
+
+            ' ace veo si es trazo o es espacio
+            If DashTrame < 0 Then
+                bSpace = True
+            Else
+                bSpace = False
+            End If
+
+            DashTrame = Abs(DashTrame)
+
+            DashCut = DashTrame - fOffset
+
+            ' aqui puede ocurrir que el offset sea mayor que el tramito
+            If DashCut < 0 Then
+
+                fOffset = -DashCut
+            Else
+
+                ' Esto es lo que me queda por trazar, pero puede ocurrir que el tramo donde trazarlo sea mas corto
+                ' ahora verifico que no me pase de la linea
+                If DashCut >= fTrame Then            ' me estoy pasando
+                    fOffset += fTrame               ' este offset pasa al siguiente tramo a rellenar
+                    DashCut = fTrame                ' trazo solo lo que me queda
+                    fTrame = 0
+
+                Else                                ' el trazo completo entra en lo que me queda de tramo
+                    fTrame -= DashCut               ' resto el trazo al tramo
+                    fOffset = 0
+                End If
+
+                DashFinalX = DashBaseX + DashCut * dx
+                DashFinalY = DashBaseY + DashCut * dy
+                DashFinalZ = DashBaseZ + DashCut * dz
+
+                If Not bSpace Then
+                    flxFirstPass.insert([DashBaseX, DashBaseY, DashBaseZ, DashFinalX, DashFinalY, DashFinalZ])
+                End If
+
+                DashBaseX = DashFinalX
+                DashBaseY = DashFinalY
+                DashBaseZ = DashFinalZ
+            End If
+
+            If fTrame = 0 Then Break                                ' el tramo ya se completo con los dashes
+
+            Inc iDashTrame                                          ' paso al siguiente dash
+            If iDashTrame > flxDashes.Max Then iDashTrame = 0       ' ya hice todos los dashes, pero vuelvo al inicial para completar el tramo
+
+        Loop
+
+    Next
+
+    Return flxFirstPass
+
+End
+
+'' Devuelve una linea de puntos confinada en los segmentos flxStrip, segun el patron estilo CAD flxDashes, usando el punto base.
+'' flxStrip viene en XYZ
+Public Function DashedLineStrip3dP(pStrip As Punto3d[], flxDash As Float[], Optional fScale As Float = 1, fOffset As Float = 0, bInvertDashes As Boolean = False, bIntercalateLines As Boolean = False, fWIdth As Float = 1) As Float[]
+
+    Dim fTrame, fDashTotal, fDistance, DashLength, DashTrame As Float
+    Dim iPatternOffset, iPatternN As Integer
+    Dim ie, i, i2, AlPedo, Sirve, nTrames, iDashTrame As Integer
+    Dim flxDashes, flxTrimmedLine, flxPatternLimits, flxContorno, flxFirstPass, flxSecondPass, flxInter As New Float[]
+    Dim CosA, SinA, DashBaseX, DashBaseY, DashBaseZ, DashFinalX, DashFinalY, DashFinalZ As Float
+    Dim SeedX, SeedY, SeedIndex, CosB, SinB, TanB, CosAB, SinAB, TanAB, fAngle As Float
+    Dim X0, X1, Y0, Y1, Z0, Z1, dX, dY, dZ As Float
+    Dim DashCut As Float
+    Dim bSpace, bSkip As Boolean
+
+    ' DEBUG FIXME: fix this
+
+    'Return pStrip
+
+    ' Veo si tengo q invertir lo dashes
+
+    If bInvertDashes Then
+        flxDashes.Resize(flxDash.Count)
+        For i = flxDash.Max To 0 Step -1
+            flxDashes[i2] = flxDash[i]
+            Inc i2
+        Next
+    Else
+        flxDashes = flxDash
+    Endif
+
+    ' calculamos el largo total de los dashes
+    For i = 0 To flxDashes.Max
+        flxDashes[i] *= fScale
+        ' aplico la escala aqui mismo
+        fDashTotal += Abs(flxDashes[i])
+    Next
+
+    If fDashTotal = 0 Then Return ToXYZ(pStrip)
+    If pStrip.Count < 2 Then Return ToXYZ(pStrip)
+
+    fOffset = Utils.fMod(fOffset, fDashTotal)                             ' el offset donde arranco
+
+    '
+
+    For i = 0 To pStrip.Max - 1   ' 3D
+
+        X0 = pStrip[i].x
+        Y0 = pStrip[i].y
+        Z0 = pStrip[i].z
+
+        X1 = pStrip[i + 1].x
+        Y1 = pStrip[i + 1].y
+        Z1 = pStrip[i + 1].z
+
+        fTrame = Distancia3D(pStrip[i], pStrip[i + 1])      ' largo del tramo a rellenar
+
+        ' veo si tengo que descartar este tramo
+        If bIntercalateLines Then
+            If bSkip Then
+                bSkip = False
+                fOffset += fTrame
+                fOffset = fMod(fOffset, fDashTotal)
+                Continue
+            Else
+                bSkip = True
+            Endif
+        End If
+
+        ' fAngle = Ang(X1 - X0, Y1 - Y0)
+        ' 'Debug "FAngle", fangle, cosB, sinB
+        If fTrame = 0 Then fTrame = 1
+        '
+        dX = (x1 - x0) / fTrame
+        dY = (y1 - y0) / fTrame
+        dZ = (z1 - z0) / fTrame
+
+        DashBaseX = X0
+        DashBaseY = Y0
+        DashBaseZ = Z0
+
+        Do                                      ' Trazo los dashed a lo largo de la linea
+
+            ' Repaso:
+            ' fOffset es lo que resto al dash para trazarlo, porque ya se trazo antes
+            '        ---------------------   Trazo
+            '         fOffset ^ DashCut
+            '        <-    DashTrame    ->
+            ' DashTrame = fOffset + DashCut
+
+            DashTrame = flxDashes[iDashTrame]
+
+            ' ace veo si es trazo o es espacio
+            If DashTrame < 0 Then
+                bSpace = True
+            Else
+                bSpace = False
+            End If
+
+            DashTrame = Abs(DashTrame)
+
+            DashCut = DashTrame - fOffset
+
+            ' aqui puede ocurrir que el offset sea mayor que el tramito
+            If DashCut < 0 Then
+
+                fOffset = -DashCut
+            Else
+
+                ' Esto es lo que me queda por trazar, pero puede ocurrir que el tramo donde trazarlo sea mas corto
+                ' ahora verifico que no me pase de la linea
+                If DashCut >= fTrame Then            ' me estoy pasando
+                    fOffset += fTrame               ' este offset pasa al siguiente tramo a rellenar
+                    DashCut = fTrame                ' trazo solo lo que me queda
+                    fTrame = 0
+
+                Else                                ' el trazo completo entra en lo que me queda de tramo
+                    fTrame -= DashCut               ' resto el trazo al tramo
+                    fOffset = 0
+                End If
+
+                DashFinalX = DashBaseX + DashCut * dx
+                DashFinalY = DashBaseY + DashCut * dy
+                DashFinalZ = DashBaseZ + DashCut * dz
+
+                If Not bSpace Then
+                    flxFirstPass.insert([DashBaseX, DashBaseY, DashBaseZ, DashFinalX, DashFinalY, DashFinalZ])
+                End If
+
+                DashBaseX = DashFinalX
+                DashBaseY = DashFinalY
+                DashBaseZ = DashFinalZ
+            End If
+
+            If fTrame = 0 Then Break                                ' el tramo ya se completo con los dashes
+
+            Inc iDashTrame                                          ' paso al siguiente dash
+            If iDashTrame > flxDashes.Max Then iDashTrame = 0       ' ya hice todos los dashes, pero vuelvo al inicial para completar el tramo
+
+        Loop
+
+    Next
+
+    Return flxFirstPass
+
+End
 '' Returns a point inthe line p0-p1 that extends l from p1
+
 Public Function ExtendLine2D(p0 As Punto2d, p1 As Punto2d, l As Float) As Punto2d
 
     Dim p As New Punto2d
@@ -2369,31 +2718,6 @@ Public Sub fMod(fNumber As Float, fDivi As Float) As Float
 End
 
 '' Creates a XYZ array from a Punto3D[]
-Public Function Create3dArray(p3dPoints As Variant[]) As Float[]
-
-    ' Dim vp As Punto3d
-    ' Dim ve As Vertex
-    Dim p As Variant
-    Dim fPoints As New Float[]
-    Dim i As Integer
-    Dim v As Variant
-
-    ' If p3dPoints Is Punto3d Then
-    '     p = vp
-    ' Else
-    '     p = ve
-    ' Endif
-
-    fPoints.Resize(p3dPoints.Count * 3)
-    For Each p In p3dPoints
-        fPoints[i] = p.x
-        fPoints[i + 1] = p.y
-        fPoints[i + 2] = p.z
-        i += 3
-    Next
-    Return fPoints
-
-End
 
 Public Function VertexToPunto3D(vs As Punto3d[]) As Punto3d[]
 
@@ -2653,7 +2977,7 @@ End
 
 ' Returns [hit(0/1), hitX, hitY, hitZ, t]
 ' Ray: O + t*D, t >= 0
-Public Function RayPolygonIntersection3D(rayO As Punto3D, rayD As Punto3D, pPolygon As Punto3D[]) As Punto3d
+Public Function RayPolygonIntersection3D(ray As Ray, pPolygon As Punto3D[]) As Punto3d
 
     Dim n As Integer
     Dim p0, p1, p2, hit As Punto3D
@@ -2699,23 +3023,23 @@ Public Function RayPolygonIntersection3D(rayO As Punto3D, rayD As Punto3D, pPoly
     Endif
 
     ' Intersect ray with plane
-    ndotd = nx * rayD.x + ny * rayD.y + nz * rayD.z
+    ndotd = nx * ray.direction.x + ny * ray.direction.y + nz * ray.direction.z
     If Abs(ndotd) <= NumericTolerance Then
         ' Ray parallel to plane (including contained case)
         Return Null
     Endif
 
-    wx = p0.x - rayO.x
-    wy = p0.y - rayO.y
-    wz = p0.z - rayO.z
+    wx = p0.x - ray.origin.x
+    wy = p0.y - ray.origin.y
+    wz = p0.z - ray.origin.z
 
     t = (nx * wx + ny * wy + nz * wz) / ndotd
     If t < 0 Then Return Null
 
     ' 3D hit point
-    hx = rayO.x + t * rayD.x
-    hy = rayO.y + t * rayD.y
-    hz = rayO.z + t * rayD.z
+    hx = ray.origin.x + t * ray.direction.x
+    hy = ray.origin.y + t * ray.direction.y
+    hz = ray.origin.z + t * ray.direction.z
 
     ' Project polygon + hit point to 2D by dropping dominant normal axis
     ' (best numeric stability)
@@ -3101,13 +3425,29 @@ End
 '' Devuelve Null si la normal es nula.
 Public Function LocalToGlobal(Origen As Punto3d, Normal As Punto3d, x As Float, y As Float) As Punto3d
 
-    Dim n As New Punto3d
-    Dim ejeX, ejeY As Punto3d
+    Dim ejes As Punto3d[]
     Dim p As New Punto3d
 
-    If Not normal Then Return
     If Not origen Then Return
+    ejes = EjesLocales(Normal)
+    If Not ejes Then Return
 
+    p.x = Origen.x + x * ejes[0].x + y * ejes[1].x
+    p.y = Origen.y + x * ejes[0].y + y * ejes[1].y
+    p.z = Origen.z + x * ejes[0].z + y * ejes[1].z
+    Return p
+
+End
+
+'' Devuelve los ejes [X, Y, Z] (normalizados) del sistema local definido por una normal,
+'' con el mismo criterio que LocalToGlobal: Z = Normal, X = Y global x Normal (o X global si la normal es paralela a Y), Y = Z x X.
+'' Es un sistema derecho. Devuelve Null si la normal es nula.
+Public Function EjesLocales(Normal As Punto3d) As Punto3d[]
+
+    Dim n As New Punto3d
+    Dim ejeX, ejeY As Punto3d
+
+    If Not normal Then Return
     If longitud(Normal) < NumericTolerance Then Return Null
     Normalizar2(Normal, n)
 
@@ -3120,10 +3460,127 @@ Public Function LocalToGlobal(Origen As Punto3d, Normal As Punto3d, x As Float, 
     Endif
     ejeY = Cross(n, ejeX)
 
-    p.x = Origen.x + x * ejeX.x + y * ejeY.x
-    p.y = Origen.y + x * ejeX.y + y * ejeY.y
-    p.z = Origen.z + x * ejeX.z + y * ejeY.z
-    Return p
+    Return [ejeX, ejeY, n]
+
+End
+
+'' Cuaternion de la rotacion que lleva los ejes globales a los ejes dados (ortonormales y derechos).
+'' Es decir, rota un vector expresado en el sistema local al sistema global.
+'' Usa el metodo de Shepperd (elige el divisor mas grande para no perder precision).
+Public Function CuaternionDesdeEjes(ejeX As Punto3d, ejeY As Punto3d, ejeZ As Punto3d) As Quaternion
+
+    Dim q As New Quaternion
+    Dim s, traza As Float
+
+    ' matriz de rotacion con los ejes como columnas:
+    ' | ejeX.x ejeY.x ejeZ.x |
+    ' | ejeX.y ejeY.y ejeZ.y |
+    ' | ejeX.z ejeY.z ejeZ.z |
+    traza = ejeX.x + ejeY.y + ejeZ.z
+
+    If traza > 0 Then
+        s = Sqr(traza + 1) * 2
+        q.W = 0.25 * s
+        q.X = (ejeY.z - ejeZ.y) / s
+        q.Y = (ejeZ.x - ejeX.z) / s
+        q.Z = (ejeX.y - ejeY.x) / s
+    Else If ejeX.x > ejeY.y And ejeX.x > ejeZ.z Then
+        s = Sqr(1 + ejeX.x - ejeY.y - ejeZ.z) * 2
+        q.W = (ejeY.z - ejeZ.y) / s
+        q.X = 0.25 * s
+        q.Y = (ejeY.x + ejeX.y) / s
+        q.Z = (ejeZ.x + ejeX.z) / s
+    Else If ejeY.y > ejeZ.z Then
+        s = Sqr(1 + ejeY.y - ejeX.x - ejeZ.z) * 2
+        q.W = (ejeZ.x - ejeX.z) / s
+        q.X = (ejeY.x + ejeX.y) / s
+        q.Y = 0.25 * s
+        q.Z = (ejeZ.y + ejeY.z) / s
+    Else
+        s = Sqr(1 + ejeZ.z - ejeX.x - ejeY.y) * 2
+        q.W = (ejeX.y - ejeY.x) / s
+        q.X = (ejeZ.x + ejeX.z) / s
+        q.Y = (ejeZ.y + ejeY.z) / s
+        q.Z = 0.25 * s
+    Endif
+
+    Return q
+
+End
+
+'' Cuaternion que pasa vectores del sistema global (WCS) al sistema local definido por Normal
+'' (los mismos ejes que LocalToGlobal / EjesLocales). Devuelve Null si la normal es nula.
+'' Calcularlo una vez y usarlo con GlobalToLocalQ para convertir muchos puntos.
+Public Function CuaternionGlobalToLocal(Normal As Punto3d) As Quaternion
+
+    Dim ejes As Punto3d[]
+    Dim q As Quaternion
+
+    ejes = EjesLocales(Normal)
+    If Not ejes Then Return
+
+    ' la rotacion inversa (local -> global) es la conjugada
+    q = CuaternionDesdeEjes(ejes[0], ejes[1], ejes[2])
+    q.X = -q.X
+    q.Y = -q.Y
+    q.Z = -q.Z
+    Return q
+
+End
+
+'' Convierte un punto del sistema global (WCS) a un sistema local con origen en Origen,
+'' usando un cuaternion ya calculado con CuaternionGlobalToLocal. Devuelve un punto nuevo.
+'' En el resultado, x e y estan sobre el plano local y z es la distancia (con signo) al plano.
+Public Function GlobalToLocalQ(Punto As Punto3d, Origen As Punto3d, Q As Quaternion) As Punto3d
+
+    Dim r As New Punto3d
+    Dim vx, vy, vz, tx, ty, tz As Float
+
+    vx = Punto.x - Origen.x
+    vy = Punto.y - Origen.y
+    vz = Punto.z - Origen.z
+
+    ' v' = v + w*t + q x t , con t = 2 * (q x v)
+    tx = 2.0 * (Q.Y * vz - Q.Z * vy)
+    ty = 2.0 * (Q.Z * vx - Q.X * vz)
+    tz = 2.0 * (Q.X * vy - Q.Y * vx)
+
+    r.x = vx + Q.W * tx + (Q.Y * tz - Q.Z * ty)
+    r.y = vy + Q.W * ty + (Q.Z * tx - Q.X * tz)
+    r.z = vz + Q.W * tz + (Q.X * ty - Q.Y * tx)
+    Return r
+
+End
+
+'' Convierte un punto del sistema global (WCS) al sistema local definido por un origen y una normal
+'' (inversa de LocalToGlobal). Para muchos puntos usar GlobalToLocalP, que calcula el cuaternion una sola vez.
+'' Devuelve Null si la normal es nula.
+Public Function GlobalToLocal(Punto As Punto3d, Origen As Punto3d, Normal As Punto3d) As Punto3d
+
+    Dim q As Quaternion
+
+    q = CuaternionGlobalToLocal(Normal)
+    If Not q Then Return
+    Return GlobalToLocalQ(Punto, Origen, q)
+
+End
+
+'' Convierte un array de puntos del sistema global (WCS) al sistema local definido por un origen y una normal.
+'' El cuaternion se calcula una sola vez para todos los puntos. Devuelve un array nuevo; los puntos originales no cambian.
+'' Devuelve Null si la normal es nula.
+Public Function GlobalToLocalP(pPoints As Punto3d[], Origen As Punto3d, Normal As Punto3d) As Punto3d[]
+
+    Dim q As Quaternion
+    Dim pResult As New Punto3d[]
+    Dim p As Punto3d
+
+    q = CuaternionGlobalToLocal(Normal)
+    If Not q Then Return
+
+    For Each p In pPoints
+        pResult.Add(GlobalToLocalQ(p, Origen, q))
+    Next
+    Return pResult
 
 End
 
@@ -3306,3 +3763,235 @@ Public Function RayPlaneIntersection(ray As Ray, plane As Plane) As Punto3d
     Return hitPoint
 
 End Function
+
+' ---------------------------------------------------------------------------------
+' Punto3d[] helpers: Entity.P es un array de Punto3d.
+' Las funciones de dibujo y de poligonos 2D siguen usando Float[] x,y,x,y...
+' ---------------------------------------------------------------------------------
+
+'' Crea un Punto3d nuevo (New no se puede usar dentro de una expresion)
+Public Function P3d(x As Float, y As Float, Optional z As Float = 0) As Punto3d
+
+    Dim p As Punto3d
+
+    p = New Punto3d(x, y, z)
+    Return p
+
+End
+
+'' Convierte un array x,y,x,y... en Punto3d[] (z = fZ)
+Public Function FromXY(fPoints As Float[], Optional fZ As Float = 0) As Punto3d[]
+
+    Dim pPoints As New Punto3d[]
+    Dim i As Integer
+
+    If Not fPoints Then Return pPoints
+    For i = 0 To fPoints.Max - 1 Step 2
+        pPoints.Add(P3d(fPoints[i], fPoints[i + 1], fZ))
+    Next
+    Return pPoints
+
+End
+
+'' Convierte un array x,y,z,x,y,z... en Punto3d[]
+Public Function FromXYZ(fPoints As Float[]) As Punto3d[]
+
+    Dim pPoints As New Punto3d[]
+    Dim i As Integer
+
+    If Not fPoints Then Return pPoints
+    For i = 0 To fPoints.Max - 2 Step 3
+        pPoints.Add(P3d(fPoints[i], fPoints[i + 1], fPoints[i + 2]))
+    Next
+    Return pPoints
+
+End
+
+'' Devuelve un array plano x,y,x,y... (descarta z) para las funciones 2D
+Public Function ToXY(pPoints As Punto3d[]) As Float[]
+
+    Dim fPoints As New Float[]
+    Dim p As Punto3d
+    Dim i As Integer
+
+    If Not pPoints Then Return fPoints
+    fPoints.Resize(pPoints.Count * 2)
+    For Each p In pPoints
+        fPoints[i] = p.x
+        fPoints[i + 1] = p.y
+        i += 2
+    Next
+    Return fPoints
+
+End
+
+'' Devuelve un array plano x,y,z,x,y,z...
+Public Function ToXYZ(p3dPoints As Punto3d[]) As Float[]
+
+    Dim p As Punto3d
+    Dim fPoints As New Float[]
+    Dim i As Integer
+
+    fPoints.Resize(p3dPoints.Count * 3)
+    For Each p In p3dPoints
+        fPoints[i] = p.x
+        fPoints[i + 1] = p.y
+        fPoints[i + 2] = p.z
+        i += 3
+    Next
+    Return fPoints
+
+End
+
+'' Copia profunda: cada punto es un objeto nuevo
+Public Function CopyP(pPoints As Punto3d[]) As Punto3d[]
+
+    Dim pCopy As New Punto3d[]
+    Dim p As Punto3d
+
+    If Not pPoints Then Return pCopy
+    For Each p In pPoints
+        If p Then pCopy.Add(p.Copy()) Else pCopy.Add(P3d(0, 0))
+    Next
+    Return pCopy
+
+End
+
+'' Devuelve n puntos nuevos en 0,0,0
+Public Function NewPoints(nPoints As Integer) As Punto3d[]
+
+    Dim pPoints As New Punto3d[]
+    Dim i As Integer
+
+    For i = 1 To nPoints
+        pPoints.Add(P3d(0, 0))
+    Next
+    Return pPoints
+
+End
+
+'' Agrega o completa puntos hasta tener nPoints (los nuevos en 0,0,0) o recorta si sobran
+Public Sub ResizeP(pPoints As Punto3d[], nPoints As Integer)
+
+    If nPoints < 0 Then nPoints = 0
+    If pPoints.Count > nPoints Then pPoints.Resize(nPoints)
+    While pPoints.Count < nPoints
+        pPoints.Add(P3d(0, 0))
+    Wend
+
+End
+
+Public Sub TranslateP(pPoints As Punto3d[], dx As Float, dy As Float, Optional dz As Float = 0)
+
+    Dim p As Punto3d
+
+    For Each p In pPoints
+        p.x += dx
+        p.y += dy
+        p.z += dz
+    Next
+
+End
+
+Public Sub TranslateConditionalP(pPoints As Punto3d[], dx As Float, dy As Float, bCondition As Boolean[], Optional dz As Float = 0)
+
+    Dim i As Integer
+
+    For i = 0 To pPoints.Max
+        If i > bCondition.Max Then Break
+        If bCondition[i] Then
+            pPoints[i].x += dx
+            pPoints[i].y += dy
+            pPoints[i].z += dz
+        End If
+    Next
+
+End
+
+'' Rota alrededor del eje Z por el origen. Angle must be in Radians
+Public Sub RotateP(pPoints As Punto3d[], Radians As Float)
+
+    Dim p As Punto3d
+    Dim s, c, xnew, ynew As Float
+
+    s = Sin(Radians)
+    c = Cos(Radians)
+
+    For Each p In pPoints
+        xnew = p.x * c - p.y * s
+        ynew = p.x * s + p.y * c
+        p.x = xnew
+        p.y = ynew
+    Next
+
+End
+
+'' Rota alrededor del eje Z por el punto CenterX,CenterY. Angle must be in Radians
+Public Sub RotatePointsFromBaseP(CenterX As Float, CenterY As Float, fAngle As Float, pPoints As Punto3d[])
+
+    Dim p As Punto3d
+    Dim s, c, dx, dy As Float
+
+    s = Sin(fAngle)
+    c = Cos(fAngle)
+
+    For Each p In pPoints
+        dx = p.x - CenterX
+        dy = p.y - CenterY
+        p.x = CenterX + dx * c - dy * s
+        p.y = CenterY + dx * s + dy * c
+    Next
+
+End
+
+Public Sub ScaleP(pPoints As Punto3d[], Sx As Float, Sy As Float, Optional Sz As Float = 1)
+
+    Dim p As Punto3d
+
+    For Each p In pPoints
+        p.x *= Sx
+        p.y *= Sy
+        p.z *= Sz
+    Next
+
+End
+
+'' Limites 2D [xmin, ymin, xmax, ymax]
+Public Function LimitsP(pPoints As Punto3d[]) As Float[]
+
+    Dim Xmenor, Ymenor, Xmayor, Ymayor As Float
+    Dim p As Punto3d
+
+    If Not pPoints Then Return [0, 0, 0, 0]
+    If pPoints.Count = 0 Then Return [0, 0, 0, 0]
+
+    Xmenor = 1e100
+    Ymenor = 1e100
+    Xmayor = -1e100
+    Ymayor = -1e100
+
+    For Each p In pPoints
+        If Xmenor > p.x Then Xmenor = p.x
+        If Ymenor > p.y Then Ymenor = p.y
+        If Xmayor < p.x Then Xmayor = p.x
+        If Ymayor < p.y Then Ymayor = p.y
+    Next
+    Return [Xmenor, Ymenor, Xmayor, Ymayor]
+
+End
+
+'' Devuelve [x, y] del punto (para las funciones 2D que esperan Float[])
+Public Function XY(p As Punto3d) As Float[]
+
+    Return [p.x, p.y]
+
+End
+
+'' Asigna x,y (y z opcional) a un punto existente
+Public Sub SetXY(p As Punto3d, x As Float, y As Float, Optional z As Float = 0)
+
+    p.x = x
+    p.y = y
+    If Not IsMissing(z) Then p.z = z
+
+End

@@ -70,8 +70,8 @@ Public Sub DrawLocalAxis(f As Face)
     If Not f Then Return
     AxisVbo.Clear
     glx.BeginVBO(AxisVbo)
-    glx.DrawLines3D(puntos.Create3dArray([gcd.Drawing.Sheet.LastPoint, puntos.LocalToGlobal(gcd.Drawing.Sheet.LastPoint, f.GetPlane().Normal, 10, 0)]), Color.Blue)
-    glx.DrawLines3D(puntos.Create3dArray([gcd.Drawing.Sheet.LastPoint, puntos.LocalToGlobal(gcd.Drawing.Sheet.LastPoint, f.GetPlane().Normal, 0, 10)]), Color.Blue)
+    glx.DrawLines3D(puntos.ToXYZ([gcd.Drawing.Sheet.LastPoint, puntos.LocalToGlobal(gcd.Drawing.Sheet.LastPoint, f.GetPlane().Normal, 10, 0)]), Color.Blue)
+    glx.DrawLines3D(puntos.ToXYZ([gcd.Drawing.Sheet.LastPoint, puntos.LocalToGlobal(gcd.Drawing.Sheet.LastPoint, f.GetPlane().Normal, 0, 10)]), Color.Blue)
     glx.EndVBO()
     AxisVbo.Draw()
 
@@ -169,18 +169,18 @@ Public Sub PoiCook()
 
     Select gcd.Drawing.iEntity["mode"]
         Case gcd.poiMIdPoint
-            glx.Quad([gcd.Drawing.iEntity["point2d"].x - gcd.Metros(4), gcd.Drawing.iEntity["point2d"].y, gcd.Drawing.iEntity["point2d"].x, gcd.Drawing.iEntity["point2d"].y + gcd.Metros(4), gcd.Drawing.iEntity["point2d"].x + gcd.Metros(4), gcd.Drawing.iEntity["point2d"].y, gcd.Drawing.iEntity["point2d"].x, gcd.Drawing.iEntity["point2d"].y - gcd.Metros(4)], Color.Blue, Color.Green)
+            glx.Quad([gcd.Drawing.iEntity["point3d"].x - gcd.Metros(4), gcd.Drawing.iEntity["point3d"].y, gcd.Drawing.iEntity["point3d"].x, gcd.Drawing.iEntity["point3d"].y + gcd.Metros(4), gcd.Drawing.iEntity["point3d"].x + gcd.Metros(4), gcd.Drawing.iEntity["point3d"].y, gcd.Drawing.iEntity["point3d"].x, gcd.Drawing.iEntity["point3d"].y - gcd.Metros(4)], Color.Blue, Color.Green)
         Case gcd.poiQuadrant
-            glx.Quad([gcd.Drawing.iEntity["point2d"].x - gcd.Metros(6), gcd.Drawing.iEntity["point2d"].y, gcd.Drawing.iEntity["point2d"].x, gcd.Drawing.iEntity["point2d"].y + gcd.Metros(6), gcd.Drawing.iEntity["point2d"].x + gcd.Metros(6), gcd.Drawing.iEntity["point2d"].y, gcd.Drawing.iEntity["point2d"].x, gcd.Drawing.iEntity["point2d"].y - gcd.Metros(6)], Color.Cyan, Color.Cyan)
+            glx.Quad([gcd.Drawing.iEntity["point3d"].x - gcd.Metros(6), gcd.Drawing.iEntity["point3d"].y, gcd.Drawing.iEntity["point3d"].x, gcd.Drawing.iEntity["point3d"].y + gcd.Metros(6), gcd.Drawing.iEntity["point3d"].x + gcd.Metros(6), gcd.Drawing.iEntity["point3d"].y, gcd.Drawing.iEntity["point3d"].x, gcd.Drawing.iEntity["point3d"].y - gcd.Metros(6)], Color.Cyan, Color.Cyan)
 
         Case 0
             ' nada
         Case gcd.poiCenter, gcd.poiBasePoint
 
-            glx.CIRCLE([gcd.Drawing.iEntity["point2d"].x, gcd.Drawing.iEntity["point2d"].y], gcd.Metros(4), Color.Cyan, True, False)
+            glx.CIRCLE([gcd.Drawing.iEntity["point3d"].x, gcd.Drawing.iEntity["point3d"].y], gcd.Metros(4), Color.Cyan, True, False)
 
         Case Else
-            glx.Rectangle2D(gcd.Drawing.iEntity["point2d"].x - gcd.Metros(4), gcd.Drawing.iEntity["point2d"].y - gcd.Metros(4), gcd.Metros(8), gcd.Metros(8), Color.Blue,,,, Color.Blue, 1)
+            glx.Rectangle2D(gcd.Drawing.iEntity["point3d"].x - gcd.Metros(4), gcd.Drawing.iEntity["point3d"].y - gcd.Metros(4), gcd.Metros(8), gcd.Metros(8), Color.Blue,,,, Color.Blue, 1)
     End Select
     glx.EndVBO()
 
@@ -228,13 +228,7 @@ End
 '' 0,0 is center
 Public Sub Texting(MyText As String, Optional posX As Integer, posY As Integer, txtColor As Integer = 0, txtHeight As Integer = 12, FontName As String)
 
-    gl.PushMatrix
-
-    gl.LoadIdentity
-
-    glx.DrawText(MyText, posX, posY, 0, 10, txtColor)
-
-    gl.PopMatrix
+    glx.DrawText2DOverlay(MyText, posX, posY, txtColor, txtHeight)
 
 End
 
@@ -357,11 +351,11 @@ Public Sub DrawDxDy(p1 As Float[], p2 As Float[], Optional iSizePix As Integer =
     eOblique1.Colour = config.WindowAidsColor
     eOblique2.Colour = Config.WindowAidsColor
 
-    eLineaPpal.p.Clear
-    eLineaPpal.p.Insert([P2[0], P1[1], P2[0], p2[1]])
+    eLineaPpal.P.Clear
+    eLineaPpal.P.Insert(puntos.FromXY([P2[0], P1[1], P2[0], p2[1]]))
     eText.sParam[cadText.sdaText] = sTextY
-    eText.p.Clear
-    eText.P.Insert([p2[0], (p2[1] - p1[1]) / 2 + p1[1]])
+    eText.P.Clear
+    eText.P.Insert(puntos.FromXY([p2[0], (p2[1] - p1[1]) / 2 + p1[1]]))
 
     Gcd.CCC[eOblique1.gender].Draw(eOblique1)
     Gcd.CCC[eOblique2.gender].Draw(eOblique2)
@@ -382,7 +376,7 @@ Public Sub DrawSnapText()
     If gcd.Drawing.iEntity["desc"] = "" Then Return
 
     ' glx.BeginVBO(TextVBO, True)
-    p = gcd.Drawing.Sheet.camera.Get2DpointFrom3Dworld(gcd.Drawing.iEntity["point2d"])
+    p = gcd.Drawing.Sheet.camera.Get2DpointFrom3Dworld(gcd.Drawing.iEntity["point3d"])
     s = txtfrom & " to " & txtSnapTo
     glx.SelectFont(Config.GripTextOnScreenFont)
     glx.DrawText2DOverlay(s, p.x, p.y, Config.gripTextOnScreenColor, Config.gripTextOnScreenSize)
@@ -509,7 +503,7 @@ Public Sub RebuildGrid3D(s3d As Sheet, Optional XY As Boolean = True, XZ As Bool
     x1 = 100
     y1 = 100
 
-    espaciado = 5 'gcd.Drawing.GridMinorSpacing
+    espaciado = 1 'gcd.Drawing.GridMinorSpacing
 
     ' Do
     '     If gcd.Pixels(espaciado) < 5 Then espaciado *= 10
@@ -666,23 +660,22 @@ Public Sub DrawGrips(glxGrips As Grip[])
     Dim g As Grip
     Dim side As Float, half As Float
 
-    side = gcd.Metros(Config.GripSize)
-    half = side / 2
-
     For Each g In glxGrips
+        side = PixelsToWorld(g.P.x, g.P.y, g.P.z, config.GripSize)' gcd.Metros(Config.GripSize)
+        half = side / 2
 
         Select Case g.Shape
             Case 0
-                glx.Rectangle2D(g.X - half, g.Y - half, side, side, g.iFillColor,,,, g.iColor, 1,, 1)
+                glx.DrawCubic(g.p, side, side, side, g.iFillColor, g.iColor)
             Case 1
-                glx.Rombo2D(g.X, g.Y, side, g.iFillColor, g.iFillColor2)
+                glx.DrawCubic(g.p, side, side, side, g.iFillColor2, g.iColor)
             Case 2
-                glx.CIRCLE([g.X, g.Y], half, g.iFillColor, True)
+                DrawSphere(g.p, half, g.iFillColor)
 
         End Select
 
         If g.DrawLineToAsociatedGrip Then
-            glx.PolyLines([g.x, g.y, glxGrips[g.AsociatedGrip].x, glxGrips[g.AsociatedGrip].y], Config.GripLineColor)
+            glx.PolyLines([g.P.x, g.P.y, g.P.z, glxGrips[g.AsociatedGrip].P.x, glxGrips[g.AsociatedGrip].P.y, glxGrips[g.AsociatedGrip].P.z], Config.GripLineColor)
         Endif
     Next
 

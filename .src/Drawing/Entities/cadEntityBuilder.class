@@ -97,7 +97,7 @@ Public Function Start(Optional ElemToBuild As Variant, Optional Mode As Integer 
     LastPoint = False
     clsEntities.DeSelection()
 
-    ' clsEntities.GLGenDrawListSel()
+    ' clsEntities.glGenVboSelected()
     glx.VBOCurrent = VBO
 
     ' Verify if its a valid class to build
@@ -139,7 +139,7 @@ Public Function Start(Optional ElemToBuild As Variant, Optional Mode As Integer 
     iFloat = 0
     iString = 0
 
-    Pointstotal = elem.p.count / 2                                          ' at this point P is either set or 0 if non determined
+    Pointstotal = elem.P.Count                                          ' at this point P is either set or 0 if non determined
     StepsTotal = Len(Gcd.CCC[elem.gender].ParamType)
 
     ' get the helper list, and parameter types from the element
@@ -213,7 +213,7 @@ Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD
 
     Select Case NextParamType
 
-        Case "point2d", "M", "point3d"
+        Case "point3d", "M"
             errtxt = ", expected a valId point like 12.4,9.5  or @12.34,10.5"
             ' lets filter
             EnteredText = Trim$(UCase$(EnteredText))
@@ -243,12 +243,8 @@ Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD
                 Me.LastY = yt
                 Me.LastZ = zt
 
-                If elem.Is3D Then
-                    GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point3d", xt, yt, zt], True))
-                Else
-                    GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point2d", xt, yt], True))
+                GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point3d", xt, yt, zt], True))
 
-                Endif
                 If Good Then
                     ' last point
                     gcd.Drawing.LastPoint.Clear
@@ -333,7 +329,7 @@ Public Sub MouseMove()
     Dim MouseTry As Integer = -1000000
     Dim Dx As Float
     Dim Dy As Float
-
+    Dim p As Punto3d
     '  If gcd.Drawing.HoveredEntity Then Stop
 
     Try MouseTry = Mouse.X
@@ -353,13 +349,13 @@ Public Sub MouseMove()
 
     X = gcd.Near(X)
     Y = gcd.Near(Y)
-
+    p = glx.XYZ(x, y)
     ' pero veo si tengo un POI
 
     'If InStr("LAPRM", NextParamType) = 0 Then Return ' we are expecting a parameter
 
     ' a very special case
-    If elem.Gender = "SPLINE" And (Me.iPoints <> elem.P.Count / 2 - 1) Then Inc iPoints
+    If elem.Gender = "SPLINE" And (Me.iPoints <> elem.P.Count - 1) Then Inc iPoints
 
     ' if we expect a parameter, it will be passed
     If NextParamType = "angle" Then
@@ -377,7 +373,7 @@ Public Sub MouseMove()
 
     If NextParamType = "relation" Then
 
-        GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point2d", x, y]))
+        GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point3d", p.x, p.y, p.z]))
         gcd.redraw
 
         Return              ' nothing more to do here
@@ -403,8 +399,8 @@ Public Sub MouseMove()
 
         ' esto re enganchado
 
-        X = gcd.Drawing.iEntity["point2d"].x
-        Y = gcd.Drawing.iEntity["point2d"].y
+        X = gcd.Drawing.iEntity["point3d"].x
+        Y = gcd.Drawing.iEntity["point3d"].y
 
         ' aca tengo que verificar el ortogonal
 
@@ -425,21 +421,14 @@ Public Sub MouseMove()
     Dy = Y - LastY
 
     If LastPoint Then
-        If NextParamType = "point2d" Then
-            fMain.txtCommand.Text = "@" & Str(x - lastx) & "," & Str(y - lastY)
-        Else If NextParamType = "point3d" Then
+        If NextParamType = "point3d" Then
             fMain.txtCommand.Text = "@" & Str(x - lastx) & "," & Str(y - lastY)
         End If
 
     Endif
 
-    If NextParamType = "point2d" Then
+    If NextParamType = "point3d" Then
 
-        GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point2d", x, y], False))
-
-    Else If NextParamType = "point3d" Then
-        Dim p As Punto3d
-        p = glx.XYZ(x, y)
         ' y si estoy en 3D?
         If gcd.Drawing.Sheet.Is3D Then
             If gcd.Drawing.Sheet.LastPoint Then
@@ -460,15 +449,60 @@ End
 
 Public Sub MouseUp()
 
-    Dim X, Y, f As Float
+    Dim X, Y, Z, f As Float
 
-    If Mouse.Right Then
-        gcd.clsJob.KeyText("U")
+    If Mouse.Right Then ' si tengo un valor default, lo mando
+        If Me.ParamDefault.Count > 0 Then
+            Dim i As Integer
+            Dim s, si As String
+            s = Me.ParamDefault[0]
+            For i = 1 To Me.ParamDefault.Max
+                s &= ", " & si
+            Next
+        Endif
+        gcd.clsJob.KeyText(s)
         Return
     End If
 
     DrawingAIds.ErrorMessage = ""
     'If InStr("LAPRM", NextParamType) = 0 Then Return ' we are expecting a parameter
+
+    ' we are waiting for a point
+
+    X = gcd.Near(gcd.Xreal(mouse.x))
+    Y = gcd.Near(gcd.Yreal(mouse.y))
+
+    ' y si tengo enganche?
+
+    If (gcd.Drawing.iEntity["mode"] > 0) Then
+
+        ' esto re enganchado
+
+        X = gcd.Drawing.iEntity["point3d"].x
+        Y = gcd.Drawing.iEntity["point3d"].y
+
+        ' aca tengo que verificar el ortogonal
+
+    Else                                                                        ' puedo hacer ortogonal
+        If gcd.Orthogonal And LastPoint Then          ' hablame de operadores logicos
+
+            If Abs(X - LastX) > Abs(Y - LastY) Then ' prevalece X
+                Y = LastY
+            Else
+                X = LastX
+            Endif
+
+        End If
+
+    End If
+
+    LastX = X
+    LastY = Y
+    LastPoint = True
+
+    Dim p As Punto3d
+
+    p = glx.XYZ(x, y)                           ' esta funcion transforma coord de pantalla en 3D de acuerdo al plano de trabajo sie stoy en 2D
 
     ' if we expect a parameter, it will be passed
     If NextParamType = "angle" Then
@@ -484,7 +518,7 @@ Public Sub MouseUp()
 
     If NextParamType = "relation" Then
 
-        If GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point2d", gcd.Xreal(mouse.x), gcd.Yreal(mouse.y)], True)) Then
+        If GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point3d", p.x, p.y, p.z], True)) Then
 
             ' last point
             gcd.Drawing.LastPoint.Clear
@@ -506,56 +540,12 @@ Public Sub MouseUp()
 
     End If
 
-    ' we are waiting for a point
-
-    X = gcd.Near(gcd.Xreal(mouse.x))
-    Y = gcd.Near(gcd.Yreal(mouse.y))
-
-    ' y si tengo enganche?
-
-    If (gcd.Drawing.iEntity["mode"] > 0) Then
-
-        ' esto re enganchado
-
-        X = gcd.Drawing.iEntity["point2d"].x
-        Y = gcd.Drawing.iEntity["point2d"].y
-
-        ' aca tengo que verificar el ortogonal
-
-    Else                                                                        ' puedo hacer ortogonal
-        If gcd.Orthogonal And LastPoint Then          ' hablame de operadores logicos
-
-            If Abs(X - LastX) > Abs(Y - LastY) Then ' prevalece X
-                Y = LastY
-            Else
-                X = LastX
-            Endif
-
-        End If
-
-    End If
-
-    LastX = X
-    LastY = Y
-    LastPoint = True
-    ' y si estoy en 3D?
-    If gcd.Drawing.Sheet.Is3D Then
-        NextParamType = "point3d"
-    Endif
-
-    If NextParamType = "point2d" Then
-
-        GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point2d", x, y], True))
-
-    Else If NextParamType = "point3d" Then
-        Dim p As Punto3d
-
-        p = glx.XYZ(x, y)
+    If NextParamType = "point3d" Then
 
         ' y si estoy en 3D?
         If gcd.Drawing.Sheet.Is3D Then
             If gcd.Drawing.Sheet.LastPoint Then
-                p = gcd.Drawing.Sheet.LastPoint
+                p = gcd.Drawing.Sheet.LastPoint     ' pero si estoy en 3D es otro el punto
             Endif
         Endif
 
@@ -592,7 +582,7 @@ Public Sub Draw()
     VBO.SendBuffersToGPU()
     VBO.Draw()
     DrawingAids.DrawSnapText()
-    If gcd.Drawing.iEntity.Exist("point2d") Then DrawingAids.DrawSphere(gcd.Drawing.iEntity["point2d"], 6)
+    If gcd.Drawing.iEntity.Exist("point3d") Then DrawingAids.DrawSphere(gcd.Drawing.iEntity["point3d"], 6)
     ' Debug "ENTITYBUILDER: Drawn " & iCounter
     ' Inc iCounter
 
@@ -696,7 +686,13 @@ Public Function GetAnswer(Answer As Variant) As Boolean
             If answer.key = "prompt" Then Me.prompt = v
             If answer.key = "nextparamtype" Then Me.NextParamType = v
             If answer.key = "next" Then Me.NextParamType = v
+            If answer.key = "default" Then
+                Dim xs As String[]
+                xs = Split(v, ",")
+                Me.ParamDefault = xs
+            End If
         Next
+        If Not answer.Exist("default") Then Me.ParamDefault = []
 
         ' Else If answer Is Variant Then
         '     If Answer.Command = "end" Then Me.Finish()
@@ -704,6 +700,17 @@ Public Function GetAnswer(Answer As Variant) As Boolean
         '     Me.NextParamType = Answer.ParamType
         '     Me.prompt = Answer.Prompt
     End If
+
+    ' una vez analizado, armo el prompt
+    If Me.ParamDefault.Count > 0 Then
+        Dim i As Integer
+        Dim s, si As String
+        s = Me.ParamDefault[0]
+        For i = 1 To Me.ParamDefault.Max
+            s &= ", " & si
+        Next
+    Endif
+    Me.prompt &= "[" & s & "]"
 
     Return True                     ' the class enjoyed the user input
 
