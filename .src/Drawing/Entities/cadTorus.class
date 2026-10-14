@@ -1,0 +1,108 @@
+' Gambas class file
+
+' Toro: se construye con centro, radio mayor, radio del tubo y densidad, y al terminar pasa a ser un MESH.
+' El eje es la normal del plano de trabajo (glx.Plane2D). La densidad son los tramos alrededor del eje;
+' el tubo lleva la mitad.
+' fParam: [radio mayor, radio del tubo, densidad]
+
+Inherits CadSphere
+Public Const Gender As String = "TORUS"
+Public Const CmdLineHelper As String = ("Torus: center")
+Public Const ParamDefault As String = ";2;0.5;24"       ' por paso (gcd.StepsDone): centro, radio mayor, radio del tubo, densidad
+Public Const TotalParams As Integer = 3
+
+Public Function NewEntity(Optional vPoints As Variant, bNewid As Boolean = False) As Entity
+
+    Dim e As Entity
+
+    e = Super.NewEntity(vPoints, bNewid)
+    e.fParam = [0.0, 0.0, CFloat(Me.DefaultDensity)]
+
+    Return e
+
+End
+
+Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Variant
+
+    If Me.ExpectedParam = "center" Then
+        If vParam[0] = "point3d" Then
+            eBuild.P[0] = puntos.P3d(vParam[1], vParam[2], vParam[3])
+            If Definitive Then
+                Me.ExpectedParam = "radius"
+                gcd.StepsDone = 1
+                Return ["prompt": ("Radius"), "next": "lenght"]
+            End If
+        End If
+
+    Else If Me.ExpectedParam = "radius" Then
+        If vParam[0] = "float" Then
+            eBuild.fParam[0] = Abs(CFloat(vParam[1]))
+            eBuild.fParam[1] = eBuild.fParam[0] / 4             ' el tubo provisorio, para ver algo
+            If Definitive And eBuild.fParam[0] > 0 Then
+                Me.ExpectedParam = "tube"
+                gcd.StepsDone = 2
+                Return ["prompt": ("Tube radius"), "next": "lenght"]
+            End If
+        End If
+
+    Else If Me.ExpectedParam = "tube" Then
+        ' con el mouse se mide desde el punto que dio el radio mayor, que esta sobre el eje del tubo
+        If vParam[0] = "float" Then
+            eBuild.fParam[1] = Abs(CFloat(vParam[1]))
+            If Definitive And eBuild.fParam[1] > 0 Then
+                Me.ExpectedParam = "density"
+                gcd.StepsDone = 3
+                Return ["prompt": ("Density, segments around the axis") & " <" & Me.DefaultDensity & ">", "next": "float"]
+            End If
+        End If
+
+    Else If Me.ExpectedParam = "density" Then
+        If vParam[0] = "float" Then
+            If Definitive Then
+                eBuild.fParam[2] = Me.Density(vParam[1])
+                Return ["command": "end"]
+            End If
+        End If
+    End If
+
+End
+
+Public Function MakePolyLine(e As Entity)
+
+    Dim ax As Punto3d[]
+    Dim c As Punto3d
+    Dim rMajor, rTube, theta, phi, rho As Float
+    Dim nU, nV, i, i2, j, j2 As Integer
+    Dim aV As New Vertex[]
+    Dim v As Vertex
+
+    e.faces.Clear
+    If e.fParam.Count < 3 Then Return
+    rMajor = e.fParam[0]
+    rTube = e.fParam[1]
+    If rMajor <= 0 Or rTube <= 0 Then Return
+    nU = Max(Me.MinDensity, e.fParam[2])
+    nV = Max(Me.MinDensity \ 2, nU \ 2)
+    ax = Me.WorkAxes()
+    c = e.P[0]
+
+    ' el vertice (i, j) esta en aV[i * nV + j]: i alrededor del eje, j alrededor del tubo
+    For i = 0 To nU - 1
+        theta = 2 * Pi * i / nU
+        For j = 0 To nV - 1
+            phi = 2 * Pi * j / nV
+            rho = rMajor + rTube * Cos(phi)
+            v = Me.NewV(c, ax, rho * Cos(theta), rho * Sin(theta), rTube * Sin(phi))
+            aV.Add(v)
+        Next
+    Next
+
+    For i = 0 To nU - 1
+        i2 = (i + 1) Mod nU
+        For j = 0 To nV - 1
+            j2 = (j + 1) Mod nV
+            Me.AddFace(e, aV[i * nV + j], aV[i2 * nV + j], aV[i2 * nV + j2], aV[i * nV + j2])
+        Next
+    Next
+
+End

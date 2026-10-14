@@ -1,0 +1,170 @@
+' Gambas class file
+
+' Esfera: se construye con centro, radio y densidad (tramos alrededor del eje), y al terminar pasa a ser un MESH.
+' El eje es la normal del plano de trabajo (glx.Plane2D).
+' fParam: [radio, densidad]
+
+Inherits CadMesh
+Public Const Gender As String = "SPHERE"
+Public Const CmdLineHelper As String = ("Sphere: center")
+Public Const ParamType As String = "point3d"
+Public Const ParamHelper As String = "center"
+Public Const ParamDefault As String = ";1;24"           ' por paso (gcd.StepsDone): centro, radio, densidad
+Public Const TotalParams As Integer = 2
+
+Public Const DefaultDensity As Integer = 24
+Public Const MinDensity As Integer = 6
+Public Const MaxDensity As Integer = 256
+
+Public Function NewEntity(Optional vPoints As Variant, bNewid As Boolean = False) As Entity
+
+    Dim e As Entity
+
+    e = Super.NewEntity(vPoints, bNewid)
+    e.fParam = [0.0, CFloat(DefaultDensity)]
+    e.faces.Clear
+
+    Return e
+
+End
+
+Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Variant
+
+    If Me.ExpectedParam = "center" Then
+        If vParam[0] = "point3d" Then
+            eBuild.P[0] = puntos.P3d(vParam[1], vParam[2], vParam[3])
+            If Definitive Then
+                Me.ExpectedParam = "radius"
+                gcd.StepsDone = 1
+                Return ["prompt": ("Radius"), "next": "lenght"]
+            End If
+        End If
+
+    Else If Me.ExpectedParam = "radius" Then
+        If vParam[0] = "float" Then
+            eBuild.fParam[0] = Abs(CFloat(vParam[1]))
+            If Definitive And eBuild.fParam[0] > 0 Then
+                Me.ExpectedParam = "density"
+                gcd.StepsDone = 2
+                Return ["prompt": ("Density, segments around the axis") & " <" & DefaultDensity & ">", "next": "float"]
+            End If
+        End If
+
+    Else If Me.ExpectedParam = "density" Then
+        If vParam[0] = "float" Then
+            If Definitive Then
+                eBuild.fParam[1] = Density(vParam[1])
+                Return ["command": "end"]
+            End If
+        End If
+    End If
+
+End
+
+'' The density typed by the user: a whole number of segments, the default if it is not valid
+Public Function Density(vValue As Variant) As Integer
+
+    Dim n As Integer
+
+    Try n = CInt(CFloat(vValue))
+    If n < 1 Then n = DefaultDensity
+    If n < MinDensity Then n = MinDensity
+    If n > MaxDensity Then n = MaxDensity
+    Return n
+
+End
+
+Public Function MakePolyLine(e As Entity)
+
+    Dim ax As Punto3d[]
+    Dim c As Punto3d
+    Dim r, phi, theta As Float
+    Dim nSeg, nLat, i, i2, k As Integer
+    Dim aRings As New Vertex[][]
+    Dim aRing As Vertex[]
+    Dim v, vNorth, vSouth As Vertex
+
+    e.faces.Clear
+    If e.fParam.Count < 2 Then Return
+    r = e.fParam[0]
+    If r <= 0 Then Return
+    nSeg = Max(MinDensity, e.fParam[1])
+    nLat = Max(2, nSeg \ 2)
+    ax = WorkAxes()
+    c = e.P[0]
+
+    ' los polos y los paralelos, desde el polo norte (sobre el eje) hacia el sur
+    vNorth = NewV(c, ax, 0, 0, r)
+    vSouth = NewV(c, ax, 0, 0, -r)
+    For k = 1 To nLat - 1
+        phi = Pi * k / nLat
+        aRing = New Vertex[]
+        For i = 0 To nSeg - 1
+            theta = 2 * Pi * i / nSeg
+            v = NewV(c, ax, r * Sin(phi) * Cos(theta), r * Sin(phi) * Sin(theta), r * Cos(phi))
+            aRing.Add(v)
+        Next
+        aRings.Add(aRing)
+    Next
+
+    ' triangulos en los polos, cuadrilateros entre paralelos
+    For i = 0 To nSeg - 1
+        i2 = (i + 1) Mod nSeg
+        AddFace(e, vNorth, aRings[0][i], aRings[0][i2])
+        For k = 0 To aRings.Max - 1
+            AddFace(e, aRings[k][i], aRings[k + 1][i], aRings[k + 1][i2], aRings[k][i2])
+        Next
+        AddFace(e, aRings[aRings.Max][i], vSouth, aRings[aRings.Max][i2])
+    Next
+
+End
+
+'' Local axes [x, y, axis] for the current work plane
+Public Function WorkAxes() As Punto3d[]
+
+    Select Case glx.Plane2D
+        Case Planes.XZ
+            Return puntos.EjesLocales(puntos.P3d(0, 1, 0))
+        Case Planes.YZ
+            Return puntos.EjesLocales(puntos.P3d(1, 0, 0))
+        Case Else
+            Return puntos.EjesLocales(puntos.P3d(0, 0, 1))
+    End Select
+
+End
+
+'' A new vertex at local coordinates x, y, z from c
+Public Function NewV(c As Punto3d, ax As Punto3d[], x As Float, y As Float, z As Float) As Vertex
+
+    Dim v As Vertex
+
+    v = New Vertex(c.x + x * ax[0].x + y * ax[1].x + z * ax[2].x, c.y + x * ax[0].y + y * ax[1].y + z * ax[2].y, c.z + x * ax[0].z + y * ax[1].z + z * ax[2].z)
+    Return v
+
+End
+
+'' Adds a triangle, or a quad if d is given. Neighbour faces share their Vertex objects, like any MESH.
+Public Sub AddFace(e As Entity, a As Vertex, b As Vertex, c As Vertex, Optional d As Vertex)
+
+    Dim f As New Face
+
+    f.vertex.Add(a)
+    f.vertex.Add(b)
+    f.vertex.Add(c)
+    If d Then f.vertex.Add(d)
+    e.faces.Add(f)
+
+End
+
+'' Once built it is a plain MESH
+Public Sub Finish(oe As Entity) As Boolean
+
+    Dim f As Face
+
+    For Each f In oe.faces
+        f.Id = gcd.NewId()
+    Next
+    oe.Gender = cadMesh.Gender
+    Super.Finish(oe)
+
+End
