@@ -1,0 +1,309 @@
+' Gambas class file
+
+' 3DBLOCK: un bloque colocado con una matriz 4x4 completa (rotacion en cualquier eje, escala, traslacion).
+' Pensado para importar modelos 3D (OBJ, IFC, glTF) donde una misma geometria se repite muchas veces.
+' No es un INSERT: no se guarda en el DXF, y las entidades del bloque no se copian, se comparten.
+'
+' sParam[0] es el nombre del bloque en gcd.Drawing.Blocks.
+' fParam[0..15] es la matriz, en el orden de Matrix4 (por columnas: indice = columna * 4 + fila).
+' P[0] es la traslacion de la matriz, para grips y enganches.
+'
+' Para dibujar, las entidades del bloque se dibujan tal cual en el VBO y despues se transforman con la matriz
+' los vertices que agregaron. Asi los 3DBLOCK anidados (y los INSERT dentro del bloque) se componen solas.
+' Las entidades 2D del bloque pasan por glx.XYZ, asi que salen bien con el plano de trabajo XY.
+
+Create Static
+Inherits EntityBase
+
+Public Const Gender As String = "3DBLOCK"
+Public Const CmdLineHelper As String = ("3D block: block name")
+Public Const ParamType As String = "text"
+Public Const ParamHelper As String = "block"
+Public Const Is3D As Boolean = True
+Public Const DXF_Export As Boolean = False
+Public Const TotalParams As Integer = 16
+Public Const sdaTotalParams As Integer = 1
+Public Const sdaBlockName As Integer = 0
+
+Public Const MaxDepth As Integer = 16          ' bloques anidados; corta si un bloque se contiene a si mismo
+
+Private $iDepth As Integer
+
+Public Function NewEntity(Optional vPoints As Variant, bNewid As Boolean = False) As Entity
+
+    Dim e As Entity
+    Dim M As New Matrix4
+
+    e = Super.NewEntity(vPoints, bNewid)
+    SetMatrix(e, M)
+
+    Return e
+
+End
+
+'' A new 3DBLOCK of the block sBlock placed with M, for importers. The caller adds it to a sheet or block.
+Public Function New3DBlock(sBlock As String, M As Matrix4, Optional bNewid As Boolean = True) As Entity
+
+    Dim e As Entity
+
+    e = Me.NewEntity(, bNewid)
+    e.sParam[sdaBlockName] = sBlock
+    SetMatrix(e, M)
+    Me.BuildGeometry(e)
+
+    Return e
+
+End
+
+Public Function GetMatrix(e As Entity) As Matrix4
+
+    Dim M As New Matrix4
+    Dim i As Integer
+
+    For i = 0 To 15
+        M.m[i] = e.fParam[i]
+    Next
+    Return M
+
+End
+
+Public Sub SetMatrix(e As Entity, M As Matrix4)
+
+    Dim i As Integer
+
+    If e.fParam.Count < 16 Then e.fParam.Resize(16)
+    For i = 0 To 15
+        e.fParam[i] = M.m[i]
+    Next
+    SyncPoint(e)
+
+End
+
+'' P[0] follows the translation of the matrix
+Private Sub SyncPoint(e As Entity)
+
+    If e.P.Count = 0 Then e.P.Add(puntos.P3d(0, 0, 0))
+    e.P[0] = puntos.P3d(e.fParam[12], e.fParam[13], e.fParam[14])
+
+End
+
+Public Function GetBlock(e As Entity) As Block
+
+    If e.sParam.Count <= sdaBlockName Then Return Null
+    If Not gcd.Drawing.Blocks.Exist(e.sParam[sdaBlockName]) Then Return Null
+    Return gcd.Drawing.Blocks[e.sParam[sdaBlockName]]
+
+End
+
+'' Asks for the block name, then the insertion point (the 3DBLOCK follows the mouse)
+Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Variant
+
+    If Me.ExpectedParam = "block" Then
+        If vParam[0] = "text" And Definitive Then
+            If gcd.Drawing.Blocks.Exist(vParam[1]) Then
+                eBuild.sParam[sdaBlockName] = vParam[1]
+                Me.ExpectedParam = "point"
+                Return ["prompt": ("Insertion point"), "next": "point3d"]
+            Endif
+            Return ["prompt": ("There is no block with that name. Block name")]
+        Endif
+
+    Else If Me.ExpectedParam = "point" Then
+        If vParam[0] = "point3d" Then
+            eBuild.fParam[12] = vParam[1]
+            eBuild.fParam[13] = vParam[2]
+            eBuild.fParam[14] = vParam[3]
+            SyncPoint(eBuild)
+            If Definitive Then Return ["command": "end"]
+        Endif
+    Endif
+
+End
+
+Public Sub Draw(e As Entity)
+
+    clsEntities.VBOEntityStart(e)
+    DrawBlock(e, 0)
+    clsEntities.VboEntityDone(e)
+
+End
+
+Public Sub DrawSelected(e As Entity)
+
+    DrawBlock(e, 1)
+
+End
+
+Public Sub DrawRemark(e As Entity)
+
+    DrawBlock(e, 2)
+
+End
+
+'' Draws the block entities and transforms the vertices they added to the current VBO
+Private Sub DrawBlock(e As Entity, iMode As Integer)
+
+    Dim b As Block
+    Dim et As Entity
+    Dim M As Matrix4
+    Dim nLines, nTriangles, nPoints As Integer
+
+    b = GetBlock(e)
+    If Not b Then Return
+    If $iDepth >= MaxDepth Then Return
+
+    Inc $iDepth
+    nLines = glx.VBOCurrent.Vertex.Count
+    nTriangles = glx.VBOCurrent.VertexTriangle.Count
+    nPoints = glx.VBOCurrent.VertexPoints.Count
+
+    For Each et In b.entities
+        If et.Gender = "ATTDEF" Then Continue
+        Select Case iMode
+            Case 0
+                gcd.CCC[et.Gender].Draw(et)
+            Case 1
+                gcd.CCC[et.Gender].DrawSelected(et)
+            Case 2
+                gcd.CCC[et.Gender].DrawRemark(et)
+        End Select
+    Next
+
+    M = GetMatrix(e)
+    TransformXYZ(glx.VBOCurrent.Vertex, nLines, M)
+    TransformXYZ(glx.VBOCurrent.VertexTriangle, nTriangles, M)
+    TransformXYZ(glx.VBOCurrent.VertexPoints, nPoints, M)
+    Dec $iDepth
+
+End
+
+'' Applies M to the x,y,z triplets of a from iStart on
+Private Sub TransformXYZ(a As Float[], iStart As Integer, M As Matrix4)
+
+    Dim i As Integer
+    Dim x, y, z As Float
+
+    For i = iStart To a.Count - 3 Step 3
+        x = a[i]
+        y = a[i + 1]
+        z = a[i + 2]
+        a[i] = M.m[0] * x + M.m[4] * y + M.m[8] * z + M.m[12]
+        a[i + 1] = M.m[1] * x + M.m[5] * y + M.m[9] * z + M.m[13]
+        a[i + 2] = M.m[2] * x + M.m[6] * y + M.m[10] * z + M.m[14]
+    Next
+
+End
+
+'' The XY outline in Polygon is the box of the block contents, transformed: used for picking and limits
+Public Function MakePolyLine(e As Entity)
+
+    Dim b As Block
+    Dim et As Entity
+    Dim f As Face
+    Dim v As Vertex
+    Dim p As Punto3d
+    Dim M As Matrix4
+    Dim fBox As Float[]
+    Dim i As Integer
+    Dim xMin, yMin, xMax, yMax As Float
+
+    SyncPoint(e)
+    e.Polygon.Clear
+    e.PolyLine.Clear
+    b = GetBlock(e)
+    If Not b Then Return
+
+    ' la caja 3D local: puntos, vertices de las caras y los limites 2D de cada entidad
+    fBox = [1e100, 1e100, 1e100, -1e100, -1e100, -1e100]
+    For Each et In b.entities
+        For Each p In et.P
+            AddToBox(fBox, p.x, p.y, p.z)
+        Next
+        If et.faces Then
+            For Each f In et.faces
+                For Each v In f.vertex
+                    AddToBox(fBox, v.X, v.Y, v.Z)
+                Next
+            Next
+        Endif
+        If et.Limits[0] <= et.Limits[2] And et.Limits[2] < 1e99 Then
+            AddToBox(fBox, et.Limits[0], et.Limits[1], 0)
+            AddToBox(fBox, et.Limits[2], et.Limits[3], 0)
+        Endif
+    Next
+    If fBox[0] > fBox[3] Then Return
+
+    ' sus 8 esquinas, transformadas, y la caja XY que las contiene
+    M = GetMatrix(e)
+    xMin = 1e100
+    yMin = 1e100
+    xMax = -1e100
+    yMax = -1e100
+    For i = 0 To 7
+        p = M.TransformPoint(fBox[If(BTst(i, 0), 3, 0)], fBox[If(BTst(i, 1), 4, 1)], fBox[If(BTst(i, 2), 5, 2)])
+        xMin = Min(xMin, p.x)
+        yMin = Min(yMin, p.y)
+        xMax = Max(xMax, p.x)
+        yMax = Max(yMax, p.y)
+    Next
+    e.Polygon.Insert([xMin, yMin, xMax, yMin, xMax, yMax, xMin, yMax])
+
+End
+
+Private Sub AddToBox(fBox As Float[], x As Float, y As Float, z As Float)
+
+    If x < fBox[0] Then fBox[0] = x
+    If y < fBox[1] Then fBox[1] = y
+    If z < fBox[2] Then fBox[2] = z
+    If x > fBox[3] Then fBox[3] = x
+    If y > fBox[4] Then fBox[4] = y
+    If z > fBox[5] Then fBox[5] = z
+
+End
+
+Public Sub Finish(e As Entity) As Boolean
+
+    Me.BuildGeometry(e)
+    e.Psel.Resize(e.P.Count)
+
+End
+
+' Las transformaciones se aplican sobre la matriz: M' = T * M
+
+Public Sub Translate(e As Entity, dX As Float, dY As Float, dZ As Float, Optional OnlySelected As Boolean = False)
+
+    e.fParam[12] += dX
+    e.fParam[13] += dY
+    e.fParam[14] += dZ
+    Me.BuildGeometry(e)
+
+End
+
+'' Rotates around the Z axis
+Public Sub Rotate(e As Entity, radians As Float)
+
+    Dim R As New Matrix4
+
+    SetMatrix(e, R.RotationZ(Deg(radians)).Multiply(GetMatrix(e)))
+    Me.BuildGeometry(e)
+
+End
+
+Public Sub Scale(e As Entity, sX As Float, sY As Float, Optional sZ As Float = 1)
+
+    Dim S As New Matrix4
+
+    SetMatrix(e, S.Scaling(sX, sY, sZ).Multiply(GetMatrix(e)))
+    Me.BuildGeometry(e)
+
+End
+
+'' The grip at P[0] moves the 3DBLOCK
+Public Function GripEdit(g As Grip) As Boolean
+
+    Dim e As Entity
+
+    e = g.AsociatedEntity
+    Me.Translate(e, g.p.x - e.P[0].x, g.p.y - e.P[0].y, g.p.z - e.P[0].z)
+
+End
