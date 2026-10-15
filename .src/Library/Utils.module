@@ -423,36 +423,6 @@ Public Function Format2(v As Variant, sFormat As String) As String
 
 End
 
-Public Sub ResizeStruct(aArr As Array, iCount As Integer)
-
-    Dim iOld As Integer = aArr.Count
-    Dim sClass As String
-
-    ' Get the type of objects the array is supposed to contain
-    sClass = Object.Type(aArr)
-    If sClass Not Ends "[]" Then Error.Raise(("Can't determine array type"))
-    sClass = Left$(sClass, -2)
-
-    aArr.Resize(iCount)
-    For iOld = iOld To iCount - 1
-        aArr[iOld] = Classes[sClass].New()
-    Next
-
-End
-
-Public Sub AddStruct(aArr As Array)
-
-    Dim sClass As String
-
-    ' Get the type of objects the array is supposed to contain
-    sClass = Object.Type(aArr)
-    If sClass Not Ends "[]" Then Error.Raise(("Can't determine array type"))
-    sClass = Left$(sClass, -2)
-    aArr.Resize(aArr.Count + 1)
-    aArr[aArr.max] = Classes[sClass].New()
-
-End
-
 Public Sub copiaraportapapeles(rejilla As GrIdView) ''Copia los datos del gridview al portapapeles para poderlos pegar en otros programas
 
     Dim texto As String
@@ -719,41 +689,6 @@ Public Function SaveClass(obj As Object, sFile As String) As Integer
 
 End
 
-Public Function SaveClass2(obj As Object, sFile As String) As Integer
-
-    Dim jConfig As Collection
-
-    If sFile = "" Then
-        sFile = User.Home &/ "SaveClass.json"
-    Endif
-
-    jConfig = ClassToCollection2(obj)
-
-    If Not Exist(File.Dir(sFile)) Then
-        Shell "mkdir -p " & File.Dir(sFile) Wait
-    Endif
-    'ss = CollectionToString(jConfig)
-    'File.Save(sFile, ss)
-
-End
-
-Public Function SaveClass3(obj As Object, sFile As String) As Integer
-
-    Dim jConfig As Collection
-
-    If sFile = "" Then
-        sFile = User.Home &/ "SaveClass.json"
-    Endif
-
-    jConfig = ClassToCollection2(obj)
-
-    If Not Exist(File.Dir(sFile)) Then
-        Shell "mkdir -p " & File.Dir(sFile) Wait
-    Endif
-    File.Save(sFile, CollectionToString(jConfig))
-
-End
-
 Public Function VariantToString(vDatas As Variant[][], Optional iTabs As Integer) As String
 
     Dim s, sTab As String
@@ -891,130 +826,6 @@ Public Function ClassToCollection(objClass As Object) As Collection
                 End If
             End If
 
-        End If
-
-    Next
-
-    Return jConfig
-
-End
-
-Public Function ClassToCollection2(objClass As Object) As Collection
-
-    Dim jConfig As New Collection
-    Dim MyClass As Class = Object.Class(objClass)
-    Dim Var As String
-    Dim Valor As Variant
-    Dim sClass, cNew As Collection
-    Dim sObjectType As String
-    Dim IsArray As Boolean
-    Dim objDesconocIdo As Variant
-    Dim i As Integer
-    Dim obx As New Object[]
-    ' Next
-
-    For Each Var In myClass.Symbols
-        ' verificamos que sea una propiedad o variable
-        If (MyClass[var].kind = Class.Variable) Then
-            valor = Object.GetProperty(objClass, var)
-            If (TypeOf(valor) < 14) Then
-
-                jConfig.Add(Valor, var)
-            Else
-
-                sObjectType = Object.Type(valor)
-
-                If Right(sObjectType, 2) = "[]" Then IsArray = True
-
-                If Not isArray Then
-
-                    sClass = ClassToCollection2(valor)
-                    Dec DeepCounter
-                    jConfig.Add(sClass, var)
-                Else
-                    i = 0
-                    If Valor.Count > 0 Then
-                        If TypeOf(valor[0]) < 14 Then
-                            jConfig.Add(Valor, var)
-                        Else
-                            cnew = New Collection
-
-                            For Each objDesconocIdo In valor
-
-                                sClass = ClassToCollection2(objDesconocIdo)
-                                Dec DeepCounter
-                                cnew.Add(sClass)
-                                Inc i
-                            Next
-                            jConfig.Add(obx, var)
-
-                        End If
-                    Else
-                    Endif
-                End If
-            End If
-
-        End If
-
-    Next
-
-    'test
-    Dim oVuelta As Object
-    oVuelta = object.New(MyClass.Name)
-    CollectionToClass(jConfig, oVuelta)
-
-    Return jConfig
-
-End
-
-Public Function ClassToVariant(objClass As Object) As Variant[][]
-
-    Dim jConfig As New Variant[][]
-    Dim MyClass As Class = Object.Class(objClass)
-    Dim Var As String
-    Dim Valor As Variant
-    Dim sClass As Variant[][]
-    Dim sObjectType As String
-    Dim IsArray As Boolean
-    Dim objDesconocIdo As Variant
-    Dim vArray As New Variant[]
-    ' Next
-
-    For Each Var In myClass.Symbols
-        ' verificamos que sea una propiedad o variable
-        If (MyClass[var].kind = Class.Variable) Then
-            valor = Object.GetProperty(objClass, var)
-            If (TypeOf(valor) < 14) Then
-
-                jConfig.Add([var, Valor])
-            Else
-
-                sObjectType = Object.Type(valor)
-
-                If Right(sObjectType, 2) = "[]" Then IsArray = True
-
-                If Not isArray Then
-                    sClass = ClassToVariant(valor)
-                    Dec DeepCounter
-                    jConfig.Add([var, sClass])
-                Else
-                    If valor.Count > 0 Then
-                        If TypeOf(valor[0]) < 14 Then
-                            jConfig.Add([var, valor])
-                        Else
-
-                            For Each objDesconocIdo In valor
-
-                                sClass = ClassToVariant(objDesconocIdo)
-                                vArray.Add(sClass)
-
-                            Next
-                            jConfig.Add([var, vArray])
-                        Endif
-                    End If
-                End If
-
-            End If
         End If
 
     Next
@@ -1242,62 +1053,6 @@ Public Function FindItem(cCol As Collection, vItem As Variant) As String
         If v = vItem Then Return cCol.Key
     Next
     Return ""
-
-End
-
-Public Function ClassToVariant2(objClass As Object) As Variant[][]
-
-    Dim jConfig As New Variant[][]
-    Dim MyClass As Class = Object.Class(objClass)
-    Dim Var As String
-    Dim Valor As Variant
-    Dim sClass As Variant[][]
-    Dim sObjectType As String
-    Dim IsArray As Boolean
-    Dim objDesconocIdo As Variant
-    Dim vArray As New Variant[]
-    ' Next
-
-    For Each Var In myClass.Symbols
-        ' verificamos que sea una propiedad o variable
-        If (MyClass[var].kind = Class.Variable) Then
-            valor = Object.GetProperty(objClass, var)
-            If (TypeOf(valor) < 14) Then
-
-                jConfig.Add([var, Valor])
-            Else
-
-                sObjectType = Object.Type(valor)
-
-                If Right(sObjectType, 2) = "[]" Then IsArray = True
-
-                If Not isArray Then
-                    sClass = ClassToVariant(valor)
-                    Dec DeepCounter
-                    jConfig.Add([var, sClass])
-                Else
-                    If valor.Count > 0 Then
-                        If TypeOf(valor[0]) < 14 Then
-                            jConfig.Add([var, valor])
-                        Else
-
-                            For Each objDesconocIdo In valor
-
-                                sClass = ClassToVariant(objDesconocIdo)
-                                vArray.Add(sClass)
-
-                            Next
-                            jConfig.Add([var, vArray])
-                        Endif
-                    End If
-                End If
-
-            End If
-        End If
-
-    Next
-
-    Return jConfig
 
 End
 

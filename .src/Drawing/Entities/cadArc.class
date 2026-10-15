@@ -40,9 +40,6 @@ Public Const Regenerable As Boolean = True
 Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Variant
     ' necesito un plano de trabajo en 3D
 
-    eBuild.Extrusion[0] = gcd.Drawing.Sheet.LastNormal.x  ' not null !!!
-    eBuild.Extrusion[1] = gcd.Drawing.Sheet.LastNormal.y
-    eBuild.Extrusion[2] = gcd.Drawing.Sheet.LastNormal.z
     If Me.ExpectedParam = "center" Then
 
         If vParam[0] <> "point3d" Then Return False
@@ -203,22 +200,8 @@ Public Sub makepolyline(oe As Entity)
     Dim pp As Punto3D
     'centro3 = oe.P[0].Copy()
     For iTramos = 0 To PolyAux.Max Step 2
-        pp = puntos.LocalToGlobal(oe.P[0], gcd.Drawing.Sheet.LastNormal, PolyAux[iTramos], PolyAux[iTramos + 1])
-        If pp Then oe.polyline.insert([pp.x, pp.y, pp.z])
+        oe.polyline.insert([oe.P[0].x + PolyAux[iTramos], oe.P[0].y + PolyAux[iTramos + 1], 0])
     Next
-
-    oe.Extrusion.Insert(gcd.Drawing.Sheet.LastNormal.ToXYZ())
-
-End
-
-'' Returns the arc point at that angle (degrees), in the same plane used by makepolyline
-Private Function ArcPoint(e As Entity, fAngle As Float) As Punto3d
-
-    Dim y As Float
-
-    y = e.fParam[0] * Sin(Rad(fAngle))
-    If e.iParam[0] <> 0 Then y = -y
-    Return puntos.LocalToGlobal(e.P[0], gcd.Drawing.Sheet.LastNormal, e.fParam[0] * Cos(Rad(fAngle)), y)
 
 End
 
@@ -255,17 +238,6 @@ Public Function GenerateGrips(e As Entity) As Integer
     gcd.Drawing.Sheet.Grips.Add(g)
     g.ToolTip = ("Move center")
 
-    ' el punto medio del arco, igual que makepolyline: de start a end en sentido creciente
-    a1 = e.fParam[1]
-    a2 = e.fParam[2]
-    If a1 < 0 Then a1 += 360
-    If a2 < 0 Then a2 += 360
-    If a2 < a1 Then a2 += 360
-
-    AddArcGrip(e, ArcPoint(e, e.fParam[1]), 1, ("Change start angle"))
-    AddArcGrip(e, ArcPoint(e, e.fParam[2]), 2, ("Change end angle"))
-    AddArcGrip(e, ArcPoint(e, (a1 + a2) / 2), 3, ("Change radius"))
-
     Return 4
 
 End
@@ -279,21 +251,7 @@ Public Function GripEdit(g As Grip) As Boolean
     e = g.AsociatedEntity
     If g.Action = 0 Then
         e.P[0] = g.P.Copy()
-    Else
-        ' el grip medido en el plano del arco
-        pLocal = puntos.GlobalToLocal(g.P, e.P[0], gcd.Drawing.Sheet.LastNormal)
-        If Not pLocal Then Return
-        y = pLocal.y
-        If e.iParam[0] <> 0 Then y = -y
 
-        Select Case g.Action
-            Case 1
-                e.fParam[1] = Deg(Ang(pLocal.x, y))
-            Case 2
-                e.fParam[2] = Deg(Ang(pLocal.x, y))
-            Case 3
-                e.fParam[0] = Sqr(pLocal.x ^ 2 + pLocal.y ^ 2)
-        End Select
     Endif
 
     Me.BuildGeometry(e)

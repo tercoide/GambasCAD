@@ -38,8 +38,6 @@ Public Const Regenerable As Boolean = True
 
 Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Variant
 
-    eBuild.Is3D = gcd.Drawing.Sheet.Is3D
-    If eBuild.Is3D Then eBuild.p3 = New Punto3d[]
     If Me.ExpectedParam = "center" Then
 
         If (vParam[0] <> "point3d") Then Return
@@ -121,10 +119,8 @@ Public Sub makepolyline(oe As Entity)
     ' determino el plano
     centro3 = oe.P[0].Copy()
     For iTramos = 0 To PolyAux.Max Step 2
-        px = puntos.LocalToGlobal(centro3, gcd.Drawing.Sheet.LastNormal, PolyAux[iTramos], PolyAux[iTramos + 1])
-        If px Then oe.polyline.insert([px.x, px.y, px.z])
+        oe.polyline.insert([oe.P[0].x + PolyAux[iTramos], oe.P[0].y + PolyAux[iTramos + 1], 0])
     Next
-    oe.Extrusion.Insert(gcd.Drawing.Sheet.LastNormal.ToXYZ())
 
 End
 
@@ -220,7 +216,7 @@ Public Function GenerateGrips(e As Entity) As Integer
     ' cuadrantes, en el mismo plano que usa makepolyline
     For i = 0 To 3
         fAngle = i * Pi / 2
-        pQuad = puntos.LocalToGlobal(e.P[0], gcd.Drawing.Sheet.LastNormal, e.fParam[0] * Cos(fAngle), e.fParam[0] * Sin(fAngle))
+        pQuad = New Punto3d(e.P[0].x + e.fParam[0] * Cos(fAngle), e.P[0].y + e.fParam[0] * Sin(fAngle))
         If Not pQuad Then Break
         g = New Grip
         g.Shape = 1
@@ -241,7 +237,7 @@ End
 Public Function GripEdit(g As Grip) As Boolean
 
     Dim e As Entity
-    Dim pLocal As Punto3d
+    Dim pLocal As Float
 
     e = g.AsociatedEntity
     Select Case g.Action
@@ -250,8 +246,8 @@ Public Function GripEdit(g As Grip) As Boolean
 
         Case 1
             ' distancia al centro medida en el plano del circulo
-            pLocal = puntos.GlobalToLocal(g.P, e.P[0], gcd.Drawing.Sheet.LastNormal)
-            If pLocal Then e.fParam[0] = Sqr(pLocal.x ^ 2 + pLocal.y ^ 2)
+            pLocal = puntos.Distancia3D(g.P, e.P[0])
+            e.fParam[0] = pLocal
     End Select
 
     Me.BuildGeometry(e)

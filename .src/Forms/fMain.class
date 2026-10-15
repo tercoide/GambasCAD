@@ -406,8 +406,6 @@ Public Sub form_Arrange()
     FixPanelHeight(pansnap)
     FixPanelHeight(panTopRigth)
     FixPanelHeight(panTop)
-    FixPanelHeight(pan3d)
-    'tskReSearch = New TskSearch As "MouseTracking"
 
 End
 
@@ -821,57 +819,57 @@ Public Sub glarea3D_mouseUp()
 
 End
 
-Public Sub glarea3D_mousemove()
-
-    ' Vamos a generar el gcd.Drawing.Sheet.ray.origin para que lousen los demas
-    Dim ray As New Float[3]                             ' es un gcd.Drawing.Sheet.ray.origin que atraviesa la pantalla en la posicion del mouse
-
-    ray = gcd.Drawing.Sheet.camera.Get3DpointFromScreen(Mouse.x, Mouse.y, 0)
-
-    gcd.Drawing.Sheet.ray.origin.x = ray[0]
-    gcd.Drawing.Sheet.ray.origin.y = ray[1]
-    gcd.Drawing.Sheet.ray.origin.z = ray[2]               ' ??
-
-    ray = gcd.Drawing.Sheet.camera.Get3DpointFromScreen(Mouse.x, Mouse.y, 1)
-
-    gcd.Drawing.Sheet.ray.direction.x = ray[0] - gcd.Drawing.Sheet.ray.origin.x
-    gcd.Drawing.Sheet.ray.direction.y = ray[1] - gcd.Drawing.Sheet.ray.origin.y
-    gcd.Drawing.Sheet.ray.direction.z = ray[2] - gcd.Drawing.Sheet.ray.origin.z
-
-    ' si tengo un rayo y una entidad en 3D puedo tener un punto
-    Dim inside As Boolean
-    Dim poi As Collection
-    Dim hit As Punto3d
-    Dim f As Face
-    gcd.Drawing.Sheet.LastFace = Null
-    gcd.Drawing.Sheet.LastPoint = puntos.RayPlaneIntersection(gcd.Drawing.Sheet.ray, gcd.drawing.Sheet.GetPlane())
-    gcd.Drawing.Sheet.LastNormal = gcd.Drawing.Sheet.Normal
-    gcd.Drawing.Sheet.LastTrackedPoint = gcd.Drawing.Sheet.LastPoint
-
-    If gcd.Drawing.HoveredEntity Then
-
-        If gcd.Drawing.HoveredEntity.faces Then
-
-            f = clsEntities.FaceCloserToRay(gcd.Drawing.HoveredEntity.faces, gcd.Drawing.Sheet.ray)
-
-            If f Then
-                gcd.Drawing.Sheet.LastFace = f
-                gcd.Drawing.Sheet.LastInFacePoint = puntos.RayPlaneIntersection(gcd.Drawing.Sheet.ray, f.GetPlane())
-                gcd.Drawing.Sheet.LastNormal = puntos.CalcularNormalNewell(f.ToPuntos3D())
-            End If
-        End If
-        ' ademas
-        poi = clsMouseTRacking.CheckBestPOI(Mouse.x, Mouse.y)
-        If poi["point3d"] Then gcd.Drawing.Sheet.LastTrackedPoint = poi["point3d"]
-
-    End If
-    gcd.clsJob.MouseMove()
-
-    gcd.Drawing.Sheet.GLSheet.Refresh
-
-    ReSearch()
-
-End
+' Public Sub glarea3D_mousemove()
+'
+'     ' Vamos a generar el gcd.Drawing.Sheet.ray.origin para que lousen los demas
+'     Dim ray As New Float[3]                             ' es un gcd.Drawing.Sheet.ray.origin que atraviesa la pantalla en la posicion del mouse
+'
+'     ray = gcd.Drawing.Sheet.camera.Get3DpointFromScreen(Mouse.x, Mouse.y, 0)
+'
+'     gcd.Drawing.Sheet.ray.origin.x = ray[0]
+'     gcd.Drawing.Sheet.ray.origin.y = ray[1]
+'     gcd.Drawing.Sheet.ray.origin.z = ray[2]               ' ??
+'
+'     ray = gcd.Drawing.Sheet.camera.Get3DpointFromScreen(Mouse.x, Mouse.y, 1)
+'
+'     gcd.Drawing.Sheet.ray.direction.x = ray[0] - gcd.Drawing.Sheet.ray.origin.x
+'     gcd.Drawing.Sheet.ray.direction.y = ray[1] - gcd.Drawing.Sheet.ray.origin.y
+'     gcd.Drawing.Sheet.ray.direction.z = ray[2] - gcd.Drawing.Sheet.ray.origin.z
+'
+'     ' si tengo un rayo y una entidad en 3D puedo tener un punto
+'     Dim inside As Boolean
+'     Dim poi As Collection
+'     Dim hit As Punto3d
+'     Dim f As Face
+'     gcd.Drawing.Sheet.LastFace = Null
+'     gcd.Drawing.Sheet.LastPoint = puntos.RayPlaneIntersection(gcd.Drawing.Sheet.ray, gcd.drawing.Sheet.GetPlane())
+'     gcd.Drawing.Sheet.LastNormal = gcd.Drawing.Sheet.Normal
+'     gcd.Drawing.Sheet.LastTrackedPoint = gcd.Drawing.Sheet.LastPoint
+'
+'     If gcd.Drawing.HoveredEntity Then
+'
+'         If gcd.Drawing.HoveredEntity.faces Then
+'
+'             f = clsEntities.FaceCloserToRay(gcd.Drawing.HoveredEntity.faces, gcd.Drawing.Sheet.ray)
+'
+'             If f Then
+'                 gcd.Drawing.Sheet.LastFace = f
+'                 gcd.Drawing.Sheet.LastInFacePoint = puntos.RayPlaneIntersection(gcd.Drawing.Sheet.ray, f.GetPlane())
+'                 gcd.Drawing.Sheet.LastNormal = puntos.CalcularNormalNewell(f.ToPuntos3D())
+'             End If
+'         End If
+'         ' ademas
+'         poi = clsMouseTRacking.CheckBestPOI(Mouse.x, Mouse.y)
+'         If poi["point3d"] Then gcd.Drawing.Sheet.LastTrackedPoint = poi["point3d"]
+'
+'     End If
+'     gcd.clsJob.MouseMove()
+'
+'     gcd.Drawing.Sheet.GLSheet.Refresh
+'
+'     ReSearch()
+'
+' End
 
 ' Public Sub GLPaper_Draw()
 '
@@ -991,111 +989,111 @@ End
 '     ' Dec flgWheelCounter
 '
 ' End
-Public Sub glArea3D_draw()
-
-    Dim m As Model3d
-    Dim v As Single[]
-    Dim p1, p2, p3, p4 As New Punto3d
-    Dim gcolor As Integer
-
-    ' Borro la ventana
-    v = glx.GetColorRGBA(config.ModelBackgroundColor)
-
-    gl.ClearColor(v[0], v[1], v[2], v[3])
-
-    gl.Clear(gl.DEPTH_BUFFER_BIT Or gl.COLOR_BUFFER_BIT)
-    gl.Enable(gl.DEPTH_TEST)
-    gl.Enable(gl.SMOOTH)
-
-    ' Try m = m.fMaxDim
-    ' If m = 0 Then m = 1
-    ' antes de dibujar algo, tengo que establecer el tipo de projecccion Ortogonal o Perspectiva
-    UseSheetShader(False)
-
-    glx.Matrices.Projection = glx.Matrices.Projection.Perspective(45, Me.w / Me.h, 0.1, 10000)
-    'gl.Frustum(-glarea1.w / 2, glarea1.w / 2, -glarea1.h / 2, glarea1.h / 2, 2 * m, 100 * m)
-
-    glx.Matrices.View.SetIdentity()
-    'gl.Translatef(gcd.Drawing.Sheet.PanX, gcd.Drawing.Sheet.PanY, gcd.Drawing.Sheet.PanZ)
-    glx.Matrices.View.Scale(gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom)
-    glx.Matrices.Model.SetIdentity()
-    ' gl.Rotatef(gcd.Drawing.Sheet.Rotx, 1, 0, 0)
-    ' gl.Rotatef(gcd.Drawing.Sheet.RotY, 0, 1, 0)
-    ' gl.Rotatef(gcd.Drawing.Sheet.RotZ, 0, 0, 1)
-    'gl.Scalef(escala / 100, escala / 100, escala / 100)
-
-    Gl.Enable(Gl.NORMALIZE) ' esto sirve para normalizar los vectores normales , o sea que sean de largo = 1
-    ' gl.Translatef(0, 0, -m)
-    ' una vez ubicada la camara, roto el modelo
-    'gl.PushMatrix()                       ' guardo el estado actual de las transformaciones
-    ' gl.Scalef(Config.Zoom, Config.Zoom, Config.Zoom)
-
-    gcd.Drawing.Sheet.camera.render
-
-    Draw_Pick(Last.W, Last.H)
-
-    DrawingAids.DrawLocalAxis(gcd.Drawing.Sheet.LastFace)
-
-    gcd.clsJob.Draw()
-
-    Draw_Model
-
-    If gcd.Drawing.Sheet.DrawGrid Then gcd.Drawing.Sheet.Grid3dVbo.Draw()
-
-    'gl.UseProgram(0)
-
-End
-
-Public Sub glScene3D_draw()
-
-    Dim m As Model3d
-    Dim v As Single[]
-    Dim p1, p2, p3, p4 As New Punto3d
-    Dim gcolor As Integer
-
-    ' Borro la ventana
-    v = glx.GetColorRGBA(config.ModelBackgroundColor)
-
-    gl.ClearColor(v[0], v[1], v[2], v[3])
-
-    gl.Clear(gl.DEPTH_BUFFER_BIT Or gl.COLOR_BUFFER_BIT)
-    gl.Enable(gl.DEPTH_TEST)
-    gl.Enable(gl.SMOOTH)
-
-    ' Try m = m.fMaxDim
-    ' If m = 0 Then m = 1
-    ' antes de dibujar algo, tengo que establecer el tipo de projecccion Ortogonal o Perspectiva
-    UseSheetShader(True)
-
-    glx.Matrices.Projection = glx.Matrices.Projection.Perspective(45, Me.w / Me.h, 0.1, 10000)
-    'gl.Frustum(-glarea1.w / 2, glarea1.w / 2, -glarea1.h / 2, glarea1.h / 2, 2 * m, 100 * m)
-
-    glx.Matrices.View.SetIdentity()
-    'gl.Translatef(gcd.Drawing.Sheet.PanX, gcd.Drawing.Sheet.PanY, gcd.Drawing.Sheet.PanZ)
-    glx.Matrices.View.Scale(gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom)
-    glx.Matrices.Model.SetIdentity()
-    ' gl.Rotatef(gcd.Drawing.Sheet.Rotx, 1, 0, 0)
-    ' gl.Rotatef(gcd.Drawing.Sheet.RotY, 0, 1, 0)
-    ' gl.Rotatef(gcd.Drawing.Sheet.RotZ, 0, 0, 1)
-    'gl.Scalef(escala / 100, escala / 100, escala / 100)
-
-    Gl.Enable(Gl.NORMALIZE) ' esto sirve para normalizar los vectores normales , o sea que sean de largo = 1
-    ' gl.Translatef(0, 0, -m)
-    ' una vez ubicada la camara, roto el modelo
-    'gl.PushMatrix()                       ' guardo el estado actual de las transformaciones
-    ' gl.Scalef(Config.Zoom, Config.Zoom, Config.Zoom)
-
-    gcd.Drawing.Sheet.camera.render
-
-    Draw_Pick(Last.W, Last.H)
-
-    Draw_Model
-
-    If gcd.Drawing.Sheet.DrawGrid Then gcd.Drawing.Sheet.Grid3dVbo.Draw()
-
-    'gl.UseProgram(0)
-
-End
+' Public Sub glArea3D_draw()
+'
+'     Dim m As Model3d
+'     Dim v As Single[]
+'     Dim p1, p2, p3, p4 As New Punto3d
+'     Dim gcolor As Integer
+'
+'     ' Borro la ventana
+'     v = glx.GetColorRGBA(config.ModelBackgroundColor)
+'
+'     gl.ClearColor(v[0], v[1], v[2], v[3])
+'
+'     gl.Clear(gl.DEPTH_BUFFER_BIT Or gl.COLOR_BUFFER_BIT)
+'     gl.Enable(gl.DEPTH_TEST)
+'     gl.Enable(gl.SMOOTH)
+'
+'     ' Try m = m.fMaxDim
+'     ' If m = 0 Then m = 1
+'     ' antes de dibujar algo, tengo que establecer el tipo de projecccion Ortogonal o Perspectiva
+'     UseSheetShader(False)
+'
+'     glx.Matrices.Projection = glx.Matrices.Projection.Perspective(45, Me.w / Me.h, 0.1, 10000)
+'     'gl.Frustum(-glarea1.w / 2, glarea1.w / 2, -glarea1.h / 2, glarea1.h / 2, 2 * m, 100 * m)
+'
+'     glx.Matrices.View.SetIdentity()
+'     'gl.Translatef(gcd.Drawing.Sheet.PanX, gcd.Drawing.Sheet.PanY, gcd.Drawing.Sheet.PanZ)
+'     glx.Matrices.View.Scale(gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom)
+'     glx.Matrices.Model.SetIdentity()
+'     ' gl.Rotatef(gcd.Drawing.Sheet.Rotx, 1, 0, 0)
+'     ' gl.Rotatef(gcd.Drawing.Sheet.RotY, 0, 1, 0)
+'     ' gl.Rotatef(gcd.Drawing.Sheet.RotZ, 0, 0, 1)
+'     'gl.Scalef(escala / 100, escala / 100, escala / 100)
+'
+'     Gl.Enable(Gl.NORMALIZE) ' esto sirve para normalizar los vectores normales , o sea que sean de largo = 1
+'     ' gl.Translatef(0, 0, -m)
+'     ' una vez ubicada la camara, roto el modelo
+'     'gl.PushMatrix()                       ' guardo el estado actual de las transformaciones
+'     ' gl.Scalef(Config.Zoom, Config.Zoom, Config.Zoom)
+'
+'     gcd.Drawing.Sheet.camera.render
+'
+'     Draw_Pick(Last.W, Last.H)
+'
+'     DrawingAids.DrawLocalAxis(gcd.Drawing.Sheet.LastFace)
+'
+'     gcd.clsJob.Draw()
+'
+'     Draw_Model
+'
+'     If gcd.Drawing.Sheet.DrawGrid Then gcd.Drawing.Sheet.Grid3dVbo.Draw()
+'
+'     'gl.UseProgram(0)
+'
+' End
+'
+' Public Sub glScene3D_draw()
+'
+'     Dim m As Model3d
+'     Dim v As Single[]
+'     Dim p1, p2, p3, p4 As New Punto3d
+'     Dim gcolor As Integer
+'
+'     ' Borro la ventana
+'     v = glx.GetColorRGBA(config.ModelBackgroundColor)
+'
+'     gl.ClearColor(v[0], v[1], v[2], v[3])
+'
+'     gl.Clear(gl.DEPTH_BUFFER_BIT Or gl.COLOR_BUFFER_BIT)
+'     gl.Enable(gl.DEPTH_TEST)
+'     gl.Enable(gl.SMOOTH)
+'
+'     ' Try m = m.fMaxDim
+'     ' If m = 0 Then m = 1
+'     ' antes de dibujar algo, tengo que establecer el tipo de projecccion Ortogonal o Perspectiva
+'     UseSheetShader(True)
+'
+'     glx.Matrices.Projection = glx.Matrices.Projection.Perspective(45, Me.w / Me.h, 0.1, 10000)
+'     'gl.Frustum(-glarea1.w / 2, glarea1.w / 2, -glarea1.h / 2, glarea1.h / 2, 2 * m, 100 * m)
+'
+'     glx.Matrices.View.SetIdentity()
+'     'gl.Translatef(gcd.Drawing.Sheet.PanX, gcd.Drawing.Sheet.PanY, gcd.Drawing.Sheet.PanZ)
+'     glx.Matrices.View.Scale(gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom, gcd.Drawing.Sheet.ScaleZoom)
+'     glx.Matrices.Model.SetIdentity()
+'     ' gl.Rotatef(gcd.Drawing.Sheet.Rotx, 1, 0, 0)
+'     ' gl.Rotatef(gcd.Drawing.Sheet.RotY, 0, 1, 0)
+'     ' gl.Rotatef(gcd.Drawing.Sheet.RotZ, 0, 0, 1)
+'     'gl.Scalef(escala / 100, escala / 100, escala / 100)
+'
+'     Gl.Enable(Gl.NORMALIZE) ' esto sirve para normalizar los vectores normales , o sea que sean de largo = 1
+'     ' gl.Translatef(0, 0, -m)
+'     ' una vez ubicada la camara, roto el modelo
+'     'gl.PushMatrix()                       ' guardo el estado actual de las transformaciones
+'     ' gl.Scalef(Config.Zoom, Config.Zoom, Config.Zoom)
+'
+'     gcd.Drawing.Sheet.camera.render
+'
+'     Draw_Pick(Last.W, Last.H)
+'
+'     Draw_Model
+'
+'     If gcd.Drawing.Sheet.DrawGrid Then gcd.Drawing.Sheet.Grid3dVbo.Draw()
+'
+'     'gl.UseProgram(0)
+'
+' End
 
 Public Sub tabFile_MouseWheel()
 
@@ -1291,15 +1289,6 @@ Public Sub form_KeyPress()
 
         Case Key.f6
 
-            gcd.Drawing.Sheet.models.Add(stl.LoadSTL(User.Home &/ "Quo.stl"), "quo")
-
-            ' gcd.DrawBounds = Not gcd.DrawBounds
-            ' Me.redraw
-            ' Dim flxContorno As New Float[]
-            ' flxContorno = gcd.Drawing.Sheet.EntitiesSelected[gcd.Drawing.Sheet.EntitiesSelected.First].p.copy()
-            '
-            ' flxTrimmedLine = puntos.LinePolyIntersection(gcd.Drawing.Sheet.EntitiesSelected[gcd.Drawing.Sheet.EntitiesSelected.Last].p, flxContorno)
-            ShowBenchMarkInfo = Not ShowBenchMarkInfo
         Case Key.f8
             clsMouseTracking.WaitEnabled = Not clsMouseTracking.WaitEnabled
 
@@ -2000,28 +1989,22 @@ Public Sub tabSheets_Click()
         gcd.Drawing.Sheet = Last.current.tag
         gcd.Drawing.LastLayer = gcd.Drawing.CurrLayer
 
-        If gcd.Drawing.Sheet.Is3D Then
+        Me.GLArea1 = gcd.Drawing.Sheet.GLSheet
+        GLArea1.Enabled = True
+        'Object.Attach(GLArea1, Me, "GLArea1")
+        glx.Plane2D = Last.current.tag.Plane2D
+        gcd.Drawing.Sheet.LastNormal = glx.XYZ(0, 0, 1)
+        Me.GLArea1.Refresh
 
-            drawingAids.RebuildGrid3D(gcd.Drawing.Sheet, gcd.Drawing.Sheet.Plane2D = Planes.XY, gcd.Drawing.Sheet.Plane2D = Planes.XZ, gcd.Drawing.Sheet.Plane2D = Planes.YZ, True)
-            gcd.clsJob = cadNavigate
-        Else
-
-            Me.GLArea1 = gcd.Drawing.Sheet.GLSheet
-            GLArea1.Enabled = True
-            'Object.Attach(GLArea1, Me, "GLArea1")
-            glx.Plane2D = Last.current.tag.Plane2D
-            gcd.Drawing.Sheet.LastNormal = glx.XYZ(0, 0, 1)
-            Me.GLArea1.Refresh
-
-            If Not gcd.Drawing.Sheet.Shown Then
-                'cadZoomE.Start()
-                gcd.Drawing.Sheet.Shown = True
-            End If
-            gcd.clsJob = cadSelection
-            Me.ReCollect
-
-            'Debug gcd.Drawing.FileName, gcd.Drawing.Sheet.Name
+        If Not gcd.Drawing.Sheet.Shown Then
+            'cadZoomE.Start()
+            gcd.Drawing.Sheet.Shown = True
         End If
+        gcd.clsJob = cadSelection
+        Me.ReCollect
+
+        'Debug gcd.Drawing.FileName, gcd.Drawing.Sheet.Name
+
     End If
 
 End
@@ -2099,7 +2082,6 @@ Public Function NewSheet(tabSheets As TabPanel, s As Sheet, Optional UseFirst As
 
     Dim i As Integer
     Dim glaFile2, g As GLArea
-    Dim scene As Scene3d
 
     InUse = True
     gcd.DrawingReady = False
@@ -2208,17 +2190,6 @@ Public Sub LoadButtons(Optional iSize As Integer = 32, iColumns As Integer = 2)
     panBlocks.W = iSize * iColumns + iBorder
     panTools.W = iSize * iColumns + iBorder
     panInquiry.W = iSize * iColumns + iBorder
-
-    ' 3D
-    Utils.tbnCreator(pan3d, "cad/wireframe", "3DShowWireframe",,, ("Show wireframe"), True)
-    Utils.tbnCreator(pan3d, "cad/3dcolor", "3DShowColor",,, ("Show color"))
-    Utils.tbnCreator(pan3d, "cad/3dmaterial", "DShowMaterial",,, ("Show material"))
-    Utils.tbnCreator(pan3d, "cad/3dtexture", "DShowTexture",,, ("Show texture"))
-    Utils.tbnCreator(pan3d, "cad/3dtexture", "cadparallelepiped",,, ("Parallelelpiped"))
-    Utils.tbnCreator(pan3d, "cad/3dtexture", "cad3DFace",,, ("3D face"))
-    Utils.tbnCreator(pan3d, "cad/3dtexture", "cadNurbsSurface",,, ("NURBS surface"))
-    Utils.tbnCreator(pan3d, "cad/3dtexture", "cadSphere",,, ("Sphere"))
-    Utils.tbnCreator(pan3d, "cad/3dtexture", "cadTorus",,, ("Torus"))
 
     ' Entidades
     Utils.TBNCreator(panentities, "cad/draw-line", "cadLine",,, ("Line"))
@@ -2466,7 +2437,14 @@ Public Sub Form_Open()
     GUI.Update(pnlToolBarRigth, "default", "es", oTags)
     GUI.Update(pnlCommand, "default", "es", oTags)
 
-    ' x = splitterH.W
+    ' ' nueva herramienta de Tincho
+    ' SvgIcons.Update(panTop)
+    ' SvgIcons.Update(pnlToolbarLeft, "default", "es", oTags)
+    ' SvgIcons.Update(pnlToolbarTop, "default", "es", oTags)
+    ' SvgIcons.Update(pnlToolBarRigth, "default", "es", oTags)
+    ' SvgIcons.Update(pnlCommand, "default", "es", oTags)
+    ' SvgIcons.Update(pLocks, "default", "es", oTags)
+    ' ' x = splitterH.W
     ' splitterH.W = x - 10
     ' splitterH.W = x
     ' 'Layout.Fix(Me, 75)

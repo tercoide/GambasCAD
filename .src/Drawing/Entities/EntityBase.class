@@ -215,7 +215,7 @@ Public Function SaveJsonData(e As Entity, j As Collection) As Boolean
     j["iparam"] = e.iParam
     j["sparam"] = e.sParam
     If e.Extrusion[0] <> 0 Or e.Extrusion[1] <> 0 Or e.Extrusion[2] <> 1 Then j["extrusion"] = e.Extrusion
-    If e.faces Then j["faces"] = FacesToJson(e.faces)
+
     Return True
 
 End
@@ -232,57 +232,13 @@ Public Function ImportJson(e As Entity, c As Collection) As Boolean
     If c.Exist("iparam") Then e.iParam = JsonFile.ToIntegers(c["iparam"])
     If c.Exist("sparam") Then e.sParam = JsonFile.ToStrings(c["sparam"])
     If c.Exist("extrusion") Then e.Extrusion = JsonFile.ToFloats(c["extrusion"])
-    If c.Exist("faces") Then e.faces = JsonToFaces(c["faces"])
+
     Return True
 
 End
 
 '' Se llama despues de Finish, para las partes que Finish no reconstruye (ej: los ATTRIB de un INSERT)
 Public Sub ImportJsonParts(e As Entity, c As Collection)
-
-End
-
-'' Cada cara se guarda como un array de x,y,z
-Public Function FacesToJson(aFaces As Face[]) As Float[][]
-
-    Dim f As Face
-    Dim v As Vertex
-    Dim fCoords As Float[]
-    Dim aList As New Float[][]
-
-    For Each f In aFaces
-        fCoords = New Float[]
-        For Each v In f.vertex
-            fCoords.Insert([v.X, v.Y, v.Z])
-        Next
-        aList.Add(fCoords)
-    Next
-    Return aList
-
-End
-
-Public Function JsonToFaces(vList As Variant) As Face[]
-
-    Dim aFaces As New Face[]
-    Dim f As Face
-    Dim v As Vertex
-    Dim fCoords As Float[]
-    Dim vCoords As Variant
-    Dim i As Integer
-
-    For Each vCoords In vList
-        fCoords = JsonFile.ToFloats(vCoords)
-        f = New Face
-        For i = 0 To fCoords.Max - 2 Step 3
-            v = New Vertex
-            v.X = fCoords[i]
-            v.Y = fCoords[i + 1]
-            v.Z = fCoords[i + 2]
-            f.vertex.Add(v)
-        Next
-        aFaces.Add(f)
-    Next
-    Return aFaces
 
 End
 
@@ -439,8 +395,8 @@ Public Function GripEdit(g As Grip) As Boolean
             Endif
         Endif
 
-        gcd.Drawing.LastPoint.clear
-        gcd.Drawing.LastPoint.Insert([e.P[p2].x, e.P[p2].y, e.P[p2].z])
+ 
+        gcd.drawing.sheet.lastpoint = New Punto3d([e.P[p2].x, e.P[p2].y, e.P[p2].z])
     Else
         clsEntities.Translate(e, g.p.X - g.pRef.x, g.P.y - g.pRef.y, g.P.z - g.pRef.z)
         g.pRef = g.P.Copy()
