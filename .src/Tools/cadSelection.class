@@ -184,17 +184,17 @@ Public Function MouseDown()
     'GripPoint = -1
     Me.SelStartX = mouse.X
     Me.SelStartY = mouse.Y
-    Me.SelStartXr = gcd.Xreal(Me.SelStartX)
-    Me.SelStartYr = gcd.Yreal(Me.SelStartY)
+    Me.SelStartP.x = gcd.Xreal(Me.SelStartX)
+    Me.SelStartP.y = gcd.Yreal(Me.SelStartY)
 
-    dX = Me.SelStartXr
-    dY = Me.SelStartYr
+    dX = Me.SelStartP.x
+    dY = Me.SelStartP.y
 
     Me.SelEndX = Me.SelStartX
     Me.SelEndy = Me.SelStartY
 
-    Me.SelEndXr = Me.SelStartXr
-    Me.SelEndyr = Me.SelStartYr
+    Me.SelEndP.x = Me.SelStartP.x
+    Me.SelEndP.y = Me.SelStartP.y
 
     Me.PoiChecking = False
     If Mouse.Right Then Return
@@ -261,7 +261,7 @@ Public Function MouseDown()
     '         If gcd.Drawing.Sheet.Viewport Then
     '
     '             ' si el click esta fuera del viewport, lo desestimo
-    '             If Me.SelStartXr < gcd.Drawing.Sheet.Viewport.X0 Or Me.SelStartXr > gcd.Drawing.Sheet.Viewport.X1 Or Me.SelStartYr < gcd.Drawing.Sheet.Viewport.Y0 Or Me.SelStartYr > gcd.Drawing.Sheet.Viewport.Y1 Then
+    '             If Me.SelStartP.x < gcd.Drawing.Sheet.Viewport.X0 Or Me.SelStartP.x > gcd.Drawing.Sheet.Viewport.X1 Or Me.SelStartP.y < gcd.Drawing.Sheet.Viewport.Y0 Or Me.SelStartP.y > gcd.Drawing.Sheet.Viewport.Y1 Then
     '                 gcd.Drawing.Sheet.Viewport = Null ' Desactivo el viewport
     '             Else
     '
@@ -352,13 +352,13 @@ Public Sub MouseUp()
             If Me.SelStartX > Me.SelEndX Then Swap Me.SelStartX, Me.SelEndX
             If Me.SelStartY < Me.SelEndy Then Swap Me.SelStartY, Me.SelEndy                     ' this is FLIPPED
 
-            If Me.SelStartXr > Me.SelEndXr Then Swap Me.SelStartXr, Me.SelEndXr
-            If Me.SelStartYr > Me.SelEndyr Then Swap Me.SelStartYr, Me.SelEndyr
+            If Me.SelStartP.x > Me.SelEndP.x Then Swap Me.SelStartP.x, Me.SelEndP.x
+            If Me.SelStartP.y > Me.SelEndP.y Then Swap Me.SelStartP.y, Me.SelEndP.y
 
             ' veo si el rectangulo es suficientemente grande como para representar una seleccion por rectangulo
             If (Me.SelEndX - Me.SelStartX + (-Me.SelEndy + Me.SelStartY)) > 10 Then
 
-                cSel = clsEntities.SelectionSquare(Me.SelStartXr, Me.SelStartYr, Me.SelEndXr, Me.SelEndyr, Me.SelectCrossing)
+                cSel = clsEntities.SelectionSquare(Me.SelStartP.x, Me.SelStartP.y, Me.SelEndP.x, Me.SelEndP.y, Me.SelectCrossing)
 
                 ' Else ' TODO: ver si tengo que desseleccionar
                 '     clsEntities.DeSelection()
@@ -457,11 +457,11 @@ Public Sub MouseUp()
                 Me.SelStartX = mouse.x
                 Me.SelStartY = mouse.Y
                 ' Paso a coordenadas reales
-                Me.selStartXr = gcd.Xreal(Me.SelStartX)
-                Me.selStartYr = gcd.Yreal(Me.SelStartY)
+                Me.SelStartP.x = gcd.Xreal(Me.SelStartX)
+                Me.SelStartP.y = gcd.Yreal(Me.SelStartY)
                 If Me.SelectType = Me.SelectTypePoly Then
-                    Me.SelectionPoly.Add(Me.SelStartXr)
-                    Me.SelectionPoly.Add(Me.SelStartYr)
+                    Me.SelectionPoly.Add(Me.SelStartP.x)
+                    Me.SelectionPoly.Add(Me.SelStartP.y)
                 Endif
                 gcd.Drawing.Sheet.Grips.Clear
 
@@ -626,32 +626,32 @@ Public Sub MouseMove()
 
     Me.SelEndX = mouse.X
     Me.SelEndy = mouse.Y
-    Me.SelEndXr = gcd.Xreal(Me.SelEndX)
-    Me.SelEndyr = gcd.Yreal(Me.SelEndy)
-    Me.SelEndXr = gcd.Near(Me.SelEndXr)
-    Me.SelEndYr = gcd.Near(Me.SelEndYr)
+    Me.SelEndP.x = gcd.Xreal(Me.SelEndX)
+    Me.SelEndP.y = gcd.Yreal(Me.SelEndy)
+    Me.SelEndP.x = gcd.Near(Me.SelEndP.x)
+    Me.SelEndP.y = gcd.Near(Me.SelEndP.y)
 
     '
     If RectActive And Me.SelectType <> Me.SelectTypeSingle Then
         ' B.1 ActionActive = ActionRectActive: actualizo coordenadas del punto final del Rect
         ' (se hace mas arriba)
 
-        If Me.SelEndXr <= Me.SelStartXr Then Me.SelectCrossing = True Else Me.SelectCrossing = False
+        If Me.SelEndP.x <= Me.SelStartP.x Then Me.SelectCrossing = True Else Me.SelectCrossing = False
     Else If GripPoint Then
         ' B.2 ActionActive = ActionGripActive: modifico la entidad con la nueva posicion del punto
-        'gcd.Drawing.iEntity = clsMouseTracking.CheckBestPOI(Me.SelEndXr, Me.SelEndYr)
+        'gcd.Drawing.iEntity = clsMouseTracking.CheckBestPOI(Me.SelEndP.x, Me.SelEndP.y)
 
-        Me.SelEndP = gcd.Drawing.Sheet.LastTrackedPoint 'gcd.Drawing.iEntity["point"]
+        If gcd.Drawing.Sheet.LastTrackedPoint Then Me.SelEndP = gcd.Drawing.Sheet.LastTrackedPoint.Copy() 'gcd.Drawing.iEntity["point"]
         If gcd.Orthogonal Then          ' hablame de operadores logicos
             ' TODO: proveer un punto otrogonal
             If Me.SelStartP Then' tengo un punto anterior
                 ' paso a 2D ambos
 
                 If Abs(Me.SelEndX - Me.SelStartX) > Abs(Me.SelEndY - Me.SelStartY) Then ' prevalece X
-                    Me.SelEndYr = Me.SelStartYr
+                    Me.SelEndP.y = Me.SelStartP.y
 
                 Else
-                    Me.SelEndXr = Me.SelStartXr
+                    Me.SelEndP.x = Me.SelStartP.x
                 Endif
 
             End If
@@ -815,7 +815,7 @@ Public Sub Draw()
 
             'If Me.SelEndX - Me.SelStartX >= 300 Then Stop
 
-            glx.Rectangle2D(Me.SelStartXr, Me.SelStartYr, Me.SelEndXr - Me.SelStartXr, Me.SelEndyr - Me.SelStartYr, Color.RGB(224, 220, 207, 215),,,, iColor, 1, gcd.stiDashedSmall, 2)
+            glx.Rectangle2D(Me.SelStartP.x, Me.SelStartP.y, Me.SelEndP.x - Me.SelStartP.x, Me.SelEndP.y - Me.SelStartP.y, Color.RGB(224, 220, 207, 215),,,, iColor, 1, gcd.stiDashedSmall, 2)
 
             'Return
         Else If Me.SelectType = Me.SelectTypePoly Then
@@ -824,13 +824,13 @@ Public Sub Draw()
 
             ' como pude habver cambiado en este momento el modo de seleccion, chequeo
             If Me.SelectionPoly.Count = 0 Then
-                Me.SelectionPoly.Add(Me.SelStartXr)
-                Me.SelectionPoly.Add(Me.SelStartYr)
+                Me.SelectionPoly.Add(Me.SelStartP.x)
+                Me.SelectionPoly.Add(Me.SelStartP.y)
             Endif
             flxPoly.Clear
             flxPoly.Insert(Me.SelectionPoly.Copy())
-            flxPoly.Add(Me.SelEndXr)
-            flxPoly.Add(Me.SelEndyr)
+            flxPoly.Add(Me.SelEndP.x)
+            flxPoly.Add(Me.SelEndP.y)
             flxPoly.Add(Me.SelectionPoly[0])
             flxPoly.Add(Me.SelectionPoly[1])
             glx.PolyLines(flxPoly, Color.red, 1, gcd.stiDashedSmall)
@@ -892,9 +892,9 @@ Public Sub GripEdit()
 
     If GripPoint Then
         If GripCopying Then
-            ' GripPoint.X = Me.SelEndXr
-            ' GripPoint.Y = Me.SelEndYr
-            ' gcd.CCC[GripPoint.AsociatedEntity.Gender].translate(GripPoint.AsociatedEntity, Me.SelEndXr - Me.SelStartXr, Me.SelEndYr - Me.SelStartYr)
+            ' GripPoint.X = Me.SelEndP.x
+            ' GripPoint.Y = Me.SelEndP.y
+            ' gcd.CCC[GripPoint.AsociatedEntity.Gender].translate(GripPoint.AsociatedEntity, Me.SelEndP.x - Me.SelStartP.x, Me.SelEndP.y - Me.SelStartP.y)
 
         Endif
 

@@ -186,7 +186,7 @@ Public Function CheckBestPOI(xr As Float, Yr As Float, Optional eExclude As Enti
     Dim d, ShortestDistance As Float
     Dim e As Entity
     Dim rJson, rta As Collection
-    Dim p As New Punto3d(xr, yr, 0)
+    Dim p As New Punto3d(xr, yr, gcd.Drawing.Sheet.Level)
 
     ShortestDistance = 1e10
 
@@ -200,7 +200,7 @@ Public Function CheckBestPOI(xr As Float, Yr As Float, Optional eExclude As Enti
         If e.Gender = "INSERT" Then Continue
 
         '  If gcd.Drawing.Sheet.Is3D Then
-        rJson = CheckPOI3D(gcd.Drawing.HoveredEntity, p)
+        rJson = CheckPOI3D(e, p)
         If rJson["mode"] = 0 Then
             'p = puntos.RayPlaneIntersection(gcd.Drawing.Sheet.ray, gcd.Drawing.Sheet.GetPlane())
         Else
@@ -305,8 +305,9 @@ Public Sub CheckPOI3D(e As Entity, Eye As Punto3d, Optional ToolRay As Ray, RefP
     Dim CurrentPoint As New Float[], e2, ePart As Entity
     Dim i, iInter, iPoligon, iLine As Integer
     Dim pend1, base1, pend2, base2 As Float ' vars para las ecuacionesde las rectas
-    Dim pTesting, pMid, pInFace, pNea, puntoB, puntoA, pInter, pInterPoly, pInterPoly2 As New Punto3d
+    Dim pTesting, pMid, pInFace, pNea, puntoB, puntoA As New Punto3d
     Dim pIntersection As New Punto3d[]
+    Dim flxPath As Float[]
 
     Dim end1X, end1Y, end2X, end2Y As Float
     Dim P0, P1, Pr As Punto3d, xr, yr As Float
@@ -331,6 +332,8 @@ Public Sub CheckPOI3D(e As Entity, Eye As Punto3d, Optional ToolRay As Ray, RefP
     ' Debug "Iniciando busqueda de POI", Rnd(0, 1000)
 
     tolerance = gcd.Metros(16)
+    xr = Eye.x
+    yr = Eye.y
     'Debug "Checking POI"
 
     iPoligon = -1
@@ -395,7 +398,7 @@ Public Sub CheckPOI3D(e As Entity, Eye As Punto3d, Optional ToolRay As Ray, RefP
                         End If
 
                         ' determino la interseccion de ambas
-                        puntoB = puntos.lineLineIntersection(gcd.drawing.sheet.lastpoint, puntoA, [e.P[0].x, e.P[0].y], [e.P[1].x, e.P[1].y])
+                        puntoB.FromXYZ(puntos.lineLineIntersection([gcd.drawing.sheet.lastpoint.x, gcd.drawing.sheet.lastpoint.y], [puntoA.x, puntoA.y], [e.P[0].x, e.P[0].y], [e.P[1].x, e.P[1].y]))
                     Else ' la recta es horizontal
 
                         puntoB = New Punto3d(gcd.drawing.sheet.lastpoint.x, e.P[0].y)
@@ -414,40 +417,6 @@ Public Sub CheckPOI3D(e As Entity, Eye As Punto3d, Optional ToolRay As Ray, RefP
                     DistPer = puntos.distancia(puntoB.x, puntoB.y, xr, yr)
 
                 Endif
-            End If
-
-            ' busco tambien intersecciones
-            For Each e2 In gcd.Drawing.Sheet.EntitiesVisibles
-                If gcd.flgQuitSearch Then Break
-                If WaitEnabled Then Wait
-                If e = e2 Then Continue
-
-                Select Case e2.Gender
-
-                    Case "LINE"
-                        If puntos.doIntersect(e.P[0], e.P[1], e.P[1].x, e.P[3], e2.P[0], e2.P[1], e2.P[2], e2.P[3]) Then
-                            pInter = puntos.lineLineIntersection([e.P[0], e.P[1]], [e.P[1].x, e.P[3]], [e2.P[0], e2.P[1]], [e2.P[2], e2.P[3]])
-
-                            pIntersection.Add(pInter.Copy())
-
-                        Endif
-
-                    Case "LWPOLYLINE", "SOLID"
-
-                        pInterPoly.FromXYZ(puntos.LinePolyIntersection3(puntos.ToXY(e.P), puntos.ToXY(e2.P)))
-
-                        pIntersection.Add(pInterPoly.Copy())
-                    Case "CIRCLE", "ARC", "SPLINE"
-                        pInterPoly2.FromXYZ(puntos.LinePolyIntersection3(puntos.ToXY(e.P), e2.PolyLine))
-                        pIntersection.Add(pInterPoly2.Copy())
-                End Select
-            Next
-
-            If pIntersection.Count > 0 Then ' puede no haber intersaeccion
-                iInter = puntos.FindNearest(xr, yr, puntos.ToXY(pIntersection))
-                DistInter = puntos.distancia(xr, yr, pIntersection[iInter].x, pIntersection[iInter].y)
-            Else
-                DistInter = 10e10
             End If
 
         Case "CIRCLE"
@@ -506,34 +475,52 @@ Public Sub CheckPOI3D(e As Entity, Eye As Punto3d, Optional ToolRay As Ray, RefP
 
             ' busco los quadrants
             Dim qx, qy, q1, q2, q3, q4 As Float
-            q1 = puntos.distancia(e.P[0] - e.fParam[0], e.P[1], xr, yr)
-            q2 = puntos.distancia(e.P[0] + e.fParam[0], e.P[1], xr, yr)
-            q3 = puntos.distancia(e.P[0], e.P[0].y - e.fParam[0], xr, yr)
-            q4 = puntos.distancia(e.P[0], e.P[0].y + e.fParam[0], xr, yr)
+            q1 = puntos.distancia(e.P[0].x - e.fParam[0], e.P[0].y, xr, yr)
+            q2 = puntos.distancia(e.P[0].x + e.fParam[0], e.P[0].y, xr, yr)
+            q3 = puntos.distancia(e.P[0].x, e.P[0].y - e.fParam[0], xr, yr)
+            q4 = puntos.distancia(e.P[0].x, e.P[0].y + e.fParam[0], xr, yr)
 
             DistQuad = 1e10
             If DistQuad > q1 Then
                 DistQuad = q1
-                qx = e.P[0] - e.fParam[0]
-                qy = e.P[1]
+                qx = e.P[0].x - e.fParam[0]
+                qy = e.P[0].y
             End If
             If DistQuad > q2 Then
                 DistQuad = q2
-                qx = e.P[0] + e.fParam[0]
-                qy = e.P[1]
+                qx = e.P[0].x + e.fParam[0]
+                qy = e.P[0].y
             End If
             If DistQuad > q3 Then
                 DistQuad = q3
-                qx = e.P[0]
+                qx = e.P[0].x
                 qy = e.P[0].y - e.fParam[0]
             End If
             If DistQuad > q4 Then
                 DistQuad = q4
-                qx = e.P[0]
+                qx = e.P[0].x
                 qy = e.P[0].y + e.fParam[0]
             End If
 
     End Select
+
+    ' busco tambien intersecciones con las otras entidades debajo del mouse
+    If gcd.SnapMode And gcd.poiIntersection Then
+        flxPath = PathXYZ(e)
+        If flxPath.Count >= 6 Then
+            For Each e2 In gcd.Drawing.HoveredEntities
+                If e2 = e Then Continue
+                AddIntersections(flxPath, PathXYZ(e2), Eye, tolerance, pIntersection)
+            Next
+        End If
+        For i = 0 To pIntersection.Max
+            d = puntos.distancia(xr, yr, pIntersection[i].x, pIntersection[i].y)
+            If d < DistInter Then
+                DistInter = d
+                iInter = i
+            End If
+        Next
+    End If
     '
     ' otros puntos contra elementos lineales
     ' necsito una referencia dentro de la entidad lineal
@@ -558,12 +545,12 @@ Public Sub CheckPOI3D(e As Entity, Eye As Punto3d, Optional ToolRay As Ray, RefP
 
             'pNea = puntos.FindNearest(xr, yr, puntos.ToXY(e.p))
 
-        Case "Text", "MText"
+        Case "TEXT", "MTEXT"
 
-            DistBase = puntos.RayToPointDistance(eye, e.P[0])
+            DistBase = puntos.Distancia3D(eye, e.P[0])
 
         Case "CIRCLE"
-            DistCenter = puntos.RayToPointDistance(eye, e.P[0])
+            DistCenter = puntos.Distancia3D(eye, e.P[0])
 
             ' pNea = puntos.NearestToPolyLine(xr, yr, e.PolyLine)
             '
@@ -685,15 +672,17 @@ Public Sub CheckPOI3D(e As Entity, Eye As Punto3d, Optional ToolRay As Ray, RefP
     If gcd.SnapMode And gcd.poiMIdPoint Then
         If Dist > DistMId Then dist = DistMId
     End If
-    If gcd.SnapMode And gcd.poiPerpendicular Then
-        If Dist > DistPer Then dist = DistPer
-    End If
+    ' TODO: perpendicular, LastPoint is now the cursor position, not the previous click
+    ' If gcd.SnapMode And gcd.poiPerpendicular Then
+    '     If Dist > DistPer Then dist = DistPer
+    ' End If
     If gcd.SnapMode And gcd.poiQuadrant Then
         If Dist > DistQuad Then dist = DistQuad
     End If
-    If gcd.SnapMode And gcd.poiTangent Then
-        If Dist > DistTang Then dist = DistTang
-    End If
+    ' TODO: tangent, same as perpendicular
+    ' If gcd.SnapMode And gcd.poiTangent Then
+    '     If Dist > DistTang Then dist = DistTang
+    ' End If
     If gcd.SnapMode And gcd.poiIntersection Then
         If Dist > DistInter Then dist = DistInter
     End If
@@ -719,13 +708,11 @@ Public Sub CheckPOI3D(e As Entity, Eye As Punto3d, Optional ToolRay As Ray, RefP
         DrawingAIds.txtSnapTo = "MidPoint"
     End If
 
-    ' ' ofrezco ese punto
-    ' If dist = DistInter Then
-    '     rData[0] = pIntersection[iInter]
-    '     rData[1] = pIntersection[iInter + 1]
-    '     rData[2] = gcd.poiIntersection
-    '     DrawingAIds.txtSnapTo = "Intersection"
-    ' End If
+    ' ofrezco ese punto
+    If dist = DistInter Then
+        rData = ["point": pIntersection[iInter], "desc": "Intersection", "mode": gcd.poiIntersection]
+        DrawingAIds.txtSnapTo = "Intersection"
+    End If
 
     ' ' ofrezco ese punto
     ' If dist = DistPer Then
@@ -749,13 +736,11 @@ Public Sub CheckPOI3D(e As Entity, Eye As Punto3d, Optional ToolRay As Ray, RefP
         rData = ["point": e.p[0].Copy(), "desc": "Center", "mode": gcd.poiCenter]
         DrawingAIds.txtSnapTo = "Center"
     End If
-    '
-    ' If dist = DistQuad Then
-    '     rData[0] = qx
-    '     rData[1] = qy
-    '     rData[2] = gcd.poiQuadrant
-    '     DrawingAIds.txtSnapTo = "Quadrant"
-    ' End If
+
+    If dist = DistQuad Then
+        rData = ["point": puntos.P3d(qx, qy, e.P[0].z), "desc": "Quadrant", "mode": gcd.poiQuadrant]
+        DrawingAIds.txtSnapTo = "Quadrant"
+    End If
 
     If dist = DistBase Then
         rData = ["point": e.p[0].Copy(), "desc": "Base point", "mode": gcd.poiBasePoint]
@@ -771,6 +756,54 @@ Public Sub CheckPOI3D(e As Entity, Eye As Punto3d, Optional ToolRay As Ray, RefP
     gcd.Drawing.eLastEntity = e
     rdata.Add(dist, "distance")
     Return rData
+
+End
+
+'' Devuelve el recorrido de la entidad como x,y,z planos, para buscar intersecciones
+Private Function PathXYZ(e As Entity) As Float[]
+
+    Dim flx As Float[]
+
+    Select Case e.Gender
+        Case "CIRCLE", "ARC", "ELLIPSE", "SPLINE", "RECTANGLE", "LWPOLYLINE"
+            ' estas arman la PolyLine con x,y,z
+            If e.PolyLine.Count >= 6 Then Return e.PolyLine
+            If e.Gender = "LWPOLYLINE" Then Return puntos.ToXYZ(e.P)
+        Case "LINE"
+            Return puntos.ToXYZ(e.P)
+        Case "SOLID"
+            flx = puntos.ToXYZ(e.P)
+            If e.P.Count > 2 Then flx.Insert(e.P[0].ToXYZ())
+            Return flx
+    End Select
+    Return []
+
+End
+
+'' Agrega a pFound las intersecciones (en el plano XY) de los tramos de flxA cercanos a pCursor
+'' con los tramos de flxB. Ambos son x,y,z planos, z se interpola sobre el tramo de flxA
+Private Sub AddIntersections(flxA As Float[], flxB As Float[], pCursor As Punto3d, fTolerance As Float, pFound As Punto3d[])
+
+    Dim i, j As Integer
+    Dim f As Float[]
+    Dim fLength, z As Float
+
+    For i = 0 To flxA.Count - 6 Step 3
+        ' solo me interesan los tramos de A que estan cerca del cursor
+        If pCursor.x < Min(flxA[i], flxA[i + 3]) - fTolerance Or pCursor.x > Max(flxA[i], flxA[i + 3]) + fTolerance Then Continue
+        If pCursor.y < Min(flxA[i + 1], flxA[i + 4]) - fTolerance Or pCursor.y > Max(flxA[i + 1], flxA[i + 4]) + fTolerance Then Continue
+
+        For j = 0 To flxB.Count - 6 Step 3
+            If Not puntos.doIntersect(flxA[i], flxA[i + 1], flxA[i + 3], flxA[i + 4], flxB[j], flxB[j + 1], flxB[j + 3], flxB[j + 4]) Then Continue
+            f = puntos.lineLineIntersection2(flxA[i], flxA[i + 1], flxA[i + 3], flxA[i + 4], flxB[j], flxB[j + 1], flxB[j + 3], flxB[j + 4])
+            If f.Count < 2 Then Continue    ' paralelas
+
+            z = flxA[i + 2]
+            fLength = puntos.distancia(flxA[i], flxA[i + 1], flxA[i + 3], flxA[i + 4])
+            If fLength > 0 Then z += (flxA[i + 5] - flxA[i + 2]) * puntos.distancia(flxA[i], flxA[i + 1], f[0], f[1]) / fLength
+            pFound.Add(puntos.P3d(f[0], f[1], z))
+        Next
+    Next
 
 End
 

@@ -33,7 +33,7 @@ Public Const Is2D As Boolean = True                      ' otras solo son 2D com
 Public SelStartP As New Punto3d
 Public SelEndP As New Punto3d
 Public CurrentP As New Punto3d
-Public LastP As New Punto3d
+Public LastP As New Punto3d                         ' change in MouseUp/KeyText, real space METERS not pixel
 
 Public SelStartX As Integer                         ' Sel = selection, where? Start/End , axis? X/Y
 Public SelStartY As Integer
@@ -42,20 +42,6 @@ Public SelEndy As Integer
 
 Public SelStartPanX As Integer                         ' Sel = selection, where? Start/End , axis? X/Y
 Public SelStartPanY As Integer
-
-Public SelStartXr As Float                          ' same but in real space, METERS not pixel
-Public SelStartYr As Float
-Public SelEndXr As Float
-Public SelEndyr As Float
-
-Public StartXr As Float                          ' same but in real space, METERS not pixel
-Public StartYr As Float
-Public EndXr As Float
-Public Endyr As Float
-
-Public LastX As Float               ' change in MouseUp
-Public LastY As Float
-Public LastZ As Float
 
 Public MouseX As Integer               ' change in MouseMove/MouseUp
 Public MouseY As Integer
@@ -205,17 +191,11 @@ Public Function KeyText(EnteredText As String)
         yt = CFloat(Split(EnteredText, ",")[1])
         Try zt = CFloat(Split(EnteredText, ",")[2])
         If Relative Then
-            xt += Me.LastX
-            yt += Me.LastY
-            zt += Me.LastZ
+            xt += Me.LastP.x
+            yt += Me.LastP.y
+            zt += Me.LastP.z
         Endif
-        Me.LastX = xt
-        Me.LastY = yt
-        Me.LastZ = zt
-
-        Me.LastP.x = xt
-        Me.LastP.y = yt
-        Me.LastP.z = zt
+        Me.LastP = New Punto3d(xt, yt, zt)
 
         ' last point
 
@@ -276,22 +256,22 @@ Public Sub DblClick()
 
     Me.SelStartX = mouse.X
     Me.SelStartY = mouse.Y
-    Me.SelStartXr = gcd.Xreal(Me.SelStartX)
-    Me.SelStartYr = gcd.Yreal(Me.SelStartY)
+    Me.SelStartP.x = gcd.Xreal(Me.SelStartX)
+    Me.SelStartP.y = gcd.Yreal(Me.SelStartY)
 
     'clsMouseTracking.CheckAboveEntity(gcd.Xreal(Mouse.x), gcd.Yreal(Mouse.y))
 
     If gcd.Drawing.Sheet.Viewport Then
 
         ' si el click esta fuera del viewport, lo desestimo
-        If Me.SelStartXr < gcd.Drawing.Sheet.Viewport.X0 Or Me.SelStartXr > gcd.Drawing.Sheet.Viewport.X1 Or Me.SelStartYr < gcd.Drawing.Sheet.Viewport.Y0 Or Me.SelStartYr > gcd.Drawing.Sheet.Viewport.Y1 Then
+        If Me.SelStartP.x < gcd.Drawing.Sheet.Viewport.X0 Or Me.SelStartP.x > gcd.Drawing.Sheet.Viewport.X1 Or Me.SelStartP.y < gcd.Drawing.Sheet.Viewport.Y0 Or Me.SelStartP.y > gcd.Drawing.Sheet.Viewport.Y1 Then
             gcd.Drawing.Sheet.Viewport = Null ' Desactivo el viewport
         End If
     Endif
 
     ' ahora veo si el click esta dentro de algun viewport
     For Each v In gcd.Drawing.Sheet.Viewports
-        If Me.SelStartXr >= v.X0 And Me.SelStartXr <= v.X1 And Me.SelStartYr >= v.Y0 And Me.SelStartYr <= v.Y1 Then
+        If Me.SelStartP.x >= v.X0 And Me.SelStartP.x <= v.X1 And Me.SelStartP.y >= v.Y0 And Me.SelStartP.y <= v.Y1 Then
             gcd.Drawing.Sheet.Viewport = v ' Activo el viewport
         End If
     Next
@@ -333,22 +313,20 @@ Public Sub MouseUp()
         If Me.PointsDone > 0 Then ' puedo buscar un ortogonal
             If gcd.Orthogonal Then
 
-                If Abs(x - LastX) > Abs(Y - LastY) Then ' X prevails
+                If Abs(x - Me.LastP.x) > Abs(Y - Me.LastP.y) Then ' X prevails
 
-                    y = LastY
+                    y = Me.LastP.y
 
                 Else
 
-                    X = LastX
+                    X = Me.LastP.x
 
                 Endif
 
             End If
         End If
 
-        LastX = X
-        LastY = y
-        Me.LastZ = gcd.Drawing.Sheet.level
+        Me.LastP = New Punto3d(X, Y, gcd.Drawing.Sheet.level)
 
     Else
 
@@ -384,13 +362,13 @@ Public Sub MouseMove()
     If Me.PointsDone > 0 Then ' puedo buscar un ortogonal
         If gcd.Orthogonal Then
 
-            If Abs(x - LastX) > Abs(Y - LastY) Then ' X prevails
+            If Abs(x - Me.LastP.x) > Abs(Y - Me.LastP.y) Then ' X prevails
 
-                y = LastY
+                y = Me.LastP.y
 
             Else
 
-                X = LastX
+                X = Me.LastP.x
 
             Endif
 

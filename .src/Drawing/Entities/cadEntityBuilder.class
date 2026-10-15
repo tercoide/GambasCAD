@@ -32,14 +32,7 @@ Public SelEndX As Integer           ' change in MouseMove/MouseUp
 Public SelEndY As Integer
 
 ' Metros
-Public SelStartXr As Float          ' Seleccion libre rectangular
-Public SelStartZr As Float          ' en metros
-Public SelEndXr As Float            ' aca Y es Z
-Public SelEndZr As Float
-
-Public LastX As Float               ' change in MouseMove/MouseUp
-Public LastY As Float
-Public LastZ As Float
+Public LastClickP As New Punto3d    ' change in MouseUp/KeyText
 
 Public LastPoint As Boolean
 
@@ -240,14 +233,12 @@ Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD
 
                 ' If Relative And (elem.P.count > 2) Then
                 If Relative Then        '  this should work too
-                    xt += Me.LastX
-                    yt += Me.LastY
-                    zt += Me.LastZ
+                    xt += Me.LastClickP.x
+                    yt += Me.LastClickP.y
+                    zt += Me.LastClickP.z
 
                 Endif
-                Me.LastX = xt
-                Me.LastY = yt
-                Me.LastZ = zt
+                Me.LastClickP = New Punto3d(xt, yt, zt)
 
                 GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point", xt, yt, zt], True))
 
@@ -379,7 +370,7 @@ Public Sub MouseMove()
     If NextParamType = "angle" Then
 
         ' return the angle from horizontal to us
-        f = Ang(gcd.Xreal(LastMouseX) - Me.LastX, gcd.Yreal(LastMouseY) - Me.lastY)
+        f = Ang(gcd.Xreal(LastMouseX) - Me.LastClickP.x, gcd.Yreal(LastMouseY) - Me.LastClickP.y)
         f *= 180 / Pi
         fMain.txtCommand.Text = "angle = " & Str(f)
         GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["float", f]))
@@ -400,7 +391,7 @@ Public Sub MouseMove()
     If NextParamType = "lenght" Then
 
         ' return the angle from horizontal to us
-        f = puntos.distancia(gcd.Xreal(LastMouseX), gcd.Yreal(LastMouseY), Me.LastX, Me.lastY)
+        f = puntos.distancia(gcd.Xreal(LastMouseX), gcd.Yreal(LastMouseY), Me.LastClickP.x, Me.LastClickP.y)
         fMain.txtCommand.Text = "d = " & Str(f)
         'Stop
         getAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["float", f]))
@@ -420,20 +411,20 @@ Public Sub MouseMove()
 
     If gcd.Orthogonal And LastPoint Then          ' hablame de operadores logicos
 
-        If Abs(X - LastX) > Abs(Y - LastY) Then ' prevalece X
-            Y = LastY
+        If Abs(X - Me.LastClickP.x) > Abs(Y - Me.LastClickP.y) Then ' prevalece X
+            Y = Me.LastClickP.y
         Else
-            X = LastX
+            X = Me.LastClickP.x
         Endif
 
     End If
 
-    Dx = X - lastx
-    Dy = Y - LastY
+    Dx = X - Me.LastClickP.x
+    Dy = Y - Me.LastClickP.y
 
     If LastPoint Then
         If NextParamType = "point" Then
-            fMain.txtCommand.Text = "@" & Str(x - lastx) & "," & Str(y - lastY)
+            fMain.txtCommand.Text = "@" & Str(x - Me.LastClickP.x) & "," & Str(y - Me.LastClickP.y)
         End If
 
     Endif
@@ -497,18 +488,17 @@ Public Sub MouseUp()
     ' Else                                                                        ' puedo hacer ortogonal
     If gcd.Orthogonal And LastPoint Then          ' hablame de operadores logicos
 
-        If Abs(X - LastX) > Abs(Y - LastY) Then ' prevalece X
-            Y = LastY
+        If Abs(X - Me.LastClickP.x) > Abs(Y - Me.LastClickP.y) Then ' prevalece X
+            Y = Me.LastClickP.y
         Else
-            X = LastX
+            X = Me.LastClickP.x
         Endif
 
     End If
 
     'End If
 
-    LastX = X
-    LastY = Y
+    Me.LastClickP = New Punto3d(X, Y, Me.LastClickP.z)
     LastPoint = True
 
     Dim p As Punto3d
@@ -519,7 +509,7 @@ Public Sub MouseUp()
     If NextParamType = "angle" Then
 
         ' return the angle from horizontal to us
-        f = Ang(gcd.Xreal(mouse.x) - Me.LastX, gcd.Yreal(mouse.y) - Me.lastY)
+        f = Ang(gcd.Xreal(mouse.x) - Me.LastClickP.x, gcd.Yreal(mouse.y) - Me.LastClickP.y)
         f *= 180 / Pi
         GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["float", f], True))
 
@@ -543,7 +533,7 @@ Public Sub MouseUp()
     If NextParamType = "lenght" Then
 
         ' return the angle from horizontal to us
-        f = puntos.distancia(gcd.Xreal(mouse.x), gcd.Yreal(mouse.y), Me.LastX, Me.lastY)
+        f = puntos.distancia(gcd.Xreal(mouse.x), gcd.Yreal(mouse.y), Me.LastClickP.x, Me.LastClickP.y)
 
         GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["float", f], True))
         gcd.redraw

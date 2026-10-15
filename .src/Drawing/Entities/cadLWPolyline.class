@@ -82,19 +82,24 @@ End
 Public Function MakePolyLine(oE As Entity)
 
     Dim ang1, px0, py0, mx, my, px1, py1, B, bx, by, Lt, alpha As Float
-    Dim i As Integer
+    Dim i, j As Integer
     Dim fArcParams As New Float[]
+    Dim flxArc As Float[]
 
     ' If oe.id = "B2E7" Then Stop
     oe.PolyLine.Clear
 
     If oe.iParam[Me.iiiBulged] Then     ' necesito armar una Polylinea
 
+        ' la PolyLine es x,y,z continua, como la de las demas entidades
         For i = 0 To oe.P.Count - 2
             px0 = oe.P[i].x
             py0 = oe.P[i].y
             px1 = oe.P[i + 1].x
             py1 = oe.P[i + 1].y
+
+            AddStripPoint(oe.PolyLine, px0, py0, oe.P[i].z)
+
             ' no todos los tramos pueden tener bulges
             If Abs(oe.fParam[i]) > 0.001 Then
 
@@ -112,29 +117,47 @@ Public Function MakePolyLine(oE As Entity)
                 fArcParams = puntos.Arc3Point(px0, py0, bx, by, px1, py1)
 
                 ' la condicion a cumplir es que ambos valores sean positivos y que 3<4
-                If fArcParams.Count < 5 Then
-                    oe.PolyLine.Insert([px0, py0, px1, py1])
-                Else
-                    If (fArcParams[4] < 1e-3) Or (fArcParams[2] > 1e6) Then
+                If fArcParams.Count >= 5 Then
+                    If (fArcParams[4] >= 1e-3) And (fArcParams[2] <= 1e6) Then
 
-                        oe.PolyLine.Insert([px0, py0, px1, py1])
-
-                    Else
-
-                        oe.PolyLine.Insert(glx.ArcPoly(fArcParams[0], fArcParams[1], fArcParams[2], fArcParams[3], fArcParams[4]))
+                        ' ArcPoly devuelve tramos x0,y0,x1,y1 siempre en sentido antihorario,
+                        ' asi que lo doy vuelta si arranca del lado de P[i+1]
+                        flxArc = glx.ArcPoly(fArcParams[0], fArcParams[1], fArcParams[2], fArcParams[3], fArcParams[4])
+                        If flxArc.Count >= 2 Then
+                            If puntos.distancia(px0, py0, flxArc[0], flxArc[1]) <= puntos.distancia(px0, py0, flxArc[flxArc.Max - 1], flxArc[flxArc.Max]) Then
+                                For j = 0 To flxArc.Count - 2 Step 2
+                                    AddStripPoint(oe.PolyLine, flxArc[j], flxArc[j + 1], oe.P[i].z)
+                                Next
+                            Else
+                                For j = flxArc.Count - 2 To 0 Step -2
+                                    AddStripPoint(oe.PolyLine, flxArc[j], flxArc[j + 1], oe.P[i].z)
+                                Next
+                            Endif
+                        Endif
                     Endif
                 End If
 
-            Else    ' dibujo la linea normalmente
-                oe.PolyLine.Insert([px0, py0, px1, py1])
-            End If
+            Endif
 
         Next
+        AddStripPoint(oe.PolyLine, oe.P[oe.P.Max].x, oe.P[oe.P.Max].y, oe.P[oe.P.Max].z)
     Else
 
         oe.PolyLine.Insert(puntos.ToXYZ(oe.P))
 
     End If
+
+End
+
+'' Agrega x,y,z al final de la tira, salvo que repita el ultimo punto
+Private Sub AddStripPoint(flxStrip As Float[], x As Float, y As Float, z As Float)
+
+    If flxStrip.Count >= 3 Then
+        If flxStrip[flxStrip.Max - 2] = x And flxStrip[flxStrip.Max - 1] = y And flxStrip[flxStrip.Max] = z Then Return
+    Endif
+    flxStrip.Add(x)
+    flxStrip.Add(y)
+    flxStrip.Add(z)
 
 End
 
@@ -146,7 +169,7 @@ Public Sub Draw(oE As Entity)
 
         glx.PolyLines(oE.PolyLine, gcd.GetGBColor(oE.Colour, oe.pLayer), gcd.GetLineWt(oE.LineWIdth, oe.pLayer), oe.LineType.TrameLength)
     Else If iContext = 1 Then
-        paintPlus.LineStripe(oe.PolyLine)
+        paintPlus.LineStripe(puntos.ToXY(puntos.FromXYZ(oe.PolyLine)))     ' la PolyLine es x,y,z
 
     End If
 
