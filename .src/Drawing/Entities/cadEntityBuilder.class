@@ -24,26 +24,16 @@ Create Static
 
 ' Pixeles
 Public Const Gender As String = "BUILDER"
-Public LastMouseDownX As Integer    ' change in MouseDown
-Public LastMouseDownY As Integer
-Public SelStartX As Integer         ' change in MouseDown
-Public SelStartY As Integer
-Public SelEndX As Integer           ' change in MouseMove/MouseUp
-Public SelEndY As Integer
 
 ' Metros
-Public LastClickP As New Punto3d    ' change in MouseUp/KeyText
 
-Public LastPoint As Boolean
-
-Public LastMouseX As Integer               ' change in MouseMove/MouseUp
-Public LastMouseY As Integer
+Public MouseX As Integer               ' change in MouseMove/MouseUp
+Public MouseY As Integer
 
 'Para que sirva al 3D
 Public SelStartP As New Punto3d
 Public SelEndP As New Punto3d
 Public CurrentP As New Punto3d
-Public LastP As New Punto3d
 
 ' indicadores
 'Public StepsDone As Integer = 0          ' La cantidad de puntos que marco para el trabajo actual--->Gurdado en la entidad
@@ -93,7 +83,6 @@ Public Function Start(Optional ElemToBuild As Variant, Optional Mode As Integer 
 
     ' limpiamos la seleccion
 
-    LastPoint = False
     clsEntities.DeSelection()
 
     ' clsEntities.glGenVboSelected()
@@ -232,22 +221,15 @@ Public Function KeyText(EnteredText As String) ' esta rutina es llamada por FCAD
                 Try zt = CFloat(Eval(Split(EnteredText, ",")[2]))
 
                 ' If Relative And (elem.P.count > 2) Then
-                If Relative Then        '  this should work too
-                    xt += Me.LastClickP.x
-                    yt += Me.LastClickP.y
-                    zt += Me.LastClickP.z
+                If Relative And Not IsNull(gcd.drawing.sheet.LastPoint) Then        '  this should work too
+                    xt += gcd.drawing.sheet.LastPoint.x
+                    yt += gcd.drawing.sheet.LastPoint.y
+                    zt += gcd.drawing.sheet.LastPoint.z
 
                 Endif
-                Me.LastClickP = New Punto3d(xt, yt, zt)
 
                 GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point", xt, yt, zt], True))
-
-                If Good Then
-                    ' last point
-
-                    gcd.drawing.sheet.lastpoint = New Punto3d(xt, yt)
-
-                End If
+                gcd.drawing.sheet.lastpoint = New Punto3d(xt, yt, zt)
 
             Else    ' es una letra
 
@@ -328,40 +310,26 @@ Public Sub MouseMove()
     Dim Dy As Float
     Dim p As Punto3d
     Dim poi As Collection
-    '  If gcd.Drawing.HoveredEntity Then Stop
-
-    Try MouseTry = Mouse.X
-    If MouseTry >= 0 Then ' mouse is active
-
-        LastMouseX = Mouse.X
-        LastMouseY = Mouse.Y
-
-    Endif
-
-    X = gcd.Xreal(LastMouseX)
-    Y = gcd.Yreal(LastMouseY)
-    p = glx.XYZ(x, y)
 
     ' ' yo NO soy el responsable de chequear POI
     ' poi = clsMouseTracking.CheckBestPOI(x, Y)
     ' Me.LastP = poi["point"]
 
     ' Version moderna 3D
-    If gcd.Drawing.Sheet.LastTrackedPoint Then
-        Me.LastP = gcd.Drawing.Sheet.LastTrackedPoint
+    If gcd.Drawing.Sheet.CurentTrackedPoint Then
+        P = gcd.Drawing.Sheet.CurentTrackedPoint.Copy()
     Else
-        Me.LastP = gcd.Drawing.Sheet.LastPoint
+        P = gcd.Drawing.Sheet.CurrentPoint.Copy()
     End If
 
-    If Not Me.LastP Then Stop ' no deberia ocurrir
+    If Not P Then Stop ' no deberia ocurrir
 
-    X = gcd.Near(X)
-    Y = gcd.Near(Y)
-    Z = gcd.Near(Z)
+    ' X = gcd.Xreal(MouseX)                     ' El punto rastreado ya viene en coordenadas reales y en el plano de trabajo
+    ' Y = gcd.Yreal(MouseY)
 
-    ' pero veo si tengo un POI
-
-    'If InStr("LAPRM", NextParamType) = 0 Then Return ' we are expecting a parameter
+    X = gcd.Near(p.X)
+    Y = gcd.Near(p.Y)
+    Z = gcd.Near(p.Z)
 
     ' a very special case
     If elem.Gender = "SPLINE" And (Me.iPoints <> elem.P.Count - 1) Then Inc iPoints
@@ -370,75 +338,50 @@ Public Sub MouseMove()
     If NextParamType = "angle" Then
 
         ' return the angle from horizontal to us
-        f = Ang(gcd.Xreal(LastMouseX) - Me.LastClickP.x, gcd.Yreal(LastMouseY) - Me.LastClickP.y)
+        f = Ang(x - gcd.drawing.sheet.LastPoint.x, y - gcd.drawing.sheet.LastPoint.y)
         f *= 180 / Pi
         fMain.txtCommand.Text = "angle = " & Str(f)
         GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["float", f]))
 
-        gcd.redraw
-
-        Return              ' nothing more to do here
     End If
 
     If NextParamType = "relation" Then
 
         GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point", p.x, p.y, p.z]))
-        gcd.redraw
-
-        Return              ' nothing more to do here
+        ' nothing more to do here
     End If
 
     If NextParamType = "lenght" Then
 
-        ' return the angle from horizontal to us
-        f = puntos.distancia(gcd.Xreal(LastMouseX), gcd.Yreal(LastMouseY), Me.LastClickP.x, Me.LastClickP.y)
+        f = puntos.distancia(x, y, gcd.drawing.sheet.LastPoint.x, gcd.drawing.sheet.LastPoint.y)
         fMain.txtCommand.Text = "d = " & Str(f)
-        'Stop
+
         getAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["float", f]))
-
-        gcd.redraw
-
-        Return              ' nothing more to do here
 
     End If
 
-    ' y si tengo enganche?
-
-    X = Me.LastP.x
-    Y = Me.LastP.y
-
     ' aca tengo que verificar el ortogonal
 
-    If gcd.Orthogonal And LastPoint Then          ' hablame de operadores logicos
+    If gcd.Orthogonal And Not IsNull(gcd.drawing.sheet.LastPoint) Then          ' hablame de operadores logicos
 
-        If Abs(X - Me.LastClickP.x) > Abs(Y - Me.LastClickP.y) Then ' prevalece X
-            Y = Me.LastClickP.y
+        If Abs(X - gcd.drawing.sheet.LastPoint.x) > Abs(Y - gcd.drawing.sheet.LastPoint.y) Then ' prevalece X
+            Y = gcd.drawing.sheet.LastPoint.y
         Else
-            X = Me.LastClickP.x
+            X = gcd.drawing.sheet.LastPoint.x
         Endif
 
     End If
 
-    Dx = X - Me.LastClickP.x
-    Dy = Y - Me.LastClickP.y
-
-    If LastPoint Then
+    If Not IsNull(gcd.drawing.sheet.LastPoint) Then
         If NextParamType = "point" Then
-            fMain.txtCommand.Text = "@" & Str(x - Me.LastClickP.x) & "," & Str(y - Me.LastClickP.y)
+            fMain.txtCommand.Text = "@" & Str(x - gcd.drawing.sheet.LastPoint.x) & "," & Str(y - gcd.drawing.sheet.LastPoint.y)
         End If
 
     Endif
 
     If NextParamType = "point" Then
 
-        ' ' y si estoy en 3D?
-        ' If gcd.Drawing.Sheet.Is3D Then
-        '     If gcd.Drawing.Sheet.LastPoint Then
-        '         p = gcd.Drawing.Sheet.LastPoint
-        '     Endif
-        ' Endif
-
-        GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point", Me.LastP.x, Me.LastP.y, Me.LastP.z], False))
+        GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point", P.x, P.y, P.z], False))
     End If
 
     gcd.redraw
@@ -452,6 +395,7 @@ End
 Public Sub MouseUp()
 
     Dim X, Y, Z, f As Float
+    Dim p As Punto3d
 
     If Mouse.Right Then ' si tengo un valor default, lo mando
         If Me.ParamDefault.Count > 0 Then
@@ -469,47 +413,27 @@ Public Sub MouseUp()
     DrawingAIds.ErrorMessage = ""
     'If InStr("LAPRM", NextParamType) = 0 Then Return ' we are expecting a parameter
 
-    ' we are waiting for a point
-
-    X = gcd.Near(gcd.Xreal(mouse.x))
-    Y = gcd.Near(gcd.Yreal(mouse.y))
-
-    ' ' y si tengo enganche?
-    '
-    ' If (gcd.Drawing.iEntity["mode"] > 0) Then
-    '
-    '     ' esto re enganchado
-    '
-    '     X = gcd.Drawing.iEntity["point"].x
-    '     Y = gcd.Drawing.iEntity["point"].y
-    '
-    '     ' aca tengo que verificar el ortogonal
-    '
-    ' Else                                                                        ' puedo hacer ortogonal
-    If gcd.Orthogonal And LastPoint Then          ' hablame de operadores logicos
-
-        If Abs(X - Me.LastClickP.x) > Abs(Y - Me.LastClickP.y) Then ' prevalece X
-            Y = Me.LastClickP.y
-        Else
-            X = Me.LastClickP.x
-        Endif
-
+    ' Version moderna 3D
+    If gcd.Drawing.Sheet.CurentTrackedPoint Then
+        P = gcd.Drawing.Sheet.CurentTrackedPoint.Copy()
+    Else
+        P = gcd.Drawing.Sheet.CurrentPoint.Copy()
     End If
 
-    'End If
+    If Not P Then Stop ' no deberia ocurrir
 
-    Me.LastClickP = New Punto3d(X, Y, Me.LastClickP.z)
-    LastPoint = True
+    ' X = gcd.Xreal(MouseX)                     ' El punto rastreado ya viene en coordenadas reales y en el plano de trabajo
+    ' Y = gcd.Yreal(MouseY)
 
-    Dim p As Punto3d
-
-    p = glx.XYZ(x, y)                           ' esta funcion transforma coord de pantalla en 3D de acuerdo al plano de trabajo sie stoy en 2D
+    X = gcd.Near(p.X)
+    Y = gcd.Near(p.Y)
+    Z = gcd.Near(p.Z)                       ' esta funcion transforma coord de pantalla en 3D de acuerdo al plano de trabajo sie stoy en 2D
 
     ' if we expect a parameter, it will be passed
     If NextParamType = "angle" Then
 
         ' return the angle from horizontal to us
-        f = Ang(gcd.Xreal(mouse.x) - Me.LastClickP.x, gcd.Yreal(mouse.y) - Me.LastClickP.y)
+        f = Ang(x - gcd.drawing.sheet.LastPoint.x, y - gcd.drawing.sheet.LastPoint.y)
         f *= 180 / Pi
         GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["float", f], True))
 
@@ -521,40 +445,23 @@ Public Sub MouseUp()
 
         If GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point", p.x, p.y, p.z], True)) Then
 
-            ' last point
-
-            gcd.drawing.sheet.lastpoint = New Punto3d(gcd.Xreal(mouse.x), gcd.Yreal(mouse.y))
-
         End If
-        gcd.redraw
-        Return
+
     End If
 
     If NextParamType = "lenght" Then
 
         ' return the angle from horizontal to us
-        f = puntos.distancia(gcd.Xreal(mouse.x), gcd.Yreal(mouse.y), Me.LastClickP.x, Me.LastClickP.y)
+        f = puntos.distancia(x, y, gcd.drawing.sheet.LastPoint.x, gcd.drawing.sheet.LastPoint.y)
 
         GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["float", f], True))
-        gcd.redraw
-        Return              ' nothing more to do here
 
     End If
 
     If NextParamType = "point" Then
 
-        ' ' y si estoy en 3D?
-        ' If gcd.Drawing.Sheet.Is3D Then
-        '     If gcd.Drawing.Sheet.LastPoint Then
-        '         p = gcd.Drawing.Sheet.LastPoint     ' pero si estoy en 3D es otro el punto
-        '     Endif
-        ' Endif
-
-        GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point", Me.LastP.x, Me.LastP.y, Me.LastP.z], True))
+        GetAnswer(Gcd.CCC[elem.gender].NewParameter(elem, ["point", P.x, P.y, P.z], True))
     End If
-    ' last point
-
-    gcd.drawing.sheet.lastpoint = New Punto3d(x, y)
 
     gcd.redraw
 
@@ -593,6 +500,7 @@ End
 Public Sub Finish() As Boolean
 
     fMain.txtCommand.Text = ""
+    gcd.drawing.sheet.LastPoint = Null
 
     ' La entidad se crea sin handle
     If elem.Id = "" Then elem.Id = gcd.NewId()
