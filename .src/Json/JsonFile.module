@@ -82,6 +82,7 @@ Public Function SaveFile(sName As String, drw As Drawing) As Integer
     bFirst = True
     For Each b In drw.Blocks
         If b.Sheet Then Continue
+        If b.name Like "[*][Dd]*" Then Continue      ' los bloques de las cotas van con cada cota
         If Not bFirst Then Print #hFile, ","
         WriteBlock(b)
         bFirst = False
@@ -244,6 +245,7 @@ Public Function LoadFile(sFile As String, drw As Drawing) As Boolean
     Dim aSheets As New Sheet[]
     Dim aSheetEntities As New Variant[]
     Dim i As Integer
+    Dim iSavedSeed As Integer
 
     cData = JSON.Decode(File.Load(sFile), True)      ' True: conserva las claves con null (textos vacios)
     If Not cData Then Return True
@@ -260,6 +262,7 @@ Public Function LoadFile(sFile As String, drw As Drawing) As Boolean
         drw.Is3D = cData["drawing"]["Is3D"]
         drw.Has3dEntities = cData["drawing"]["Has3dEntities"]
         drw.HandSeed = cData["drawing"]["HandSeed"]
+        iSavedSeed = drw.HandSeed
     Endif
     If cData["headers"] Then JsonToObject(drw.Headers, cData["headers"])
 
@@ -320,6 +323,11 @@ Public Function LoadFile(sFile As String, drw As Drawing) As Boolean
     clsEntities.BuildGeometry()
     gcd.debugInfo("Geometry generated",,, True, True)
 
+    ' armar los INSERT gasta handles en sus partes, que no se guardan; vuelvo al seed guardado
+    ' salvo que alguna entidad o tabla que si se guarda haya recibido una handle nueva
+    drw.HandSeed = Max(iSavedSeed, MaxUsedId(drw))
+    drw.Headers.HANDSEED = Hex(drw.HandSeed)
+
     drwLoading = Null                ' de aqui en mas JsonToEntity usa gcd.Drawing
     Return False
 
@@ -327,6 +335,46 @@ Catch
     drwLoading = Null
     gcd.debugInfo("JSON: error reading " & sFile & ": " & Error.Text & " " & Error.Where,,, True)
     Return True
+
+End
+
+'' La handle mas alta en uso por lo que se guarda en el archivo: tablas, bloques, hojas y sus entidades
+Private Function MaxUsedId(drw As Drawing) As Integer
+
+    Dim iMax As Integer
+    Dim b As Block
+    Dim s As Sheet
+    Dim e As Entity
+    Dim o As Object
+    Dim cTable As Collection
+
+    For Each cTable In [drw.LineTypes, drw.Layers, drw.TextStyles, drw.DimStyles]
+        For Each o In cTable
+            iMax = Max(iMax, HexToInt(o.id))
+        Next
+    Next
+    For Each b In drw.Blocks
+        iMax = Max(iMax, HexToInt(b.id))
+        For Each e In b.entities
+            iMax = Max(iMax, HexToInt(e.id))
+        Next
+    Next
+    For Each s In drw.Sheets
+        iMax = Max(iMax, HexToInt(s.id))
+        For Each e In s.Entities
+            iMax = Max(iMax, HexToInt(e.id))
+        Next
+    Next
+    Return iMax
+
+End
+
+Private Function HexToInt(sId As String) As Integer
+
+    Dim i As Integer
+
+    Try i = CInt(Val("&H" & sId))
+    Return i
 
 End
 

@@ -73,7 +73,7 @@ Public Sub Explode()
 
         Select e.Gender
 
-            Case Like "DIM*", "INSERT"
+            Case Like "DIM*", "ARC_DIMENSION", "LARGE_RADIAL_DIMENSION", "INSERT"
                 ' tengo q crear todas lass entidades del bloque que lo conforma
                 ' y eliminar el Insert o Dimension
                 ' para ello debo seguir el mismo metodo con que los dibujo
@@ -146,6 +146,16 @@ Public Sub Explode_List(eList As Collection, eParent As Entity, cDestination As 
     Dim et As Entity
 
     For Each ET In eList
+        ' las partes de las cotas tienen ids locales y pueden ser ByBlock
+        If cadDimension.IsDimension(eParent) Then
+            et.Id = gcd.NewId()
+            If et.Colour = 0 Then et.Colour = eParent.Colour
+            If et.LineWidth = -2 Then et.LineWidth = eParent.LineWidth
+            et.pLayer = eParent.pLayer
+            et.Container = eParent.Container
+        Else If et.Id = "" Or If cDestination.Exist(et.Id) Then
+            et.Id = gcd.NewId()
+        Endif
         gcd.Drawing.uUndo.AddUndoItem(et, Undo.TypeCreate)
         cDestination.Add(et, et.Id)
         ' fix clsEntities. glGenDrawList(et)

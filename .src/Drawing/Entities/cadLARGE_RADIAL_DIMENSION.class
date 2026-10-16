@@ -19,306 +19,125 @@
 ' along with this program; if not, write to the Free Software
 ' Foundation, Inc., 51 Franklin St, Fifth Floor,
 ' Boston, MA  02110-1301  USA
+
+'' Cota de radio grande, con quiebre (entidad LARGE_RADIAL_DIMENSION del DXF)
+''   P[0] = 10   centro verdadero
+''   P[5] = 15   punto sobre la curva
+''   P[3] = 13   centro aparente, donde arranca la linea de cota
+''   P[4] = 14   punto del quiebre
+''   P[1] = 11   centro del texto
+
 Create Static
-Inherits Caddimension
+Inherits CadDimension
 
 Public Const Gender As String = "LARGE_RADIAL_DIMENSION"
-Public Const DrawingOrder As Integer = 100 ' 1 a 32.724 esto debe Drawse primero y ser sobreescrito por el resto
-Public Const PointsToDraw As Integer = 1             ' minimal point requered for drawing something usefull
-Public Const CmdLineHelper As String = ("Insert a linear acotation")
-Public Const ParamType As String = "PPR"                             ' that is Point, Point, Float; could be Color Text, etc
-Public Const ParamHelper As String = "Start point;End point;extension"
-
-Public Function SaveDxfData(e As Entity) As Boolean
-
-    cadDimension.SaveDxfData(e)
-
-    dxf.SaveCodeInv("AcDbRadialDimensionLarge", "100")
-    ' ===========================================================================
-    dxf.SaveCodeInv(CStr(e.P[8].x), "13")
-    dxf.SaveCodeInv(CStr(e.P[8].y), "23")
-    dxf.SaveCodeInv("0", "33")
-
-    dxf.SaveCodeInv(CStr(e.P[9].x), "14")
-    dxf.SaveCodeInv(CStr(e.P[9].y), "24")
-    dxf.SaveCodeInv("0", "34")
-
-    dxf.SaveCodeInv(CStr(e.P[10].x), "15")
-    dxf.SaveCodeInv(CStr(e.P[10].y), "25")
-    dxf.SaveCodeInv("0", "35")
-
-    dxf.SaveCodeInv("0", "40")
-
-End
-
-Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
-
-    Dim i As Integer
-    Dim DimTypeSet, BlockSet As Boolean
-
-    DimTypeSet = False
-    For i = 0 To sClaves.Max
-
-        If sClaves[i] = "2" Then
-            If BlockSet = False Then                                ' this prevents duplicated "2" codes
-                e.pBlock = clsEntities.FIndBlock(sValues[i], gcd.Drawing.Blocks)   ' this could be null
-                BlockSet = True
-
-            End If
-        End If
-
-        If sClaves[i] = "10" Then e.P[0].x = CFloat(sValues[i])         ' X0  first definition point
-        If sClaves[i] = "20" Then e.P[0].y = CFloat(sValues[i])         ' Y0
-        If sClaves[i] = "11" Then e.P[1].x = CFloat(sValues[i])         ' X1  midpoint of text
-        If sClaves[i] = "21" Then e.P[1].y = CFloat(sValues[i])         ' Y1
-        If sClaves[i] = "12" Then e.P[4].x = CFloat(sValues[i])
-        If sClaves[i] = "22" Then e.P[4].y = CFloat(sValues[i])
-
-        If sClaves[i] = "13" Then e.P[0].x = CFloat(sValues[i])
-        If sClaves[i] = "23" Then e.P[0].y = CFloat(sValues[i])
-
-        If sClaves[i] = "14" Then e.P[1].x = CFloat(sValues[i])
-        If sClaves[i] = "24" Then e.P[1].y = CFloat(sValues[i])
-        If sClaves[i] = "3" Then e.pDimStyle = gcd.Drawing.DimStyles[sValues[i]]
-
-    Next
-
-    '
-    ' ' en algunos DXF el codigo 70 no esta
-    ' If Not DimTypeSet Then gcd.CCC[e.gender] = cadDIMENSION_LINEAR
-
-    ' tengo q presuponer que las escalas son = 1
-    e.fParam[Me.ipaEscX] = 1    ' esc X
-    e.fParam[Me.ipaEscY] = 1    ' esc Y
-    e.fParam[Me.ipaEscZ] = 1    ' esc Z
-
-    ' TODO: cuando este terminada la entidad, sacar eso
-    e.pBlock.InsertionPlace = 1
-
-    ' y poner esto
-    ' e.pBlock = Me.ReBuildBlock(e)
-
-    Return True
-
-    '' catch
-
-    Return False
-
-End
+Public Const DrawingOrder As Integer = 100
+Public Const PointsToDraw As Integer = 1
+Public Const CmdLineHelper As String = ("Insert a jogged radius dimension")
+Public Const ParamType As String = "PPPP"
+Public Const ParamHelper As String = "Center;Point on the curve;Apparent center;Jog location"
+Public Const DimTypeCode As Integer = 9
+Public Const DxfSubclass As String = "AcDbRadialDimensionLarge"
+Public Const GripPoints As String = "0;5;3;4;1"
+Public Const GripTips As String = ("Move center;Move point on the curve;Move apparent center;Move jog;Move text")
 
 Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Variant
-
-    ' la linea solo recibe puntos
 
     If vParam[0] <> "point" Then Return False
 
     If gcd.StepsDone = 0 Then
-        Me.DimType = gcd.dimAligned
 
-        Try eBuild.P[0].x = vParam[1]
-        Try eBuild.P[0].y = vParam[2]
-        eBuild.P[1].x = eBuild.P[0].x
-        eBuild.P[1].y = eBuild.P[0].y
+        eBuild.P[0] = Me.ParamPoint(vParam)
+        eBuild.P[5] = eBuild.P[0].Copy()
+        eBuild.P[3] = eBuild.P[0].Copy()
+        eBuild.P[4] = eBuild.P[0].Copy()
         If Definitive Then Return True
+
     Else If gcd.StepsDone = 1 Then
 
-        Try eBuild.P[1].x = vParam[1]
-        Try eBuild.P[1].y = vParam[2]
-        eBuild.pBlock = ReBuildBlock(eBuild)
+        eBuild.P[5] = Me.ParamPoint(vParam)
+        eBuild.P[3] = eBuild.P[0].Copy()
+        eBuild.P[4] = puntos.P3d((eBuild.P[0].x + eBuild.P[5].x) / 2, (eBuild.P[0].y + eBuild.P[5].y) / 2, eBuild.P[5].z)
+        Me.Rebuild(eBuild)
         If Definitive Then Return True
+
     Else If gcd.StepsDone = 2 Then
-        If vParam[0] = "point" Then  ' vino como un punto, entonces la calculo de otra manera
 
-            ' return the angle from horizontal to us
-            eBuild.fParam[Me.ipaExtension] = -puntos.PointToLineDistance([vParam[1], vParam[2]], [eBuild.P[0].x, eBuild.P[0].y, eBuild.P[1].x, eBuild.P[1].y]) ' / puntos.distancia(eBuild.P[0].x, eBuild.P[0].y, eBuild.P[1].x, eBuild.P[1].y
+        eBuild.P[3] = Me.ParamPoint(vParam)
+        eBuild.P[4] = puntos.P3d((eBuild.P[3].x + eBuild.P[5].x) / 2, (eBuild.P[3].y + eBuild.P[5].y) / 2, eBuild.P[5].z)
+        Me.Rebuild(eBuild)
+        If Definitive Then Return True
 
-        Else If vParam[0] = "float" Then  ' vino como un punto, entonces la calculo de otra manera
-            eBuild.fParam[Me.ipaExtension] = vParam[1]
+    Else If gcd.StepsDone = 3 Then
 
-        End If
+        eBuild.P[4] = Me.ParamPoint(vParam)
+        Me.Rebuild(eBuild)
+        If Definitive Then Return True
 
-        eBuild.pBlock = ReBuildBlock(eBuild)
-        If Definitive Then
-            'Stop
-            Return True
-        End If
     Endif
 
 End
 
-Public Sub ReBuildBlock(E As Entity) As Block
+Public Sub MakeBlock(e As Entity)
 
-    Dim d As Float, flxTextExt As Float[]
+    Dim d As DimStyle = e.pDimStyle
+    Dim r, ux, uy, ax, ay, bx, by, t, th, gap, ta, tcx, tcy As Float
+    Dim sText As String
 
-    Dim newBlock As New Block
-    Dim f1, f2 As New Float[]
+    r = Sqr((e.P[5].x - e.P[0].x) ^ 2 + (e.P[5].y - e.P[0].y) ^ 2)
+    If r > 0 Then
+        ux = (e.P[5].x - e.P[0].x) / r
+        uy = (e.P[5].y - e.P[0].y) / r
+    Else
+        ux = 1
+        uy = 0
+    Endif
+    e.fParam[Me.ipaRealMeasure] = r * e.pDimStyle.DIMLFAC     ' como en el DXF, con el factor
+    If e.fParam[Me.ipaJogAngle] = 0 Then e.fParam[Me.ipaJogAngle] = Pi / 4
+    sText = Me.LinearText(e, r, "R")
 
-    newBlock.entities = New Collection
+    ' A: sobre la paralela que sale del centro aparente; B: sobre el radio verdadero; los dos a la altura del quiebre
+    t = (e.P[4].x - e.P[3].x) * ux + (e.P[4].y - e.P[3].y) * uy
+    ax = e.P[3].x + ux * t
+    ay = e.P[3].y + uy * t
+    t = (e.P[4].x - e.P[0].x) * ux + (e.P[4].y - e.P[0].y) * uy
+    bx = e.P[0].x + ux * t
+    by = e.P[0].y + uy * t
 
-    Return newBlock
+    Me.AddLine(e, e.P[3].x, e.P[3].y, ax, ay, Me.PartDimLine)
+    Me.AddLine(e, ax, ay, e.P[4].x, e.P[4].y, Me.PartDimLine)
+    Me.AddLine(e, e.P[4].x, e.P[4].y, bx, by, Me.PartDimLine)
+    Me.AddLine(e, bx, by, e.P[5].x, e.P[5].y, Me.PartDimLine)
+    Me.AddMarker(e, d.Marker(2), e.P[5].x, e.P[5].y, Ang(ux, uy))
 
-    ' para definir este bloque necesito 6 entidades
-    Dim eLineaPpal As Entity
-    Dim eOblique2 As Entity
-    Dim eText As Entity
-
-    ' vemos los estilos
-    If E.fParam[Me.ipaStyleTextHeigth] > 0 Then e.pDimStyle.DIMTXT = E.fParam[Me.ipaStyleTextHeigth] Else e.pDimStyle.DIMTXT = E.pStyle.FixedH_40
-    If E.fParam[Me.ipaStyleArrowSize] > 0 Then Me.DimArrowSize = E.fParam[Me.ipaStyleArrowSize] Else Me.DimArrowSize = cadLeader.DimArrowSize
-    Me.DimArrowWIdth = Me.DimArrowSize / 3
-
-    ' linea principal
-    ' clsEntities.AddLine(newBlock.entities, [0.0, 0.0, 0.0, 0.0], E.colour, E.LineWIdth, E.LineType.Index, E.pLayer) FIXME
-    eLineaPpal = cadLine.NewEntity([0.0, 0.0, 0.0, 0.0])
-
-    ' flechas
-
-    f1.Insert([0, 0, Me.DimArrowSize, Me.DimArrowWIdth, Me.DimArrowSize, -Me.DimArrowWIdth, 0, 0])
-    f2.Insert([0, 0, -Me.DimArrowSize, Me.DimArrowWIdth, -Me.DimArrowSize, -Me.DimArrowWIdth, 0, 0])
-
-    ' clsEntities.Addsolid(newBlock.entities, f2, E.colour, E.LineWIdth, E.LineType.Index, E.pLayer)
-    ' eOblique2 = newBlock.entities.Last fixme
-
-    ' texto
-    ' clsEntities.AddMText(newBlock.entities, [0.0, 0.0, 0.0, 0.0], 0, e.pDimStyle.DIMTXT, "0.00", E.colour, E.LineWIdth, E.LineType.Index, E.pLayer)
-    ' eText = newBlock.entities.Last fixme
-
-    ' -> el bloque
-
-    E.fParam[cadInsert.ipaEscX] = 1      ' ScaleX del inserto
-    E.fParam[cadInsert.ipaEscY] = 1      ' ScaleY del inserto
-    E.fParam[cadInsert.ipaEscZ] = 1      ' ScaleY del inserto
-
-    '  If stage = 0 Then     ' marco el primer punto
-
-    '    Else If stage = 1 Then ' marco el segundo punto, lo que modifica los parametros del bloque
-    E.Visible = True
-
-    ' el largo de la linea principal viene dado por la distancia entre ambos puntos
-    d = puntos.distancia(E.P[0].x, E.P[0].y, E.P[1].x, E.P[1].y)
-
-    ' con este click calculo el angulo
-    E.fParam[cadInsert.ipaRotacion] = Deg(Ang(E.P[1].x - E.P[0].x, E.P[1].y - E.P[0].y))
-
-    ' la primer entidad del bloque es la linea principal
-    eLineaPpal.P[0].x = 0           ' X0
-    eLineaPpal.P[0].y = 0           ' Y0
-
-    eLineaPpal.P[1].x = d           ' X1
-    eLineaPpal.P[1].y = 0           ' Y1
-
-    ' el largo de la linea principal viene dado por la distancia entre ambos puntos
-    d = puntos.distancia(E.P[0].x, E.P[0].y, E.P[1].x, E.P[1].y)
-
-    ' con este click calculo el angulo
-    E.fParam[cadInsert.ipaRotacion] = Deg(Ang(E.P[1].x - E.P[0].x, E.P[1].y - E.P[0].y))
-
-    ' la primer entidad del bloque es la linea principal
-    eLineaPpal.P[0].x = 0           ' X0
-    eLineaPpal.P[0].y = 0           ' Y0
-
-    eLineaPpal.P[1].x = d           ' X1
-    eLineaPpal.P[1].y = 0           ' Y1
-
-    ' el texto
-    ' eText.sParam[cadMText.sdaText] = "R " & Format(d, Me.DimFormat)
-
-    E.fParam[cadDimension.ipaRealMeasure] = d
-
-    flxTextExt = glx.TextExtends(eText.sParam[0], 0, 0, eText.fParam[1])
-
-    ' la cuarta y quinta son las flechas , tengo que verificar si entran, o el texto
-    If flxTextExt[2] * 1.1 > d Then                      ' no entra
-
-        eOblique2.P[0].x = 0           ' X0
-        eOblique2.P[1].x = -Me.DimArrowSize
-        eOblique2.P[2].x = -Me.DimArrowSize
-        eOblique2.P[3].x = 0           ' X0
-
-        ' el texto va afuera
-        eText.P[0].x = d + Me.DimArrowSize / 2
-        eText.P[0].y = Me.DimArrowWIdth
-
-    Else                                                                ' entra
-
-        eOblique2.P[0].x = d           ' X0
-        eOblique2.P[1].x = -Me.DimArrowSize + d           ' X0
-        eOblique2.P[2].x = -Me.DimArrowSize + d           ' X0
-        eOblique2.P[3].x = d           ' X0
-
-        ' el texto va adentro
-        eText.P[0].x = d / 2 - flxTextExt[2] / 2
-        eText.P[0].y = Me.DimArrowWIdth
-
-    End If
-
-    ' linea principal
-    eLineaPpal.P[0].y = Me.extension           ' Y0
-    eLineaPpal.P[1].y = Me.extension           ' Y1
-
-    ' texto
-    eText.P[0].y = Me.DimArrowWIdth + Me.extension
-
-    eOblique2.P[0].y = Me.extension           ' X0
-    eOblique2.P[1].y = Me.extension + Me.DimArrowWIdth
-    eOblique2.P[2].y = Me.extension - Me.DimArrowWIdth
-    eOblique2.P[3].y = Me.extension           ' X0
-
-    ' End If
-    Return newBlock
+    ' el texto sobre el ultimo tramo
+    th = Me.TextHeight(e)
+    gap = d.DIMGAP * Me.DimScale(e)
+    ta = Me.ReadableAngle(Ang(ux, uy))
+    If d.DIMTIH Then ta = 0
+    If Me.UserText(e) Then
+        tcx = e.P[1].x
+        tcy = e.P[1].y
+    Else
+        tcx = (bx + e.P[5].x) / 2
+        tcy = (by + e.P[5].y) / 2
+        If d.DIMTAD <> 0 Then
+            tcx += -Sin(ta) * (th / 2 + gap) * IIf(d.DIMTAD = 4, -1, 1)
+            tcy += Cos(ta) * (th / 2 + gap) * IIf(d.DIMTAD = 4, -1, 1)
+        Endif
+    Endif
+    Me.AddText(e, sText, tcx, tcy, ta)
+    e.P[1].x = tcx
+    e.P[1].y = tcy
 
 End
 
-'   0 LARGE_RADIAL_DIMENSION
-'   5 12FC
-' 102 {ACAD_REACTORS
-' 330 12FE
-' 102 }
-' 102 {ACAD_XDICTIONARY
-' 360 12FD
-' 102 }
-' 330 2
-' 100 AcDbEntity
-'   8 dimmensions
-' 160               1172
-' 310 airias lineas de cosas
-' 100 AcDbDimension
-' 280      0
-'   2 *D17
-'  10 388.8138643239927
-'  20 209.7637151214733
-'  30 0.0
-'  11 381.6653012244023
-'  21 214.7200167825812
-'  31 0.0
-'  70    169
-'  71      5
-'  42 10.50494238347625
-'  73      0
-'  74      0
-'  75      0
-'   3 standard
-' 100 AcDbRadialDimensionLarge
-'  13 372.4304113047216
-'  23 200.5358546499357
-'  33 0.0
-'  14 376.3056599403601
-'  24 208.1425214901072
-'  34 0.0
-'  15 380.1809085759985
-'  25 215.7491883302789
-'  35 0.0
-'  40 0.0
-' 1001 ACAD
-' 1000 DSTYLE
-' 1002 {
-' 1070     50
-' 1040 0.7853981633974483
-' 1002 }
-' 1001 ACAD_DSTYLE_DIMRADIAL_EXTENSION
-' 1070    387
-' 1070      1
-' 1070    388
-' 1040 0.0
-' 1070    390
-' 1040 0.0
+Public Sub SaveDxfPoints(e As Entity)
+
+    dxf.SaveCodeInv(Me.DxfSubclass, "100")
+    Me.SavePoint(e, 3)
+    Me.SavePoint(e, 4)
+    Me.SavePoint(e, 5)
+    dxf.SaveCodeInv(CStr(e.fParam[Me.ipaJogAngle]), "40")
+
+End

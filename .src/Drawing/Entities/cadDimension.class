@@ -19,261 +19,1338 @@
 ' along with this program; if not, write to the Free Software
 ' Foundation, Inc., 51 Franklin St, Fifth Floor,
 ' Boston, MA  02110-1301  USA
-'Create Static
+
+'' Base de todas las cotas.
+''
+'' Una cota se define con sus puntos de definicion, que son los mismos del DXF: e.P[k] es el codigo 10+k
+''   P[0] = 10   punto de la linea de cota (o el centro, el origen, segun el tipo)
+''   P[1] = 11   centro del texto
+''   P[2] = 12   no se usa en el DXF (lo usan algunas cotas durante la construccion)
+''   P[3] = 13 , P[4] = 14 , P[5] = 15 , P[6] = 16 , P[7] = 17   dependen del tipo
+''
+'' Lo que se ve (lineas, flechas, texto) esta en e.pBlock y se rehace con Rebuild() a partir de los
+'' puntos y del estilo (e.pDimStyle). Cada clase hija arma su bloque en MakeBlock().
+'' Las cotas que vienen de un DXF conservan el bloque del archivo hasta que se las edita (iiiRegen = 0).
+
 Create Static
 Inherits CadInsert
 
 Public Const Gender As String = "DIMENSION"
-Public TextEntry As String
-Public elem As Entity
-Public XYreal As Float[]
+Public Const DXF_Export As Boolean = True
+Public Const DimTypeCode As Integer = 0         '' el codigo 70 del DXF para este tipo
+Public Const DxfSubclass As String = "AcDbAlignedDimension"
+Public Const GripPoints As String = ""          '' indices de P que se editan con grips, separados por ;
+Public Const GripTips As String = ""
 
-Public DimContinued As Boolean = False  ' seteado al inicio de la construccion de la cota
-Public DimBaseline As Boolean = False  ' seteado al inicio de la construccion de la cota
-Public DimType As Integer
-
-Public extension As Float
-Public iBloque As Integer
-
-Public Const TotalPoints As Integer = 6
+Public Const TotalPoints As Integer = 8
 
 ' fParam helpers
 Public Const TotalParams As Integer = 12
 Public Const ipaEscX As Integer = 0
-Public Const ipaEscY As Integer = 1         ' usados por cadInsert para dibujar el bloque
+Public Const ipaEscY As Integer = 1
 Public Const ipaEscZ As Integer = 2
-Public Const ipaRotacion As Integer = 3     '' Aqui se usa para Dimensiones Rotadas, represeta el angulo sobre el que quiero medir. Horizontal, Vertical son casos especiales donde ang=0 o ang=90. En dimensiones alineadas el angulo es la recta determinada con P1 y P2.
-Public Const ipaVertJustif As Integer = 4
-Public Const ipaRelativeFactor As Integer = 5
-Public Const ipaHorizAngle As Integer = 6
-Public Const ipaExtension As Integer = 7
-Public Const ipaObliqueExtension As Integer = 8
-Public Const ipaRealMeasure As Integer = 9
-' ademas necesito guardar los StyleOverrides que pudieran haberse efectuado
-Public Const ipaStyleTextHeigth As Integer = 10
-Public Const ipaStyleArrowSize As Integer = 11
-' Public Const ipaStyleTextHeigth As Integer = 12
-' Public Const ipaStyleTextHeigth As Integer = 13
-' Public Const ipaStyleTextHeigth As Integer = 14
+Public Const ipaRotacion As Integer = 3         '' DXF 50: angulo de las cotas lineales, en grados
+Public Const ipaObliqueAngle As Integer = 4     '' DXF 52: angulo de las lineas de referencia oblicuas, en grados
+Public Const ipaRealMeasure As Integer = 5      '' DXF 42: la medida
+Public Const ipaTextRotation As Integer = 6     '' DXF 53: rotacion del texto, en grados
+Public Const ipaLeaderLength As Integer = 7     '' DXF 40 de radios y diametros
+Public Const ipaHorizDir As Integer = 8         '' DXF 51
+Public Const ipaArcStart As Integer = 9         '' DXF 40 de ARC_DIMENSION, en radianes
+Public Const ipaArcEnd As Integer = 10          '' DXF 41 de ARC_DIMENSION
+Public Const ipaJogAngle As Integer = 11        '' DXF 40 de LARGE_RADIAL_DIMENSION
 
 ' iParam helpers
-Public Const iTotalParams As Integer = 3
-Public Const iiiDimType As Integer = 0
-Public Const iiiAtatchPoint As Integer = 1
-Public Const iiiMode As Integer = 2     ' 0 = linear 1 = horiz 2 = vertical , 3 = otro  (se determina /1E6 )
+Public Const iTotalParams As Integer = 4
+Public Const iiiDimType As Integer = 0          '' DXF 70, con los bits 32, 64 y 128
+Public Const iiiAtatchPoint As Integer = 1      '' DXF 71
+Public Const iiiMode As Integer = 2             '' modo de construccion: 0 auto 1 horizontal 2 vertical 3 angulo fijo 10 continuada 20 linea base, >=1000 angulo*1000
+Public Const iiiRegen As Integer = 3            '' 1 = el bloque lo arma GambasCAD, 0 = viene del archivo, -1 = cota vieja que no se puede rehacer
 
 ' stringdata helpers
 Public Const sdaTotalParams As Integer = 2
-Public Const sdaTextOverride As Integer = 0
+Public Const sdaTextOverride As Integer = 0     '' DXF 1: "" la medida, "<>" se reemplaza por la medida, " " sin texto
 Public Const sdaUNUSED As Integer = 1
 
-Public DefPoint1 As New Punto2d
-Public DefPoint2 As New Punto2d
-Public DefPoint1b As New Punto2d
-Public DefPoint2b As New Punto2d
-Public DefPointExtLineOffset1 As New Punto2d
-Public DefPointExtLineOffset2 As New Punto2d
+' bits del codigo 70
+Public Const DimFlagBlockOwn As Integer = 32
+Public Const DimFlagOrdinateX As Integer = 64
+Public Const DimFlagUserText As Integer = 128
 
-Public DefPointCentral As New Punto2d
-Public DefPointCentralAux As New Punto2d
-Public DefPointAux1 As New Punto2d
-Public DefPointAux2 As New Punto2d
-Public DefTextMidPoint As New Punto2d
-Public DefBaselinePoint As New Punto2d
-Public DefPoint3 As New Punto2d
-Public DefPoint4 As New Punto2d
-Public DefCenter As New Punto2d
-Public DefAngle As Float
-Public DefDeltaT As Float
+' tipos de parte, para elegir color y grosor del estilo
+Public Const PartDimLine As Integer = 0
+Public Const PartExtLine As Integer = 1
+Public Const PartText As Integer = 2
 
-Public DimArrowSize As Float = 0.3       ' el largo de la flecha
-Public DimArrowWIdth As Float = 0.1      ' ancho de la flecha
+Public Const JsonVersion As Integer = 2
 
-Public StyleOverride As New DimStyle
+Public DimContinued As Boolean = False  '' seteado al inicio de la construccion de una cota continuada o de linea base
 
-Public Const DXF_Export As Boolean = True
+'=============================================== CREACION ===============================================
 
 Public Function NewEntity(Optional vPoints As Variant, bNewHandle As Boolean = False) As Entity
 
-    Dim e As New Entity
+    Dim e As Entity
 
     e = Super.NewEntity(vPoints, bNewHandle)
 
-    If e.P.Count < 12 Then puntos.ResizeP(e.P, 13)
-
-    e.pDimStyle = Utils.CloneObject(gcd.Drawing.CurrDimStyle)
+    If e.P.Count < Me.TotalPoints Then puntos.ResizeP(e.P, Me.TotalPoints)
+    e.pDimStyle = NewStyleFor(gcd.Drawing.CurrDimStyle)
+    e.iParam[Me.iiiDimType] = Me.DimTypeCode
+    e.iParam[Me.iiiAtatchPoint] = 5
+    e.iParam[Me.iiiRegen] = 1
+    e.fParam[Me.ipaEscX] = 1
+    e.fParam[Me.ipaEscY] = 1
+    e.fParam[Me.ipaEscZ] = 1
+    e.pBlock.InsertionPlace = 1
     Me.DimContinued = False
-    Me.DimBaseline = False
     Return e
 
 End
 
-' ESTA CLASE SE USA SOLAMENTE PARA IMPORT/EXPORT DXF
+'' El punto que llega en un parametro ["point", x, y, z]
+Public Function ParamPoint(vParam As Variant[]) As Punto3d
 
-Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
+    Dim z As Float
+
+    z = gcd.Drawing.Sheet.level
+    If vParam.Count > 3 Then Try z = vParam[3]
+    Return puntos.P3d(vParam[1], vParam[2], z)
+
+End
+
+'' Una copia del estilo para una cota, sin overrides
+Public Function NewStyleFor(dBase As DimStyle) As DimStyle
+
+    Dim d As DimStyle
+
+    If dBase Then
+        d = dBase.Copy()
+    Else
+        d = New DimStyle
+        d.name = "standard"
+    Endif
+    d.Overrides = New Collection
+    Return d
+
+End
+
+'' Vuelve a tomar el estilo de la tabla del dibujo, conservando los overrides de la cota
+Public Sub RefreshStyle(e As Entity)
+
+    Dim cOverrides As Collection
+    Dim d As DimStyle
+
+    If Not e.pDimStyle Then
+        e.pDimStyle = NewStyleFor(gcd.Drawing.CurrDimStyle)
+        Return
+    Endif
+    If Not gcd.Drawing.DimStyles.Exist(e.pDimStyle.name) Then Return
+    cOverrides = e.pDimStyle.Overrides
+    d = NewStyleFor(gcd.Drawing.DimStyles[e.pDimStyle.name])
+    If cOverrides Then d.Overrides = cOverrides
+    d.ApplyOverrides()
+    e.pDimStyle = d
+
+End
+
+'' True si la entidad es alguna de las cotas
+Public Function IsDimension(e As Entity) As Boolean
+
+    If Not e Then Return False
+    Return e.Gender Like "DIMENSION*" Or e.Gender = "ARC_DIMENSION" Or e.Gender = "LARGE_RADIAL_DIMENSION"
+
+End
+
+'=============================================== REBUILD ===============================================
+
+'' Rehace el bloque de la cota a partir de sus puntos y su estilo. El objeto Block se conserva.
+Public Sub Rebuild(e As Entity)
+
+    If Not e.pBlock Then e.pBlock = New Block
+    If Not e.pDimStyle Then e.pDimStyle = NewStyleFor(gcd.Drawing.CurrDimStyle)
+    If e.P.Count < Me.TotalPoints Then puntos.ResizeP(e.P, Me.TotalPoints)
+
+    e.pBlock.entities = New Collection
+    e.pBlock.InsertionPlace = 1
+    e.pBlock.Flags = 1                  ' bloque anonimo
+    e.pBlock.Parent = e
+    e.iParam[Me.iiiRegen] = 1
+
+    gcd.CCC[e.Gender].MakeBlock(e)
+
+    BuildGeometry(e)
+
+End
+
+'' Cada tipo de cota arma su bloque aca
+Public Sub MakeBlock(e As Entity)
+
+End
+
+'' La escala general del estilo
+Public Function DimScale(e As Entity) As Float
+
+    If e.pDimStyle.DIMSCALE <= 0 Then Return 1
+    Return e.pDimStyle.DIMSCALE
+
+End
+
+'' El tipo de linea de las partes
+Private Function PartLineType(e As Entity) As LineType
+
+    If gcd.Drawing.LineTypes.Exist("CONTINUOUS") Then Return gcd.Drawing.LineTypes["CONTINUOUS"]
+    If gcd.Drawing.LineTypes.Exist("Continuous") Then Return gcd.Drawing.LineTypes["Continuous"]
+    Return e.LineType
+
+End
+
+'' Agrega una parte al bloque con el color y grosor que corresponde a su tipo
+Public Sub AddPart(e As Entity, ePart As Entity, iKind As Integer)
+
+    ePart.id = CStr(e.pBlock.entities.Count + 1)
+    ePart.Container = e.pBlock
+    ePart.pLayer = e.pLayer
+    ePart.LineType = PartLineType(e)
+    Select Case iKind
+        Case PartDimLine
+            ePart.Colour = e.pDimStyle.DIMCLRD
+            ePart.LineWidth = e.pDimStyle.DIMLWD
+        Case PartExtLine
+            ePart.Colour = e.pDimStyle.DIMCLRE
+            ePart.LineWidth = e.pDimStyle.DIMLWE
+        Case PartText
+            ePart.Colour = e.pDimStyle.DIMCLRT
+            ePart.LineWidth = -2
+    End Select
+    e.pBlock.entities.Add(ePart, ePart.id)
+
+End
+
+Public Sub AddLine(e As Entity, x0 As Float, y0 As Float, x1 As Float, y1 As Float, Optional iKind As Integer = 0)
+
+    Dim ePart As Entity
+
+    If x0 = x1 And If y0 = y1 Then Return
+    ePart = cadLine.NewEntity()
+    ePart.P.Clear
+    ePart.P.Add(puntos.P3d(x0, y0, e.P[0].z))
+    ePart.P.Add(puntos.P3d(x1, y1, e.P[0].z))
+    AddPart(e, ePart, iKind)
+
+End
+
+'' Un triangulo o cuadrilatero relleno, los puntos son x,y,x,y...
+Public Sub AddSolid(e As Entity, flxXY As Float[], Optional iKind As Integer = 0)
+
+    Dim ePart As Entity
+    Dim i As Integer
+
+    ePart = cadSolid.NewEntity()
+    ePart.P.Clear
+    For i = 0 To flxXY.Max - 1 Step 2
+        ePart.P.Add(puntos.P3d(flxXY[i], flxXY[i + 1], e.P[0].z))
+    Next
+    AddPart(e, ePart, iKind)
+
+End
+
+'' Arco antihorario, angulos en grados
+Public Sub AddArc(e As Entity, xc As Float, yc As Float, fRadius As Float, fStart As Float, fEnd As Float, Optional iKind As Integer = 0)
+
+    Dim ePart As Entity
+
+    If fRadius <= 0 Then Return
+    While fEnd <= fStart
+        fEnd += 360
+    Wend
+    ePart = cadArc.NewEntity()
+    ePart.P.Clear
+    ePart.P.Add(puntos.P3d(xc, yc, e.P[0].z))
+    ePart.fParam[0] = fRadius
+    ePart.fParam[1] = fStart
+    ePart.fParam[2] = fEnd
+    AddPart(e, ePart, iKind)
+
+End
+
+Public Sub AddCircle(e As Entity, xc As Float, yc As Float, fRadius As Float, Optional iKind As Integer = 0)
+
+    Dim ePart As Entity
+
+    If fRadius <= 0 Then Return
+    ePart = cadCircle.NewEntity()
+    ePart.P.Clear
+    ePart.P.Add(puntos.P3d(xc, yc, e.P[0].z))
+    ePart.fParam[0] = fRadius
+    AddPart(e, ePart, iKind)
+
+End
+
+'' Circulo relleno, con triangulos
+Public Sub AddDisc(e As Entity, xc As Float, yc As Float, fRadius As Float, Optional iKind As Integer = 0)
 
     Dim i As Integer
-    Dim DimTypeSet As Boolean = False
-    Dim BlockSet As Boolean = False
-    Dim ReadingStyle As Boolean = False
-    Dim NextCode As Integer
+    Dim a0, a1 As Float
+    Dim iSegments As Integer = 12
 
-    'If e.id = "14AA24" Then Stop
-    DimTypeSet = False
-    For i = 0 To sClaves.Max
-
-        If sClaves[i] = "2" Then
-            If BlockSet = False Then                                ' this prevents duplicated "2" codes
-                e.pBlock = gcd.Drawing.Blocks[sValues[i]] 'clsEntities.FIndBlock(sValues[i], gcd.Drawing.Blocks)   ' this could be null
-                BlockSet = True
-
-            End If
-        End If
-
-        If sClaves[i] = "10" Then e.P[0].x = CFloat(sValues[i])         ' X0  first definition point
-        If sClaves[i] = "20" Then e.P[0].y = CFloat(sValues[i])         ' Y0
-        If sClaves[i] = "11" Then e.P[1].x = CFloat(sValues[i])         ' X1  midpoint of text
-        If sClaves[i] = "21" Then e.P[1].y = CFloat(sValues[i])         ' Y1
-
-        If sClaves[i] = "3" Then
-            e.pDimStyle = Utils.CloneObject(gcd.Drawing.DimStyles[sValues[i]])
-            If Not e.pdimStyle Then
-                e.pdimStyle = Utils.CloneObject(gcd.Drawing.DimStyles[gcd.Drawing.DimStyles.First])
-            End If
-        End If
-
-        ' ' For DEbug
-        ' If sClaves[i] = "42" Then
-        '   If sValues[i] Like "0.46*" Then Stop
-        ' End If
-        '
-        If sClaves[i] = "70" Then ' Dimension type:
-
-            e.iParam[Me.iiiDimType] = CInt(sValues[i])
-            DimTypeSet = True
-            ' Values 0 - 6 are integer values that represent the dimension type.Values 32, 64, And 128 are bit values, which are added To the integer values(value 32 Is Always set In R13 And later releases)
-
-            ' debo cambiar el handler y enviar al que corresponda
-            Select Case e.iParam[Me.iiiDimType] And 31  'Xor 128 Xor 64 Xor 32
-                Case 0 '= Rotated, horizontal, Or vertical
-
-                    e.gender = cadDIMENSION_LINEAR.Gender
-                    DimTypeSet = True
-                Case 1 '= Aligned
-
-                    e.gender = cadDIMENSION_ALIGNED.Gender
-                    DimTypeSet = True
-                Case 2 '= Angular
-
-                    e.gender = cadDIMENSION_ANG3PT.Gender
-                    DimTypeSet = True
-                Case 3 '= Diameter
-
-                    e.gender = cadDIMENSION_DIAMETER.Gender
-                    DimTypeSet = True
-                Case 4 ' = Radius
-
-                    e.gender = cadDIMENSION_RADIUS.Gender
-                    DimTypeSet = True
-                Case 5 ' = Angular 3 - point
-
-                    e.gender = cadDIMENSION_ANG3PT.Gender
-                    DimTypeSet = True
-                Case 6 ' = Ordinate
-
-                    e.gender = cadDIMENSION_ORDINATE.Gender
-                    DimTypeSet = True
-                    If (CInt(sValues[i]) And 64) = 64 Then e.fParam[Me.ipaHorizAngle] = 1 ' horiz ordinate
-
-            End Select
-
-        End If
-        If sClaves[i] = "71" Then e.iParam[Me.iiiAtatchPoint] = CInt(sValues[i])
-
-        If sClaves[i] = "1000" And sValues[i] = "DSTYLE" Then ' empiezo la lectura del estilo
-            ReadingStyle = True
-
-        End If
-
-        If ReadingStyle Then
-
-            If sClaves[i] = "1070" And NextCode = 0 Then
-                NextCode = CInt(sValues[i])
-            Else If NextCode <> 0 Then
-                ' leemos algunos
-                If NextCode = "140" And sValues[i] <> 0 Then e.pDimStyle.DIMTXT = CFloat(sValues[i])
-                If NextCode = "41" And sValues[i] <> 0 Then e.pDimStyle.DIMASZ = CFloat(sValues[i])
-                NextCode = 0
-            End If
-
-        Endif
-
+    If fRadius <= 0 Then Return
+    For i = 0 To iSegments - 1
+        a0 = 2 * Pi * i / iSegments
+        a1 = 2 * Pi * (i + 1) / iSegments
+        AddSolid(e, [xc, yc, xc + fRadius * Cos(a0), yc + fRadius * Sin(a0), xc + fRadius * Cos(a1), yc + fRadius * Sin(a1)], iKind)
     Next
 
-    ' en algunos DXF el codigo 70 no esta
-    If Not DimTypeSet Then e.gender = cadDIMENSION_LINEAR.Gender
+End
 
-    If Not e.pBlock Then e.pBlock = New Block ' esto previene errores cuando no hay un bloque definido para la Dim
+'' Texto centrado (punto de insercion 5) en x,y. fAngle en radianes.
+Public Function AddText(e As Entity, sText As String, x As Float, y As Float, fAngle As Float) As Entity
 
-    ' tengo q presuponer que las escalas son = 1
-    e.fParam[Me.ipaEscX] = 1    ' esc X
-    e.fParam[Me.ipaEscY] = 1    ' esc Y
-    e.fParam[Me.ipaEscZ] = 1    ' esc Z
+    Dim ePart As Entity
 
-    ' pero puede haber un Style Override que anula el estilo y propone nuevos valores
+    If sText = "" Then Return Null
+    ePart = cadMText.NewEntity()
+    ePart.P.Clear
+    ePart.P.Add(puntos.P3d(x, y, e.P[0].z))
+    ePart.fParam[cadMText.ipaAttchmPoint] = 5
+    ePart.fParam[cadMText.ipaTextAngle] = fAngle
+    ePart.fParam[cadMText.ipaTextHeight] = TextHeight(e)
+    ePart.sParam[cadMText.sdaText] = sText
+    ePart.sParam[cadMText.sdaStyle] = e.pDimStyle.DIMTXSTY
+    If gcd.Drawing.TextStyles.Exist(e.pDimStyle.DIMTXSTY) Then ePart.pStyle = gcd.Drawing.TextStyles[e.pDimStyle.DIMTXSTY]
+    AddPart(e, ePart, PartText)
+    Return ePart
 
-    Return gcd.CCC[e.gender].ImportDXF(e, sClaves, sValues)
-    '' catch
+End
 
+'' Linea de referencia desde el punto medido px,py hasta el punto dx,dy de la linea de cota
+Public Sub AddExtLine(e As Entity, px As Float, py As Float, dx As Float, dy As Float)
+
+    Dim fLength, vx, vy As Float
+
+    fLength = Sqr((dx - px) ^ 2 + (dy - py) ^ 2)
+    If fLength = 0 Then Return
+    vx = (dx - px) / fLength
+    vy = (dy - py) / fLength
+    If fLength <= e.pDimStyle.DIMEXO * DimScale(e) Then Return
+    AddLine(e, px + vx * e.pDimStyle.DIMEXO * DimScale(e), py + vy * e.pDimStyle.DIMEXO * DimScale(e), dx + vx * e.pDimStyle.DIMEXE * DimScale(e), dy + vy * e.pDimStyle.DIMEXE * DimScale(e), PartExtLine)
+
+End
+
+'' Dibuja un marcador con la punta en x,y apuntando hacia fDir (radianes)
+Public Sub AddMarker(e As Entity, sMarker As String, x As Float, y As Float, fDir As Float)
+
+    Dim s, c, sn, w As Float
+    Dim eInsert As Entity
+    Dim i As Integer
+    Dim flx As Float[]
+
+    If sMarker = DimStyle.MarkerNone Then Return
+    s = e.pDimStyle.DIMASZ * DimScale(e)
+    If e.pDimStyle.DIMTSZ > 0 Then s = e.pDimStyle.DIMTSZ * DimScale(e)
+    If s <= 0 Then Return
+    c = Cos(fDir)
+    sn = Sin(fDir)
+
+    Select Case sMarker
+        Case DimStyle.MarkerClosedFilled
+            AddSolid(e, Local(x, y, c, sn, s, [0, 0, -1, 1 / 6, -1, -1 / 6]))
+        Case DimStyle.MarkerClosedBlank, DimStyle.MarkerClosed
+            AddPolyLocal(e, x, y, c, sn, s, [0, 0, -1, 1 / 6, -1, -1 / 6, 0, 0])
+        Case DimStyle.MarkerOpen
+            AddPolyLocal(e, x, y, c, sn, s, [-1, 1 / 6, 0, 0, -1, -1 / 6])
+        Case DimStyle.MarkerOpen30
+            AddPolyLocal(e, x, y, c, sn, s, [-1, Tan(Rad(15)), 0, 0, -1, -Tan(Rad(15))])
+        Case DimStyle.MarkerOpen90
+            AddPolyLocal(e, x, y, c, sn, s, [-0.5, 0.5, 0, 0, -0.5, -0.5])
+        Case DimStyle.MarkerOblique
+            AddPolyLocal(e, x, y, c, sn, s, [-0.5, -0.5, 0.5, 0.5])
+        Case DimStyle.MarkerArchTick
+            w = 0.05
+            AddSolid(e, Local(x, y, c, sn, s, [-0.5 + w, -0.5 - w, 0.5 + w, 0.5 - w, 0.5 - w, 0.5 + w, -0.5 - w, -0.5 + w]))
+        Case DimStyle.MarkerDot
+            AddDisc(e, x, y, s / 4)
+        Case DimStyle.MarkerDotSmall
+            AddDisc(e, x, y, s / 16)
+        Case DimStyle.MarkerDotBlank
+            AddCircle(e, x, y, s / 4)
+        Case DimStyle.MarkerOrigin
+            AddCircle(e, x, y, s / 2)
+        Case DimStyle.MarkerBoxFilled
+            AddSolid(e, Local(x, y, c, sn, s, [-0.25, -0.25, 0.25, -0.25, 0.25, 0.25, -0.25, 0.25]))
+        Case DimStyle.MarkerBoxBlank
+            AddPolyLocal(e, x, y, c, sn, s, [-0.25, -0.25, 0.25, -0.25, 0.25, 0.25, -0.25, 0.25, -0.25, -0.25])
+        Case DimStyle.MarkerIntegral
+            ' una S suave, perpendicular a la linea
+            flx = New Float[]
+            For i = 0 To 8
+                flx.Add(0.12 * Sin(2 * Pi * i / 8))
+                flx.Add(-0.5 + i / 8)
+            Next
+            AddPolyLocal(e, x, y, c, sn, s, flx)
+        Case Else
+            ' un bloque del usuario
+            If gcd.Drawing.Blocks.Exist(sMarker) Then
+                eInsert = cadInsert.NewEntity()
+                eInsert.P.Clear
+                eInsert.P.Add(puntos.P3d(x, y, e.P[0].z))
+                eInsert.pBlock = New Block
+                eInsert.pBlock.name = sMarker
+                eInsert.fParam[cadInsert.ipaEscX] = s
+                eInsert.fParam[cadInsert.ipaEscY] = s
+                eInsert.fParam[cadInsert.ipaEscZ] = s
+                eInsert.fParam[cadInsert.ipaRotacion] = Deg(fDir)
+                cadInsert.Finish(eInsert)
+                AddPart(e, eInsert, PartDimLine)
+            Else
+                AddSolid(e, Local(x, y, c, sn, s, [0, 0, -1, 1 / 6, -1, -1 / 6]))
+            Endif
+    End Select
+
+End
+
+'' Pasa puntos x,y locales (escala s, rotados c,sn) a la posicion x0,y0
+Private Function Local(x0 As Float, y0 As Float, c As Float, sn As Float, s As Float, flxXY As Float[]) As Float[]
+
+    Dim flxRet As New Float[]
+    Dim i As Integer
+
+    For i = 0 To flxXY.Max - 1 Step 2
+        flxRet.Add(x0 + (flxXY[i] * c - flxXY[i + 1] * sn) * s)
+        flxRet.Add(y0 + (flxXY[i] * sn + flxXY[i + 1] * c) * s)
+    Next
+    Return flxRet
+
+End
+
+'' Lineas consecutivas con puntos locales
+Private Sub AddPolyLocal(e As Entity, x0 As Float, y0 As Float, c As Float, sn As Float, s As Float, flxXY As Float[])
+
+    Dim flx As Float[]
+    Dim i As Integer
+
+    flx = Local(x0, y0, c, sn, s, flxXY)
+    For i = 0 To flx.Max - 3 Step 2
+        AddLine(e, flx[i], flx[i + 1], flx[i + 2], flx[i + 3], PartDimLine)
+    Next
+
+End
+
+'=============================================== TEXTO ===============================================
+
+Public Function TextHeight(e As Entity) As Float
+
+    Return e.pDimStyle.DIMTXT * DimScale(e)
+
+End
+
+'' Ancho del texto con la altura de la cota
+Public Function TextWidth(e As Entity, sText As String) As Float
+
+    Dim flx As Float[]
+
+    If sText = "" Then Return 0
+    flx = glx.TextExtends(sText, TextHeight(e))
+    If flx[2] < flx[0] Then Return 0
+    Return flx[2] - flx[0]
+
+End
+
+'' Un numero con los decimales y la supresion de ceros del estilo. No depende del idioma del sistema.
+Public Function FormatNumber(fValue As Float, iDecimals As Integer, iZeroSuppress As Integer, iSeparator As Integer) As String
+
+    Dim lValue, lPow As Long
+    Dim sInt, sFrac, sSep As String
+    Dim bNegative As Boolean
+
+    If iDecimals < 0 Then iDecimals = 0
+    If iDecimals > 8 Then iDecimals = 8
+    lPow = 10 ^ iDecimals
+    lValue = CLong(Abs(fValue) * lPow + 0.5)
+    bNegative = fValue < 0 And lValue <> 0
+
+    sInt = CStr(lValue \ lPow)
+    sFrac = ""
+    If iDecimals > 0 Then
+        sFrac = CStr(lValue Mod lPow)
+        sFrac = String$(iDecimals - Len(sFrac), "0") & sFrac
+    Endif
+
+    If iZeroSuppress And 8 Then             ' ceros de atras
+        While Right(sFrac, 1) = "0"
+            sFrac = Left(sFrac, -1)
+        Wend
+    Endif
+    If iZeroSuppress And 4 Then             ' el cero de adelante
+        If sInt = "0" And sFrac <> "" Then sInt = ""
+    Endif
+
+    If iSeparator > 0 Then sSep = Chr(iSeparator) Else sSep = "."
+    If sFrac <> "" Then sInt &= sSep & sFrac
+    If sInt = "" Then sInt = "0"
+    If bNegative Then sInt = "-" & sInt
+    Return sInt
+
+End
+
+'' El texto de una medida lineal: factor, redondeo, decimales, prefijo/sufijo y override
+Public Function LinearText(e As Entity, fValue As Float, Optional sPrefix As String) As String
+
+    Dim d As DimStyle = e.pDimStyle
+    Dim sNum As String
+    Dim iSep As Integer
+
+    fValue *= d.DIMLFAC
+    If d.DIMRND > 0 Then fValue = Round(fValue / d.DIMRND) * d.DIMRND
+    ' DIMLUNIT 6 es "como en el escritorio": el separador del sistema
+    iSep = d.DIMDSEP
+    If d.DIMLUNIT = 6 Then iSep = Asc(Mid(Format(1.5, "0.0"), 2, 1))
+    sNum = sPrefix & FormatNumber(fValue, d.DIMDEC, d.DIMZIN, iSep)
+    If InStr(d.DIMPOST, "<>") Then
+        sNum = Replace(d.DIMPOST, "<>", sNum)
+    Else
+        sNum &= d.DIMPOST
+    Endif
+    Return ApplyOverride(e, sNum)
+
+End
+
+'' El texto de un angulo en grados
+Public Function AngularText(e As Entity, fDegrees As Float) As String
+
+    Dim d As DimStyle = e.pDimStyle
+    Dim iZin As Integer
+
+    ' DIMAZIN: 1 ceros de adelante, 2 de atras (en las lineales son 4 y 8)
+    If d.DIMAZIN And 1 Then iZin += 4
+    If d.DIMAZIN And 2 Then iZin += 8
+    Return ApplyOverride(e, FormatNumber(fDegrees, d.DIMADEC, iZin, d.DIMDSEP) & "°")
+
+End
+
+Private Function ApplyOverride(e As Entity, sMeasure As String) As String
+
+    Dim sOverride As String
+
+    sOverride = e.sParam[Me.sdaTextOverride]
+    If sOverride = "" Then Return sMeasure
+    If sOverride = " " Then Return ""
+    Return Replace(sOverride, "<>", sMeasure)
+
+End
+
+'' Angulo de texto legible, entre -90 y 90 grados (en radianes)
+Public Function ReadableAngle(fAngle As Float) As Float
+
+    fAngle = Utils.fMod(fAngle, 2 * Pi)
+    If fAngle < 0 Then fAngle += 2 * Pi
+    If fAngle > Pi / 2 + 0.0001 And fAngle <= 3 * Pi / 2 + 0.0001 Then fAngle -= Pi
+    If fAngle > 3 * Pi / 2 Then fAngle -= 2 * Pi
+    Return fAngle
+
+End
+
+'' True si el usuario ubico el texto
+Public Function UserText(e As Entity) As Boolean
+
+    Return (e.iParam[Me.iiiDimType] And DimFlagUserText) <> 0
+
+End
+
+Public Sub SetUserText(e As Entity, bValue As Boolean)
+
+    If bValue Then
+        e.iParam[Me.iiiDimType] = e.iParam[Me.iiiDimType] Or DimFlagUserText
+    Else
+        e.iParam[Me.iiiDimType] = e.iParam[Me.iiiDimType] And Not DimFlagUserText
+    Endif
+
+End
+
+'=============================================== LINEA DE COTA ===============================================
+
+'' Arma la linea de cota recta entre x1,y1 y x2,y2 (los extremos sobre las lineas de referencia), con sus marcadores y el texto.
+'' vOutX,vOutY es la direccion que se aleja de los puntos medidos (para DIMTAD = 2).
+'' Devuelve el centro del texto, que queda en P[1].
+Public Function AddDimLine(e As Entity, x1 As Float, y1 As Float, x2 As Float, y2 As Float, sText As String, Optional vOutX As Float, vOutY As Float) As Float[]
+
+    Dim d As DimStyle = e.pDimStyle
+    Dim s, asz, th, tw, gap, fLength, ux, uy, ta, upx, upy, tcx, tcy, t, fDist, hw, dle, fMid As Float
+    Dim sMk1, sMk2 As String
+    Dim bTick, bArrowsOut, bTextOut, bTextOnLine, bInside As Boolean
+    Dim flxSeg As New Float[]
+    Dim i As Integer
+
+    s = DimScale(e)
+    asz = d.DIMASZ * s
+    th = TextHeight(e)
+    gap = d.DIMGAP * s
+    tw = TextWidth(e, sText)
+
+    fLength = Sqr((x2 - x1) ^ 2 + (y2 - y1) ^ 2)
+    If fLength > 0 Then
+        ux = (x2 - x1) / fLength
+        uy = (y2 - y1) / fLength
+    Else
+        ux = 1
+        uy = 0
+    Endif
+    If vOutX = 0 And vOutY = 0 Then
+        vOutX = -uy
+        vOutY = ux
+    Endif
+
+    sMk1 = d.Marker(1)
+    sMk2 = d.Marker(2)
+    bTick = DimStyle.IsTick(sMk1) Or DimStyle.IsTick(sMk2)
+
+    ' que entra entre las lineas de referencia
+    If bTick Then
+        bArrowsOut = False
+    Else
+        bArrowsOut = fLength < asz * 2.2
+    Endif
+    bTextOut = (d.DIMTIX = 0) And (fLength < tw + gap * 2 + IIf(bTick Or bArrowsOut, 0, asz * 2))
+    If d.DIMATFIT = 0 And (bTextOut Or bArrowsOut) And Not bTick Then
+        bTextOut = True
+        bArrowsOut = True
+    Endif
+
+    ' el angulo del texto
+    bInside = Not bTextOut
+    ta = ReadableAngle(Ang(ux, uy))
+    If (bInside And d.DIMTIH = 1) Or (Not bInside And d.DIMTOH = 1) Then ta = 0
+    upx = -Sin(ta)
+    upy = Cos(ta)
+
+    If UserText(e) Then
+        tcx = e.P[1].x
+        tcy = e.P[1].y
+    Else
+        ' a lo largo de la linea
+        If bTextOut Then
+            t = fLength + tw / 2 + gap + IIf(bArrowsOut, asz * 2, asz)
+        Else If d.DIMJUST = 1 Then
+            t = tw / 2 + gap + IIf(bTick, 0, asz)
+        Else If d.DIMJUST = 2 Then
+            t = fLength - tw / 2 - gap - IIf(bTick, 0, asz)
+        Else
+            t = fLength / 2
+        Endif
+        tcx = x1 + ux * t
+        tcy = y1 + uy * t
+        ' y la altura sobre la linea
+        Select Case d.DIMTAD
+            Case 0
+                tcx += upx * d.DIMTVP * th
+                tcy += upy * d.DIMTVP * th
+            Case 2
+                tcx += vOutX * (th / 2 + gap)
+                tcy += vOutY * (th / 2 + gap)
+            Case 4
+                tcx -= upx * (th / 2 + gap)
+                tcy -= upy * (th / 2 + gap)
+            Case Else
+                tcx += upx * (th / 2 + gap)
+                tcy += upy * (th / 2 + gap)
+        End Select
+    Endif
+
+    ' donde cae el texto respecto de la linea
+    t = (tcx - x1) * ux + (tcy - y1) * uy
+    fDist = Abs((tcx - x1) * -uy + (tcy - y1) * ux)
+    bTextOnLine = (sText <> "") And (fDist < th / 2 + gap / 2)
+    ' la mitad del texto medida a lo largo de la linea
+    hw = (Abs(Cos(ta - Ang(ux, uy))) * tw + Abs(Sin(ta - Ang(ux, uy))) * th) / 2 + gap
+
+    ' los tramos de la linea de cota, en coordenada t
+    dle = 0
+    If bTick Then dle = d.DIMDLE * s
+    If bArrowsOut Then
+        flxSeg.Insert([-asz * 2, 0])
+        flxSeg.Insert([fLength, fLength + asz * 2])
+        If d.DIMTOFL Then flxSeg.Insert([0, fLength])
+    Else
+        flxSeg.Insert([-dle, fLength + dle])
+    Endif
+
+    ' si el texto queda afuera, junto a la linea, la prolongo hasta el
+    If sText <> "" And fDist < th + gap * 2 Then
+        If t > fLength Then
+            If bTextOnLine Then flxSeg.Insert([fLength, t - hw]) Else flxSeg.Insert([fLength, t + hw - gap])
+        Else If t < 0 Then
+            If bTextOnLine Then flxSeg.Insert([t + hw, 0]) Else flxSeg.Insert([t - hw + gap, 0])
+        Endif
+    Endif
+
+    ' corto el hueco del texto y las mitades suprimidas
+    If bTextOnLine Then flxSeg = CutSegments(flxSeg, t - hw, t + hw)
+    fMid = fLength / 2
+    If d.DIMSD1 Then flxSeg = CutSegments(flxSeg, -1e10, fMid)
+    If d.DIMSD2 Then flxSeg = CutSegments(flxSeg, fMid, 1e10)
+
+    For i = 0 To flxSeg.Max - 1 Step 2
+        AddLine(e, x1 + ux * flxSeg[i], y1 + uy * flxSeg[i], x1 + ux * flxSeg[i + 1], y1 + uy * flxSeg[i + 1], PartDimLine)
+    Next
+
+    ' marcadores
+    If Not (bArrowsOut And d.DIMSOXD = 1) Then
+        If Not d.DIMSD1 Then
+            If bArrowsOut Then AddMarker(e, sMk1, x1, y1, Ang(ux, uy)) Else AddMarker(e, sMk1, x1, y1, Ang(-ux, -uy))
+        Endif
+        If Not d.DIMSD2 Then
+            If bArrowsOut Then AddMarker(e, sMk2, x2, y2, Ang(-ux, -uy)) Else AddMarker(e, sMk2, x2, y2, Ang(ux, uy))
+        Endif
+    Endif
+
+    AddText(e, sText, tcx, tcy, ta)
+    Return [tcx, tcy]
+
+End
+
+'' Saca el intervalo [t0,t1] de una lista de tramos t,t,t,t...
+Public Function CutSegments(flxSeg As Float[], t0 As Float, t1 As Float) As Float[]
+
+    Dim flxRet As New Float[]
+    Dim i As Integer
+    Dim a, b As Float
+
+    For i = 0 To flxSeg.Max - 1 Step 2
+        a = Min(flxSeg[i], flxSeg[i + 1])
+        b = Max(flxSeg[i], flxSeg[i + 1])
+        If b <= t0 Or a >= t1 Then
+            flxRet.Insert([a, b])
+        Else
+            If a < t0 Then flxRet.Insert([a, t0])
+            If b > t1 Then flxRet.Insert([t1, b])
+        Endif
+    Next
+    Return flxRet
+
+End
+
+'' Texto con directriz, para radios, diametros y textos movidos lejos de la cota.
+'' La directriz va desde px,py (con marcador apuntando hacia fDir si sMarker <> "_NONE") hasta el texto.
+Public Sub AddLeaderText(e As Entity, px As Float, py As Float, sText As String, tcx As Float, tcy As Float, Optional bInside As Boolean)
+
+    Dim d As DimStyle = e.pDimStyle
+    Dim th, tw, gap, ta, ax, ay, fSide As Float
+
+    th = TextHeight(e)
+    tw = TextWidth(e, sText)
+    gap = d.DIMGAP * DimScale(e)
+
+    ' el texto horizontal con un renglon debajo, o centrado al final de la directriz
+    ta = 0
+    If bInside And d.DIMTIH = 0 Then ta = ReadableAngle(Ang(tcx - px, tcy - py))
+    If Not bInside And d.DIMTOH = 0 Then ta = ReadableAngle(Ang(tcx - px, tcy - py))
+
+    If d.DIMTAD = 0 Then
+        ' la directriz llega al borde del texto
+        fSide = Sqr((tcx - px) ^ 2 + (tcy - py) ^ 2)
+        If fSide > tw / 2 + gap Then
+            ax = tcx - (tcx - px) / fSide * (tw / 2 + gap)
+            ay = tcy - (tcy - py) / fSide * (tw / 2 + gap)
+            AddLine(e, px, py, ax, ay, PartDimLine)
+        Endif
+    Else
+        ' la directriz llega debajo del texto, y lo subraya
+        ax = tcx + Sin(ta) * (th / 2 + gap)
+        ay = tcy - Cos(ta) * (th / 2 + gap)
+        If (ax - px) * Cos(ta) + (ay - py) * Sin(ta) > 0 Then fSide = -1 Else fSide = 1
+        AddLine(e, px, py, ax + fSide * Cos(ta) * tw / 2, ay + fSide * Sin(ta) * tw / 2, PartDimLine)
+        AddLine(e, ax - Cos(ta) * tw / 2, ay - Sin(ta) * tw / 2, ax + Cos(ta) * tw / 2, ay + Sin(ta) * tw / 2, PartDimLine)
+    Endif
+
+    AddText(e, sText, tcx, tcy, ta)
+
+End
+
+'' Marca de centro de radios y diametros
+Public Sub AddCenterMark(e As Entity, xc As Float, yc As Float, fRadius As Float)
+
+    Dim c As Float
+
+    c = e.pDimStyle.DIMCEN * DimScale(e)
+    If c = 0 Then Return
+    AddLine(e, xc - Abs(c), yc, xc + Abs(c), yc, PartDimLine)
+    AddLine(e, xc, yc - Abs(c), xc, yc + Abs(c), PartDimLine)
+    If c < 0 Then           ' lineas de centro, mas alla del circulo
+        AddLine(e, xc + 2 * Abs(c), yc, xc + fRadius + Abs(c), yc, PartDimLine)
+        AddLine(e, xc - 2 * Abs(c), yc, xc - fRadius - Abs(c), yc, PartDimLine)
+        AddLine(e, xc, yc + 2 * Abs(c), xc, yc + fRadius + Abs(c), PartDimLine)
+        AddLine(e, xc, yc - 2 * Abs(c), xc, yc - fRadius - Abs(c), PartDimLine)
+    Endif
+
+End
+
+'=============================================== DIBUJO ===============================================
+
+Public Sub Draw(oE As Entity)
+
+    If Not oE.Visible Then Return
+    clsEntities.VBOEntityStart(oe)
+    DrawParts(oe, 0)
+    clsEntities.VboEntityDone(oe)
+
+End
+
+'' A selected version of the entity
+Public Sub DrawSelected(oE As Entity)
+
+    DrawParts(oe, 1)
+
+End
+
+'' A fat version of the entity
+Public Sub DrawRemark(oE As Entity)
+
+    DrawParts(oe, 2)
+
+End
+
+Public Function Draw2(oE As Entity)
+
+    DrawParts(oe, 3)
+
+End
+
+'' DrawMode: 0 Normal ; 1 Selected ; 2 Remark ; 3 Paint
+'' Las partes ByBlock (color 0, grosor -2) toman el color y grosor de la cota en el momento de dibujar
+Public Sub DrawParts(eParent As Entity, DrawMode As Integer)
+
+    Dim et As Entity
+    Dim iColour, iWidth As Integer
+    Dim pLayer As Layer
+    Dim bOwnLayer As Boolean
+
+    If Not eParent.pBlock Then Return
+    For Each et In eParent.pBlock.entities
+        If et.Gender = "ATTDEF" Or et.Gender = "SEQEND" Or et.Gender = "ENDBLK" Then Continue
+        iColour = et.Colour
+        iWidth = et.LineWidth
+        pLayer = et.pLayer
+        If et.Colour = 0 Then et.Colour = eParent.Colour
+        If et.LineWidth = -2 Then et.LineWidth = eParent.LineWidth
+        ' las partes de las cotas de GambasCAD siguen la capa de la cota; las de un DXF, solo si estan en la capa 0
+        bOwnLayer = eParent.iParam[Me.iiiRegen] = 1
+        If Not bOwnLayer Then
+            If Not et.pLayer Then
+                bOwnLayer = True
+            Else If et.pLayer.Name = "0" Then
+                bOwnLayer = True
+            Endif
+        Endif
+        If bOwnLayer Then et.pLayer = eParent.pLayer
+
+        If et.Gender = "INSERT" Then
+            If et.pBlock Then cadInsert.Draw_List(et.pBlock.entities, et, DrawMode)
+        Else
+            Select Case DrawMode
+                Case 0
+                    gcd.CCC[et.Gender].Draw(et)
+                Case 1
+                    gcd.CCC[et.Gender].DrawSelected(et)
+                Case 2
+                    gcd.CCC[et.Gender].DrawRemark(et)
+                Case 3
+                    gcd.CCC[et.Gender].Draw2(et)
+            End Select
+        Endif
+
+        et.Colour = iColour
+        et.LineWidth = iWidth
+        et.pLayer = pLayer
+    Next
+
+End
+
+'' Las partes y los limites
+Public Function BuildGeometry(oE As Entity, Optional density As Float)
+
+    Dim et As Entity
+    Dim flxLimits As Float[]
+
+    If Not oe.pBlock Then Return
+    flxLimits = [1e100, 1e100, -1e100, -1e100]
+    For Each et In oe.pBlock.entities
+        If et.Gender = "ATTDEF" Or et.Gender = "SEQEND" Or et.Gender = "ENDBLK" Then Continue
+        Try gcd.CCC[et.Gender].BuildGeometry(et)
+        puntos.LimitsMax(flxLimits, PartLimits(et))
+    Next
+    If flxLimits[0] > flxLimits[2] Then flxLimits = [oe.P[0].x, oe.P[0].y, oe.P[0].x, oe.P[0].y]
+    oe.Limits[0] = flxLimits[0]
+    oe.Limits[1] = flxLimits[1]
+    oe.Limits[2] = flxLimits[2]
+    oe.Limits[3] = flxLimits[3]
+
+End
+
+'' Los limites de una parte segun su geometria (las PolyLine de arcos y solidos son x,y,z, las de los textos x,y)
+Private Function PartLimits(et As Entity) As Float[]
+
+    Dim flx As Float[]
+    Dim e2 As Entity
+
+    Select Case et.Gender
+        Case "MTEXT", "TEXT"
+            If et.PolyLine.Count >= 4 Then flx = puntos.Limits(et.PolyLine)
+        Case "ARC", "CIRCLE"
+            If et.PolyLine.Count >= 6 Then flx = puntos.LimitsP(puntos.FromXYZ(et.PolyLine))
+        Case "INSERT"
+            flx = [1e100, 1e100, -1e100, -1e100]
+            If et.pBlock Then
+                For Each e2 In et.pBlock.entities
+                    puntos.LimitsMax(flx, PartLimits(e2))
+                Next
+            Endif
+    End Select
+    If Not flx Then
+        If et.P.Count > 0 Then flx = puntos.LimitsP(et.P) Else flx = [1e100, 1e100, -1e100, -1e100]
+    Endif
+    et.Limits[0] = flx[0]
+    et.Limits[1] = flx[1]
+    et.Limits[2] = flx[2]
+    et.Limits[3] = flx[3]
+    Return flx
+
+End
+
+'' Los limites de la cota, desde sus partes
+Public Sub Limits(e As Entity)
+
+    Dim et As Entity
+    Dim flx As Float[]
+
+    flx = [1e100, 1e100, -1e100, -1e100]
+    If e.pBlock Then
+        For Each et In e.pBlock.entities
+            If et.Gender = "ATTDEF" Or et.Gender = "SEQEND" Or et.Gender = "ENDBLK" Then Continue
+            puntos.LimitsMax(flx, PartLimits(et))
+        Next
+    Endif
+    If flx[0] > flx[2] Then flx = [e.P[0].x, e.P[0].y, e.P[0].x, e.P[0].y]
+    e.Limits[0] = flx[0]
+    e.Limits[1] = flx[1]
+    e.Limits[2] = flx[2]
+    e.Limits[3] = flx[3]
+
+End
+
+'' Solo sobre las partes, no en todo el rectangulo de la cota
+Fast Public Function OverMe(e As Entity, Xr As Float, Yr As Float, tolerance As Float) As Boolean
+
+    Dim e2 As Entity
+
+    If Not e.pBlock Then Return False
+    If Xr < e.Limits[0] - tolerance Or Xr > e.Limits[2] + tolerance Or Yr < e.Limits[1] - tolerance Or Yr > e.Limits[3] + tolerance Then Return False
+    For Each e2 In e.pBlock.entities
+        If e2.Gender = "ATTDEF" Or e2.Gender = "SEQEND" Or e2.Gender = "ENDBLK" Then Continue
+        If gcd.CCC[e2.Gender].OverMe(e2, xr, yr, tolerance) Then Return True
+    Next
     Return False
 
 End
 
-Public Function SaveDxfData(e As Entity) As Boolean
+'=============================================== EDICION ===============================================
 
-    ' Los datos comunes a todas las entidades son guardados por la rutina que llama a esta
+Public Sub Translate(e As Entity, dX As Float, dY As Float, dZ As Float, Optional OnlySelected As Boolean = False)
 
-    dxf.SaveCodeInv("AcDbDimension", "100")
+    Dim eBlock As Entity
+    Dim i As Integer
+    Dim bMoved As Boolean
 
-    dxf.SaveCodeInv(E.pBlock.name, "2")                     ' block name
+    ' estirar: solo los puntos de definicion seleccionados, y se rehace la cota
+    If OnlySelected And If e.iParam[Me.iiiRegen] >= 0 Then
+        For i = 0 To Min(e.P.Max, e.Psel.Max)
+            If Not e.Psel[i] Then Continue
+            e.P[i].x += dX
+            e.P[i].y += dY
+            e.P[i].z += dZ
+            bMoved = True
+        Next
+        If bMoved Then Rebuild(e)
+        Return
+    Endif
 
-    dxf.SaveCodeInv(CStr(e.P[5].x), dxf.codX0)                ' first def point
-    dxf.SaveCodeInv(CStr(e.P[5].y), dxf.codY0)
-    dxf.SaveCodeInv("0", dxf.codz0)
-
-    dxf.SaveCodeInv(CStr(e.P[6].x), dxf.codX1)                ' mid point text att point
-    dxf.SaveCodeInv(CStr(e.P[6].y), dxf.codY1)
-    dxf.SaveCodeInv("0", dxf.codz0)
-
-    dxf.SaveCodeInv(CStr(e.iParam[Me.iiiDimType]), "70")    ' dim type
-
-    dxf.SaveCodeInv(CStr(e.iParam[Me.iiiAtatchPoint]), "71") ' text att mode
-
-    dxf.SaveCodeInv(CStr(e.fParam[Me.ipaRealMeasure]), "42") ' real measure
-
-    dxf.SaveCodeInv(e.pDimStyle.name, "3")                   ' dimstyle
+    puntos.TranslateP(e.P, dX, dY, dZ)
+    If Not e.pBlock Then Return
+    For Each eBlock In e.pBlock.entities
+        gcd.CCC[eBlock.gender].translate(eBlock, dx, dy, dz)
+    Next
+    BuildGeometry(e)
 
 End
+
+Public Sub Rotate(e As Entity, radians As Float)
+
+    Dim eBlock As Entity
+
+    puntos.RotateP(e.P, radians)
+    e.fParam[Me.ipaRotacion] += Deg(radians)
+    If e.iParam[Me.iiiRegen] >= 0 Then
+        Rebuild(e)
+    Else
+        For Each eBlock In e.pBlock.entities
+            gcd.CCC[eBlock.gender].rotate(eBlock, radians)
+        Next
+        BuildGeometry(e)
+    Endif
+
+End
+
+Public Sub Scale(e As Entity, sX As Float, sY As Float, Optional sZ As Float = 1)
+
+    Dim eBlock As Entity
+
+    puntos.ScaleP(e.P, sX, sY, sZ)
+    If e.iParam[Me.iiiRegen] >= 0 Then
+        Rebuild(e)
+    Else
+        For Each eBlock In e.pBlock.entities
+            gcd.CCC[eBlock.gender].scale(eBlock, sx, sy)
+        Next
+        BuildGeometry(e)
+    Endif
+
+End
+
+Public Sub Finish(oE As Entity) As Boolean
+
+    If oe.P.Count < Me.TotalPoints Then puntos.ResizeP(oe.P, Me.TotalPoints)
+    If Not oe.pBlock Then oe.pBlock = New Block
+    ' las cotas sin bloque (de GambasCAD o de un DXF que no lo trae) se arman ahora
+    If oe.iParam[Me.iiiRegen] = 1 Or If oe.pBlock.entities.Count = 0 Then
+        If oe.iParam[Me.iiiRegen] >= 0 Then Rebuild(oe)
+    Endif
+    oE.psel.resize(oE.P.Count)
+    Return True
+
+End
+
+Public Sub ClonEntity(eOrigen As Entity, Optional GetNewid As Boolean = True) As Entity
+
+    Dim e As Entity
+
+    e = Super.ClonEntity(eOrigen, GetNewid)
+    If eOrigen.pDimStyle Then e.pDimStyle = eOrigen.pDimStyle.Copy()
+    e.pBlock.Parent = e
+    Return e
+
+End
+
+'' Genera los grips de los puntos de definicion
+Public Function GenerateGrips(e As Entity) As Integer
+
+    Dim g As Grip
+    Dim sPoints, sTips As String[]
+    Dim i, iPoint As Integer
+
+    If e.iParam[Me.iiiRegen] < 0 Then Return 0         ' cota vieja, no se puede rehacer
+    sPoints = Split(gcd.CCC[e.Gender].GripPoints, ";")
+    sTips = Split(gcd.CCC[e.Gender].GripTips, ";")
+    For i = 0 To sPoints.Max
+        iPoint = CInt(sPoints[i])
+        g = New Grip
+        g.Shape = 0
+        If iPoint = 1 Then g.Shape = 1          ' el texto
+        g.p = e.P[iPoint].Copy()
+        g.pRef = g.P.Copy()
+        g.Action = 0
+        g.AsociatedEntity = e
+        g.AsociatedPoint = iPoint
+        If i <= sTips.Max Then g.ToolTip = sTips[i]
+        gcd.Drawing.Sheet.Grips.Add(g)
+    Next
+    Return sPoints.Count
+
+End
+
+Public Function GripEdit(g As Grip) As Boolean
+
+    Dim e As Entity
+
+    e = g.AsociatedEntity
+    If e.iParam[Me.iiiRegen] < 0 Then Return False
+    ' las cotas se construyen en XY, el z del punto se conserva
+    e.P[g.AsociatedPoint].x = g.P.x
+    e.P[g.AsociatedPoint].y = g.P.y
+    If g.AsociatedPoint = 1 Then
+        SetUserText(e, True)
+    Else If g.AsociatedPoint = 0 Then
+        SetUserText(e, False)           ' el texto acompaña a la linea de cota
+    Endif
+    gcd.CCC[e.Gender].GripMoved(e, g.AsociatedPoint)
+    Rebuild(e)
+    Return True
+
+End
+
+'' Mientras se arrastra un grip la cota ya se dibuja rehecha; no hace falta nada mas (el de cadInsert dibuja la escala)
+Public Sub DrawEditing(g As Grip)
+
+End
+
+'' Para que cada cota ajuste otros puntos cuando se mueve uno
+Public Sub GripMoved(e As Entity, iPoint As Integer)
+
+End
+
+'' El texto al lugar que le da el estilo
+Public Sub ResetTextPosition(e As Entity)
+
+    SetUserText(e, False)
+    Rebuild(e)
+
+End
+
+'=============================================== DXF ===============================================
+
+Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
+
+    Dim i, iCode, iXCode As Integer
+    Dim bBlockSet, bXData, b70, b71 As Boolean
+    Dim sStyle, sField As String
+    Dim vP As Punto3d
+    Dim fLine2x, fLine2y As Float
+    Dim f As Float[]
+    Dim cOverrides As New Collection
+
+    If e.P.Count < Me.TotalPoints Then puntos.ResizeP(e.P, Me.TotalPoints)
+    e.fParam[Me.ipaEscX] = 1
+    e.fParam[Me.ipaEscY] = 1
+    e.fParam[Me.ipaEscZ] = 1
+
+    For i = 0 To sClaves.Max
+        iCode = CInt(sClaves[i])
+
+        If bXData Then
+            ' 1070 codigo, 1040/1070/1000 valor
+            If iCode = 1002 And sValues[i] = "}" Then
+                bXData = False
+            Else If iCode = 1070 And iXCode = 0 Then
+                iXCode = CInt(sValues[i])
+            Else If iXCode <> 0 Then
+                sField = DimStyle.FieldForCode(iXCode)
+                If sField <> "" And iCode <> 1005 Then cOverrides[sField] = sValues[i]
+                iXCode = 0
+            Endif
+            Continue
+        Endif
+
+        Select Case iCode
+            Case 2
+                If Not bBlockSet Then
+                    If gcd.Drawing.Blocks.Exist(sValues[i]) Then e.pBlock = gcd.Drawing.Blocks[sValues[i]]
+                    bBlockSet = True
+                Endif
+            Case 10 To 17
+                e.P[iCode - 10].x = CFloat(sValues[i])
+            Case 20 To 27
+                e.P[iCode - 20].y = CFloat(sValues[i])
+            Case 30 To 37
+                e.P[iCode - 30].z = CFloat(sValues[i])
+            Case 1
+                e.sParam[Me.sdaTextOverride] = sValues[i]
+            Case 3
+                sStyle = sValues[i]
+            Case 40
+                If e.Gender = "ARC_DIMENSION" Then
+                    e.fParam[Me.ipaArcStart] = CFloat(sValues[i])
+                Else If e.Gender = "LARGE_RADIAL_DIMENSION" Then
+                    e.fParam[Me.ipaJogAngle] = CFloat(sValues[i])
+                Else
+                    e.fParam[Me.ipaLeaderLength] = CFloat(sValues[i])
+                Endif
+            Case 41
+                If e.Gender = "ARC_DIMENSION" Then e.fParam[Me.ipaArcEnd] = CFloat(sValues[i])
+            Case 42
+                e.fParam[Me.ipaRealMeasure] = CFloat(sValues[i])
+            Case 50
+                e.fParam[Me.ipaRotacion] = CFloat(sValues[i])
+            Case 51
+                e.fParam[Me.ipaHorizDir] = CFloat(sValues[i])
+            Case 52
+                e.fParam[Me.ipaObliqueAngle] = CFloat(sValues[i])
+            Case 53
+                e.fParam[Me.ipaTextRotation] = CFloat(sValues[i])
+            Case 70         ' ARC_DIMENSION repite 70 y 71 en su subclase, con otro significado
+                If Not b70 Then e.iParam[Me.iiiDimType] = CInt(sValues[i])
+                b70 = True
+            Case 71
+                If Not b71 Then e.iParam[Me.iiiAtatchPoint] = CInt(sValues[i])
+                b71 = True
+            Case 1000
+                If sValues[i] = "DSTYLE" Then bXData = True
+        End Select
+    Next
+
+    ' el tipo de cota
+    If e.Gender = "DIMENSION" Then
+        Select Case e.iParam[Me.iiiDimType] And 15
+            Case 0
+                e.Gender = cadDIMENSION_LINEAR.Gender
+            Case 1
+                e.Gender = cadDIMENSION_ALIGNED.Gender
+            Case 2          ' angular con dos lineas: lo paso a tres puntos
+                ' 13-14 es la primera linea, 15-10 la segunda, 16 la ubicacion del arco
+                f = puntos.lineLineIntersection2(e.P[3].x, e.P[3].y, e.P[4].x, e.P[4].y, e.P[5].x, e.P[5].y, e.P[0].x, e.P[0].y)
+                If f.Count >= 2 Then
+                    vP = puntos.P3d(f[0], f[1], e.P[3].z)
+                    If puntos.distancia(f[0], f[1], e.P[3].x, e.P[3].y) > puntos.distancia(f[0], f[1], e.P[4].x, e.P[4].y) Then e.P[4] = e.P[3].Copy()
+                    fLine2x = e.P[0].x
+                    fLine2y = e.P[0].y
+                    If puntos.distancia(f[0], f[1], e.P[5].x, e.P[5].y) > puntos.distancia(f[0], f[1], fLine2x, fLine2y) Then
+                        fLine2x = e.P[5].x
+                        fLine2y = e.P[5].y
+                    Endif
+                    e.P[3] = e.P[4].Copy()
+                    e.P[4] = puntos.P3d(fLine2x, fLine2y, e.P[3].z)
+                    e.P[0] = e.P[6].Copy()
+                    e.P[5] = vP
+                Endif
+                e.iParam[Me.iiiDimType] = (e.iParam[Me.iiiDimType] And Not 15) Or 5
+                e.Gender = cadDIMENSION_ANG3PT.Gender
+            Case 3
+                e.Gender = cadDIMENSION_DIAMETER.Gender
+            Case 4
+                e.Gender = cadDIMENSION_RADIUS.Gender
+            Case 5
+                e.Gender = cadDIMENSION_ANG3PT.Gender
+            Case 6
+                e.Gender = cadDIMENSION_ORDINATE.Gender
+            Case Else
+                e.Gender = cadDIMENSION_LINEAR.Gender
+        End Select
+    Endif
+
+    ' ARC_DIMENSION y LARGE_RADIAL_DIMENSION no traen su tipo en el 70
+    If e.Gender = "ARC_DIMENSION" Or e.Gender = "LARGE_RADIAL_DIMENSION" Then e.iParam[Me.iiiDimType] = (e.iParam[Me.iiiDimType] And Not 15) Or gcd.CCC[e.Gender].DimTypeCode
+
+    ' el estilo y sus overrides
+    If gcd.Drawing.DimStyles.Exist(sStyle) Then
+        e.pDimStyle = NewStyleFor(gcd.Drawing.DimStyles[sStyle])
+    Else If gcd.Drawing.DimStyles.Count > 0 Then
+        e.pDimStyle = NewStyleFor(gcd.Drawing.DimStyles[gcd.Drawing.DimStyles.First])
+    Else
+        e.pDimStyle = NewStyleFor(Null)
+    Endif
+    For Each vValue As Variant In cOverrides
+        If e.pDimStyle.SetFromDxf(DimStyle.CodeForField(cOverrides.Key), vValue) Then
+            e.pDimStyle.Overrides[cOverrides.Key] = Object.GetProperty(e.pDimStyle, cOverrides.Key)
+        Endif
+    Next
+
+    ' si el archivo trae el bloque, lo uso hasta que se edite la cota
+    If e.pBlock Then
+        If e.pBlock.entities.Count > 0 Then
+            e.iParam[Me.iiiRegen] = 0
+        Else
+            e.iParam[Me.iiiRegen] = 1
+        Endif
+    Else
+        e.pBlock = New Block
+        e.iParam[Me.iiiRegen] = 1
+    Endif
+    e.pBlock.InsertionPlace = 1
+
+    Return True
+
+End
+
+'' Los datos comunes de todas las cotas; los propios los agrega cada clase en SaveDxfPoints
+Public Function SaveDxfData(e As Entity) As Boolean
+
+    Dim iType As Integer
+    Dim sField As String
+    Dim iCode As Integer
+    Dim vValue As Variant
+
+    dxf.SaveCodeInv("AcDbDimension", "100")
+    dxf.SaveCodeInv(e.pBlock.name, "2")
+    SavePoint(e, 0)
+    SavePoint(e, 1)
+
+    iType = (e.iParam[Me.iiiDimType] And (DimFlagUserText Or DimFlagOrdinateX)) Or DimFlagBlockOwn Or gcd.CCC[e.Gender].DimTypeCode
+    If e.Gender = "ARC_DIMENSION" Or e.Gender = "LARGE_RADIAL_DIMENSION" Then iType = e.iParam[Me.iiiDimType] And (DimFlagUserText Or DimFlagBlockOwn)
+    dxf.SaveCodeInv(CStr(iType), "70")
+    dxf.SaveCodeInv(CStr(e.iParam[Me.iiiAtatchPoint]), "71")
+    dxf.SaveCodeInv(CStr(e.fParam[Me.ipaRealMeasure]), "42")
+    If e.sParam[Me.sdaTextOverride] <> "" Then dxf.SaveCodeInv(e.sParam[Me.sdaTextOverride], "1")
+    If e.fParam[Me.ipaTextRotation] <> 0 Then dxf.SaveCodeInv(CStr(e.fParam[Me.ipaTextRotation]), "53")
+    If e.fParam[Me.ipaHorizDir] <> 0 Then dxf.SaveCodeInv(CStr(e.fParam[Me.ipaHorizDir]), "51")
+    dxf.SaveCodeInv(e.pDimStyle.name, "3")
+
+    gcd.CCC[e.Gender].SaveDxfPoints(e)
+
+    ' los overrides del estilo, como lo hace AutoCAD
+    If e.pDimStyle.Overrides Then
+        If e.pDimStyle.Overrides.Count > 0 Then
+            dxf.SaveCodeInv("ACAD", "1001")
+            dxf.SaveCodeInv("DSTYLE", "1000")
+            dxf.SaveCodeInv("{", "1002")
+            For Each vValue In e.pDimStyle.Overrides
+                sField = e.pDimStyle.Overrides.Key
+                iCode = DimStyle.CodeForField(sField)
+                If iCode = 0 Then Continue
+                Select Case Object.Class(e.pDimStyle)[sField].Type
+                    Case "f"
+                        dxf.SaveCodeInv(CStr(iCode), "1070")
+                        dxf.SaveCodeInv(CStr(vValue), "1040")
+                    Case "s"
+                        If Left(sField, 6) = "DIMBLK" Then Continue       ' van como handle, no lo manejamos
+                        dxf.SaveCodeInv(CStr(iCode), "1070")
+                        dxf.SaveCodeInv(CStr(vValue), "1000")
+                    Case Else
+                        dxf.SaveCodeInv(CStr(iCode), "1070")
+                        dxf.SaveCodeInv(CStr(vValue), "1070")
+                End Select
+            Next
+            dxf.SaveCodeInv("}", "1002")
+        Endif
+    Endif
+
+    Return True
+
+End
+
+'' El marcador de subclase y los puntos propios de cada tipo
+Public Sub SaveDxfPoints(e As Entity)
+
+    dxf.SaveCodeInv(Me.DxfSubclass, "100")
+
+End
+
+'' Guarda P[k] como el codigo 10+k
+Public Sub SavePoint(e As Entity, k As Integer)
+
+    dxf.SaveCodeInv(CStr(e.P[k].x), CStr(10 + k))
+    dxf.SaveCodeInv(CStr(e.P[k].y), CStr(20 + k))
+    dxf.SaveCodeInv(CStr(e.P[k].z), CStr(30 + k))
+
+End
+
+'=============================================== JSON ===============================================
 
 Public Function SaveJsonData(e As Entity, j As Collection) As Boolean
 
     Dim jBlock As Collection
 
-    Super.SaveJsonData(e, j)
+    j["dimver"] = JsonVersion
+    j["pts"] = puntos.ToXYZ(e.P)
+    j["fparam"] = e.fParam
+    j["iparam"] = e.iParam
+    j["sparam"] = e.sParam
+    If e.pDimStyle Then
+        If e.pDimStyle.Overrides Then
+            If e.pDimStyle.Overrides.Count > 0 Then j["overrides"] = e.pDimStyle.Overrides
+        Endif
+    Endif
 
-    ' si el bloque no esta en la tabla de bloques del dibujo (dimensiones hechas aqui), lo guardo con la dimension
-    If Not gcd.Drawing.Blocks.Exist(e.pBlock.name) Or If gcd.Drawing.Blocks[e.pBlock.name] <> e.pBlock Then
+    ' las cotas que no arma GambasCAD llevan su bloque
+    If e.iParam[Me.iiiRegen] <> 1 And If e.pBlock Then
         jBlock = e.pBlock.ExportJson()
         jBlock["entities"] = JsonFile.EntitiesToJson(e.pBlock.entities)
         j["blockdata"] = jBlock
-    Endif
-    j["insertionplace"] = e.pBlock.InsertionPlace
-
-    ' el estilo puede tener valores propios de esta dimension
-    If e.pDimStyle Then
-        j["DIMTXT"] = e.pDimStyle.DIMTXT
-        j["DIMASZ"] = e.pDimStyle.DIMASZ
-        j["DIMSCALE"] = e.pDimStyle.DIMSCALE
     Endif
 
     Return True
@@ -283,128 +1360,50 @@ End
 Public Function ImportJson(e As Entity, c As Collection) As Boolean
 
     Dim b As Block
+    Dim dBase As DimStyle
+    Dim vValue As Variant
 
-    Super.ImportJson(e, c)
+    If c.Exist("pts") Then e.P = puntos.FromXYZ(JsonFile.ToFloats(c["pts"]))
+    If c.Exist("fparam") Then e.fParam = JsonFile.ToFloats(c["fparam"])
+    If c.Exist("iparam") Then e.iParam = JsonFile.ToIntegers(c["iparam"])
+    If c.Exist("sparam") Then e.sParam = JsonFile.ToStrings(c["sparam"])
+    If e.P.Count < Me.TotalPoints Then puntos.ResizeP(e.P, Me.TotalPoints)
+    If e.fParam.Count < Me.TotalParams Then e.fParam.Resize(Me.TotalParams)
+    If e.iParam.Count < Me.iTotalParams Then e.iParam.Resize(Me.iTotalParams)
+    If e.sParam.Count < Me.sdaTotalParams Then e.sParam.Resize(Me.sdaTotalParams)
+
+    ' el estilo: JsonFile ya puso el de la tabla, le agrego los overrides
+    dBase = Null
+    If gcd.Drawing.DimStyles.Exist(c["dimstyle"]) Then dBase = gcd.Drawing.DimStyles[c["dimstyle"]] Else dBase = gcd.Drawing.CurrDimStyle
+    e.pDimStyle = NewStyleFor(dBase)
+    If c.Exist("overrides") And If TypeOf(c["overrides"]) = gb.Object Then
+        For Each vValue In c["overrides"]
+            Try e.pDimStyle.SetOverride(c["overrides"].Key, vValue)
+        Next
+    Endif
 
     If c.Exist("blockdata") Then
         b = JsonFile.BlockFromJson(c["blockdata"])
         JsonFile.LoadEntities(c["blockdata"]["entities"], b)
         e.pBlock = b
-    Else If gcd.Drawing.Blocks.Exist(c["block"]) Then
-        e.pBlock = gcd.Drawing.Blocks[c["block"]]
+    Else
+        e.pBlock = New Block
     Endif
-    If c.Exist("insertionplace") Then e.pBlock.InsertionPlace = c["insertionplace"]
 
-    If e.pDimStyle Then
-        If c.Exist("DIMTXT") Then e.pDimStyle.DIMTXT = c["DIMTXT"]
-        If c.Exist("DIMASZ") Then e.pDimStyle.DIMASZ = c["DIMASZ"]
-        If c.Exist("DIMSCALE") Then e.pDimStyle.DIMSCALE = c["DIMSCALE"]
+    If Not c.Exist("dimver") Then
+        ' archivo de una version anterior: los puntos no siguen el DXF, conservo el bloque y no la dejo editar
+        If e.pBlock.entities.Count = 0 And If gcd.Drawing.Blocks.Exist(c["block"]) Then e.pBlock = gcd.Drawing.Blocks[c["block"]]
+        If c.Exist("DIMTXT") Then e.pDimStyle.SetOverride("DIMTXT", c["DIMTXT"])
+        If c.Exist("DIMASZ") Then e.pDimStyle.SetOverride("DIMASZ", c["DIMASZ"])
+        e.iParam[Me.iiiRegen] = -1
     Endif
+    e.pBlock.InsertionPlace = 1
+    e.pBlock.Parent = e
 
     Return True
 
 End
 
-Public Sub Translate(e As Entity, dX As Float, dY As Float, dZ As Float, Optional OnlySelected As Boolean = False)
-
-    Dim eBlock As Entity
-    ' los insertos se mueven de acuerdo al punto de insercion
-    puntos.TranslateP(e.P, dX, dY, dZ)
-    For Each eBlock In e.pBlock.entities
-        gcd.CCC[eBlock.gender].translate(eBlock, dx, dy, dz)
-    Next
-
-End
-
-Public Sub Rotate(e As Entity, radians As Float)
-
-    puntos.RotateP(e.P, radians)
-
-    Dim eBlock As Entity
-
-    For Each eBlock In e.pBlock.entities
-        gcd.CCC[eBlock.gender].rotate(eBlock, radians)
-    Next
-
-End
-
-Public Sub Scale(e As Entity, sX As Float, sY As Float, Optional sZ As Float = 1)
-
-    Dim i As Integer
-
-    E.fParam[Me.ipaEscX] *= sX
-    E.fParam[Me.ipaEscY] *= sY
-    puntos.ScaleP(e.P, sX, sY, sZ)
-
-    Dim eBlock As Entity
-
-    For Each eBlock In e.pBlock.entities
-        gcd.CCC[eBlock.gender].scale(eBlock, sx, sy)
-    Next
-
-End
-
-Public Sub Draw(oE As Entity)
-
-    If oe.pBlock Then Draw_List(oe.pBlock.entities, oe, 0)
-
-End
-
-'' A selected version of the entity
-Public Sub DrawSelected(oE As Entity)
-
-    If oe.pBlock Then Draw_List(oe.pBlock.entities, oe, 1)
-
-End
-
-'' A fat version of the entity
-Public Sub DrawRemark(oE As Entity)
-
-    If oe.pBlock Then Draw_List(oe.pBlock.entities, oe, 2)
-
-End
-
-'' DrawMode: 0 Normal ; 1 Selected ; 2 Remark ; 3 Paint
-Public Sub Draw_List(eList As Collection, eParent As Entity, DrawMode As Integer)
-
-    Dim et As Entity
-
-    If Not eList Then Return
-
-    For Each ET In eList
-        et.Colour = eParent.Colour
-
-        If et.Gender = "INSERT" Then
-
-            If et.pBlock Then cadInsert.Draw_List(et.pBlock.entities, et, DrawMode)
-        Else
-            Select Case DrawMode
-                Case 0 ' normal
-                    GCD.CCC[et.gender].Draw(et)
-                Case 1 ' Selected
-                    GCD.CCC[et.gender].DrawSelected(et)
-                Case 2 ' Remark
-                    GCD.CCC[et.gender].DrawRemark(et)
-                Case 3 ' Paint
-                    GCD.CCC[et.gender].Draw2(et)
-
-            End Select
-
-        End If
-
-    Next
-
-End
-
-Public Sub Finish(oE As Entity) As Boolean
-
-    ' tareas finales de armado del objeto
-    'depre Me.BuildPOI(oe)
-
-    'Me.BuildGeometry(oe)
-
-    oE.psel.resize(oE.P.Count)
-
-    'oE.Selected = False
+Public Sub ImportJsonParts(e As Entity, c As Collection)
 
 End

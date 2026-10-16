@@ -2982,6 +2982,49 @@ Public Function DrawCubic(pCenter As Punto3d, fWidth As Float, fHeight As Float,
 End
 
 '' Dibuja un serie de lineas
+'Fast Unsafe
+Public Function DrawRect2D(pCenter As Punto3d, fWidth As Float, fHeight As Float, FillColor As Integer, Optional ContourColor As Integer = 0, fYaw As Float = 0, fPitch As Float = 0, fRoll As Float = 0)
+
+    Dim r As Float, g As Float, b As Float
+    Dim p3d As New Punto3d[]
+    Dim cara1 As New Punto3d[]
+
+    Dim p As Punto3d
+    'If gbcolor > 0 Then Stop
+    r = (Shr(FillColor, 16) And 255) / 256
+    g = (Shr(FillColor, 8) And 255) / 256
+    b = (FillColor And 255) / 256
+
+    ' Cara superior
+    p = New Punto3d
+    p.x = pCenter.x - fWIdth / 2
+    p.y = pCenter.y - fHeight / 2
+    p.z = pCenter.z
+    p3d.Add(p)
+    p = New Punto3d
+    p.x = pCenter.x + fWIdth / 2
+    p.y = pCenter.y - fHeight / 2
+    p.z = pCenter.z
+    p3d.Add(p)
+    p = New Punto3d
+    p.x = pCenter.x + fWIdth / 2
+    p.y = pCenter.y + fHeight / 2
+    p.z = pCenter.z
+    p3d.Add(p)
+    p = New Punto3d
+    p.x = pCenter.x - fWIdth / 2
+    p.y = pCenter.y + fHeight / 2
+    p.z = pCenter.z
+    p3d.Add(p)
+
+    ' caras compuestas de dos triangulitos
+    cara1.Insert([p3d[0], p3d[1], p3d[2], p3d[0], p3d[2], p3d[3]])
+
+    DrawTriangles3D(puntos.ToXYZ(Cara1), FillColor)
+
+End
+
+'' Dibuja un serie de lineas
 Public Function Drawpoints(fPoints As Float[], Optional colour As Integer = 0, PointSize As Float = 1)
 
     Dim i As Integer
@@ -3304,6 +3347,39 @@ Public Function CIRCLE(center As Float[], radious As Float, Optional colour As I
         PolyLines(fVertices, colour, linewIdth, dashes)
 
     End If
+
+End
+
+'' Draws a filled circle in the XY plane at height zC, using the current VBO
+'' Fill is a triangle fan in VertexTriangle, border is a closed strip in Vertex
+
+Public Sub CircleFilled3D(xC As Float, yC As Float, zC As Float, radious As Float, BorderColor As Integer, FillColor As Integer, Optional LineWIdth As Float = 1, Segments As Integer = 72)
+
+    Dim i As Integer
+    Dim theta As Float
+    Dim fRing As New Float[]
+    Dim fTriangles As New Float[]
+
+    If radious <= 0 Then Return
+    If Segments < 8 Then Segments = 8
+
+    ' closed ring of points, last one repeats the first
+    For i = 0 To Segments
+        theta = 2 * Pi * i / Segments
+        fRing.Add(xC + radious * Cos(theta))
+        fRing.Add(yC + radious * Sin(theta))
+        fRing.Add(zC)
+    Next
+
+    ' triangle fan from the center
+    For i = 0 To fRing.Max - 5 Step 3
+        fTriangles.Insert([xC, yC, zC])
+        fTriangles.Insert([fRing[i], fRing[i + 1], fRing[i + 2]])
+        fTriangles.Insert([fRing[i + 3], fRing[i + 4], fRing[i + 5]])
+    Next
+
+    DrawTriangles3D(fTriangles, FillColor)
+    PolyLines(fRing, BorderColor, LineWIdth)
 
 End
 

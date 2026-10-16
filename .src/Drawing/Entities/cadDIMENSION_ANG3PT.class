@@ -1,7 +1,5 @@
 ' Gambas class file
 
-' Gambas class file
-
 ' GambasCAD
 ' A simple CAD made in Gambas
 '
@@ -21,438 +19,201 @@
 ' along with this program; if not, write to the Free Software
 ' Foundation, Inc., 51 Franklin St, Fifth Floor,
 ' Boston, MA  02110-1301  USA
+
+'' Cota angular de tres puntos. DXF tipo 5 (las de dos lineas, tipo 2, se pasan a esta al leerlas)
+''   P[5] = 15   vertice del angulo
+''   P[3] = 13   punto sobre el primer lado
+''   P[4] = 14   punto sobre el segundo lado
+''   P[0] = 10   ubicacion del arco de cota
+''   P[1] = 11   centro del texto
+'' Tambien arma las cotas de largo de arco (ver cadARC_DIMENSION)
+
 Create Static
-Inherits Caddimension
+Inherits CadDimension
 
 Public Const Gender As String = "DIMENSION_ANG3PT"
-Public Const DrawingOrder As Integer = 100 ' 1 a 32.724 esto debe Drawse primero y ser sobreescrito por el resto
-Public Const PointsToDraw As Integer = 1             ' minimal point requered for drawing something usefull
-Public Const CmdLineHelper As String = ("Insert a linear acotation")
-Public Const ParamType As String = "PPPP"                             ' that is Point, Point, Float; could be Color Text, etc
-Public Const ParamHelper As String = "Center of arc;First point;Secont point;extension"
-
-Public Function SaveDxfData(e As Entity) As Boolean
-
-    cadDimension.SaveDxfData(e)
-
-    dxf.SaveCodeInv("AcDb3PointAngularDimension", "100")
-    ' ===========================================================================
-    dxf.SaveCodeInv(CStr(e.P[8].x), "13")                ' first def point
-    dxf.SaveCodeInv(CStr(e.P[8].y), "23")
-    dxf.SaveCodeInv("0", "33")
-
-    dxf.SaveCodeInv(CStr(e.P[9].x), "14")                ' text att point
-    dxf.SaveCodeInv(CStr(e.P[9].y), "24")
-    dxf.SaveCodeInv("0", "34")
-
-    dxf.SaveCodeInv(CStr(e.P[10].x), "15")                ' text att point
-    dxf.SaveCodeInv(CStr(e.P[10].y), "25")
-    dxf.SaveCodeInv("0", "35")
-
-    If e.iParam[Me.iiiMode] = 1 Then
-        dxf.SaveCodeInv(CStr(e.P[11].x), "16")                ' text att point
-        dxf.SaveCodeInv(CStr(e.P[11].y), "26")
-        dxf.SaveCodeInv("0", "36")
-
-    Endif
-
-End
-
-Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
-
-    Dim i As Integer
-    Dim AfterSubclassmarker As Boolean
-
-    For i = 0 To sClaves.Max
-        If sClaves[i] = "100" And sValues[i] = "AcDb3PointAngularDimension" Then AfterSubclassmarker = True
-        If AfterSubclassmarker Then ' lo siguientes codigos
-
-            If sClaves[i] = "13" Then Me.DefPoint1.x = CFloat(sValues[i])
-            If sClaves[i] = "23" Then Me.DefPoint1.y = CFloat(sValues[i])
-
-            If sClaves[i] = "14" Then Me.DefPoint2.x = CFloat(sValues[i])
-            If sClaves[i] = "24" Then Me.DefPoint2.y = CFloat(sValues[i])
-
-            If sClaves[i] = "15" Then Me.DefPointCentral.x = CFloat(sValues[i])
-            If sClaves[i] = "25" Then Me.DefPointCentral.y = CFloat(sValues[i])
-
-        End If
-
-    Next
-
-    ' TODO: cuando este terminada la entidad, sacar eso
-    ' tengo q presuponer que las escalas son = 1
-    e.fParam[Me.ipaEscX] = 1    ' esc X
-    e.fParam[Me.ipaEscY] = 1    ' esc Y
-    e.fParam[Me.ipaEscZ] = 1    ' esc Z
-    e.pBlock.InsertionPlace = 1
-
-    ' y poner esto
-    ' e.pBlock = Me.ReBuildBlock(e)
-
-    Return True
-
-    ' catch
-
-    Return False
-
-End
+Public Const DrawingOrder As Integer = 100
+Public Const PointsToDraw As Integer = 1
+Public Const CmdLineHelper As String = ("Insert an angular dimension")
+Public Const ParamType As String = "PPPP"
+Public Const ParamHelper As String = "Vertex;Point on first side;Point on second side;Arc location"
+Public Const DimTypeCode As Integer = 5
+Public Const DxfSubclass As String = "AcDb3PointAngularDimension"
+Public Const GripPoints As String = "5;3;4;0;1"
+Public Const GripTips As String = ("Move vertex;Move first side;Move second side;Move arc;Move text")
 
 Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Variant
-
-    ' la linea solo recibe puntos
-
-    ' hay dos modos:
-    '   0  se marca el centro del arco a medir y dos puntos
-    '   1  se marcan dos puntos de una recta y otros dos puntos de otra recta
-
-    ' luego se marca la posicion del texto
-    ' https://ezdxf.readthedocs.io/en/stable/tutorials/angular_dimension.html
 
     If vParam[0] <> "point" Then Return False
 
     If gcd.StepsDone = 0 Then
-        Me.DimType = gcd.dimAligned
 
-        Try eBuild.P[0].x = vParam[1]
-        Try eBuild.P[0].y = vParam[2]
-        eBuild.P[1].x = eBuild.P[0].x
-        eBuild.P[1].y = eBuild.P[0].y
+        eBuild.P[5] = Me.ParamPoint(vParam)
+        eBuild.P[3] = eBuild.P[5].Copy()
+        eBuild.P[4] = eBuild.P[5].Copy()
+        eBuild.P[0] = eBuild.P[5].Copy()
         If Definitive Then Return True
+
     Else If gcd.StepsDone = 1 Then
 
-        Try eBuild.P[1].x = vParam[1]
-        Try eBuild.P[1].y = vParam[2]
-        eBuild.P[2].x = eBuild.P[1].x
-        eBuild.P[2].y = eBuild.P[1].y
-
-        eBuild.pBlock = RebuildBlock(eBuild)
+        eBuild.P[3] = Me.ParamPoint(vParam)
+        eBuild.P[4] = eBuild.P[3].Copy()
         If Definitive Then Return True
+
     Else If gcd.StepsDone = 2 Then
 
-        Try eBuild.P[2].x = vParam[1]
-        Try eBuild.P[2].y = vParam[2]
-        eBuild.P[3].x = eBuild.P[2].x
-        eBuild.P[3].y = eBuild.P[2].y
-
-        eBuild.pBlock = RebuildBlock(eBuild)
+        eBuild.P[4] = Me.ParamPoint(vParam)
+        ' el arco provisorio, a mitad de camino
+        eBuild.P[0] = puntos.P3d((eBuild.P[3].x + eBuild.P[4].x) / 2, (eBuild.P[3].y + eBuild.P[4].y) / 2, eBuild.P[4].z)
+        Me.Rebuild(eBuild)
         If Definitive Then Return True
+
     Else If gcd.StepsDone = 3 Then
 
-        Try eBuild.P[3].x = vParam[1]
-        Try eBuild.P[3].y = vParam[2]
-
-        eBuild.pBlock = RebuildBlock(eBuild)
+        eBuild.P[0] = Me.ParamPoint(vParam)
+        Me.Rebuild(eBuild)
         If Definitive Then Return True
 
     Endif
 
 End
 
-'' Esta rutina se usa para Angulos y Largo del arco
+Public Sub MakeBlock(e As Entity)
 
-Public Sub RebuildBlock(E As Entity) As Block
+    MakeAngular(e, False)
 
-    ' esta rutina no sabe si el bloque a reconstruir es desde ENTITYBUILDER o desde
-    ' DXF o JSON
+End
 
-    Dim fRotXY As Float[]
+'' Angulos y largo de arco. El arco de cota tiene centro en P[5] y pasa por P[0]
+Public Sub MakeAngular(e As Entity, bArcLength As Boolean)
 
-    Dim newBlock As New Block
-    Dim sDim As String
-    Dim d, fAngle90 As Single ' para evitar problemas de mantisa cuando Ang=89.99999
+    Dim d As DimStyle = e.pDimStyle
+    Dim vx, vy, r, a1, a2, aLoc, aStart, aEnd, fSweep, am, th, tw, gap, asz, tcx, tcy, ta, ra, fHalf, fArc, r1, fRel As Float
+    Dim sText As String
+    Dim bArrowsOut, bTextOnArc, bTick As Boolean
 
-    ' para definir este bloque necesito 6 entidades
-    Dim eLineaPpal As Entity
-    Dim eOblique1 As Entity       ' tambien pueden ser flechas Solid
-    Dim eOblique2 As Entity
-    Dim eExtension1 As Entity
-    Dim eExtension2 As Entity
-    Dim eText As Entity
-    Dim ePoint1 As Entity
-    Dim ePoint2 As Entity
+    vx = e.P[5].x
+    vy = e.P[5].y
+    r = Sqr((e.P[0].x - vx) ^ 2 + (e.P[0].y - vy) ^ 2)
+    If r = 0 Then Return
 
-    ' vemos los estilos
+    a1 = Ang(e.P[3].x - vx, e.P[3].y - vy)
+    a2 = Ang(e.P[4].x - vx, e.P[4].y - vy)
+    aLoc = Ang(e.P[0].x - vx, e.P[0].y - vy)
 
-    newBlock.name = "*D" ' luego se agregara la handle, en entitybuilder
-    newBlock.entities = New Collection
-
-    ' Pasamos los puntos que viene marcando el user a nuestros puntos.
-    If e.iParam[Me.iiiMode] = 0 Then ' viene con centro
-        Me.DefCenter.x = e.P[0].x
-        Me.DefCenter.y = e.P[0].y
-        Me.DefPoint1.x = e.P[1].x
-        Me.DefPoint1.y = e.P[1].y
-        Me.DefPoint2.x = e.P[2].x
-        Me.DefPoint2.y = e.P[2].y
-        Me.DefPointCentral.x = e.P[3].x           ' es el punto dnde quiere el arco que demarca el angulo
-        Me.DefPointCentral.y = e.P[3].y
-    Else If e.iParam[Me.iiiMode] = 1 Then  ' viene con dos rectas
-        Me.DefCenter.x = e.P[0].x
-        Me.DefCenter.y = e.P[0].y
-        Me.DefPoint1.x = e.P[1].x
-        Me.DefPoint1.y = e.P[1].y
-        Me.DefPoint2.x = e.P[2].x
-        Me.DefPoint2.y = e.P[2].y
-        Me.DefTextMIdPoint.x = e.P[3].x
-        Me.DefTextMIdPoint.y = e.P[3].y
-
-    End If
-
-    Me.DefAngle = Ang(Me.DefPoint2.x - Me.DefCenter.x, Me.DefPoint2.y - Me.DefCenter.y) - Ang(Me.DefPoint1.x - Me.DefCenter.x, Me.DefPoint1.y - Me.DefCenter.y)
-
-    ' reduzco este valor a -89.99 -> 90
-    Me.DefAngle = Utils.fMod(Me.DefAngle, Pi)
-    If Me.DefAngle > Pi / 2 Then Me.DefAngle -= Pi
-    ' busco el angulo perpendicular
-    fAngle90 = Me.DefAngle + Pi / 2
-    fAngle90 = Utils.fMod(fAngle90, Pi)
-    If fAngle90 > Pi / 2 Then fAngle90 -= Pi
-
-    ' el siguiente valor depende de la posicion del texto
-    Me.DefDeltaT = e.pDimStyle.DIMTXT * 3 / 4
-
-    ' ' los puntos auxiliares, donde van la extension y las flechas, vienen dados por la posicion del texto
-    ' d = puntos.distancia(Me.DefCenter.x, Me.DefCenter.y, Me.DefPoint1.x, Me.DefPoint1.y)
-    ' If d = 0 Then d = 1
-    '
-    ' Me.DefPoint1b.x = Me.DefCenter.x + (Me.DefPoint1.x - Me.DefCenter.x) * puntos.distancia(Me.DefCenter.x, Me.DefCenter.y, Me.DefPointCentral.x, Me.DefPointCentral.y) / d
-    '
-    ' Me.DefPoint1b.y = Me.DefCenter.y + (Me.DefPoint1.y - Me.DefCenter.y) * puntos.distancia(Me.DefCenter.x, Me.DefCenter.y, Me.DefPointCentral.x, Me.DefPointCentral.y) / d
-    '
-    ' d = puntos.distancia(Me.DefCenter.x, Me.DefCenter.y, Me.DefPoint2.x, Me.DefPoint2.y)
-    ' If d = 0 Then d = 1
-    '
-    ' Me.DefPoint2b.x = Me.DefCenter.x + (Me.DefPoint2.x - Me.DefCenter.x) * puntos.distancia(Me.DefCenter.x, Me.DefCenter.y, Me.DefPointCentral.x, Me.DefTextMidPoint.y) / d
-    '
-    ' Me.DefPoint2b.y = Me.DefCenter.y + (Me.DefPoint2.y - Me.DefCenter.y) * puntos.distancia(Me.DefCenter.x, Me.DefCenter.y, Me.DefPointCentral.x, Me.DefPointCentral.y) / d
-
-    ' con esto calculo la posicion del texto
-    d = puntos.distancia(Me.DefCenter.x, Me.DefCenter.y, Me.DefPointCentral.x, Me.DefPointCentral.y)
-
-    fRotXY = puntos.RotateFromPointWithAngle(Me.DefCenter.x, Me.DefCenter.y, (Ang(Me.DefPoint2.x - Me.DefCenter.x, Me.DefPoint2.y - Me.DefCenter.y) + Ang(Me.DefPoint1.x - Me.DefCenter.x, Me.DefPoint1.y - Me.DefCenter.y)) / 2, Me.DefCenter.x + d, Me.DefCenter.y)
-    Me.DefTextMIdPoint.x = fRotXY[0]
-    Me.DefTextMIdPoint.y = fRotXY[1]
-
-    fRotXY = puntos.RotateFromPointWithAngle(Me.DefCenter.x, Me.DefCenter.y, Ang(Me.DefPoint1.x - Me.DefCenter.x, Me.DefPoint1.y - Me.DefCenter.y), Me.DefCenter.x + d, Me.DefCenter.y)
-    Me.DefPoint1b.x = fRotXY[0]
-    Me.DefPoint1b.y = fRotXY[1]
-
-    fRotXY = puntos.RotateFromPointWithAngle(Me.DefCenter.x, Me.DefCenter.y, Ang(Me.DefPoint2.x - Me.DefCenter.x, Me.DefPoint2.y - Me.DefCenter.y), Me.DefCenter.x + d, Me.DefCenter.y)
-    Me.DefPoint2b.x = fRotXY[0]
-    Me.DefPoint2b.y = fRotXY[1]
-
-    ' ' ahora recalculo la posicion del terxto
-    ' ' el centro de la linea principal
-    ' Me.DefPointCentral.x = (Me.DefPoint1b.x + Me.DefPoint2b.x) / 2
-    ' Me.DefPointCentral.y = (Me.DefPoint1b.y + Me.DefPoint2b.y) / 2
-    ' Me.DefTextMidPoint.x = Me.DefPointCentral.x - Sin(Me.DefAngle) * Me.DefDeltaT
-    ' Me.DefTextMidPoint.y = Me.DefPointCentral.y + Cos(Me.DefAngle) * Me.DefDeltaT
-    '
-    ' Me.DefTextMidPoint.x = (Me.DefPoint1.x + Me.DefPoint2.x) / 2
-    ' Me.DefTextMidPoint.y = (Me.DefPoint1.y + Me.DefPoint2.y) / 2
-
-    ' linea principal
-    eLineaPpal = cadArc.NewEntity([Me.DefCenter.x, Me.DefCenter.y], True)  ' el 2do punto lo tengo que determinar, el primero esta en la posicion final
-
-    d = puntos.distancia(Me.DefCenter.x, Me.DefCenter.y, Me.DefPointCentral.x, Me.DefPointCentral.y)
-    eLineaPpal.fParam[0] = d          ' radio del arco
-    eLineaPpal.fParam[1] = Deg(Ang(Me.DefPoint1.x - Me.DefCenter.x, Me.DefPoint1.y - Me.DefCenter.y))
-    eLineaPpal.fParam[2] = Deg(Ang(Me.DefPoint2.x - Me.DefCenter.x, Me.DefPoint2.y - Me.DefCenter.y))
-
-    If (eLineaPpal.fParam[2] - eLineaPpal.fParam[1]) < 0 Then eLineaPpal.fParam[2] += 360
-
-    ' lineas de demarcacion
-    eExtension1 = cadLine.NewEntity([-e.pDimStyle.DIMDLE, 0, e.pDimStyle.DIMDLE, 0], True)
-    eExtension2 = cadLine.NewEntity([-e.pDimStyle.DIMDLE, 0, e.pDimStyle.DIMDLE, 0], True)
-    clsEntities.Rotate(eExtension1, Deg(eLineaPpal.fParam[1]))
-    clsEntities.Rotate(eExtension2, Deg(eLineaPpal.fParam[2]))
-
-    clsEntities.Translate(eExtension1, Me.DefPoint1b.x, Me.DefPoint1b.y, 0)
-    clsEntities.Translate(eExtension2, Me.DefPoint2b.x, Me.DefPoint2b.y, 0)
-
-    ' puntos base, ya en las ubicaciones finales (coinciden con los clicks)
-    ePoint1 = cadPoint.NewEntity([Me.DefPoint1.x, Me.DefPoint1.y], True)
-    ePoint2 = cadPoint.NewEntity([Me.DefPoint2.x, Me.DefPoint2.y], True)
-
-    ' flechas
-    eOblique1 = cadInsert.NewEntity([Me.DefPoint1b.x, Me.DefPoint1b.y], True)
-    eOblique1.pBlock = New Block
-    If gcd.Drawing.Blocks.Exist(e.pDimStyle.Thick1) Then
-        eOblique1.pBlock.name = e.pDimStyle.Thick1
+    ' el lado del angulo donde esta el arco
+    If AngleInSweep(aLoc, a1, a2) Then
+        aStart = a1
+        aEnd = a2
     Else
-        eOblique1.pBlock.name = "_thick1_arrow"
-    End If
-    eOblique1.fParam[cadInsert.ipaEscX] = 1
-    eOblique1.fParam[cadInsert.ipaEscY] = 1
-    eOblique1.fParam[cadInsert.ipaEscZ] = 1
-    eOblique1.fParam[cadInsert.ipaRotacion] = eLineaPpal.fParam[1] + 90
-    cadInsert.Finish(eOblique1)
-
-    eOblique2 = cadInsert.NewEntity([Me.DefPoint2b.x, Me.DefPoint2b.y], True)
-    eOblique2.pBlock = New Block
-    If gcd.Drawing.Blocks.Exist(e.pDimStyle.Thick2) Then
-        eOblique2.pBlock.name = e.pDimStyle.Thick2
-    Else
-        eOblique2.pBlock.name = "_thick2_arrow"
-    End If
-
-    eOblique2.fParam[cadInsert.ipaEscX] = 1
-    eOblique2.fParam[cadInsert.ipaEscY] = 1
-    eOblique2.fParam[cadInsert.ipaEscZ] = 1
-    eOblique2.fParam[cadInsert.ipaRotacion] = eLineaPpal.fParam[2] + 90
-    cadInsert.Finish(eOblique2)
-    ' texto
-    eText = cadMText.NewEntity([Me.DefTextMIdPoint.x, Me.DefTextMIdPoint.y], True)  ' si leo un archivo, esta es la posicion final
-    eText.fParam[cadMText.ipaAttchmPoint] = 8
-    eText.fParam[cadMText.ipaTextAngle] = ((eLineaPpal.fParam[2] + eLineaPpal.fParam[1]) / 2 - 90) / 180 * Pi
-    eText.fParam[cadMText.ipaTextHeight] = e.pDimStyle.DIMTXT / e.pDimStyle.DIMSCALE
-
-    If (eLineaPpal.fParam[2] - eLineaPpal.fParam[1]) < 0 Then eLineaPpal.fParam[2] += 360
-
-    ' La dimension, segun el modo:
-    If e.Gender = "DIMENSION_ANG3PT" Then
-        E.fParam[cadDimension.ipaRealMeasure] = (eLineaPpal.fParam[2] - eLineaPpal.fParam[1])
-    Else ' L = ang/360 * Pi * diam
-        E.fParam[cadDimension.ipaRealMeasure] = (eLineaPpal.fParam[2] - eLineaPpal.fParam[1]) * Pi / 360 * puntos.distancia(Me.DefCenter.x, Me.DefCenter.y, Me.DefPoint1.x, Me.DefPoint1.y) * 2
-    End If
-
-    ' agrego todo al bloque
-    newBlock.entities.Add(eLineaPpal, eLineaPpal.Id)
-    newBlock.entities.Add(eExtension1, eExtension1.Id)
-    newBlock.entities.Add(eExtension2, eExtension2.Id)
-    newBlock.entities.Add(ePoint1, ePoint1.Id)
-    newBlock.entities.Add(ePoint2, ePoint2.Id)
-    newBlock.entities.Add(eOblique1, eOblique1.Id)
-    newBlock.entities.Add(eOblique2, eOblique2.Id)
-    newBlock.entities.Add(eText, eText.Id)
-    newBlock.InsertionPlace = 1
-
-    ' -> el bloque
-    E.fParam[cadInsert.ipaEscX] = 1      ' ScaleX del inserto
-    E.fParam[cadInsert.ipaEscY] = 1      ' ScaleY del inserto
-    E.fParam[cadInsert.ipaEscZ] = 1      ' ScaleY del inserto
-    E.Visible = True
-
-    If E.sParam[Me.sdaTextOverrIde] <> "" Then
-        sDim = E.sParam[Me.sdaTextOverrIde]
-    Else
-        sDim = Format(e.fParam[Me.ipaRealMeasure], e.pDimStyle.FormatAng)
+        aStart = a2
+        aEnd = a1
     Endif
+    fSweep = Utils.fMod(aEnd - aStart, 2 * Pi)
+    If fSweep < 0 Then fSweep += 2 * Pi
+
+    r1 = Sqr((e.P[3].x - vx) ^ 2 + (e.P[3].y - vy) ^ 2)
+    If bArcLength Then
+        e.fParam[Me.ipaRealMeasure] = fSweep * r1 * e.pDimStyle.DIMLFAC     ' como en el DXF, con el factor
+        e.fParam[Me.ipaArcStart] = aStart
+        e.fParam[Me.ipaArcEnd] = aEnd
+        sText = Me.LinearText(e, fSweep * r1, "L=")
+    Else
+        e.fParam[Me.ipaRealMeasure] = Deg(fSweep)
+        sText = Me.AngularText(e, Deg(fSweep))
+    Endif
+
+    th = Me.TextHeight(e)
+    tw = Me.TextWidth(e, sText)
+    gap = d.DIMGAP * Me.DimScale(e)
+    asz = d.DIMASZ * Me.DimScale(e)
+    bTick = DimStyle.IsTick(d.Marker(1)) Or DimStyle.IsTick(d.Marker(2))
+
+    ' lineas de referencia, sobre los lados
+    If Not d.DIMSE1 Then AddRadialExt(e, vx, vy, a1, Sqr((e.P[3].x - vx) ^ 2 + (e.P[3].y - vy) ^ 2), r)
+    If Not d.DIMSE2 Then AddRadialExt(e, vx, vy, a2, Sqr((e.P[4].x - vx) ^ 2 + (e.P[4].y - vy) ^ 2), r)
+
+    fArc = fSweep * r
+    bArrowsOut = Not bTick And fArc < asz * 2.2
+
     ' el texto
-    If e.Gender = "DIMENSION_ANG3PT" Then
-        eText.sParam[cadMText.sdaText] = "\\A1;" & sDim & "°"
-    Else If e.Gender = "ARC_DIMENSION" Then
-        eText.sParam[cadMText.sdaText] = "\\A1;" & "L=" & sDim
-    End If
+    am = aStart + fSweep / 2
+    If Me.UserText(e) Then
+        tcx = e.P[1].x
+        tcy = e.P[1].y
+        ta = Me.ReadableAngle(Ang(tcx - vx, tcy - vy) - Pi / 2)
+    Else
+        ra = r
+        If d.DIMTAD = 1 Or d.DIMTAD = 2 Then ra = r + th / 2 + gap
+        If d.DIMTAD = 4 Then ra = r - th / 2 - gap
+        tcx = vx + ra * Cos(am)
+        tcy = vy + ra * Sin(am)
+        ta = Me.ReadableAngle(am - Pi / 2)
+    Endif
+    If d.DIMTIH Then ta = 0
 
-    cadMText.BuildGeometry(eText)
-    ' ' veo si entra el texto
-    ' flxTextExt = glx.TextExtends(sDim, Me.DimTextHeight)
-    ' If flxTextExt[0] * 1.2 > d Then ' no entra
-    '     eOblique1.fParam[cadInsert.ipaRotacion] += 180
-    '     eOblique2.fParam[cadInsert.ipaRotacion] += 180
-    ' End If
+    ' si el texto esta sobre el arco, lo corto
+    bTextOnArc = Abs(Sqr((tcx - vx) ^ 2 + (tcy - vy) ^ 2) - r) < th / 2 + gap / 2 And AngleInSweep(Ang(tcx - vx, tcy - vy), aStart, aEnd)
+    If bTextOnArc And sText <> "" Then
+        fHalf = (tw / 2 + gap) / r
+        fRel = Utils.fMod(Ang(tcx - vx, tcy - vy) - aStart, 2 * Pi)
+        If fRel < 0 Then fRel += 2 * Pi
+        If fRel - fHalf > 0 Then Me.AddArc(e, vx, vy, r, Deg(aStart), Deg(aStart + fRel - fHalf), Me.PartDimLine)
+        If fRel + fHalf < fSweep Then Me.AddArc(e, vx, vy, r, Deg(aStart + fRel + fHalf), Deg(aStart + fSweep), Me.PartDimLine)
+    Else If fSweep > 0 Then
+        Me.AddArc(e, vx, vy, r, Deg(aStart), Deg(aStart + fSweep), Me.PartDimLine)
+    Endif
 
-    ' guardo los puntos para exportar a DXF
+    ' marcadores, tangentes al arco
+    If bArrowsOut Then
+        Me.AddMarker(e, d.Marker(1), vx + r * Cos(aStart), vy + r * Sin(aStart), aStart + Pi / 2)
+        Me.AddMarker(e, d.Marker(2), vx + r * Cos(aEnd), vy + r * Sin(aEnd), aEnd - Pi / 2)
+        Me.AddArc(e, vx, vy, r, Deg(aStart) - Deg(asz * 2 / r), Deg(aStart), Me.PartDimLine)
+        Me.AddArc(e, vx, vy, r, Deg(aEnd), Deg(aEnd) + Deg(asz * 2 / r), Me.PartDimLine)
+    Else
+        Me.AddMarker(e, d.Marker(1), vx + r * Cos(aStart), vy + r * Sin(aStart), aStart - Pi / 2)
+        Me.AddMarker(e, d.Marker(2), vx + r * Cos(aEnd), vy + r * Sin(aEnd), aEnd + Pi / 2)
+    Endif
 
-    e.P[5].x = Me.DefPoint1.x        '  10 20 30
-    e.P[5].y = Me.DefPoint1.y
-
-    e.P[6].x = Me.DefTextMIdPoint.x  '  11 21 31
-    e.P[6].y = Me.DefTextMIdPoint.y
-
-    e.P[7].x = 0 ' baseline, no usado   12 22 32
-    e.P[7].y = 0
-
-    ' ahora depende del modo de creacion, si tengo centro o no
-    If e.iParam[Me.iiiMode] = 0 Then ' con centro
-        e.P[8].x = eExtension1.P[0].x         ' 13 23 33     ' endpoint de la extension line
-        e.P[8].y = eExtension1.P[0].y
-
-        e.P[7].x = eExtension2.P[0].x                      ' 14 24 34' endpoint de la extension line
-        e.P[7].y = eExtension2.P[0].y
-
-        e.P[10].x = Me.DefCenter.x         ' 15 25 35
-        e.P[10].y = Me.DefCenter.y
-
-    Else ' es con dos lineas
-        e.P[8].x = eExtension1.P[0].x         ' 13 23 33     endpoint de la extension line
-        e.P[8].y = eExtension1.P[0].y
-
-        e.P[7].x = eExtension1.P[1].x         ' 14 24 34      endpoint de la extension line
-        e.P[7].y = eExtension1.P[1].y
-
-        e.P[10].x = eExtension2.P[0].x         ' 15 25 35   endpoint de la extension line 2
-        e.P[10].y = eExtension2.P[0].y
-
-        e.P[11].x = eExtension2.P[1].x          ' 16 26 36 endpoint de la extension line 2
-        e.P[11].y = eExtension2.P[1].y
-
-    End If
-
-    Return newBlock
+    Me.AddText(e, sText, tcx, tcy, ta)
+    e.P[1].x = tcx
+    e.P[1].y = tcy
 
 End
 
-'' Genera un conjunto de grips para ser usados por cadSelection
-Public Function GenerateGrips(e As Entity) As Integer
+'' La linea de referencia sobre un lado: desde el punto medido hasta el arco de cota
+Public Sub AddRadialExt(e As Entity, vx As Float, vy As Float, fAng As Float, rPoint As Float, rArc As Float)
 
-    Dim g As Grip
+    Dim exo, exe As Float
 
-    g = New Grip
-    g.Shape = 0
-    g.p = e.P[0].Copy()
-    g.pRef = g.P.Copy()
-    g.Action = 0 ' mover
-    g.AsociatedEntity = e
-    g.AsociatedPoint = 0
-    gcd.Drawing.Sheet.Grips.Add(g)
-    g.ToolTip = ("Move center")
-
-    g = New Grip
-    g.Shape = 0
-    g.p = e.P[1].Copy()
-    g.pRef = g.P.Copy()
-    g.Action = 1 ' este dato es propio de la clase
-    g.AsociatedEntity = e
-    g.AsociatedPoint = 1
-    g.AsociatedGrip = 0
-    g.ToolTip = ("Move def point")
-    gcd.Drawing.Sheet.Grips.Add(g)
-
-    g = New Grip
-    g.Shape = 0
-    g.p = e.P[2].Copy()
-    g.pRef = g.P.Copy()
-    g.Action = 1 ' este dato es propio de la clase
-    g.AsociatedEntity = e
-    g.AsociatedPoint = 2
-    g.AsociatedGrip = 0
-    g.ToolTip = ("Move def point")
-    gcd.Drawing.Sheet.Grips.Add(g)
-
-    g = New Grip
-    g.Shape = 0
-    g.p = e.P[3].Copy()
-    g.pRef = g.P.Copy()
-    g.Action = 0 ' mover
-    g.AsociatedEntity = e
-    g.AsociatedPoint = 3
-    gcd.Drawing.Sheet.Grips.Add(g)
-    g.ToolTip = ("Move text position")
+    exo = e.pDimStyle.DIMEXO * Me.DimScale(e)
+    exe = e.pDimStyle.DIMEXE * Me.DimScale(e)
+    If rArc > rPoint + exo Then
+        Me.AddLine(e, vx + (rPoint + exo) * Cos(fAng), vy + (rPoint + exo) * Sin(fAng), vx + (rArc + exe) * Cos(fAng), vy + (rArc + exe) * Sin(fAng), Me.PartExtLine)
+    Else If rArc < rPoint - exo Then
+        Me.AddLine(e, vx + (rPoint - exo) * Cos(fAng), vy + (rPoint - exo) * Sin(fAng), vx + (rArc - exe) * Cos(fAng), vy + (rArc - exe) * Sin(fAng), Me.PartExtLine)
+    Endif
 
 End
 
-Public Function GripEdit(g As Grip) As Boolean
+'' True si el angulo a esta en el barrido antihorario de a0 a a1
+Public Function AngleInSweep(a As Float, a0 As Float, a1 As Float) As Boolean
 
-    Dim e As Entity
+    Dim fSweep, fA As Float
 
-    e = g.AsociatedEntity
-    ' las cotas se construyen en XY, el z del punto se conserva
-    e.P[g.AsociatedPoint].x = g.P.x
-    e.P[g.AsociatedPoint].y = g.P.y
+    fSweep = Utils.fMod(a1 - a0, 2 * Pi)
+    If fSweep < 0 Then fSweep += 2 * Pi
+    fA = Utils.fMod(a - a0, 2 * Pi)
+    If fA < 0 Then fA += 2 * Pi
+    Return fA <= fSweep
 
-    e.pBlock = RebuildBlock(e)
+End
+
+Public Sub SaveDxfPoints(e As Entity)
+
+    dxf.SaveCodeInv(Me.DxfSubclass, "100")
+    Me.SavePoint(e, 3)
+    Me.SavePoint(e, 4)
+    Me.SavePoint(e, 5)
 
 End

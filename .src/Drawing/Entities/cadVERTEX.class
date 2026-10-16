@@ -46,13 +46,55 @@ Public Const ipaIdentifier91 As Integer = 9
 
 Public Function SaveDxfData(e As Entity) As Boolean
 
-    ' stxExport.insert(["VERTEX", dxf.codEntity])
+    Dim iFlags, i As Integer
+    Dim fVal As Float
+
     ' Los datos comunes a todas las entidades son guardados por la rutina que llama a esta
-    dxf.SaveCodeInv("AcDbPoint", "100")
+    Try iFlags = CInt(e.fParam[Me.ipaFlags70])
+
+    ' una cara de polyface (128 sin 64) no es un vertice, es un registro de cara
+    If BTst(iFlags, 7) And Not BTst(iFlags, 6) Then
+        dxf.SaveCodeInv("AcDbFaceRecord", "100")
+    Else
+        dxf.SaveCodeInv("AcDbVertex", "100")
+        If BTst(iFlags, 7) Then
+            dxf.SaveCodeInv("AcDbPolyFaceMeshVertex", "100")
+        Else If BTst(iFlags, 6) Then
+            dxf.SaveCodeInv("AcDbPolygonMeshVertex", "100")
+        Else If BTst(iFlags, 5) Then
+            dxf.SaveCodeInv("AcDb3dPolylineVertex", "100")
+        Else
+            dxf.SaveCodeInv("AcDb2dVertex", "100")
+        Endif
+    Endif
+
     dxf.SaveCodeInv(CStr(e.P[0].x), dxf.codX0)
     dxf.SaveCodeInv(CStr(e.P[0].y), dxf.codY0)
-    Try dxf.SaveCodeInv(CStr(e.P[0].z), dxf.codZ0)
-    dxf.SaveCodeInv(CStr(e.fParam[0]), "39")
+    dxf.SaveCodeInv(CStr(e.P[0].z), dxf.codZ0)
+
+    ' anchos y bulge, solo si no son 0
+    For i = Me.ipaWIdthStart40 To Me.ipaBulge42
+        fVal = 0
+        Try fVal = e.fParam[i]
+        If fVal <> 0 Then dxf.SaveCodeInv(CStr(fVal), CStr(40 + i - Me.ipaWIdthStart40))
+    Next
+
+    dxf.SaveCodeInv(CStr(iFlags), "70")
+
+    fVal = 0
+    Try fVal = e.fParam[Me.ipaCurveDiection50]
+    If BTst(iFlags, 1) Then dxf.SaveCodeInv(CStr(fVal), "50")
+
+    ' indices de la cara de una polyface
+    For i = Me.ipaMeshIndex1_71 To Me.ipaMeshIndex4_74
+        fVal = 0
+        Try fVal = e.fParam[i]
+        If fVal <> 0 Then dxf.SaveCodeInv(CStr(CInt(fVal)), CStr(71 + i - Me.ipaMeshIndex1_71))
+    Next
+
+    fVal = 0
+    Try fVal = e.fParam[Me.ipaIdentifier91]
+    If fVal <> 0 Then dxf.SaveCodeInv(CStr(CInt(fVal)), "91")
 
 End
 

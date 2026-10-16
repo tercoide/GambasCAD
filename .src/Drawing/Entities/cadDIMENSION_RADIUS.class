@@ -19,345 +19,190 @@
 ' along with this program; if not, write to the Free Software
 ' Foundation, Inc., 51 Franklin St, Fifth Floor,
 ' Boston, MA  02110-1301  USA
+
+'' Cota de radio. DXF tipo 4
+''   P[0] = 10   centro
+''   P[5] = 15   punto sobre la curva
+''   P[1] = 11   centro del texto
+'' Tambien arma las cotas de diametro (ver cadDIMENSION_DIAMETER)
+
 Create Static
-Inherits Caddimension
+Inherits CadDimension
 
 Public Const Gender As String = "DIMENSION_RADIUS"
-Public Const DrawingOrder As Integer = 100 ' 1 a 32.724 esto debe Drawse primero y ser sobreescrito por el resto
-Public Const PointsToDraw As Integer = 1             ' minimal point requered for drawing something usefull
-Public Const CmdLineHelper As String = ("Insert a linear acotation")
-Public Const ParamType As String = "PP"                             ' that is Point, Point, Float; could be Color Text, etc
-Public Const ParamHelper As String = "Start point;End point"
-
-Public Function NewEntity(Optional vPoints As Variant, bNewHandle As Boolean = False) As Entity
-
-    Dim e As Entity
-
-    e = Super.NewEntity(vPoints, bNewHandle)
-    If e.Gender = cadDIMENSION_RADIUS.Gender Then
-        e.iParam[Me.iiiDimType] = 4
-    Else
-        e.iParam[Me.iiiDimType] = 3
-    End If
-    Return e
-
-End
-
-Public Function SaveDxfData(e As Entity) As Boolean
-
-    cadDimension.SaveDxfData(e)
-
-    If e.iParam[Me.iiiDimType] = 0 Then
-        dxf.SaveCodeInv("AcDbRadialDimension", "100")
-    Else
-        dxf.SaveCodeInv("AcDbDiametricDimension", "100")
-    End If
-    ' ===========================================================================
-
-    dxf.SaveCodeInv(CStr(e.P[10].x), "15")                ' text att point
-    dxf.SaveCodeInv(CStr(e.P[10].y), "25")
-    dxf.SaveCodeInv("0", "40")               ' leader lenght
-
-End
-
-Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
-
-    Dim i As Integer
-    Dim AfterSubclassmarker As Boolean
-    ' revisamos lo que viene del importador comun
-    ' DXF 10 20 30
-    ' e.P[0]    ' Centro
-    ' e.P[1]
-
-    ' DXF 11 21 31
-    ' e.P[2]    ' Posicion del Texto (mid)
-    ' e.P[3]
-
-    ' DXF 15 25 35
-    ' e.P[8]    ' Posicion del Texto (mid)
-    ' e.P[9]
-
-    For i = 0 To sClaves.Max
-        If sClaves[i] = "100" And (sValues[i] = "AcDbRadialDimension" Or sValues[i] = "AcDbDiametricDimension") Then AfterSubclassmarker = True
-        If AfterSubclassmarker Then ' lo siguientes codigos
-
-            If sClaves[i] = "15" Then e.P[2].x = CFloat(sValues[i])
-            If sClaves[i] = "25" Then e.P[2].y = CFloat(sValues[i])
-
-        End If
-
-    Next
-
-    ' TODO: cuando este terminada la entidad, sacar eso
-    ' tengo q presuponer que las escalas son = 1
-    e.fParam[Me.ipaEscX] = 1    ' esc X
-    e.fParam[Me.ipaEscY] = 1    ' esc Y
-    e.fParam[Me.ipaEscZ] = 1    ' esc Z
-    e.pBlock.InsertionPlace = 1
-
-    ' y poner esto
-    ' e.pBlock = Me.ReBuildBlock(e)
-
-    Return True
-
-    ' catch
-
-    Return False
-
-End
+Public Const DrawingOrder As Integer = 100
+Public Const PointsToDraw As Integer = 1
+Public Const CmdLineHelper As String = ("Insert a radius dimension")
+Public Const ParamType As String = "PPP"
+Public Const ParamHelper As String = "Center;Point on the curve;Text location"
+Public Const DimTypeCode As Integer = 4
+Public Const DxfSubclass As String = "AcDbRadialDimension"
+Public Const GripPoints As String = "0;5;1"
+Public Const GripTips As String = ("Move center;Move point on the curve;Move text")
 
 Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Variant
 
-    ' la linea solo recibe puntos
-
     If vParam[0] <> "point" Then Return False
 
-    If gcd.StepsDone = 0 Then            ' center
+    If gcd.StepsDone = 0 Then           ' centro
 
-        Try eBuild.P[0].x = vParam[1]
-        Try eBuild.P[0].y = vParam[2]
-        eBuild.P[1].x = eBuild.P[0].x
-        eBuild.P[1].y = eBuild.P[0].y
+        eBuild.P[0] = Me.ParamPoint(vParam)
+        eBuild.P[5] = eBuild.P[0].Copy()
         If Definitive Then Return True
-    Else If gcd.StepsDone = 1 Then       ' definition point
 
-        Try eBuild.P[1].x = vParam[1]
-        Try eBuild.P[1].y = vParam[2]
-        eBuild.pBlock = RebuildBlock(eBuild, eBuild.iParam[Me.iiiDimType] And 31)
+    Else If gcd.StepsDone = 1 Then      ' punto sobre la curva
+
+        eBuild.P[5] = Me.ParamPoint(vParam)
+        Me.SetUserText(eBuild, False)
+        Me.Rebuild(eBuild)
+        If Definitive Then Return True
+
+    Else If gcd.StepsDone = 2 Then      ' el texto
+
+        eBuild.P[1] = Me.ParamPoint(vParam)
+        Me.SetUserText(eBuild, True)
+        Me.Rebuild(eBuild)
         If Definitive Then Return True
 
     Endif
 
 End
 
-'' iMode= 0 es radial
-'' iMode= 0 es diameter
+Public Sub MakeBlock(e As Entity)
 
-Public Sub RebuildBlock(E As Entity, Optional iMode As Integer = 0) As Block
+    MakeRadial(e, e.P[0].x, e.P[0].y, e.P[5].x, e.P[5].y, False)
 
-    ' esta rutina no sabe si el bloque a reconstruir es desde ENTITYBUILDER o desde
-    ' DXF o JSON
+End
 
-    Dim flxTextExt As Float[]
+'' Radios y diametros: xc,yc es el centro y px,py el punto sobre la curva donde va la flecha
+Public Sub MakeRadial(e As Entity, xc As Float, yc As Float, px As Float, py As Float, bDiameter As Boolean)
 
-    Dim newBlock As New Block
-    Dim sDim As String
-    Dim d, fAngle90 As Single ' para evitar problemas de mantisa cuando Ang=89.99999
+    Dim d As DimStyle = e.pDimStyle
+    Dim r, ux, uy, th, tw, gap, asz, tcx, tcy, ta, t As Float
+    Dim sText As String
+    Dim bInside As Boolean
+    Dim flxText As Float[]
 
-    ' para definir este bloque necesito 6 entidades
-    Dim eLineaPpal As Entity
-    Dim eOblique1 As Entity       ' tambien pueden ser flechas Solid
-    Dim eOblique2 As Entity
-    Dim eText As Entity
-    Dim ePoint1 As Entity
-    Dim ePoint2 As Entity
-
-    newBlock.name = "*D" ' luego se agregara la handle, en entitybuilder
-    newBlock.entities = New Collection
-
-    ' Pasamos los puntos que viene marcando el user a nuestros puntos.
-    Me.DefPoint1.x = e.P[0].x
-    Me.DefPoint1.y = e.P[0].y
-    Me.DefPoint2.x = e.P[1].x
-    Me.DefPoint2.y = e.P[1].y
-    Me.DefTextMIdPoint.x = e.P[2].x
-    Me.DefTextMIdPoint.y = e.P[2].y
-
-    Me.DefAngle = Ang(Me.DefPoint2.x - Me.DefPoint1.x, Me.DefPoint2.y - Me.DefPoint1.y)
-
-    ' reduzco este valor a -89.99 -> 90
-    Me.DefAngle = Utils.fMod(Me.DefAngle, Pi)
-    If Me.DefAngle > Pi / 2 Then Me.DefAngle -= Pi
-    ' busco el angulo perpendicular
-    fAngle90 = Me.DefAngle + Pi / 2
-    fAngle90 = Utils.fMod(fAngle90, Pi)
-    If fAngle90 > Pi / 2 Then fAngle90 -= Pi
-
-    ' el siguiente valor depende de la posicion del texto
-    Me.DefDeltaT = e.pDimStyle.DIMTXT * 3 / 4
-
-    ' el centro de la linea principal
-    Me.DefPointCentral.x = Me.DefTextMIdPoint.x - Sin(Me.DefAngle) * Me.DefDeltaT
-    Me.DefPointCentral.y = Me.DefTextMIdPoint.y + Cos(Me.DefAngle) * Me.DefDeltaT
-
-    ' ahora recalculo la posicion del terxto
-    ' el centro de la linea principal
-    Me.DefPointCentral.x = (Me.DefPoint1b.x + Me.DefPoint2b.x) / 2
-    Me.DefPointCentral.y = (Me.DefPoint1b.y + Me.DefPoint2b.y) / 2
-    Me.DefTextMIdPoint.x = Me.DefPointCentral.x - Sin(Me.DefAngle) * Me.DefDeltaT
-    Me.DefTextMIdPoint.y = Me.DefPointCentral.y + Cos(Me.DefAngle) * Me.DefDeltaT
-
-    Me.DefTextMIdPoint.x = (Me.DefPoint1.x + Me.DefPoint2.x) / 2
-    Me.DefTextMIdPoint.y = (Me.DefPoint1.y + Me.DefPoint2.y) / 2
-    ' linea principal
-    eLineaPpal = cadLine.NewEntity([Me.DefPoint1.x, Me.DefPoint1.y, Me.DefPoint2.x, Me.DefPoint2.y], True)  ' el 2do punto lo tengo que determinar, el primero esta en la posicion final
-
-    ' lineas de demarcacion
-    'eExtension1 = cadLine.NewEntity([Me.DefPoint1b.x, Me.DefPoint1b.y - Me.DimExtension, Me.DefPoint1b.x, Me.DefPoint1b.y + Me.DimExtension])
-
-    'eExtension1 = cadLine.NewEntity([Me.DefPoint1.x, Me.DefPoint1.y, Me.DefPoint1b.x, Me.DefPoint1b.y], True)
-    'eExtension2 = cadLine.NewEntity([Me.DefPoint2.x, Me.DefPoint2.y, Me.DefPoint2b.x, Me.DefPoint2b.y], True)
-
-    ' puntos base, ya en las ubicaciones finales (coinciden con los clicks)
-    ePoint1 = cadPoint.NewEntity([Me.DefPoint1.x, Me.DefPoint1.y], True)
-    ePoint2 = cadPoint.NewEntity([Me.DefPoint2.x, Me.DefPoint2.y], True)
-
-    ' flechas
-    eOblique1 = cadInsert.NewEntity([Me.DefPoint1.x, Me.DefPoint1.y], True)
-    eOblique1.pBlock = New Block
-    If gcd.Drawing.Blocks.Exist(e.pDimStyle.Thick1) Then
-        eOblique1.pBlock.name = e.pDimStyle.Thick1
+    r = Sqr((px - xc) ^ 2 + (py - yc) ^ 2)
+    If r > 0 Then
+        ux = (px - xc) / r
+        uy = (py - yc) / r
     Else
-        eOblique1.pBlock.name = "_thick1_arrow"
-    End If
-    eOblique1.fParam[cadInsert.ipaEscX] = 1
-    eOblique1.fParam[cadInsert.ipaEscY] = 1
-    eOblique1.fParam[cadInsert.ipaEscZ] = 1
-    eOblique1.fParam[cadInsert.ipaRotacion] = Deg(Me.DefAngle)
-    cadInsert.Finish(eOblique1)
-
-    eOblique2 = cadInsert.NewEntity([Me.DefPoint2.x, Me.DefPoint2.y], True)
-    eOblique2.pBlock = New Block
-    If gcd.Drawing.Blocks.Exist(e.pDimStyle.Thick2) Then
-        eOblique2.pBlock.name = e.pDimStyle.Thick2
-    Else
-        eOblique2.pBlock.name = "_thick2_arrow"
-    End If
-    eOblique2.fParam[cadInsert.ipaEscX] = 1
-    eOblique2.fParam[cadInsert.ipaEscY] = 1
-    eOblique2.fParam[cadInsert.ipaEscZ] = 1
-    eOblique2.fParam[cadInsert.ipaRotacion] = Deg(Me.DefAngle)
-    cadInsert.Finish(eOblique2)
-
-    ' texto
-    eText = cadMText.NewEntity([Me.DefTextMIdPoint.x, Me.DefTextMIdPoint.y], True)  ' si leo un archivo, esta es la posicion final
-    eText.fParam[cadMText.ipaAttchmPoint] = 8
-    eText.fParam[cadMText.ipaTextAngle] = Me.DefAngle
-    eText.fParam[cadMText.ipaTextHeight] = e.pDimStyle.DIMTXT
-
-    ' agrego todo al bloque
-    newBlock.entities.Add(eLineaPpal, eLineaPpal.Id)
-    'newBlock.entities.Add(eExtension1, eExtension1.Handle)
-    'newBlock.entities.Add(eExtension2, eExtension2.Handle)
-    newBlock.entities.Add(ePoint1, ePoint1.Id)
-    newBlock.entities.Add(ePoint2, ePoint2.Id)
-
-    If iMode = 1 Then
-        newBlock.entities.Add(eOblique1, eOblique1.Id)
-    End If
-
-    newBlock.entities.Add(eOblique2, eOblique2.Id)
-    newBlock.entities.Add(eText, eText.Id)
-    newBlock.InsertionPlace = 1
-
-    ' -> el bloque
-    E.fParam[cadInsert.ipaEscX] = 1      ' ScaleX del inserto
-    E.fParam[cadInsert.ipaEscY] = 1      ' ScaleY del inserto
-    E.fParam[cadInsert.ipaEscZ] = 1      ' ScaleY del inserto
-    E.Visible = True
-
-    d = puntos.distancia(Me.DefPoint1.x, Me.DefPoint1.y, Me.DefPoint2.x, Me.DefPoint2.y)
-
-    E.fParam[cadDimension.ipaRealMeasure] = Abs(d)
-    If E.sParam[Me.sdaTextOverrIde] <> "" Then
-        sDim = E.sParam[Me.sdaTextOverrIde]
-    Else
-        sDim = Format(Abs(d), e.pDimStyle.FormatLong)
+        ux = 1
+        uy = 0
     Endif
-    ' el texto
-    eText.sParam[cadMText.sdaText] = "\\A1;" & sDim
 
-    ' veo si entra el texto
-    flxTextExt = glx.TextExtends(sDim, e.pDimStyle.DIMTXT)
-    If flxTextExt[0] * 1.2 > d Then ' no entra
-        'eOblique1.fParam[cadInsert.ipaRotacion] += 180
-        eOblique2.fParam[cadInsert.ipaRotacion] += 180
-    End If
+    If bDiameter Then
+        e.fParam[Me.ipaRealMeasure] = r * 2 * e.pDimStyle.DIMLFAC     ' como en el DXF, con el factor
+        sText = Me.LinearText(e, r * 2, "Ø")
+    Else
+        e.fParam[Me.ipaRealMeasure] = r * e.pDimStyle.DIMLFAC     ' como en el DXF, con el factor
+        sText = Me.LinearText(e, r, "R")
+    Endif
 
-    ' guardo los puntos para exportar a DXF
+    th = Me.TextHeight(e)
+    tw = Me.TextWidth(e, sText)
+    gap = d.DIMGAP * Me.DimScale(e)
+    asz = d.DIMASZ * Me.DimScale(e)
 
-    e.P[5].x = Me.DefPoint1.x        '  10 20 30
-    e.P[5].y = Me.DefPoint1.y
+    ' donde va el texto
+    If Me.UserText(e) Then
+        tcx = e.P[1].x
+        tcy = e.P[1].y
+        bInside = Sqr((tcx - xc) ^ 2 + (tcy - yc) ^ 2) < r
+    Else
+        If bDiameter Then
+            bInside = r * 2 > tw + asz * 4 + gap * 2
+        Else
+            bInside = r > tw + asz * 2 + gap * 2
+        Endif
+        If d.DIMTIX Then bInside = True
+        If bInside Then
+            If bDiameter Then t = 0 Else t = r / 2
+            ta = Me.ReadableAngle(Ang(ux, uy))
+            If d.DIMTIH Then ta = 0
+            tcx = xc + ux * t
+            tcy = yc + uy * t
+            If d.DIMTAD <> 0 Then
+                tcx += -Sin(ta) * (th / 2 + gap) * IIf(d.DIMTAD = 4, -1, 1)
+                tcy += Cos(ta) * (th / 2 + gap) * IIf(d.DIMTAD = 4, -1, 1)
+            Endif
+        Else
+            tcx = px + ux * (asz * 2 + gap + tw / 2)
+            tcy = py + uy * (asz * 2 + gap + tw / 2)
+        Endif
+    Endif
 
-    e.P[6].x = Me.DefTextMIdPoint.x  '  11 21 31
-    e.P[6].y = Me.DefTextMIdPoint.y
+    If bInside Then
+        ' la linea de cota pasa por el centro (diametro) o sale del centro (radio)
+        If bDiameter Then
+            flxText = AddDimLineAt(e, xc - ux * r, yc - uy * r, px, py, sText, tcx, tcy)
+        Else
+            flxText = AddDimLineAt(e, xc, yc, px, py, sText, tcx, tcy, True)
+        Endif
+        tcx = flxText[0]
+        tcy = flxText[1]
+    Else
+        ' flecha desde afuera y directriz hasta el texto
+        Me.AddMarker(e, d.Marker(2), px, py, Ang(-ux, -uy))
+        Me.AddLeaderText(e, px, py, sText, tcx, tcy, False)
+        Me.AddCenterMark(e, xc, yc, r)
+    Endif
 
-    e.P[7].x = 0 ' baseline          ' 12 22 32
-    e.P[7].y = 0
-
-    e.P[8].x = 0                      ' 13 23 33
-    e.P[8].y = 0
-
-    e.P[7].x = 0                      ' 14 24 34
-    e.P[7].y = 0
-
-    e.P[10].x = Me.DefPoint2.x         ' 15 25 35
-    e.P[10].y = Me.DefPoint2.y
-
-    e.P[11].x = 0                      ' 16 26 36
-    e.P[11].y = 0
-
-    Return newBlock
-
-End
-
-'' Genera un conjunto de grips para ser usados por cadSelection
-Public Function GenerateGrips(e As Entity) As Integer
-
-    Dim g As Grip
-
-    g = New Grip
-    g.Shape = 0
-    g.p = e.P[0].Copy()
-    g.pRef = g.P.Copy()
-    g.Action = 0 ' mover
-    g.AsociatedEntity = e
-    g.AsociatedPoint = 0
-    gcd.Drawing.Sheet.Grips.Add(g)
-    g.ToolTip = ("Move def point")
-
-    g = New Grip
-    g.Shape = 0
-    g.p = e.P[1].Copy()
-    g.pRef = g.P.Copy()
-    ' flxGrip.Add(g.X)
-    ' flxGrip.Add(g.y)
-    ' puntos.Rotate(flxGrip, Rad(e.fParam[Me.ipaRotacion]))
-    ' g.X = e.P[0] + flxGrip[0]
-    ' g.y = e.P[1] + flxGrip[1]
-    ' g.Xr = g.X
-    ' g.Yr = g.Y
-    g.Action = 1 ' este dato es propio de la clase
-    g.AsociatedEntity = e
-    g.AsociatedPoint = 1
-    g.AsociatedGrip = 0
-    'g.iFillColor = Color.Red
-    'g.DrawLineToAsociatedGrip = True
-    g.ToolTip = ("Move def point")
-    'g.ToolTip = ("Rotate insert")
-    gcd.Drawing.Sheet.Grips.Add(g)
-
-    ' g = New Grip
-    ' g.Shape = 0
-    ' g.X = e.P[4]
-    ' g.Y = e.P[5]
-    ' g.Action = 0 ' mover
-    ' g.AsociatedEntity = e
-    ' g.AsociatedPoint = 2
-    ' gcd.Drawing.Sheet.Grips.Add(g)
-    ' g.ToolTip = ("Move text position")
+    e.P[1].x = tcx
+    e.P[1].y = tcy
 
 End
 
-Public Function GripEdit(g As Grip) As Boolean
+'' Una linea de cota entre dos puntos con el texto en tcx,tcy (lo pone ahi aunque no sea UserText).
+'' bOnlyEnd: solo lleva marcador en el segundo punto (radios)
+Public Function AddDimLineAt(e As Entity, x1 As Float, y1 As Float, x2 As Float, y2 As Float, sText As String, tcx As Float, tcy As Float, Optional bOnlyEnd As Boolean) As Float[]
 
-    Dim e As Entity
+    Dim iFlags As Integer
+    Dim flxRet As Float[]
 
-    e = g.AsociatedEntity
-    ' las cotas se construyen en XY, el z del punto se conserva
-    e.P[g.AsociatedPoint].x = g.P.x
-    e.P[g.AsociatedPoint].y = g.P.y
+    ' uso la linea de cota comun con el texto fijo en tcx,tcy
+    iFlags = e.iParam[Me.iiiDimType]
+    e.P[1].x = tcx
+    e.P[1].y = tcy
+    Me.SetUserText(e, True)
+    flxRet = AddDimLineNoFirst(e, x1, y1, x2, y2, sText, bOnlyEnd)
+    e.iParam[Me.iiiDimType] = iFlags
+    Return flxRet
 
-    e.pBlock = RebuildBlock(e, e.iParam[Me.iiiMode])
+End
+
+'' AddDimLine, pero sin el primer marcador si bNoFirst
+Private Function AddDimLineNoFirst(e As Entity, x1 As Float, y1 As Float, x2 As Float, y2 As Float, sText As String, bNoFirst As Boolean) As Float[]
+
+    Dim d As DimStyle = e.pDimStyle
+    Dim iSah As Integer
+    Dim sBlk, sBlk1, sBlk2 As String
+    Dim flxRet As Float[]
+
+    If Not bNoFirst Then Return Me.AddDimLine(e, x1, y1, x2, y2, sText)
+
+    ' cambio el estilo por un momento: marcador 1 = ninguno
+    iSah = d.DIMSAH
+    sBlk = d.DIMBLK
+    sBlk1 = d.DIMBLK1
+    sBlk2 = d.DIMBLK2
+    d.DIMBLK2 = d.Marker(2)
+    d.DIMBLK1 = DimStyle.MarkerNone
+    d.DIMSAH = 1
+    flxRet = Me.AddDimLine(e, x1, y1, x2, y2, sText)
+    d.DIMSAH = iSah
+    d.DIMBLK = sBlk
+    d.DIMBLK1 = sBlk1
+    d.DIMBLK2 = sBlk2
+    Return flxRet
+
+End
+
+Public Sub SaveDxfPoints(e As Entity)
+
+    dxf.SaveCodeInv(Me.DxfSubclass, "100")
+    Me.SavePoint(e, 5)
+    dxf.SaveCodeInv(CStr(e.fParam[Me.ipaLeaderLength]), "40")
 
 End

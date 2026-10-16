@@ -19,120 +19,50 @@
 ' along with this program; if not, write to the Free Software
 ' Foundation, Inc., 51 Franklin St, Fifth Floor,
 ' Boston, MA  02110-1301  USA
+
+'' Cota de largo de arco (entidad ARC_DIMENSION del DXF)
+''   P[5] = 15   centro del arco medido
+''   P[3] = 13   comienzo del arco medido
+''   P[4] = 14   fin del arco medido
+''   P[0] = 10   ubicacion del arco de cota
+''   P[1] = 11   centro del texto
+''   fParam[ipaArcStart], fParam[ipaArcEnd]: DXF 40 y 41, angulos en radianes
+
 Create Static
-Inherits CadDIMENSION_ANG3PT
+Inherits CadDimension
 
 Public Const Gender As String = "ARC_DIMENSION"
-Public Const DrawingOrder As Integer = 100 ' 1 a 32.724 esto debe Drawse primero y ser sobreescrito por el resto
-Public Const PointsToDraw As Integer = 1             ' minimal point requered for drawing something usefull
-Public Const CmdLineHelper As String = ("Insert a linear acotation")
-Public Const ParamType As String = "PPPP"                             ' that is Point, Point, Float; could be Color Text, etc
-Public Const ParamHelper As String = "Center of arc;First point;Secont point;extension"
+Public Const DrawingOrder As Integer = 100
+Public Const PointsToDraw As Integer = 1
+Public Const CmdLineHelper As String = ("Insert an arc length dimension")
+Public Const ParamType As String = "PPPP"
+Public Const ParamHelper As String = "Center of the arc;Start of the arc;End of the arc;Dimension location"
+Public Const DimTypeCode As Integer = 8
+Public Const DxfSubclass As String = "AcDbArcDimension"
+Public Const GripPoints As String = "5;3;4;0;1"
+Public Const GripTips As String = ("Move center;Move start;Move end;Move dimension arc;Move text")
 
-Public Function SaveDxfData(e As Entity) As Boolean
+Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Variant
 
-    cadDimension.SaveDxfData(e)
-
-    dxf.SaveCodeInv("AcDbArcDimension", "100")
-    ' ===========================================================================
-    dxf.SaveCodeInv(CStr(e.P[8].x), "13")
-    dxf.SaveCodeInv(CStr(e.P[8].y), "23")
-    dxf.SaveCodeInv("0", "33")
-
-    dxf.SaveCodeInv(CStr(e.P[9].x), "14")
-    dxf.SaveCodeInv(CStr(e.P[9].y), "24")
-    dxf.SaveCodeInv("0", "34")
-
-    dxf.SaveCodeInv(CStr(e.P[10].x), "15")
-    dxf.SaveCodeInv(CStr(e.P[10].y), "25")
-    dxf.SaveCodeInv("0", "35")
-
-    dxf.SaveCodeInv(CStr(e.P[11].x), "16")
-    dxf.SaveCodeInv(CStr(e.P[11].y), "26")
-    dxf.SaveCodeInv("0", "36")
-
-    dxf.SaveCodeInv(CStr(e.P[12].x), "17")
-    dxf.SaveCodeInv(CStr(e.P[12].y), "27")
-    dxf.SaveCodeInv("0", "37")
+    Return cadDIMENSION_ANG3PT.NewParameter(eBuild, vParam, Definitive)
 
 End
 
-Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
+Public Sub MakeBlock(e As Entity)
 
-    Dim DimTypeSet As Boolean
-
-    DimTypeSet = False
-
-    cadDimension.ImportDXF(e, sClaves, sValues)
-
-    '
-    ' ' en algunos DXF el codigo 70 no esta
-    ' If Not DimTypeSet Then gcd.CCC[e.gender] = cadDIMENSION_LINEAR
-
-    ' tengo q presuponer que las escalas son = 1
-    e.fParam[Me.ipaEscX] = 1    ' esc X
-    e.fParam[Me.ipaEscY] = 1    ' esc Y
-    e.fParam[Me.ipaEscZ] = 1    ' esc Z
-
-    ' TODO: cuando este terminada la entidad, sacar eso
-    e.pBlock.InsertionPlace = 1
-
-    ' y poner esto
-    ' e.pBlock = Me.ReBuildBlock(e)
-
-    Return True
-
-    '' catch
-
-    Return False
+    cadDIMENSION_ANG3PT.MakeAngular(e, True)
 
 End
 
-'   0 ARC_DIMENSION
-'   5 11FD
-' 102 {ACAD_REACTORS
-' 330 1214
-' 102 }
-' 102 {ACAD_XDICTIONARY
-' 360 120A
-' 102 }
-' 330 2
-' 100 AcDbEntity
-'   8 dimmensions
-' 160               1764
-' 100 AcDbDimension
-' 280      0
-'   2 *D10
-'  10 389.4605870115539
-'  20 138.877721482013
-'  30 0.0
-'  11 380.9292857263932
-'  21 139.3416183844374
-'  31 0.0
-'  70     40
-'  71      5
-'  42 26.17270411733045
-'  73      0
-'  74      0
-'  75      0
-'   3 standard
-' 100 AcDbArcDimension
-'  13 394.5636509951041
-'  23 126.1138109425265
-'  33 0.0
-'  14 378.5734835508681
-'  24 120.4916581162911
-'  34 0.0
-'  15 386.6451427706808
-'  25 123.08494339706
-'  35 0.0
-'  70      0
-'  40 0.3653339482464578
-'  41 3.452458808100671
-'  71      0
-'  16 394.5636509951041
-'  26 126.1138109425265
-'  36 0.0
-'  17 378.5734835508681
-'  27 120.4916581162911
-'  37 0.0
+Public Sub SaveDxfPoints(e As Entity)
+
+    dxf.SaveCodeInv(Me.DxfSubclass, "100")
+    Me.SavePoint(e, 3)
+    Me.SavePoint(e, 4)
+    Me.SavePoint(e, 5)
+    dxf.SaveCodeInv(CStr(e.fParam[Me.ipaArcStart]), "40")
+    dxf.SaveCodeInv(CStr(e.fParam[Me.ipaArcEnd]), "41")
+    dxf.SaveCodeInv("0", "70")                  ' no es parcial
+    dxf.SaveCodeInv("0", "71")                  ' sin directriz
+
+End

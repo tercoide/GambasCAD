@@ -1,82 +1,793 @@
 ' Gambas class file
 
-Public d As DimStyle
+' GambasCAD
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
 
-Public Sub form_Open()
+'' Editor de estilos de cota, con vista previa.
+'' "Save style" guarda en el estilo de la tabla y rehace todas las cotas que lo usan.
+'' "Apply to selected" pone el estilo elegido en las cotas seleccionadas, con lo que difiera como overrides.
 
-    LoadDimStyles
+Private $dEdit As DimStyle              '' la copia del estilo que se esta editando
+Private $bLoading As Boolean            '' para no reaccionar mientras lleno los controles
+Private $aSamples As New Entity[]       '' las cotas de la vista previa
+Private $flxContext As New Float[]      '' lineas de los objetos medidos en la vista previa, x0,y0,x1,y1...
+Private $aMarkers As String[]           '' codigo, descripcion, codigo, descripcion...
+Private $aLineWeights As Integer[]
+Private $iClrD As Integer
+Private $iClrE As Integer
+Private $iClrT As Integer
 
-    ' cargo las fuentes
-    Dim t As String
-    For Each t In gcd.FontList
-        cmbDimTextFont.Add(t)
+Public Sub Form_Open()
+
+    Dim i As Integer
+    Dim ts As TextStyle
+
+    $aLineWeights = [-2, -1, -3, 0, 5, 9, 13, 15, 18, 20, 25, 30, 35, 40, 50, 53, 60, 70, 80, 90, 100, 106, 120, 140, 158, 200, 211]
+    For Each i In $aLineWeights
+        cmbLwD.Add(LineWeightName(i))
+        cmbLwE.Add(LineWeightName(i))
     Next
 
-End
+    $aMarkers = DimStyle.MarkerList()
+    For i = 1 To $aMarkers.Max Step 2
+        cmbBlk1.Add($aMarkers[i])
+        cmbBlk2.Add($aMarkers[i])
+    Next
 
-Public Sub LoadDimStyle(sName As String)
+    For Each ts In gcd.Drawing.TextStyles
+        cmbTxtStyle.Add(gcd.Drawing.TextStyles.Key)
+    Next
 
-    d = gcd.Drawing.DimStyles[sName]
-    dimScale.Value = d.DIMSCALE
-    cmbDimTextFont.Text = d.DIMTXSTY
-
-End
-
-Public Sub btnDimStyleSave_Click()
-
-    SaveDimStyle(cmbDimStyle.Text)
-    clsEntities.RebuildDimensions()
-
-End
-
-Public Sub SaveDimStyle(sName As String)
-
-    Dim d As New DimStyle
-
-    If sName = "" Then Return
-    d.name = sName
-    d.DIMSCALE = dimScale.Value
-    gcd.Drawing.DimStyles.Add(d, d.Name)
+    If gcd.Drawing.CurrDimStyle Then LoadStyles(gcd.Drawing.CurrDimStyle.name) Else LoadStyles("")
+    btnApplySelected.Enabled = SelectedDimensions().Count > 0
+    btnResetText.Enabled = btnApplySelected.Enabled
 
 End
 
-Public Sub LoadDimStyles()
+Private Function LineWeightName(iValue As Integer) As String
+
+    Select Case iValue
+        Case -2
+            Return ("ByBlock")
+        Case -1
+            Return ("ByLayer")
+        Case -3
+            Return ("Default")
+    End Select
+    Return Format(iValue / 100, "0.00") & " mm"
+
+End
+
+'=============================================== ESTILOS ===============================================
+
+Private Sub LoadStyles(sSelect As String)
 
     Dim d As DimStyle
 
-    cmbDimStyle.Clear
+    $bLoading = True
+    cmbStyle.Clear
     For Each d In gcd.Drawing.DimStyles
-        cmbDimStyle.Add(gcd.Drawing.DimStyles.Key)
+        cmbStyle.Add(gcd.Drawing.DimStyles.Key)
     Next
-
-    If cmbDimStyle.Count > 0 Then LoadDimStyle(cmbDimStyle.Text)
-
-End
-
-Public Sub cmbDimStyle_Click()
-
-    LoadDimStyle(cmbDimStyle.Text)
+    If sSelect <> "" Then cmbStyle.Text = sSelect
+    If cmbStyle.Index < 0 And cmbStyle.Count > 0 Then cmbStyle.Index = 0
+    $bLoading = False
+    LoadStyle(cmbStyle.Text)
 
 End
 
-Public Sub btnDimStyleNew_Click()
+Private Sub LoadStyle(sName As String)
 
-    Dim sNewName As String
+    If gcd.Drawing.DimStyles.Exist(sName) Then
+        $dEdit = gcd.Drawing.DimStyles[sName].Copy()
+    Else
+        $dEdit = New DimStyle
+        $dEdit.name = sName
+    Endif
+    $dEdit.Overrides = Null
+    If gcd.Drawing.CurrDimStyle Then lblCurrent.Text = ("Current") & ": " & gcd.Drawing.CurrDimStyle.name
+    FillControls
+    RefreshPreview
 
-    sNewName = InputBox(("Name for new DimStyle"), ("New DimStyle"))
-    If gcd.Drawing.DimStyles.Exist(sNewName) Then
-        Message.Warning(("Name already exists, choose a another one"), ("OK"))
+End
+
+'' True si hay cambios sin guardar en el estilo
+Private Function IsDirty() As Boolean
+
+    If Not $dEdit Then Return False
+    If Not gcd.Drawing.DimStyles.Exist($dEdit.name) Then Return False
+    Return $dEdit.Differences(gcd.Drawing.DimStyles[$dEdit.name]).Count > 0
+
+End
+
+'' Pregunta si guardar los cambios. Devuelve False si el usuario cancela.
+Private Function AskSave() As Boolean
+
+    If Not IsDirty() Then Return True
+    Select Message.Question(("The style") & " " & $dEdit.name & " " & ("has changes"), ("Save"), ("Discard"), ("Cancel"))
+        Case 1
+            SaveStyle
+        Case 3
+            Return False
+    End Select
+    Return True
+
+End
+
+Public Sub cmbStyle_Click()
+
+    If $bLoading Then Return
+    If $dEdit And If cmbStyle.Text = $dEdit.name Then Return
+    If Not AskSave() Then
+        $bLoading = True
+        cmbStyle.Text = $dEdit.name
+        $bLoading = False
         Return
     Endif
-    cmbDimStyle.Add(sNewName, 0)
+    LoadStyle(cmbStyle.Text)
 
 End
 
-Public Sub btnFontColor_Click()
+Public Sub btnNew_Click()
+
+    Dim sName As String
+    Dim d As DimStyle
+
+    sName = Trim(InputBox(("Name for the new dimension style"), ("New style"), $dEdit.name & " 2"))
+    If sName = "" Then Return
+    If gcd.Drawing.DimStyles.Exist(sName) Then
+        Message.Warning(("Name already exists, choose another one"), ("OK"))
+        Return
+    Endif
+    ' el nuevo arranca con lo que se esta viendo
+    d = $dEdit.Copy()
+    d.name = sName
+    d.id = gcd.NewId()
+    d.Overrides = Null
+    gcd.Drawing.DimStyles.Add(d, d.name)
+    If gcd.Drawing.DimStyles.Exist($dEdit.name) Then $dEdit = gcd.Drawing.DimStyles[$dEdit.name].Copy()      ' descarto los cambios del anterior
+    gcd.Drawing.RequiresSaving = True
+    LoadStyles(sName)
+    fMain.UpdatDimTypeTypeCombo()
+
+End
+
+Public Sub btnRename_Click()
+
+    Dim sName, sOld As String
+    Dim d As DimStyle
+    Dim s As Sheet
+    Dim e As Entity
+
+    sOld = $dEdit.name
+    If Not gcd.Drawing.DimStyles.Exist(sOld) Then Return
+    sName = Trim(InputBox(("New name for the style"), ("Rename style"), sOld))
+    If sName = "" Or sName = sOld Then Return
+    If gcd.Drawing.DimStyles.Exist(sName) Then
+        Message.Warning(("Name already exists, choose another one"), ("OK"))
+        Return
+    Endif
+
+    d = gcd.Drawing.DimStyles[sOld]
+    gcd.Drawing.DimStyles.Remove(sOld)
+    d.name = sName
+    gcd.Drawing.DimStyles.Add(d, sName)
+    $dEdit.name = sName
+
+    ' las cotas que lo usan
+    For Each s In gcd.Drawing.Sheets
+        For Each e In s.Entities
+            If Not cadDimension.IsDimension(e) Then Continue
+            If e.pDimStyle And If e.pDimStyle.name = sOld Then e.pDimStyle.name = sName
+        Next
+    Next
+    gcd.Drawing.RequiresSaving = True
+    LoadStyles(sName)
+    fMain.UpdatDimTypeTypeCombo()
+
+End
+
+Public Sub btnDelete_Click()
+
+    Dim sName As String
+    Dim iUsed As Integer
+    Dim s As Sheet
+    Dim e As Entity
+
+    sName = $dEdit.name
+    If gcd.Drawing.DimStyles.Count <= 1 Then
+        Message.Warning(("The drawing needs at least one dimension style"), ("OK"))
+        Return
+    Endif
+    For Each s In gcd.Drawing.Sheets
+        For Each e In s.Entities
+            If Not cadDimension.IsDimension(e) Then Continue
+            If e.pDimStyle And If e.pDimStyle.name = sName Then Inc iUsed
+        Next
+    Next
+    If iUsed > 0 Then
+        Message.Warning(Subst(("The style is used by &1 dimensions, it can't be deleted"), iUsed), ("OK"))
+        Return
+    Endif
+    If Message.Question(("Delete the style") & " " & sName & "?", ("Delete"), ("Cancel")) <> 1 Then Return
+
+    gcd.Drawing.DimStyles.Remove(sName)
+    If gcd.Drawing.CurrDimStyle.name = sName Then gcd.Drawing.CurrDimStyle = gcd.Drawing.DimStyles[gcd.Drawing.DimStyles.First]
+    gcd.Drawing.RequiresSaving = True
+    $dEdit = Null
+    LoadStyles(gcd.Drawing.CurrDimStyle.name)
+    fMain.UpdatDimTypeTypeCombo()
+
+End
+
+Public Sub btnSetCurrent_Click()
+
+    If Not gcd.Drawing.DimStyles.Exist($dEdit.name) Then Return
+    gcd.Drawing.CurrDimStyle = gcd.Drawing.DimStyles[$dEdit.name]
+    lblCurrent.Text = ("Current") & ": " & $dEdit.name
+    fMain.UpdatDimTypeTypeCombo()
+
+End
+
+'' Guarda en la tabla y rehace las cotas que usan el estilo
+Private Sub SaveStyle()
+
+    Dim d As DimStyle
+    Dim sField As String
+
+    If Not gcd.Drawing.DimStyles.Exist($dEdit.name) Then Return
+    d = gcd.Drawing.DimStyles[$dEdit.name]
+    For Each sField In DimStyle.StyleFields()
+        Object.SetProperty(d, sField, Object.GetProperty($dEdit, sField))
+    Next
+    clsEntities.RebuildDimensions(Null, $dEdit.name)
+    gcd.Drawing.RequiresSaving = True
+    RegenDrawing
+
+End
+
+Public Sub btnSave_Click()
+
+    SaveStyle
+
+End
+
+'' Las cotas seleccionadas toman el estilo elegido; lo que difiera del estilo queda como override
+Public Sub btnApplySelected_Click()
+
+    Dim e As Entity
+    Dim dBase As DimStyle
+    Dim cDiff As Collection
+    Dim vValue As Variant
+
+    If Not gcd.Drawing.DimStyles.Exist($dEdit.name) Then Return
+    dBase = gcd.Drawing.DimStyles[$dEdit.name]
+    cDiff = $dEdit.Differences(dBase)
+    For Each e In SelectedDimensions()
+        If e.iParam[cadDimension.iiiRegen] < 0 Then Continue
+        e.pDimStyle = cadDimension.NewStyleFor(dBase)
+        For Each vValue In cDiff
+            e.pDimStyle.SetOverride(cDiff.Key, vValue)
+        Next
+        cadDimension.Rebuild(e)
+    Next
+    gcd.Drawing.RequiresSaving = True
+    RegenDrawing
+
+End
+
+Public Sub btnResetText_Click()
+
+    Dim e As Entity
+
+    For Each e In SelectedDimensions()
+        If e.iParam[cadDimension.iiiRegen] < 0 Then Continue
+        cadDimension.ResetTextPosition(e)
+    Next
+    gcd.Drawing.RequiresSaving = True
+    RegenDrawing
+
+End
+
+Public Sub btnClose_Click()
+
+    Me.Close
+
+End
+
+Public Sub Form_Close()
+
+    If Not AskSave() Then Stop Event
+
+End
+
+Private Function SelectedDimensions() As Entity[]
+
+    Dim aRet As New Entity[]
+    Dim e As Entity
+
+    For Each e In gcd.Drawing.Sheet.EntitiesSelected
+        If cadDimension.IsDimension(e) Then aRet.Add(e)
+    Next
+    Return aRet
+
+End
+
+Private Sub RegenDrawing()
+
+    clsEntities.glGenDrawVBO()
+    clsEntities.glGenVboSelected()
+    gcd.redraw
+
+End
+
+'=============================================== CONTROLES ===============================================
+
+Private Sub FillControls()
+
+    $bLoading = True
+
+    ' lineas
+    $iClrD = $dEdit.DIMCLRD
+    $iClrE = $dEdit.DIMCLRE
+    $iClrT = $dEdit.DIMCLRT
+    ShowColor(cmbClrD, btnClrD, $iClrD)
+    ShowColor(cmbClrE, btnClrE, $iClrE)
+    ShowColor(cmbClrT, btnClrT, $iClrT)
+    cmbLwD.Index = Max(0, $aLineWeights.Find($dEdit.DIMLWD))
+    cmbLwE.Index = Max(0, $aLineWeights.Find($dEdit.DIMLWE))
+    vbDLE.Value = $dEdit.DIMDLE
+    vbDLI.Value = $dEdit.DIMDLI
+    chkSD1.Value = $dEdit.DIMSD1 <> 0
+    chkSD2.Value = $dEdit.DIMSD2 <> 0
+    vbEXE.Value = $dEdit.DIMEXE
+    vbEXO.Value = $dEdit.DIMEXO
+    chkSE1.Value = $dEdit.DIMSE1 <> 0
+    chkSE2.Value = $dEdit.DIMSE2 <> 0
+
+    ' simbolos
+    cmbBlk1.Index = MarkerIndex($dEdit.Marker(1))
+    cmbBlk2.Index = MarkerIndex($dEdit.Marker(2))
+    vbASZ.Value = $dEdit.DIMASZ
+    vbTSZ.Value = $dEdit.DIMTSZ
+    If $dEdit.DIMCEN > 0 Then
+        cmbCen.Index = 1
+    Else If $dEdit.DIMCEN < 0 Then
+        cmbCen.Index = 2
+    Else
+        cmbCen.Index = 0
+    Endif
+    vbCEN.Value = Abs($dEdit.DIMCEN)
+
+    ' texto
+    cmbTxtStyle.Text = $dEdit.DIMTXSTY
+    vbTXT.Value = $dEdit.DIMTXT
+    vbGAP.Value = $dEdit.DIMGAP
+    Select Case $dEdit.DIMTAD
+        Case 0
+            cmbTAD.Index = 0
+        Case 2
+            cmbTAD.Index = 2
+        Case 4
+            cmbTAD.Index = 3
+        Case Else
+            cmbTAD.Index = 1
+    End Select
+    cmbJUST.Index = Max(0, Min(2, $dEdit.DIMJUST))
+    If $dEdit.DIMTIH And $dEdit.DIMTOH Then
+        cmbAlign.Index = 0
+    Else If Not $dEdit.DIMTIH And $dEdit.DIMTOH Then
+        cmbAlign.Index = 2
+    Else
+        cmbAlign.Index = 1
+    Endif
+
+    ' ajuste
+    vbScale.Value = $dEdit.DIMSCALE
+    cmbATFIT.Index = Max(0, Min(3, $dEdit.DIMATFIT))
+    chkTIX.Value = $dEdit.DIMTIX <> 0
+    chkSOXD.Value = $dEdit.DIMSOXD <> 0
+    chkTOFL.Value = $dEdit.DIMTOFL <> 0
+
+    ' unidades
+    spDEC.Value = $dEdit.DIMDEC
+    If $dEdit.DIMDSEP = 44 Then cmbDSEP.Index = 1 Else cmbDSEP.Index = 0
+    vbRND.Value = $dEdit.DIMRND
+    vbLFAC.Value = $dEdit.DIMLFAC
+    txtPOST.Text = $dEdit.DIMPOST
+    chkZLead.Value = ($dEdit.DIMZIN And 4) <> 0
+    chkZTrail.Value = ($dEdit.DIMZIN And 8) <> 0
+    spADEC.Value = $dEdit.DIMADEC
+    chkAZTrail.Value = ($dEdit.DIMAZIN And 2) <> 0
+
+    $bLoading = False
+
+End
+
+Private Sub ReadControls()
+
+    Dim sMk1, sMk2 As String
+
+    ' lineas
+    $dEdit.DIMCLRD = $iClrD
+    $dEdit.DIMCLRE = $iClrE
+    $dEdit.DIMCLRT = $iClrT
+    $dEdit.DIMLWD = $aLineWeights[Max(0, cmbLwD.Index)]
+    $dEdit.DIMLWE = $aLineWeights[Max(0, cmbLwE.Index)]
+    $dEdit.DIMDLE = vbDLE.Value
+    $dEdit.DIMDLI = vbDLI.Value
+    $dEdit.DIMSD1 = IIf(chkSD1.Value, 1, 0)
+    $dEdit.DIMSD2 = IIf(chkSD2.Value, 1, 0)
+    $dEdit.DIMEXE = vbEXE.Value
+    $dEdit.DIMEXO = vbEXO.Value
+    $dEdit.DIMSE1 = IIf(chkSE1.Value, 1, 0)
+    $dEdit.DIMSE2 = IIf(chkSE2.Value, 1, 0)
+
+    ' simbolos: si los dos son iguales uso DIMBLK, si no DIMBLK1 y DIMBLK2
+    sMk1 = $aMarkers[Max(0, cmbBlk1.Index) * 2]
+    sMk2 = $aMarkers[Max(0, cmbBlk2.Index) * 2]
+    If sMk1 = sMk2 Then
+        $dEdit.DIMBLK = sMk1
+        $dEdit.DIMSAH = 0
+    Else
+        $dEdit.DIMBLK1 = sMk1
+        $dEdit.DIMBLK2 = sMk2
+        $dEdit.DIMSAH = 1
+    Endif
+    $dEdit.DIMASZ = vbASZ.Value
+    $dEdit.DIMTSZ = vbTSZ.Value
+    Select Case cmbCen.Index
+        Case 1
+            $dEdit.DIMCEN = Abs(vbCEN.Value)
+        Case 2
+            $dEdit.DIMCEN = -Abs(vbCEN.Value)
+        Case Else
+            $dEdit.DIMCEN = 0
+    End Select
+
+    ' texto
+    If cmbTxtStyle.Text <> "" Then $dEdit.DIMTXSTY = cmbTxtStyle.Text
+    $dEdit.DIMTXT = vbTXT.Value
+    $dEdit.DIMGAP = vbGAP.Value
+    Select Case cmbTAD.Index
+        Case 0
+            $dEdit.DIMTAD = 0
+        Case 2
+            $dEdit.DIMTAD = 2
+        Case 3
+            $dEdit.DIMTAD = 4
+        Case Else
+            $dEdit.DIMTAD = 1
+    End Select
+    $dEdit.DIMJUST = Max(0, cmbJUST.Index)
+    Select Case cmbAlign.Index
+        Case 0
+            $dEdit.DIMTIH = 1
+            $dEdit.DIMTOH = 1
+        Case 2
+            $dEdit.DIMTIH = 0
+            $dEdit.DIMTOH = 1
+        Case Else
+            $dEdit.DIMTIH = 0
+            $dEdit.DIMTOH = 0
+    End Select
+
+    ' ajuste
+    $dEdit.DIMSCALE = vbScale.Value
+    If $dEdit.DIMSCALE <= 0 Then $dEdit.DIMSCALE = 1
+    $dEdit.DIMATFIT = Max(0, cmbATFIT.Index)
+    $dEdit.DIMTIX = IIf(chkTIX.Value, 1, 0)
+    $dEdit.DIMSOXD = IIf(chkSOXD.Value, 1, 0)
+    $dEdit.DIMTOFL = IIf(chkTOFL.Value, 1, 0)
+
+    ' unidades
+    $dEdit.DIMDEC = spDEC.Value
+    $dEdit.DIMDSEP = IIf(cmbDSEP.Index = 1, 44, 46)
+    $dEdit.DIMRND = vbRND.Value
+    $dEdit.DIMLFAC = vbLFAC.Value
+    If $dEdit.DIMLFAC = 0 Then $dEdit.DIMLFAC = 1
+    $dEdit.DIMPOST = txtPOST.Text
+    $dEdit.DIMZIN = ($dEdit.DIMZIN And Not 12) Or IIf(chkZLead.Value, 4, 0) Or IIf(chkZTrail.Value, 8, 0)
+    $dEdit.DIMADEC = spADEC.Value
+    $dEdit.DIMAZIN = ($dEdit.DIMAZIN And Not 2) Or IIf(chkAZTrail.Value, 2, 0)
+
+End
+
+Private Function MarkerIndex(sMarker As String) As Integer
+
+    Dim i As Integer
+
+    For i = 0 To $aMarkers.Max Step 2
+        If $aMarkers[i] = sMarker Then Return i \ 2
+    Next
+    Return 0
+
+End
+
+Public Sub Opt_Click()
+
+    If $bLoading Then Return
+    ReadControls
+    RefreshPreview
+
+End
+
+Public Sub Opt_Change()
+
+    Opt_Click
+
+End
+
+'' Colores: 0 = ByBlock, 256 = ByLayer, 1-255 color CAD
+Private Sub ShowColor(cmb As ComboBox, btn As Button, iColor As Integer)
+
+    If iColor = 0 Then
+        cmb.Index = 0
+        btn.Background = Color.Default
+    Else If iColor = 256 Then
+        cmb.Index = 1
+        btn.Background = Color.Default
+    Else
+        cmb.Index = 2
+        btn.Background = gcd.gColor[iColor]
+    Endif
+
+End
+
+'' Elije un color, o devuelve iCurrent si el usuario cancela
+Private Function PickColor(iCurrent As Integer) As Integer
 
     Dim iColor As Integer
 
-    iColor = fColors.ShowModal()
-    btnFontColor.Background = gcd.gColor[iColor]
+    iColor = fColors.Run()
+    If iColor <= 1 Then Return iCurrent         ' fColors devuelve el color + 1; 0 o menos es cancelar
+    Return iColor - 1
+
+End
+
+Public Sub Clr_Click()
+
+    Dim iColor As Integer
+
+    If $bLoading Then Return
+    Select Case Last.Index
+        Case 0
+            iColor = 0
+        Case 1
+            iColor = 256
+        Case Else
+            Select Case Last
+                Case cmbClrD
+                    iColor = PickColor(IIf($iClrD > 0 And $iClrD < 256, $iClrD, 7))
+                Case cmbClrE
+                    iColor = PickColor(IIf($iClrE > 0 And $iClrE < 256, $iClrE, 7))
+                Case cmbClrT
+                    iColor = PickColor(IIf($iClrT > 0 And $iClrT < 256, $iClrT, 7))
+            End Select
+    End Select
+    SetColor(Last, iColor)
+
+End
+
+Public Sub ClrButton_Click()
+
+    Select Case Last
+        Case btnClrD
+            SetColor(cmbClrD, PickColor($iClrD))
+        Case btnClrE
+            SetColor(cmbClrE, PickColor($iClrE))
+        Case btnClrT
+            SetColor(cmbClrT, PickColor($iClrT))
+    End Select
+
+End
+
+Private Sub SetColor(cmb As ComboBox, iColor As Integer)
+
+    $bLoading = True
+    Select Case cmb
+        Case cmbClrD
+            $iClrD = iColor
+            ShowColor(cmbClrD, btnClrD, iColor)
+        Case cmbClrE
+            $iClrE = iColor
+            ShowColor(cmbClrE, btnClrE, iColor)
+        Case cmbClrT
+            $iClrT = iColor
+            ShowColor(cmbClrT, btnClrT, iColor)
+    End Select
+    $bLoading = False
+    ReadControls
+    RefreshPreview
+
+End
+
+'=============================================== VISTA PREVIA ===============================================
+
+'' Arma unas cotas de ejemplo con el estilo que se esta editando
+Private Sub RefreshPreview()
+
+    Dim u, L As Float
+
+    $aSamples.Clear
+    $flxContext.Clear
+    If Not $dEdit Then Return
+
+    ' las medidas de los ejemplos dependen del tamaño del texto, asi siempre se ven bien
+    u = $dEdit.DIMTXT * $dEdit.DIMSCALE
+    If u <= 0 Then u = 1
+    L = 16 * u
+
+    ' una pieza en L, con una cota horizontal arriba y una alineada en el chanfle
+    $flxContext.Insert([0, 0, L, 0, L, 0, L, L * 0.4, L, L * 0.4, L * 1.5, L * 0.9, L * 1.5, L * 0.9, L * 1.5, 0, 0, 0, 0, -L * 0.3, L * 1.5, 0, L * 1.5, -L * 0.3, 0, -L * 0.3, L * 1.5, -L * 0.3])
+    AddSample(cadDIMENSION_LINEAR.Gender, [0, 0], [L, L * 0.4], [L * 0.5, L * 1.3], 0)
+    AddSample(cadDIMENSION_ALIGNED.Gender, [L, L * 0.4], [L * 1.5, L * 0.9], [L * 1.0, L * 1.1], 0)
+    ' una cota corta, para ver como se acomoda cuando no entra
+    AddSample(cadDIMENSION_LINEAR.Gender, [L * 1.5, -L * 0.3], [L * 1.5, 0], [L * 1.8, 0], 90)
+
+    ' un circulo con su radio
+    $flxContext.Insert(CircleLines(L * 0.35, -L * 1.0, L * 0.3))
+    AddRadius(L * 0.35, -L * 1.0, L * 0.3)
+
+    ' un angulo
+    $flxContext.Insert([L * 0.9, -L * 1.3, L * 1.8, -L * 1.3, L * 0.9, -L * 1.3, L * 0.9 + L * 0.9 * Cos(Rad(40)), -L * 1.3 + L * 0.9 * Sin(Rad(40))])
+    AddAngle(L * 0.9, -L * 1.3, L * 0.9 * 0.7, L * 0.9)
+
+    dwgPreview.Refresh
+
+End
+
+Private Sub AddSample(sGender As String, flxP3 As Float[], flxP4 As Float[], flxP0 As Float[], fAngle As Float)
+
+    Dim e As Entity
+
+    e = gcd.CCC[sGender].NewEntity()
+    e.pDimStyle = $dEdit.Copy()
+    e.pDimStyle.Overrides = New Collection
+    e.Colour = 0
+    e.P[3] = puntos.P3d(flxP3[0], flxP3[1], 0)
+    e.P[4] = puntos.P3d(flxP4[0], flxP4[1], 0)
+    e.P[0] = puntos.P3d(flxP0[0], flxP0[1], 0)
+    e.fParam[cadDimension.ipaRotacion] = fAngle
+    cadDimension.Rebuild(e)
+    $aSamples.Add(e)
+
+End
+
+Private Sub AddRadius(xc As Float, yc As Float, r As Float)
+
+    Dim e As Entity
+
+    e = gcd.CCC[cadDIMENSION_RADIUS.Gender].NewEntity()
+    e.pDimStyle = $dEdit.Copy()
+    e.pDimStyle.Overrides = New Collection
+    e.P[0] = puntos.P3d(xc, yc, 0)
+    e.P[5] = puntos.P3d(xc + r * Cos(Rad(45)), yc + r * Sin(Rad(45)), 0)
+    cadDimension.Rebuild(e)
+    $aSamples.Add(e)
+
+End
+
+Private Sub AddAngle(vx As Float, vy As Float, rArc As Float, rSide As Float)
+
+    Dim e As Entity
+
+    e = gcd.CCC[cadDIMENSION_ANG3PT.Gender].NewEntity()
+    e.pDimStyle = $dEdit.Copy()
+    e.pDimStyle.Overrides = New Collection
+    e.P[5] = puntos.P3d(vx, vy, 0)
+    e.P[3] = puntos.P3d(vx + rSide, vy, 0)
+    e.P[4] = puntos.P3d(vx + rSide * Cos(Rad(40)), vy + rSide * Sin(Rad(40)), 0)
+    e.P[0] = puntos.P3d(vx + rArc * Cos(Rad(20)), vy + rArc * Sin(Rad(20)), 0)
+    cadDimension.Rebuild(e)
+    $aSamples.Add(e)
+
+End
+
+Private Function CircleLines(xc As Float, yc As Float, r As Float) As Float[]
+
+    Dim flx As New Float[]
+    Dim i As Integer
+
+    For i = 0 To 35
+        flx.Insert([xc + r * Cos(Rad(i * 10)), yc + r * Sin(Rad(i * 10)), xc + r * Cos(Rad((i + 1) * 10)), yc + r * Sin(Rad((i + 1) * 10))])
+    Next
+    Return flx
+
+End
+
+Public Sub dwgPreview_Draw()
+
+    Dim e As Entity
+    Dim flxLimits As Float[]
+    Dim fScale, ox, oy As Float
+    Dim i As Integer
+
+    If $aSamples.Count = 0 Then Return
+
+    ' los limites de todo
+    flxLimits = puntos.Limits($flxContext)
+    For Each e In $aSamples
+        puntos.LimitsMax(flxLimits, e.Limits)
+    Next
+    If flxLimits[2] <= flxLimits[0] Or flxLimits[3] <= flxLimits[1] Then Return
+    fScale = Min((dwgPreview.W - 20) / (flxLimits[2] - flxLimits[0]), (dwgPreview.H - 20) / (flxLimits[3] - flxLimits[1]))
+    ox = (dwgPreview.W - (flxLimits[2] - flxLimits[0]) * fScale) / 2 - flxLimits[0] * fScale
+    oy = (dwgPreview.H + (flxLimits[3] - flxLimits[1]) * fScale) / 2 + flxLimits[1] * fScale
+
+    Paint.LineWidth = 1
+    Paint.Background = Color.Gray
+    For i = 0 To $flxContext.Max - 3 Step 4
+        Paint.MoveTo(ox + $flxContext[i] * fScale, oy - $flxContext[i + 1] * fScale)
+        Paint.LineTo(ox + $flxContext[i + 2] * fScale, oy - $flxContext[i + 3] * fScale)
+    Next
+    Paint.Stroke
+
+    For Each e In $aSamples
+        PaintParts(e.pBlock.entities, fScale, ox, oy)
+    Next
+
+End
+
+Private Sub PaintParts(cParts As Collection, fScale As Float, ox As Float, oy As Float)
+
+    Dim et As Entity
+    Dim i As Integer
+    Dim iColor As Integer
+
+    For Each et In cParts
+        If et.Colour = 0 Or et.Colour = 256 Or et.Colour = 7 Then
+            iColor = Color.White
+        Else
+            iColor = gcd.gColor[et.Colour]
+        Endif
+        Paint.Background = iColor
+
+        Select Case et.Gender
+            Case "LINE"
+                Paint.MoveTo(ox + et.P[0].x * fScale, oy - et.P[0].y * fScale)
+                Paint.LineTo(ox + et.P[1].x * fScale, oy - et.P[1].y * fScale)
+                Paint.Stroke
+            Case "SOLID"
+                Paint.MoveTo(ox + et.P[0].x * fScale, oy - et.P[0].y * fScale)
+                For i = 1 To et.P.Max
+                    Paint.LineTo(ox + et.P[i].x * fScale, oy - et.P[i].y * fScale)
+                Next
+                Paint.ClosePath
+                Paint.Fill
+            Case "ARC", "CIRCLE"         ' x,y,z
+                If et.PolyLine.Count < 6 Then Continue
+                Paint.MoveTo(ox + et.PolyLine[0] * fScale, oy - et.PolyLine[1] * fScale)
+                For i = 3 To et.PolyLine.Max - 1 Step 3
+                    Paint.LineTo(ox + et.PolyLine[i] * fScale, oy - et.PolyLine[i + 1] * fScale)
+                Next
+                Paint.Stroke
+            Case "MTEXT", "TEXT"         ' segmentos x0,y0,x1,y1
+                For i = 0 To et.PolyLine.Max - 3 Step 4
+                    Paint.MoveTo(ox + et.PolyLine[i] * fScale, oy - et.PolyLine[i + 1] * fScale)
+                    Paint.LineTo(ox + et.PolyLine[i + 2] * fScale, oy - et.PolyLine[i + 3] * fScale)
+                Next
+                Paint.Stroke
+            Case "INSERT"
+                If et.pBlock Then PaintParts(et.pBlock.entities, fScale, ox, oy)
+        End Select
+    Next
 
 End

@@ -19,562 +19,199 @@
 ' along with this program; if not, write to the Free Software
 ' Foundation, Inc., 51 Franklin St, Fifth Floor,
 ' Boston, MA  02110-1301  USA
+
+'' Cota lineal (horizontal, vertical o rotada). DXF tipo 0
+''   P[3] = 13   origen de la linea de referencia 1
+''   P[4] = 14   origen de la linea de referencia 2
+''   P[0] = 10   punto sobre la linea de cota (queda en el extremo de la referencia 2)
+''   P[1] = 11   centro del texto
+''   fParam[ipaRotacion] = 50, el angulo de la medida en grados
+
 Create Static
 Inherits CadDimension
 
 Public Const Gender As String = "DIMENSION_LINEAR"
-Public Const DrawingOrder As Integer = 100 ' 1 a 32.724 esto debe Drawse primero y ser sobreescrito por el resto
-Public Const PointsToDraw As Integer = 1             ' minimal point requered for drawing something usefull
-Public Const CmdLineHelper As String = ("Insert a linear acotation")
+Public Const DrawingOrder As Integer = 100
+Public Const PointsToDraw As Integer = 1
+Public Const CmdLineHelper As String = ("Insert a linear dimension")
 Public Const ParamType As String = "PPP"
-Public Const ParamHelper As String = "Start point;End point;extension"
+Public Const ParamHelper As String = "First point;Second point;Dimension line location"
 Public Const ParamDefault As String = " "
-
-Public Function SaveDxfData(e As Entity) As Boolean
-
-    cadDimension.SaveDxfData(e)
-
-    dxf.SaveCodeInv("AcDbAlignedDimension", "100")
-    ' ===========================================================================
-    dxf.SaveCodeInv(CStr(e.P[7].x), dxf.codX3)                ' first def point
-    dxf.SaveCodeInv(CStr(e.P[7].y), dxf.codY3)
-    dxf.SaveCodeInv("0", dxf.codz3)
-
-    dxf.SaveCodeInv(CStr(e.P[8].x), "14")                ' text att point
-    dxf.SaveCodeInv(CStr(e.P[8].y), "24")
-    dxf.SaveCodeInv("0", "34")
-    dxf.SaveCodeInv(CStr(e.fParam[cadInsert.ipaRotacion]), "50")
-    dxf.SaveCodeInv("0", "52")
-    dxf.SaveCodeInv("AcDbRotatedDimension", "100")
-
-End
-
-Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
-
-    Dim i As Integer
-    Dim AfterSubclassmarker As Boolean
-    ' ' revisamos lo que viene del importador comun
-    e.P[2].x = e.P[0].x
-    e.P[2].y = e.P[0].y
-    '
-    e.P[3].x = e.P[1].x
-    e.P[3].y = e.P[1].y
-
-    For i = 0 To sClaves.Max
-        If sClaves[i] = "100" And sValues[i] = "AcDbAlignedDimension" Then AfterSubclassmarker = True
-        If AfterSubclassmarker Then ' los siguientes codigos
-            If sClaves[i] = "12" Then e.P[4].x = CFloat(sValues[i])
-            If sClaves[i] = "22" Then e.P[4].y = CFloat(sValues[i])
-
-            If sClaves[i] = "13" Then e.P[0].x = CFloat(sValues[i])
-            If sClaves[i] = "23" Then e.P[0].y = CFloat(sValues[i])
-
-            If sClaves[i] = "14" Then e.P[1].x = CFloat(sValues[i])
-            If sClaves[i] = "24" Then e.P[1].y = CFloat(sValues[i])
-
-            ' este parametro determina el angulo de la dimension, y no los puntos
-            If sClaves[i] = "50" Then e.iParam[cadDimension.iiiMode] = 1000 * CFloat(sValues[i])
-
-            If sClaves[i] = "52" Then e.fParam[cadDimension.ipaObliqueExtension] = CFloat(sValues[i])
-
-        End If
-
-    Next
-
-    ' Equivalencias
-    ' DXF       Entity P[]
-    ' 10-20     4-5
-    ' 11-21     6-7
-    ' 12-22     no se usa
-    ' 13-23     0-1
-    ' 14-24     2-3
-
-    e.fParam[cadDimension.ipaExtension] = -puntos.distancia(Me.DefPoint1.x, Me.DefPoint1.y, Me.DefPoint2.x, Me.DefPoint2.y)
-
-    ' TODO: cuando este terminada la entidad, sacar eso
-    ' tengo q presuponer que las escalas son = 1
-    e.fParam[Me.ipaEscX] = 1    ' esc X
-    e.fParam[Me.ipaEscY] = 1    ' esc Y
-    e.fParam[Me.ipaEscZ] = 1    ' esc Z
-    Try e.pBlock.InsertionPlace = 1
-
-    ' y poner esto
-    'e.pBlock = Me.ReBuildBlock(e, e.iParam[Me.iiiMode])
-
-    Return True
-
-    ' catch
-
-    Return False
-
-End
+Public Const DimTypeCode As Integer = 0
+Public Const DxfSubclass As String = "AcDbAlignedDimension"
+Public Const GripPoints As String = "3;4;0;1"
+Public Const GripTips As String = ("Move first point;Move second point;Move dimension line;Move text")
 
 Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Variant
 
+    Dim eLast As Entity
     Dim iMode As Integer
+    Dim fAng, nx, ny, fSide As Float
 
     If vParam[0] <> "point" Then Return False
 
-    If eBuild.iParam[Me.iiiMode] >= 10 Then
+    iMode = eBuild.iParam[Me.iiiMode]
 
-        If gcd.Drawing.LastDimension Then
-
-            If eBuild.iParam[Me.iiiMode] = 10 Then
-                Me.DimContinued = True
-                eBuild.P[0].x = gcd.Drawing.LastDimension.P[1].x
-                eBuild.P[0].y = gcd.Drawing.LastDimension.P[1].y
-                eBuild.P[2].x = gcd.Drawing.LastDimension.P[2].x
-                eBuild.P[2].y = gcd.Drawing.LastDimension.P[2].y
-            Else If eBuild.iParam[Me.iiiMode] = 20 Then
-                eBuild.P[0].x = gcd.Drawing.LastDimension.P[0].x
-                eBuild.P[0].y = gcd.Drawing.LastDimension.P[0].y
-
-                Me.DimBaseline = True
-            End If
-            If gcd.Drawing.LastDimension.iParam[Me.iiiMode] = 0 Then
-                If gcd.Drawing.LastDimension.fParam[Me.ipaHorizAngle] = 0 Then
-                    eBuild.iParam[Me.iiiMode] = 1
-                Else If gcd.Drawing.LastDimension.fParam[Me.ipaHorizAngle] = Pi / 2 Then
-                    eBuild.iParam[Me.iiiMode] = 2
-                Endif
-            Else
-                eBuild.iParam[Me.iiiMode] = gcd.Drawing.LastDimension.iParam[Me.iiiMode]
-            End If
-
-        Else
-            Me.DimContinued = False ' no existe dimension anterior para continuar
-            Me.DimBaseline = False ' no existe dimension anterior para continuar
-        End If
-
-        If Me.DimContinued Or Me.DimBaseline Then
-            gcd.StepsDone = 1
-
+    ' continuada (10) o de linea base (20): arranca de la ultima cota lineal
+    If (iMode = 10 Or iMode = 20) And gcd.StepsDone = 0 Then
+        eLast = gcd.Drawing.LastDimension
+        If eLast Then
+            If eLast.Gender <> cadDIMENSION_LINEAR.Gender And eLast.Gender <> cadDIMENSION_ALIGNED.Gender Then eLast = Null
         Endif
-    End If
+        If eLast Then
+            fAng = LineAngle(eLast)
+            eBuild.fParam[Me.ipaRotacion] = Deg(fAng)
+            eBuild.iParam[Me.iiiMode] = 3
+            eBuild.pDimStyle = eLast.pDimStyle.Copy()
+            If iMode = 10 Then
+                eBuild.P[3] = eLast.P[4].Copy()
+                eBuild.P[0] = eLast.P[0].Copy()
+            Else
+                eBuild.P[3] = eLast.P[3].Copy()
+                ' la nueva linea de cota, mas afuera
+                nx = -Sin(fAng)
+                ny = Cos(fAng)
+                fSide = (eLast.P[0].x - eLast.P[3].x) * nx + (eLast.P[0].y - eLast.P[3].y) * ny
+                If fSide < 0 Then
+                    nx = -nx
+                    ny = -ny
+                Endif
+                eBuild.P[0] = puntos.P3d(eLast.P[0].x + nx * eBuild.pDimStyle.DIMDLI * Me.DimScale(eBuild), eLast.P[0].y + ny * eBuild.pDimStyle.DIMDLI * Me.DimScale(eBuild), eLast.P[0].z)
+            Endif
+            Me.DimContinued = True
+            gcd.StepsDone = 1
+        Else
+            eBuild.iParam[Me.iiiMode] = 0
+            Me.DimContinued = False
+        Endif
+    Endif
+
     If gcd.StepsDone = 0 Then
 
-        ' supongo que marca el punto de derecha a izq
-
-        Try eBuild.P[0].x = vParam[1]
-        Try eBuild.P[0].y = vParam[2]
-        eBuild.P[1].x = eBuild.P[0].x
-        eBuild.P[1].y = eBuild.P[0].y
-        eBuild.P[2].x = eBuild.P[1].x
-        eBuild.P[2].y = eBuild.P[1].y
-
-        If eBuild.iParam[Me.iiiMode] = 0 Then ' linear (depende de la posicion de la medida)
-            iMode = 0
-        Else If eBuild.iParam[Me.iiiMode] = 1 Then ' Horizontal
-            iMode = 1
-        Else If eBuild.iParam[Me.iiiMode] = 2 Then ' Vertical
-            iMode = 2
-        Else
-
-            eBuild.fParam[Me.ipaRotacion] = eBuild.iParam[Me.iiiMode] / 1e6
-            eBuild.iParam[Me.iiiMode] = 3
-        End If
-
+        eBuild.P[3] = Me.ParamPoint(vParam)
+        eBuild.P[4] = eBuild.P[3].Copy()
+        eBuild.P[0] = eBuild.P[3].Copy()
         If Definitive Then Return True
+
     Else If gcd.StepsDone = 1 Then
 
-        Try eBuild.P[1].x = vParam[1]
-        Try eBuild.P[1].y = vParam[2]
-        If Not Me.DimContinued Then
-            eBuild.P[2].x = eBuild.P[1].x
-            eBuild.P[2].y = eBuild.P[1].y
-
-        End If
-        eBuild.pBlock = RebuildBlock(eBuild, eBuild.iParam[Me.iiiMode])
+        eBuild.P[4] = Me.ParamPoint(vParam)
+        If Not Me.DimContinued Then eBuild.P[0] = eBuild.P[4].Copy()
+        SetAngle(eBuild)
+        Me.Rebuild(eBuild)
         If Definitive Then
-
             If Me.DimContinued Then Inc gcd.StepsDone
             Return True
-        End If
-    Else If gcd.StepsDone = 2 Then   ' el tercer punto sera la posicion del texto
+        Endif
 
-        ' return the angle from horizontal to us
-        'eBuild.fParam[Me.ipaExtension] = -puntos.PointToLineDistance([vParam[1], vParam[2]], [eBuild.p[0], eBuild.p[1], eBuild.p[2], eBuild.p[3]]) ' / puntos.distancia(eBuild.p[0], eBuild.p[1], eBuild.p[2], eBuild.p[3]
-        Try eBuild.P[2].x = vParam[1]
-        Try eBuild.P[2].y = vParam[2]
+    Else If gcd.StepsDone = 2 Then
 
-        ' Try Me.DefPoint1.x = vParam[1]
-        ' Try Me.DefPoint1.y = vParam[2]
-        eBuild.pBlock = RebuildBlock(eBuild, eBuild.iParam[Me.iiiMode])
-        If Definitive Then
-            'Stop
-            Return True
-        End If
+        eBuild.P[0] = Me.ParamPoint(vParam)
+        SetAngle(eBuild)
+        Me.Rebuild(eBuild)
+        If Definitive Then Return True
+
     Endif
 
 End
 
-'' iMode=-1 es dim alineada entre P1 y P2
-'' iMode= 0 linear (determinada por la posicion)
-'' iMode= 1 es Horizontal
-'' iMode= 2 es Vertical
-'' iMode= 3 es Angled
-'' iMode= 103 es Ordinate Horizontal
-'' iMode= 204 es Ordinate Vertical
+'' El angulo de la medida segun el modo de construccion
+Private Sub SetAngle(e As Entity)
 
-'' iMode> 1E5 --> 1E5 x fAngle determina el angulo sobre el cual se mide
-'' bContinued fuerza seguir desde el ultimo punto marcado (pasa a ser P1)
+    Dim iMode As Integer
+    Dim x1, x2, y1, y2 As Float
 
-Public Sub RebuildBlock(E As Entity, Optional iMode As Integer = 0, fAngle As Float = -1) As Block
-
-    ' esta rutina no sabe si el bloque a reconstruir es desde ENTITYBUILDER o desde
-    ' DXF o JSON
-
-    Dim flxTextExt As Float[]
-
-    Dim newBlock As New Block
-    Dim f1 As New Float[]
-    Dim sDim As String
-    Dim d, fAngle90 As Single ' para evitar problemas de mantisa cuando Ang=89.99999
-
-    ' para definir este bloque necesito 6 entidades
-    Dim eLineaPpal As Entity
-    Dim eOblique1 As Entity       ' tambien pueden ser flechas Solid
-    Dim eOblique2 As Entity
-    Dim eExtension1 As Entity
-    Dim eExtension2 As Entity
-    Dim eText As Entity
-    Dim ePoint1 As Entity
-    Dim ePoint2 As Entity
-
-    ' vemos los estilos
-
-    newBlock.name = "*D" ' luego se agregara la handle, en entitybuilder
-    newBlock.entities = New Collection
-
-    ' Pasamos los puntos que viene marcando el user a nuestros puntos.
-    Me.DefPoint1.x = e.P[0].x
-    Me.DefPoint1.y = e.P[0].y
-    Me.DefPoint2.x = e.P[1].x
-    Me.DefPoint2.y = e.P[1].y
-    Me.DefTextMIdPoint.x = e.P[2].x
-    Me.DefTextMIdPoint.y = e.P[2].y
-
-    If iMode = -1 Then
-        Me.DefAngle = Ang(Me.DefPoint2.x - Me.DefPoint1.x, Me.DefPoint2.y - Me.DefPoint1.y)
-    Else If iMode = 0 Then  ' depende de la posicion del mouse
-
-        If ((Me.DefTextMIdPoint.x < Me.DefPoint1.x) And (Me.DefTextMIdPoint.x < Me.DefPoint2.x)) Or ((Me.DefTextMIdPoint.x > Me.DefPoint1.x) And (Me.DefTextMIdPoint.x > Me.DefPoint2.x)) Then ' es vertical
-            Me.DefAngle = Pi / 2
-        Else If ((Me.DefTextMIdPoint.y < Me.DefPoint1.y) And (Me.DefTextMIdPoint.y < Me.DefPoint2.y)) Or ((Me.DefTextMIdPoint.y > Me.DefPoint1.y) And (Me.DefTextMIdPoint.y > Me.DefPoint2.y)) Then ' es horizontal
-
-            Me.DefAngle = 0
-        Else
-            If Abs(Me.DefPoint1.x - Me.DefPoint2.x) > Abs(Me.DefPoint1.y - Me.DefPoint2.y) Then ' es horiz
-                Me.DefAngle = 0
-            Else
-                Me.DefAngle = Pi / 2
-            End If
-        End If
-
-    Else If iMode = 1 Then
-        Me.DefAngle = 0
+    iMode = e.iParam[Me.iiiMode]
+    If iMode = 1 Then
+        e.fParam[Me.ipaRotacion] = 0
     Else If iMode = 2 Then
-        Me.DefAngle = Pi / 2
-    Else If iMode = 5 Then
-        Me.DefAngle = e.fParam[Me.ipaRotacion] '' RADIANS
+        e.fParam[Me.ipaRotacion] = 90
     Else If iMode >= 1000 Then
-        Me.DefAngle = Rad(imode / 1000) 'e.fParam[Me.ipaRotacion] '' RADIANS
+        e.fParam[Me.ipaRotacion] = iMode / 1000
+    Else If iMode = 0 Then
+        ' depende de donde este la linea de cota respecto de los puntos
+        x1 = Min(e.P[3].x, e.P[4].x)
+        x2 = Max(e.P[3].x, e.P[4].x)
+        y1 = Min(e.P[3].y, e.P[4].y)
+        y2 = Max(e.P[3].y, e.P[4].y)
+        If (e.P[0].x < x1 Or e.P[0].x > x2) And (e.P[0].y >= y1 And e.P[0].y <= y2) Then
+            e.fParam[Me.ipaRotacion] = 90
+        Else If (e.P[0].y < y1 Or e.P[0].y > y2) And (e.P[0].x >= x1 And e.P[0].x <= x2) Then
+            e.fParam[Me.ipaRotacion] = 0
+        Else If Abs(e.P[3].x - e.P[4].x) >= Abs(e.P[3].y - e.P[4].y) Then
+            e.fParam[Me.ipaRotacion] = 0
+        Else
+            e.fParam[Me.ipaRotacion] = 90
+        Endif
     Endif
 
-    ' reduzco este valor a -89.99 -> 90
-    Me.DefAngle = Utils.fMod(Me.DefAngle, Pi)
-    If Me.DefAngle > Pi / 2 Then Me.DefAngle -= Pi
-    ' busco el angulo perpendicular
-    fAngle90 = Me.DefAngle + Pi / 2
-    fAngle90 = Utils.fMod(fAngle90, Pi)
-    If fAngle90 > Pi / 2 Then fAngle90 -= Pi
+End
 
-    ' el siguiente valor depende de la posicion del texto
-    Me.DefDeltaT = e.pDimStyle.DIMTXT * 3 / 4 / e.pDimStyle.DIMSCALE
+'' El angulo de la linea de cota, en radianes
+Public Function LineAngle(e As Entity) As Float
 
-    ' el centro de la linea principal
-    Me.DefPointCentral.x = Me.DefTextMIdPoint.x - Sin(Me.DefAngle) * Me.DefDeltaT
-    Me.DefPointCentral.y = Me.DefTextMIdPoint.y + Cos(Me.DefAngle) * Me.DefDeltaT
+    If e.Gender = cadDIMENSION_ALIGNED.Gender Then Return Ang(e.P[4].x - e.P[3].x, e.P[4].y - e.P[3].y)
+    Return Rad(e.fParam[Me.ipaRotacion])
 
-    ' Determino los puntos auxiliares, que estan sobre una recta que pasa por DefCenter a un angulo DefAngle
-    ' 1- Defino la recta
+End
 
-    If Cos(Me.DefAngle) <> 0 Then
-        d = Tan(Me.DefAngle)
-        Me.DefPointCentralAux.x = Me.DefPointCentral.x + 1
-        Me.DefPointCentralAux.y = Me.DefPointCentral.y + d
-    Else
-        Me.DefPointCentralAux.x = Me.DefPointCentral.x
-        Me.DefPointCentralAux.y = Me.DefPointCentral.y + 1
-    End If
+Public Sub MakeBlock(e As Entity)
 
-    ' busco la perendicular q pasa por DefPoint1
-    If Cos(fAngle90) <> 0 Then
-        d = Tan(fAngle90)
-        Me.DefPointAux1.x = Me.DefPoint1.x + 1
-        Me.DefPointAux1.y = Me.DefPoint1.y + d
-    Else
-        Me.DefPointAux1.x = Me.DefPoint1.x
-        Me.DefPointAux1.y = Me.DefPoint1.y + 1
-    End If
+    MakeLinear(e, LineAngle(e))
 
-    ' busco la perendicular q pasa por DefPoint2
-    If Cos(fAngle90) <> 0 Then
-        d = Tan(fAngle90)
-        Me.DefPointAux2.x = Me.DefPoint2.x + 1
-        Me.DefPointAux2.y = Me.DefPoint2.y + d
-    Else
-        Me.DefPointAux2.x = Me.DefPoint2.x
-        Me.DefPointAux2.y = Me.DefPoint2.y + 1
-    End If
+End
 
-    ' ahora determino la inteerseccion de ambas rectas
-    f1 = puntos.lineLineIntersection2(Me.DefPointAux1.x, Me.DefPointAux1.y, Me.DefPoint1.x, Me.DefPoint1.y, Me.DefPointCentral.x, Me.DefPointCentral.y, Me.DefPointCentralAux.x, Me.DefPointCentralAux.y)
-    Me.DefPoint1b.x = f1[0]
-    Me.DefPoint1b.y = f1[1]
+'' Cotas lineales y alineadas: la linea de cota pasa por P[0] con el angulo fAng
+Public Sub MakeLinear(e As Entity, fAng As Float)
 
-    f1 = puntos.lineLineIntersection2(Me.DefPointAux2.x, Me.DefPointAux2.y, Me.DefPoint2.x, Me.DefPoint2.y, Me.DefPointCentral.x, Me.DefPointCentral.y, Me.DefPointCentralAux.x, Me.DefPointCentralAux.y)
-    Me.DefPoint2b.x = f1[0]
-    Me.DefPoint2b.y = f1[1]
+    Dim ux, uy, t1, t2, d1x, d1y, d2x, d2y, vx, vy, fSide, fMeasure As Float
+    Dim flxText As Float[]
+    Dim sText As String
 
-    ' verifico el armado, siempre el P1 debe estar a la izq del P2
+    ux = Cos(fAng)
+    uy = Sin(fAng)
 
-    If Me.DefPoint2b.x < Me.DefPoint1b.x Then ' swapeo los puntos
-        Swap Me.DefPoint2b.x, Me.DefPoint1b.x
-        Swap Me.DefPoint2b.y, Me.DefPoint1b.y
+    ' proyecto los puntos medidos sobre la linea de cota
+    t1 = (e.P[3].x - e.P[0].x) * ux + (e.P[3].y - e.P[0].y) * uy
+    t2 = (e.P[4].x - e.P[0].x) * ux + (e.P[4].y - e.P[0].y) * uy
+    d1x = e.P[0].x + ux * t1
+    d1y = e.P[0].y + uy * t1
+    d2x = e.P[0].x + ux * t2
+    d2y = e.P[0].y + uy * t2
 
-        Swap Me.DefPoint2.x, Me.DefPoint1.x
-        Swap Me.DefPoint2.y, Me.DefPoint1.y
-    Else If Me.DefPoint2b.x = Me.DefPoint1b.x Then ' swapeo los puntos
-        If Me.DefPoint2b.y < Me.DefPoint1b.y Then ' swapeo los puntos
-            Swap Me.DefPoint2b.x, Me.DefPoint1b.x
-            Swap Me.DefPoint2b.y, Me.DefPoint1b.y
+    fMeasure = Abs(t2 - t1)
+    e.fParam[Me.ipaRealMeasure] = fMeasure * e.pDimStyle.DIMLFAC     ' como en el DXF, con el factor
 
-            Swap Me.DefPoint2.x, Me.DefPoint1.x
-            Swap Me.DefPoint2.y, Me.DefPoint1.y
-        End If
-    End If
-
-    ' ahora recalculo la posicion del terxto
-    ' el centro de la linea principal
-    Me.DefPointCentral.x = (Me.DefPoint1b.x + Me.DefPoint2b.x) / 2
-    Me.DefPointCentral.y = (Me.DefPoint1b.y + Me.DefPoint2b.y) / 2
-    Me.DefTextMIdPoint.x = Me.DefPointCentral.x - Sin(Me.DefAngle) * Me.DefDeltaT
-    Me.DefTextMIdPoint.y = Me.DefPointCentral.y + Cos(Me.DefAngle) * Me.DefDeltaT
-
-    eLineaPpal = cadLine.NewEntity([Me.DefPoint1b.x, Me.DefPoint1b.y, Me.DefPoint2b.x, Me.DefPoint2b.y], True)  ' el 2do punto lo tengo que
-    ' lineas de demarcacion
-    'eExtension1 = cadLine.NewEntity([Me.DefPoint1b.x, Me.DefPoint1b.y - Me.DimExtension, Me.DefPoint1b.x, Me.DefPoint1b.y + Me.DimExtension])
-
-    ' puntos base, ya en las ubicaciones finales (coinciden con los clicks)
-    ePoint1 = cadPoint.NewEntity([Me.DefPoint1.x, Me.DefPoint1.y], True)
-    ePoint2 = cadPoint.NewEntity([Me.DefPoint2.x, Me.DefPoint2.y], True)
-
-    ' el largo de la ext line viene controlado por DIMEXE y el offset desde el punto de demarcacion por DIMEXO
-    'Me.DefPointExtLineOffset1.x
-
-    ' determino el largo actual de las lineas de extension
-    Dim pel0, pel1 As New Punto2d
-
-    pel0 = puntos.ExtendLine2D(Me.DefPoint1, Me.DefPoint1b, e.pDimStyle.DIMEXE * e.pDimStyle.DIMTXT)
-    pel1 = puntos.ExtendLine2D(Me.DefPoint1, Me.DefPoint1b, -e.pDimStyle.DIMEXE * e.pDimStyle.DIMTXT)
-    'eExtension1 = cadLine.NewEntity([Me.DefPoint1.x, Me.DefPoint1.y, Me.DefPoint1b.x, Me.DefPoint1b.y], True)
-    eExtension1 = cadLine.NewEntity([pel0.x, pel0.y, pel1.x, pel1.y], True)
-
-    pel0 = puntos.ExtendLine2D(Me.DefPoint2, Me.DefPoint2b, e.pDimStyle.DIMEXE * e.pDimStyle.DIMTXT)
-    pel1 = puntos.ExtendLine2D(Me.DefPoint2, Me.DefPoint2b, -e.pDimStyle.DIMEXE * e.pDimStyle.DIMTXT)
-
-    eExtension2 = cadLine.NewEntity([Me.DefPoint2.x, Me.DefPoint2.y, Me.DefPoint2b.x, Me.DefPoint2b.y], True)
-
-    eExtension2 = cadLine.NewEntity([pel0.x, pel0.y, pel1.x, pel1.y], True)
-
-    ' flechas
-
-    eOblique1 = cadInsert.NewEntity([Me.DefPoint1b.x, Me.DefPoint1b.y], True)
-    eOblique1.pBlock = New Block
-    eOblique1.fParam[cadInsert.ipaEscX] = e.pDimStyle.DIMASZ
-    eOblique1.fParam[cadInsert.ipaEscY] = e.pDimStyle.DIMASZ
-    eOblique1.fParam[cadInsert.ipaEscZ] = e.pDimStyle.DIMASZ
-    eOblique1.fParam[cadInsert.ipaRotacion] = Deg(Me.DefAngle)
-    If gcd.Drawing.Blocks.Exist(e.pDimStyle.DIMBLK1) Then
-        eOblique1.pBlock.name = e.pDimStyle.DIMBLK1
-    Else If gcd.Drawing.Blocks.Exist(e.pDimStyle.DIMBLK) Then
-        eOblique1.pBlock.name = e.pDimStyle.DIMBLK
-        eOblique1.fParam[cadInsert.ipaRotacion] = Deg(Me.DefAngle) + 180
-    Else If gcd.Drawing.Blocks.Exist(e.pdimstyle.Thick1) Then
-        eOblique1.pBlock.name = e.pdimstyle.Thick1
-    Else
-        eOblique1.pBlock.name = "_thick1_arrow"
-    End If
-
-    cadInsert.Finish(eOblique1)
-
-    eOblique2 = cadInsert.NewEntity([Me.DefPoint2b.x, Me.DefPoint2b.y], True)
-    eOblique2.pBlock = New Block
-    If gcd.Drawing.Blocks.Exist(e.pDimStyle.DIMBLK2) Then
-        eOblique2.pBlock.name = e.pDimStyle.DIMBLK2
-    Else If gcd.Drawing.Blocks.Exist(e.pDimStyle.DIMBLK) Then
-        eOblique2.pBlock.name = e.pDimStyle.DIMBLK
-
-    Else If gcd.Drawing.Blocks.Exist(e.pdimstyle.Thick2) Then
-        eOblique2.pBlock.name = e.pdimstyle.Thick2
-    Else
-        eOblique2.pBlock.name = "_thick2_arrow"
-    End If
-
-    eOblique2.fParam[cadInsert.ipaEscX] = e.pDimStyle.DIMASZ
-    eOblique2.fParam[cadInsert.ipaEscY] = e.pDimStyle.DIMASZ
-    eOblique2.fParam[cadInsert.ipaEscZ] = e.pDimStyle.DIMASZ
-    eOblique2.fParam[cadInsert.ipaRotacion] = Deg(Me.DefAngle)
-    cadInsert.Finish(eOblique2)
-
-    ' texto
-    eText = cadMText.NewEntity([Me.DefTextMIdPoint.x, Me.DefTextMIdPoint.y], True)  ' si leo un archivo, esta es la posicion final
-    eText.fParam[cadMText.ipaAttchmPoint] = 8
-    eText.fParam[cadMText.ipaTextAngle] = Me.DefAngle
-    eText.fParam[cadMText.ipaTextHeight] = e.pDimStyle.DIMTXT / e.pDimStyle.DIMSCALE
-
-    ' MODIFICO PARA ORDINATE
-    newBlock.entities.Add(eLineaPpal, eLineaPpal.Id)
-    ' agrego todo al bloque
-    If e.pDimStyle.DIMSE2 = 0 Then newBlock.entities.Add(eExtension2, eExtension2.Id)
-
-    newBlock.entities.Add(ePoint2, ePoint2.Id)
-    newBlock.entities.Add(eOblique2, eOblique2.Id)
-
-    If e.pDimStyle.DIMSE1 = 0 Then newBlock.entities.Add(eExtension1, eExtension1.Id)
-    newBlock.entities.Add(ePoint1, ePoint1.Id)
-    newBlock.entities.Add(eOblique1, eOblique1.Id)
-
-    newBlock.entities.Add(eText, eText.Id)
-    newBlock.InsertionPlace = 1
-
-    ' -> el bloque
-    E.fParam[cadInsert.ipaEscX] = 1      ' ScaleX del inserto
-    E.fParam[cadInsert.ipaEscY] = 1      ' ScaleY del inserto
-    E.fParam[cadInsert.ipaEscZ] = 1      ' ScaleY del inserto
-    E.Visible = True
-
-    d = puntos.distancia(Me.DefPoint1b.x, Me.DefPoint1b.y, Me.DefPoint2b.x, Me.DefPoint2b.y)
-
-    E.fParam[cadDimension.ipaRealMeasure] = Abs(d)
-    If E.sParam[Me.sdaTextOverrIde] <> "" Then
-        sDim = E.sParam[Me.sdaTextOverrIde]
-    Else
-        sDim = Format(Abs(d), e.pDimStyle.FormatLong)
+    ' hacia donde queda la linea de cota respecto de los puntos medidos
+    vx = -uy
+    vy = ux
+    fSide = (e.P[0].x - e.P[3].x) * vx + (e.P[0].y - e.P[3].y) * vy
+    If fSide < 0 Then
+        vx = -vx
+        vy = -vy
     Endif
-    ' el texto
-    eText.sParam[cadMText.sdaText] = "\\A1;" & sDim
 
-    cadMText.BuildGeometry(eText)
+    If Not e.pDimStyle.DIMSE1 Then Me.AddExtLine(e, e.P[3].x, e.P[3].y, d1x, d1y)
+    If Not e.pDimStyle.DIMSE2 Then Me.AddExtLine(e, e.P[4].x, e.P[4].y, d2x, d2y)
 
-    ' veo si entra el texto
-    flxTextExt = glx.TextExtends(sDim, e.pDimStyle.DIMTXT)
-    If flxTextExt[0] * 1.2 > d Then ' no entra
-        eOblique1.fParam[cadInsert.ipaRotacion] += 180
-        eOblique2.fParam[cadInsert.ipaRotacion] += 180
-    End If
+    sText = Me.LinearText(e, fMeasure)
+    flxText = Me.AddDimLine(e, d1x, d1y, d2x, d2y, sText, vx, vy)
 
-    ' guardo los puntos para exportar a DXF
-
-    e.P[5].x = Me.DefPoint2b.x
-    e.P[5].y = Me.DefPoint2b.y
-
-    e.P[6].x = Me.DefTextMIdPoint.x
-    e.P[6].y = Me.DefTextMIdPoint.y
-
-    e.P[7].x = 0 ' baseline
-    e.P[7].y = 0
-
-    e.P[8].x = Me.DefPoint1.x
-    e.P[8].y = Me.DefPoint1.y
-
-    e.P[9].x = Me.DefPoint2.x
-    e.P[9].y = Me.DefPoint2.y
-
-    e.P[10].x = 0
-    e.P[10].y = 0
-
-    e.P[11].x = 0
-    e.P[11].y = 0
-
-    e.fParam[Me.ipaHorizAngle] = Me.DefAngle
-
-    Return newBlock
+    ' como en el DXF, el 10 queda en el extremo de la referencia 2
+    e.P[0].x = d2x
+    e.P[0].y = d2y
+    e.P[1].x = flxText[0]
+    e.P[1].y = flxText[1]
 
 End
 
-'' Genera un conjunto de grips para ser usados por cadSelection
-Public Function GenerateGrips(e As Entity) As Integer
+Public Sub SaveDxfPoints(e As Entity)
 
-    Dim g As Grip
-
-    g = New Grip
-    g.Shape = 0
-    g.p = e.P[0].Copy()
-    g.pRef = g.P.Copy()
-    g.Action = 0 ' mover
-    g.AsociatedEntity = e
-    g.AsociatedPoint = 0
-    gcd.Drawing.Sheet.Grips.Add(g)
-    g.ToolTip = ("Move def point")
-
-    g = New Grip
-    g.Shape = 0
-    g.p = e.P[1].Copy()
-    g.pRef = g.P.Copy()
-    ' flxGrip.Add(g.X)
-    ' flxGrip.Add(g.y)
-    ' puntos.Rotate(flxGrip, Rad(e.fParam[Me.ipaRotacion]))
-    ' g.X = e.P[0] + flxGrip[0]
-    ' g.y = e.P[1] + flxGrip[1]
-    ' g.Xr = g.X
-    ' g.Yr = g.Y
-    g.Action = 1 ' este dato es propio de la clase
-    g.AsociatedEntity = e
-    g.AsociatedPoint = 1
-    g.AsociatedGrip = 0
-    'g.iFillColor = Color.Red
-    'g.DrawLineToAsociatedGrip = True
-    g.ToolTip = ("Move def point")
-    'g.ToolTip = ("Rotate insert")
-    gcd.Drawing.Sheet.Grips.Add(g)
-
-    g = New Grip
-    g.Shape = 0
-    g.p = e.P[2].Copy()
-    g.pRef = g.P.Copy()
-    g.Action = 0 ' mover
-    g.AsociatedEntity = e
-    g.AsociatedPoint = 2
-    gcd.Drawing.Sheet.Grips.Add(g)
-    g.ToolTip = ("Move text position")
+    dxf.SaveCodeInv("AcDbAlignedDimension", "100")
+    Me.SavePoint(e, 3)
+    Me.SavePoint(e, 4)
+    dxf.SaveCodeInv("AcDbRotatedDimension", "100")
+    dxf.SaveCodeInv(CStr(e.fParam[Me.ipaRotacion]), "50")
+    If e.fParam[Me.ipaObliqueAngle] <> 0 Then dxf.SaveCodeInv(CStr(e.fParam[Me.ipaObliqueAngle]), "52")
 
 End
-
-Public Function GripEdit(g As Grip) As Boolean
-
-    Dim e As Entity
-
-    e = g.AsociatedEntity
-    ' las cotas se construyen en XY, el z del punto se conserva
-    e.P[g.AsociatedPoint].x = g.P.x
-    e.P[g.AsociatedPoint].y = g.P.y
-
-    e.pBlock = RebuildBlock(e, e.iParam[Me.iiiMode])
-
-End
-
-' Public Sub Translate(e As Entity, dX As Float, dY As Float, dZ as Float, Optional OnlySelected As Boolean = False)
-'
-'     Dim eBlock As Entity
-'     ' EntityBase.Translate(e, dx, dy, OnlySelected)
-'     ' ReBuildBlock(e)
-'     '
-'     ' los insertos se mueven de acuerdo al punto de insercion
-'     puntos.Translate(e.p, dx, dy)
-'     For Each eBlock In e.pBlock.entities
-'         gcd.CCC[eBlock.gender].translate(eBlock, dx, dy)
-'     Next
-'
-' End

@@ -534,26 +534,31 @@ Public Function cExport() As Collection
     Dim cData As Collection
     Dim obj As Object = Me
     Dim MyClass As Class = Object.Class(obj)
-    Dim sSymbol, sDataType As String
+    Dim sSymbol, sName As String
     Dim iDataType As Integer
 
     For Each sSymbol In myClass.Symbols
 
         If Not ((MyClass[sSymbol].kind = Class.Variable) Or (MyClass[sSymbol].kind = Class.Property)) Then Continue
 
-        If Left(sSymbol, 1) <> "_" Then 'es header
+        ' los nombres que empiezan con numero se guardan con "__" delante
+        If Left(sSymbol, 2) = "__" Then
+            sName = Mid(sSymbol, 3)
+        Else If Left(sSymbol, 1) = "_" Then     ' es un indicador de tipo de dato
+            Continue
+        Else
+            sName = sSymbol
+        Endif
 
-            cData = New Collection
-            cExp.Add(cData, sSymbol)
-            ' obtengo el tipo de dato
-            For Each sDataType In myClass.Symbols
-                If Left(sDataType, 1) = "_" Then 'es un indicador de tipo de dato
-                    iDataType = Object.GetProperty(Me, sDataType)
-                End If
-            Next
-            cData.Add(iDataType, "tipo")
-            cData.Add(Object.GetProperty(Me, sSymbol), "dato")
-        End If
+        ' el tipo de dato de cada header esta en la variable _NOMBRE
+        iDataType = 0
+        Try iDataType = Object.GetProperty(Me, "_" & sName)
+        If iDataType = 0 Then Continue
+
+        cData = New Collection
+        cData.Add(iDataType, "tipo")
+        cData.Add(Object.GetProperty(Me, sSymbol), "dato")
+        cExp.Add(cData, sName)
     Next
     Return cExp
 

@@ -19,58 +19,67 @@
 ' along with this program; if not, write to the Free Software
 ' Foundation, Inc., 51 Franklin St, Fifth Floor,
 ' Boston, MA  02110-1301  USA
+
+'' Cota de diametro. DXF tipo 3
+''   P[5] = 15   punto sobre la curva
+''   P[0] = 10   el punto opuesto sobre la curva
+''   P[1] = 11   centro del texto
+''   P[2]        el centro, solo durante la construccion
+
 Create Static
-Inherits CadDIMENSION_RADIUS
+Inherits CadDimension
 
 Public Const Gender As String = "DIMENSION_DIAMETER"
-Public Const DrawingOrder As Integer = 100 ' 1 a 32.724 esto debe Drawse primero y ser sobreescrito por el resto
-Public Const PointsToDraw As Integer = 1             ' minimal point requered for drawing something usefull
-Public Const CmdLineHelper As String = ("Insert a linear acotation")
-Public Const ParamType As String = "PP"                             ' that is Point, Point, Float; could be Color Text, etc
-Public Const ParamHelper As String = "Start point;End point"
+Public Const DrawingOrder As Integer = 100
+Public Const PointsToDraw As Integer = 1
+Public Const CmdLineHelper As String = ("Insert a diameter dimension")
+Public Const ParamType As String = "PPP"
+Public Const ParamHelper As String = "Center;Point on the curve;Text location"
+Public Const DimTypeCode As Integer = 3
+Public Const DxfSubclass As String = "AcDbDiametricDimension"
+Public Const GripPoints As String = "5;0;1"
+Public Const GripTips As String = ("Move point on the curve;Move opposite point;Move text")
 
-' Public Sub ExportDXFCol(e As Entity, ByRef stxExport As String[]) As Boolean
-'
-'     cadDimension.ExportDXFCol(e, stxExport)
-'
-'     ' sobreescribo el nombre de la entidad
-'
-'     stxExport.insert(["AcDbDiametricDimension", "100"])
-'     ' ===========================================================================
-'
-'     stxExport.insert([CStr(e.p[20]), "15"])                ' text att point
-'     stxExport.insert([CStr(e.p[21]), "25"])
-'     stxExport.insert(["0", "40"])               ' leader lenght
-'
-' End
+Public Function NewParameter(eBuild As Entity, vParam As Variant[], Optional Definitive As Boolean = False) As Variant
 
-' Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[]) As Boolean
-'
-'     Return cadDIMENSION_RADIUS.ImportDXF(e, sClaves, sValues)
-'
-' End
+    If vParam[0] <> "point" Then Return False
 
-' Public Function NewParameter(eBuild As Entity, vParam As variant[], Optional Definitive as boolean=False) As variant
-'
-'     ' la linea solo recibe puntos
-'
-'     If vParam[0] <> "point" Then Return False
-'
-'     If gcd.StepsDone = 0 Then
-'
-'         Try eBuild.P[0] = vParam[1]
-'         Try eBuild.P[1] = vParam[2]
-'         eBuild.P[2] = eBuild.P[0]
-'         eBuild.P[3] = eBuild.P[1]
-'         If Definitive Then Return True
-'
-'     Else If gcd.StepsDone = 1 Then
-'
-'         Try eBuild.P[2] = vParam[1]
-'         Try eBuild.P[3] = vParam[2]
-'         eBuild.pBlock = cadDIMENSION_RADIUS.RebuildBlock(eBuild, 1)
-'         If Definitive Then Return True
-'
-'     Endif
-'
-' End
+    If gcd.StepsDone = 0 Then           ' centro
+
+        eBuild.P[2] = Me.ParamPoint(vParam)
+        eBuild.P[5] = eBuild.P[2].Copy()
+        eBuild.P[0] = eBuild.P[2].Copy()
+        If Definitive Then Return True
+
+    Else If gcd.StepsDone = 1 Then      ' punto sobre la curva, el opuesto es simetrico respecto del centro
+
+        eBuild.P[5] = Me.ParamPoint(vParam)
+        eBuild.P[0] = puntos.P3d(2 * eBuild.P[2].x - eBuild.P[5].x, 2 * eBuild.P[2].y - eBuild.P[5].y, eBuild.P[5].z)
+        Me.SetUserText(eBuild, False)
+        Me.Rebuild(eBuild)
+        If Definitive Then Return True
+
+    Else If gcd.StepsDone = 2 Then      ' el texto
+
+        eBuild.P[1] = Me.ParamPoint(vParam)
+        Me.SetUserText(eBuild, True)
+        Me.Rebuild(eBuild)
+        If Definitive Then Return True
+
+    Endif
+
+End
+
+Public Sub MakeBlock(e As Entity)
+
+    cadDIMENSION_RADIUS.MakeRadial(e, (e.P[0].x + e.P[5].x) / 2, (e.P[0].y + e.P[5].y) / 2, e.P[5].x, e.P[5].y, True)
+
+End
+
+Public Sub SaveDxfPoints(e As Entity)
+
+    dxf.SaveCodeInv(Me.DxfSubclass, "100")
+    Me.SavePoint(e, 5)
+    dxf.SaveCodeInv(CStr(e.fParam[Me.ipaLeaderLength]), "40")
+
+End

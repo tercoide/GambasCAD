@@ -494,7 +494,8 @@ Private Sub Load31Table(cVars As Collection)
             Endif
             cTable.Add(lpvalue, NewKey)
 
-            If lpcode = Me.codid Then sTableName = lpvalue
+            If lpcode = Me.codid And If sTableName = "" Then sTableName = lpvalue
+            If lpcode = "105" Then sTableName = lpvalue
             ReadData
 
         Wend
@@ -763,7 +764,8 @@ Public Sub ReconstructHandles(drw As Drawing)
             b.idContainer = ""
         Endif
     Next
-    ' Ahora creo un Diccionario
+    ' Ahora creo un Diccionario, de cero en cada grabacion
+    drw.Dictionary.Definitions.Clear
     drw.Dictionary.id = NewHandle()
     di = New DictEntry
 
@@ -782,7 +784,89 @@ Public Sub ReconstructHandles(drw As Drawing)
         Endif
     Next
 
+    ' y otra para los estilos de MLine
+    If drw.MLineStyles.Count > 0 Then
+        di = New DictEntry
+        di.name = "ACAD_MLINESTYLE"
+        di.id = NewHandle()
+        drw.Dictionary.Definitions.Add(di, di.name)
+        For Each m As MLineStyle In drw.MLineStyles
+            item = New DictList
+            item.name = m.Name
+            item.idSoftOwner = NewHandle()
+            di.items.Add(item)
+        Next
+    Endif
+
     ' asigno handles a las Tables
+
+End
+
+'' Cada cota lleva su bloque. Antes de grabar les doy nombre (*D0, *D1...) y los pongo en la tabla de bloques,
+'' sacando los que hubiera de antes. Si alguna cota tiene overrides, el APPID ACAD tiene que existir.
+Public Sub SyncDimensionBlocks(drw As Drawing)
+
+    Dim b As Block
+    Dim e As Entity
+    Dim s As Sheet
+    Dim sKeys As New String[]
+    Dim sKey As String
+    Dim cOwners As New Collection[]
+    Dim c As Collection
+    Dim iCounter As Integer
+    Dim bNeedAcad As Boolean
+    Dim a As APPID
+
+    For Each b In drw.Blocks
+        If b.name Like "[*][Dd]*" Then sKeys.Add(drw.Blocks.Key)
+    Next
+    For Each sKey In sKeys
+        drw.Blocks.Remove(sKey)
+    Next
+
+    ' las cotas pueden estar en las hojas o dentro de otros bloques
+    For Each s In drw.Sheets
+        cOwners.Add(s.Entities)
+    Next
+    For Each b In drw.Blocks
+        If Not b.Sheet Then cOwners.Add(b.entities)
+    Next
+
+    For Each c In cOwners
+        For Each e In c
+            If Not cadDimension.IsDimension(e) Then Continue
+            If Not e.pBlock Then e.pBlock = New Block
+            If e.pBlock.entities.Count = 0 And If e.iParam[cadDimension.iiiRegen] >= 0 Then cadDimension.Rebuild(e)
+            While drw.Blocks.Exist("*D" & CStr(iCounter))
+                Inc iCounter
+            Wend
+            e.pBlock.name = "*D" & CStr(iCounter)
+            e.pBlock.Flags = 1
+            e.pBlock.layer = "0"
+            drw.Blocks.Add(e.pBlock, e.pBlock.name)
+            Inc iCounter
+            If e.pDimStyle Then
+                If e.pDimStyle.Overrides Then
+                    If e.pDimStyle.Overrides.Count > 0 Then bNeedAcad = True
+                Endif
+            Endif
+        Next
+    Next
+
+    If bNeedAcad Then
+        For Each a In drw.AppIDs
+            If UCase(a.APPName_2) = "ACAD" Then
+                bNeedAcad = False
+                Break
+            Endif
+        Next
+        If bNeedAcad Then
+            a = New APPID
+            a.APPName_2 = "ACAD"
+            a.id = gcd.NewId(drw)
+            drw.AppIDs.Add(a, a.id)
+        Endif
+    Endif
 
 End
 
@@ -812,6 +896,7 @@ Public Function SaveFile(sName As String, drwToSAve As Drawing, Optional LoadMin
     ' Los BLOCKS tienen su handle y su owner es la entrada en el Block_Record
     ' Las entidades tienen su handle y su owner es un BLOCK o el MODEL o algun PAPER o alguna entidad contenedora (INSERT HATCH, etc), que son bloques tambien
     gcd.ResetChronograph
+    SyncDimensionBlocks(drwToSAve)
     ReconstructHandles(drwToSAve)
     Inc Application.Busy
     If SaveHeader Then
@@ -849,6 +934,8 @@ End
 Private Function Save1HeadersAndVarsDirect(drw As Drawing) As Integer
 
     Dim cHeaders, cDato As New Collection
+    Dim vDato As Variant
+    Dim i As Integer
 
     Print #hFIle, "999"
     Print #hFIle, "GambasCAD"
@@ -863,21 +950,22 @@ Private Function Save1HeadersAndVarsDirect(drw As Drawing) As Integer
     cHeaders = drw.Headers.cExport()
 
     For Each cDato In cHeaders
-        Print #hFile, "  9"
-        Print #hFile, "$" & cHeaders.Key
-        Print #hFile, Str$(cDato["tipo"])
-        Select Case cDato["tipo"]
-            Case 10 ' array
-                Print #hFile, Str$(cDato["dato"][0])
-                Print #hFile, "20"
-                Print #hFile, Str$(cDato["dato"][2])
-                Print #hFile, "30"
-                Print #hFile, Str$(cDato["dato"][3])
-
-            Case Else
-                Print #hFile, Str$(cDato["dato"])
-
-        End Select
+        vDato = cDato["dato"]
+        If TypeOf(vDato) = gb.Object Then       ' un punto: 10, 20, 30
+            If IsNull(vDato) Then Continue
+            If vDato.Count = 0 Then Continue
+            Print #hFile, "  9"
+            Print #hFile, "$" & cHeaders.Key
+            For i = 0 To vDato.Max
+                Print #hFile, CStr(cDato["tipo"] + i * 10)
+                Print #hFile, CStr(vDato[i])
+            Next
+        Else
+            Print #hFile, "  9"
+            Print #hFile, "$" & cHeaders.Key
+            Print #hFile, CStr(cDato["tipo"])
+            Print #hFile, CStr(vDato)
+        Endif
 
     Next
     Print #hFIle, "  0"
@@ -1177,9 +1265,11 @@ End
 
 Private Function Save3TableDimStyles(drw As Drawing) As Integer
 
-    Dim hTableHandle As String
+    Dim hTableHandle, sField, sValue As String
+    Dim oneDimStyle As DimStyle
+    Dim iCode As Integer
 
-    hTableHandle = NewHandle()'Utils.FindItem(drw.Tables, drw.DimStyles)
+    hTableHandle = NewHandle()
 
     Print #hFIle, "  0"
     Print #hFIle, "TABLE"
@@ -1194,12 +1284,11 @@ Private Function Save3TableDimStyles(drw As Drawing) As Integer
     Print #hFIle, "  70"
     Print #hFIle, CStr(drw.DimStyles.Count)
 
-    Dim oneDimtStyle As DimStyle
-    For Each oneDimtStyle In drw.DimStyles
+    For Each oneDimStyle In drw.DimStyles
 
         Print #hFIle, "  0"
         Print #hFIle, "DIMSTYLE"
-        Print #hFIle, " 105"                     ' handle propio
+        Print #hFIle, " 105"                     ' handle propio (el 5 es DIMBLK en esta tabla)
         Print #hFIle, NewHandle()
         Print #hFIle, " 330"                   ' handle del padre
         Print #hFIle, hTableHandle
@@ -1208,78 +1297,21 @@ Private Function Save3TableDimStyles(drw As Drawing) As Integer
         Print #hFIle, " 100"
         Print #hFIle, "AcDbDimStyleTableRecord"
         Print #hFIle, "  2"
-        Print #hFIle, oneDimtStyle.name
+        Print #hFIle, oneDimStyle.name
         Print #hFIle, " 70"                       ' flags, bit coded
         Print #hFIle, "0"                         ' no lo usamos
-        SaveCode(3, oneDimtStyle.DIMPOST)
-        SaveCode(4, oneDimtStyle.DIMAPOST)
-        SaveCode(5, oneDimtStyle.DIMBLK)
-        SaveCode(6, oneDimtStyle.DIMBLK1)
-        SaveCode(7, oneDimtStyle.DIMBLK2)
-        SaveCode(40, oneDimtStyle.DIMSCALE)
-        SaveCode(41, oneDimtStyle.DIMASZ)
-        SaveCode(42, oneDimtStyle.DIMEXO)
-        SaveCode(43, oneDimtStyle.DIMDLI)
-        SaveCode(44, oneDimtStyle.DIMEXE)
-        SaveCode(45, oneDimtStyle.DIMRND)
-        SaveCode(46, oneDimtStyle.DIMDLE)
-        SaveCode(47, oneDimtStyle.DIMTP)
-        SaveCode(48, oneDimtStyle.DIMTM)
-        SaveCode(140, oneDimtStyle.DIMTXT)
-        SaveCode(141, oneDimtStyle.DIMCEN)
-        SaveCode(142, oneDimtStyle.DIMTSZ)
-        SaveCode(143, oneDimtStyle.DIMALTF)
-        SaveCode(144, oneDimtStyle.DIMLFAC)
-        SaveCode(145, oneDimtStyle.DIMTVP)
-        SaveCode(146, oneDimtStyle.DIMTFAC)
-        SaveCode(147, oneDimtStyle.DIMGAP)
-        SaveCode(148, oneDimtStyle.DIMALTRND)
-        SaveCode(71, oneDimtStyle.DIMTOL)
-        SaveCode(72, oneDimtStyle.DIMLIM)
-        SaveCode(73, oneDimtStyle.DIMTIH)
-        SaveCode(74, oneDimtStyle.DIMTOH)
-        SaveCode(75, oneDimtStyle.DIMSE1)
-        SaveCode(76, oneDimtStyle.DIMSE2)
-        SaveCode(77, oneDimtStyle.DIMTAD)
-        SaveCode(78, oneDimtStyle.DIMZIN)
-        SaveCode(79, oneDimtStyle.DIMAZIN)
-        SaveCode(170, oneDimtStyle.DIMALT)
-        SaveCode(171, oneDimtStyle.DIMALTD)
-        SaveCode(172, oneDimtStyle.DIMTOFL)
-        SaveCode(173, oneDimtStyle.DIMSAH)
-        SaveCode(174, oneDimtStyle.DIMTIX)
-        SaveCode(175, oneDimtStyle.DIMSOXD)
-        SaveCode(176, oneDimtStyle.DIMCLRD)
-        SaveCode(177, oneDimtStyle.DIMCLRE)
-        SaveCode(178, oneDimtStyle.DIMCLRT)
-        SaveCode(179, oneDimtStyle.DIMADEC)
-        SaveCode(270, oneDimtStyle.DIMUNIT)
-        SaveCode(271, oneDimtStyle.DIMDEC)
-        SaveCode(272, oneDimtStyle.DIMTDEC)
-        SaveCode(273, oneDimtStyle.DIMALTU)
-        SaveCode(274, oneDimtStyle.DIMALTTD)
-        SaveCode(275, oneDimtStyle.DIMAUNIT)
-        SaveCode(276, oneDimtStyle.DIMFRAC)
-        SaveCode(277, oneDimtStyle.DIMLUNIT)
-        SaveCode(278, oneDimtStyle.DIMDSEP)
-        SaveCode(279, oneDimtStyle.DIMTMOVE)
-        SaveCode(280, oneDimtStyle.DIMJUST)
-        SaveCode(281, oneDimtStyle.DIMSD1)
-        SaveCode(282, oneDimtStyle.DIMSD2)
-        SaveCode(283, oneDimtStyle.DIMTOLJ)
-        SaveCode(284, oneDimtStyle.DIMTZIN)
-        SaveCode(285, oneDimtStyle.DIMALTZ)
-        SaveCode(286, oneDimtStyle.DIMALTTZ)
-        SaveCode(287, oneDimtStyle.DIMFIT)
-        SaveCode(288, oneDimtStyle.DIMUPT)
-        SaveCode(289, oneDimtStyle.DIMATFIT)
-        SaveCode(340, oneDimtStyle.DIMTXSTY)
-        SaveCode(341, oneDimtStyle.DIMLDRBLK)
-        SaveCode(342, oneDimtStyle.DIMBLK)
-        SaveCode(343, oneDimtStyle.DIMBLK1)
-        SaveCode(344, oneDimtStyle.DIMBLK2)
-        SaveCode(371, oneDimtStyle.DIMLWD)
-        SaveCode(372, oneDimtStyle.DIMLWE)
+
+        ' las variables, con sus codigos; las vacias no se escriben
+        For Each iCode In DimStyle.DxfCodes()
+            sField = DimStyle.FieldForCode(iCode)
+            sValue = oneDimStyle.DxfValue(sField)
+            If sValue = "" Then Continue
+            SaveCode(CStr(iCode), sValue)
+        Next
+        ' el estilo de texto va como handle
+        If drw.TextStyles.Exist(oneDimStyle.DIMTXSTY) Then
+            If drw.TextStyles[oneDimStyle.DIMTXSTY].Id <> "" Then SaveCode("340", drw.TextStyles[oneDimStyle.DIMTXSTY].Id)
+        Endif
 
     Next
     Print #hFIle, "  0"
@@ -1752,6 +1784,14 @@ Private Function Save6Objects(drw As Drawing) As Boolean
     ' SaveCode(280, 0)
     ' SaveCode(281, 1)
 
+    ' los estilos de MLine, con los handles que les dio ReconstructHandles
+    If drw.Dictionary.Definitions.Exist("ACAD_MLINESTYLE") Then
+        de = drw.Dictionary.Definitions["ACAD_MLINESTYLE"]
+        For Each dl In de.items
+            If drw.MLineStyles.Exist(dl.name) Then SaveMLineStyle(drw.MLineStyles[dl.name], dl.idSoftOwner, de.id)
+        Next
+    Endif
+
     '' FIXME: reparar los papaerspaces
     objLayout.ExportDXF(drw)
     ' For Each s In drw.Sheets
@@ -1767,6 +1807,38 @@ Private Function Save6Objects(drw As Drawing) As Boolean
     ' end section code
     Print #hFIle, "  0"
     Print #hFIle, "ENDSEC"
+
+End
+
+Private Sub SaveMLineStyle(m As MLineStyle, sId As String, sOwner As String)
+
+    Dim iFlags, i As Integer
+
+    If m.FillOn Then iFlags += 1
+    If m.ShowMiters Then iFlags += 2
+    If m.StartSquareCap Then iFlags += 16
+    If m.StartInnerArc Then iFlags += 32
+    If m.StartRound Then iFlags += 64
+    If m.EndSquareCap Then iFlags += 256
+    If m.EndInnerArc Then iFlags += 512
+    If m.EndRound Then iFlags += 1024
+
+    SaveCode(0, "MLINESTYLE")
+    SaveCode(5, sId)
+    SaveCode(330, sOwner)
+    SaveCode(100, "AcDbMlineStyle")
+    SaveCode(2, m.Name)
+    SaveCode(70, CStr(iFlags))
+    SaveCode(3, m.Description)
+    SaveCode(62, CStr(m.FillColor))
+    SaveCode(51, CStr(m.StartAngle))
+    SaveCode(52, CStr(m.EndAngle))
+    SaveCode(71, CStr(m.Elements))
+    For i = 0 To m.Elements - 1
+        SaveCode(49, CStr(m.ElemOffset[i]))
+        SaveCode(62, CStr(m.ElemColor[i]))
+        SaveCode(6, m.ElemLinetype[i])
+    Next
 
 End
 
@@ -2121,9 +2193,10 @@ End
 Public Sub ReadStyles(cData As Collection, drw As Drawing)
 
     Dim hlty As TextStyle
-    Dim RefStyle As TextStyle
+
     Dim hdim As DimStyle
     Dim n As String
+    Dim iCode As Integer
 
     ' primero eliminamos lo q haya
     Drw.TextStyles.Clear
@@ -2168,55 +2241,48 @@ Public Sub ReadStyles(cData As Collection, drw As Drawing)
     drw.CurrTextStyle = Drw.TextStyles[Drw.TextStyles.First]
 
     ' Leo lo styles de dimensiones
+    Drw.DimStyles.Clear
     If cData["TABLES"].Exist("DIMSTYLE") Then
         For Each c As Collection In cData["TABLES"]["DIMSTYLE"]
+            If Not c.Exist(dxf.codName) Then Continue
             hdim = New DimStyle
-
             hdim.Name = c[dxf.codName]
+            If c.Exist("105") Then hdim.id = c["105"] Else hdim.id = gcd.NewId()
 
-            If c.Exist("105") Then
-                hdim.id = c["105"]
-            Else
-                hdim.id = gcd.NewId()
-            Endif ' depre
+            ' el valor de cada codigo va a su variable. Los repetidos vienen como "41_1" y no son del estilo
+            For Each sValue As String In c
+                Try iCode = CInt(c.Key)
+                If Error Then Continue
+                hdim.SetFromDxf(iCode, sValue)
+            Next
 
-            Try hdim.DIMSCALE = CFloat(c["40"])
-            If hdim.DIMSCALE = 0 Then hdim.DIMSCALE = 1
+            ' los marcadores vienen como handles a BLOCK_RECORD; si no, uso los nombres viejos (5, 6, 7) o el header
+            If c.Exist("342") Then Try hdim.DIMBLK = DimStyle.NormalizeMarker(cData["TABLES"]["BLOCK_RECORD"][c["342"]]["2"])
+            If c.Exist("343") Then Try hdim.DIMBLK1 = DimStyle.NormalizeMarker(cData["TABLES"]["BLOCK_RECORD"][c["343"]]["2"])
+            If c.Exist("344") Then Try hdim.DIMBLK2 = DimStyle.NormalizeMarker(cData["TABLES"]["BLOCK_RECORD"][c["344"]]["2"])
+            If Not c.Exist("342") And Not c.Exist("5") Then hdim.DIMBLK = DimStyle.NormalizeMarker("_" & gcd.Drawing.Headers.DIMBLK)
+            If hdim.DIMBLK = "_" Then hdim.DIMBLK = ""
 
-            Try hdim.DIMASZ = CFloat(c["41"])
-            If hdim.DIMASZ = 0 Then hdim.DIMASZ = 1
-
-            Try hdim.DIMTXT = CFloat(c["140"])
-            If hdim.DIMTXT = 0 Then hdim.DIMTXT = 1
-
-            Try hdim.DIMTXSTY = c["340"]
-
-            Try hdim.DIMBLK = cData["TABLES"]["BLOCK_RECORD"][c["341"]]["2"]
-            If hdim.DIMBLK = "" Then hdim.DIMBLK = "_" & gcd.Drawing.Headers.DIMBLK
-            Try hdim.DIMBLK1 = cData["TABLES"]["BLOCK_RECORD"][c["343"]]["2"]
-            If hdim.DIMBLK1 = "" Then hdim.DIMBLK1 = "_" & gcd.Drawing.Headers.DIMBLK1
-            Try hdim.DIMBLK2 = cData["TABLES"]["BLOCK_RECORD"][c["344"]]["2"]
-            If hdim.DIMBLK2 = "" Then hdim.DIMBLK2 = "_" & gcd.Drawing.Headers.DIMBLK2
-
-            If hdim.DIMTXSTY <> "" Then
-                RefStyle = gcd.FindStyleByid(hdim.DIMTXSTY)
-                If Not IsNull(RefStyle) Then
-                    If RefStyle.FixedH_40 > 0 Then hdim.DIMTXT = RefStyle.FixedH_40
-                    hdim.DIMTXSTY = RefStyle.sFont_3
-                Endif
+            ' el estilo de texto viene como handle a STYLE
+            hdim.DIMTXSTY = "standard"
+            If c.Exist("340") Then
+                For Each cStyle As Collection In cData["TABLES"]["STYLE"]
+                    If cStyle.Exist("5") And If cStyle["5"] = c["340"] Then
+                        hdim.DIMTXSTY = Lower(cStyle["2"])
+                        Break
+                    Endif
+                Next
             Endif
 
-            If hdim.name <> "" Then Drw.DimStyles.Add(hdim, hdim.name)
+            Drw.DimStyles.Add(hdim, hdim.name)
 
         Next
-    Else
+    Endif
+    If Drw.DimStyles.Count = 0 Then
         Dim DS As New DimStyle
         DS.id = "40" 'gcd.NewHandle(d)
         ds.name = "standard"
-
-        drw.CurrDimStyle = ds
         Drw.DimStyles.Add(ds, ds.name)                ' Agrego un DimStyle
-
     End If
     drw.CurrDimStyle = Drw.DimStyles[Drw.DimStyles.First]
 
@@ -2614,14 +2680,14 @@ Public Function ReadObjectsFromDXF(cData As Collection, drw As Drawing)
             m = New MLineStyle
             i = ReadCodePlus(2, sClaves, sValues, ByRef m.Name, 0)
             i = ReadCodePlus(70, sClaves, sValues, ByRef flags, i)
-            m.FillOn = BTst(flags, 1)
-            m.ShowMiters = BTst(flags, 2)
-            m.StartSquareCap = BTst(flags, 5)
-            m.StartInnerArc = BTst(flags, 6)
-            m.StartRound = BTst(flags, 7)
-            m.EndSquareCap = BTst(flags, 9)
-            m.EndInnerArc = BTst(flags, 10)
-            m.EndRound = BTst(flags, 11)
+            m.FillOn = BTst(flags, 0)               ' 1
+            m.ShowMiters = BTst(flags, 1)           ' 2
+            m.StartSquareCap = BTst(flags, 4)       ' 16
+            m.StartInnerArc = BTst(flags, 5)        ' 32
+            m.StartRound = BTst(flags, 6)           ' 64
+            m.EndSquareCap = BTst(flags, 8)         ' 256
+            m.EndInnerArc = BTst(flags, 9)          ' 512
+            m.EndRound = BTst(flags, 10)            ' 1024
 
             i = ReadCodePlus(3, sClaves, sValues, ByRef m.Description, i)
 

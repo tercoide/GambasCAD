@@ -1,103 +1,354 @@
 ' Gambas class file
 
+' GambasCAD
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+
+'' Estilo de cota. Los nombres de las variables son los del DXF, asi la lectura/escritura es directa.
+'' Cada cota tiene su propia copia (e.pDimStyle) con el nombre del estilo del que viene,
+'' y en Overrides los valores que la cota cambia respecto de ese estilo.
+'' ver https://ezdxf.readthedocs.io/en/stable/tables/dimstyle_table_entry.html
+
 Public Const Gender As String = "DIMSTYLE"
 Public name As String
-Public Flags As Variant
+Public Flags As Integer
 Public id As String
-Public Avalilable As Boolean
-' ver
-' https://ezdxf.readthedocs.io/en/stable/tables/dimstyle_table_entry.html
-Public Thick1 As String = "_thick1_arrow"
-Public Thick2 As String = "_thick2_arrow"
-Public FormatLong As String = "0.00"    '' Formato para longitud
-Public FormatAng As String = "0.00"     '' Formato para angulos
-' DXF
-Public DIMPOST As Variant           '' el sufijo de la dimension lineal
-Public DIMAPOST As Variant          '' idem angulos
-Public DIMBLK As Variant            '' nombre del bloque para las flechas o thicks
-Public DIMBLK1 As Variant           '' idem 1
-Public DIMBLK2 As Variant           '' idem 2
-Public DIMSCALE As Variant = 1      '' el factor que multiplica la escala medida
-Public DIMASZ As Variant = 1        '' el tamanio o escala de las flechas o bloques
-Public DIMEXO As Variant = 0.625           '' Desfase de línea de referencia
-Public DIMDLI As Variant            '' Incremento de línea de cota
-Public DIMEXE As Float = 1.25           '' Extensión de línea de referencia
-Public DIMRND As Variant            '' Valor de redondeo para las distancias de cota
-Public DIMDLE As Float = 1           '' extension de la linea de cota
-Public DIMTP As Variant             '' Tolerancia más
-Public DIMTM As Variant             '' Tolerancia menos.
 
-Public DIMTXT As Float = 1          '' Dimensioning text height
-Public DIMCEN As Variant            '' Tamaño de marcas y líneas centrales
-Public DIMTSZ As Variant            '' Tamaño del trazo de acotación:
-Public DIMALTF As Variant           '' Factor de escala de unidades alternativas
-Public DIMLFAC As Variant           '' Factor de escala de medidas lineales
-Public DIMTVP As Variant            '' Posición vertical del texto
-Public DIMTFAC As Variant           '' Factor de escala de visualización de tolerancia de cota
-Public DIMGAP As Variant            '' Espacio de la línea de cota
-Public DIMALTRND As Variant         '' Determina el redondeo de las unidades alternativas
-Public DIMTOL As Variant            '' Genera tolerancias de cota si su valor es distinto de cero
-Public DIMLIM As Variant            '' Genera límites de cota si su valor es distinto de cero
-Public DIMTIH As Variant
-Public DIMTOH As Variant
+' Marcadores (DIMBLK). "" es la flecha cerrada rellena, como en AutoCAD
+Public Const MarkerClosedFilled As String = ""
+Public Const MarkerClosedBlank As String = "_CLOSEDBLANK"
+Public Const MarkerClosed As String = "_CLOSED"
+Public Const MarkerOpen As String = "_OPEN"
+Public Const MarkerOpen30 As String = "_OPEN30"
+Public Const MarkerOpen90 As String = "_OPEN90"
+Public Const MarkerOblique As String = "_OBLIQUE"
+Public Const MarkerArchTick As String = "_ARCHTICK"
+Public Const MarkerDot As String = "_DOT"
+Public Const MarkerDotSmall As String = "_DOTSMALL"
+Public Const MarkerDotBlank As String = "_DOTBLANK"
+Public Const MarkerOrigin As String = "_ORIGIN"
+Public Const MarkerBoxFilled As String = "_BOXFILLED"
+Public Const MarkerBoxBlank As String = "_BOXBLANK"
+Public Const MarkerIntegral As String = "_INTEGRAL"
+Public Const MarkerNone As String = "_NONE"
 
-Public DIMTAD As Variant
-Public DIMZIN As Variant
-Public DIMAZIN As Variant
-Public DIMALT As Variant
-Public DIMALTD As Variant
-Public DIMTOFL As Variant
-Public DIMSAH As Variant
-Public DIMTIX As Variant
-Public DIMSOXD As Variant
-Public DIMCLRD As Variant
-Public DIMCLRE As Variant
-Public DIMCLRT As Variant
-Public DIMADEC As Variant
-Public DIMUNIT As Variant
-Public DIMDEC As Variant            ''Número de decimales para los valores de tolerancia de una cota de unidades principales
-Public DIMTDEC As Variant
-Public DIMALTU As Variant
-Public DIMALTTD As Variant
-Public DIMAUNIT As Variant
-Public DIMFRAC As Variant
-Public DIMLUNIT As Variant          '' Define las unidades para todos los tipos de cota excepto el angular:1 = Cient íficas; 2 = Decimales; 3 = Pies y pulgadas I;4 = Pies y pulgadas II; 5 = Fraccionarias; 6 = Escritorio de Windows
-Public DIMDSEP As Variant
-Public DIMTMOVE As Variant
-Public DIMJUST As Variant           '' Posición horizontal del texto de cota:
+' Lineas
+Public DIMCLRD As Integer = 0           '' Color de la linea de cota y flechas. 0=ByBlock 256=ByLayer
+Public DIMCLRE As Integer = 0           '' Color de las lineas de referencia
+Public DIMLWD As Integer = -2           '' Grosor de la linea de cota. -2=ByBlock -1=ByLayer
+Public DIMLWE As Integer = -2           '' Grosor de las lineas de referencia
+Public DIMDLE As Float = 0              '' Prolongacion de la linea de cota mas alla de las de referencia (con ticks)
+Public DIMDLI As Float = 3.75           '' Separacion entre cotas en las cotas de linea base
+Public DIMSD1 As Integer = 0            '' 1 = suprime la primera mitad de la linea de cota
+Public DIMSD2 As Integer = 0            '' 1 = suprime la segunda mitad
+Public DIMEXE As Float = 1.25           '' Prolongacion de las lineas de referencia mas alla de la linea de cota
+Public DIMEXO As Float = 0.625          '' Separacion de las lineas de referencia desde el punto medido
+Public DIMSE1 As Integer = 0            '' 1 = suprime la linea de referencia 1
+Public DIMSE2 As Integer = 0            '' 1 = suprime la linea de referencia 2
 
-' 0 = Sobre la l ínea de cota y centrado entre las líneas de referencia
-' 1 = Sobre la l ínea de cota y a continuación de la primera línea de referencia
-' 2 = Sobre la l ínea de cota y a continuación de la segunda línea de referencia
-' 3 = Sobre la primera l ínea de referencia y centrado con respecto a ella
-' 4 = Sobre la segunda l ínea de referencia y centrado con respecto a ella
-Public DIMSD1 As Variant
-Public DIMSD2 As Variant
-Public DIMTOLJ As Variant
-Public DIMTZIN As Variant
-Public DIMALTZ As Variant
-Public DIMALTTZ As Variant
-Public DIMFIT As Variant
-Public DIMUPT As Variant
-Public DIMATFIT As Variant
-Public DIMTXSTY As Variant = "standard"     '' Dimension text style
-Public DIMLDRBLK As Variant         '' Nombre del bloque de flecha para las directrices
+' Simbolos
+Public DIMBLK As String = ""            '' Marcador de ambos extremos (ver Marker*) o nombre de un bloque
+Public DIMBLK1 As String = ""           '' Marcador del extremo 1, si DIMSAH = 1
+Public DIMBLK2 As String = ""           '' Marcador del extremo 2, si DIMSAH = 1
+Public DIMSAH As Integer = 0            '' 1 = usa DIMBLK1 y DIMBLK2 en vez de DIMBLK
+Public DIMASZ As Float = 2.5            '' Tamaño de los marcadores
+Public DIMTSZ As Float = 0              '' Tamaño de los ticks; si es > 0 se dibujan ticks en vez de DIMBLK
+Public DIMCEN As Float = 2.5            '' Marca de centro en radios y diametros: >0 cruz, <0 lineas de centro, 0 nada
+Public DIMLDRBLK As String = ""         '' Marcador de las directrices
 
-Public DIMLWD As Variant
-Public DIMLWE As Variant
+' Texto
+Public DIMTXSTY As String = "standard"  '' Estilo de texto
+Public DIMCLRT As Integer = 0           '' Color del texto
+Public DIMTXT As Float = 2.5            '' Altura del texto
+Public DIMGAP As Float = 0.625          '' Espacio alrededor del texto
+Public DIMTAD As Integer = 1            '' Posicion vertical: 0=centrado en la linea 1=arriba 2=afuera 4=abajo
+Public DIMJUST As Integer = 0           '' Posicion horizontal: 0=centrado 1=junto a la ref 1 2=junto a la ref 2
+Public DIMTIH As Integer = 0            '' 1 = texto horizontal cuando esta entre las lineas de referencia
+Public DIMTOH As Integer = 0            '' 1 = texto horizontal cuando esta afuera
+Public DIMTVP As Float = 0              '' Desplazamiento vertical del texto (veces la altura), si DIMTAD = 0
 
-Public DIMSE1 As Integer = 0 ' toggle supresion of ext line1 1=Supress ext line
-Public DIMSE2 As Integer = 0 ' idem 2
+' Ajuste
+Public DIMSCALE As Float = 1            '' Escala general: multiplica todos los tamaños
+Public DIMTIX As Integer = 0            '' 1 = el texto va siempre entre las lineas de referencia
+Public DIMSOXD As Integer = 0           '' 1 = no dibuja flechas si no entran
+Public DIMTOFL As Integer = 0           '' 1 = dibuja la linea de cota entre las referencias aunque las flechas vayan afuera
+Public DIMATFIT As Integer = 3          '' Que sale primero si no entra: 0 texto y flechas, 1 flechas, 2 texto, 3 lo mejor
+Public DIMTMOVE As Integer = 0          '' Al mover el texto: 0 mueve la linea de cota, 1 agrega directriz, 2 libre
+
+' Unidades
+Public DIMLUNIT As Integer = 2          '' Unidades lineales (solo se usa 2 = decimales)
+Public DIMDEC As Integer = 2            '' Decimales
+Public DIMDSEP As Integer = 46          '' Separador decimal (codigo ASCII, 46 = punto, 44 = coma)
+Public DIMRND As Float = 0              '' Redondeo de las medidas
+Public DIMLFAC As Float = 1             '' Factor de escala de las medidas lineales
+Public DIMZIN As Integer = 8            '' Supresion de ceros: 4 = ceros adelante 8 = ceros atras
+Public DIMPOST As String = ""           '' Prefijo/sufijo de las medidas: "<>" es la medida
+Public DIMAUNIT As Integer = 0          '' Unidades angulares (solo se usa 0 = grados decimales)
+Public DIMADEC As Integer = 0           '' Decimales de los angulos
+Public DIMAZIN As Integer = 0           '' Supresion de ceros en angulos
+Public DIMAPOST As String = ""          '' Prefijo/sufijo de las medidas alternativas
+
+' Estas se leen y se guardan, pero GambasCAD no las dibuja
+Public DIMTOL As Integer = 0
+Public DIMLIM As Integer = 0
+Public DIMTP As Float = 0
+Public DIMTM As Float = 0
+Public DIMTFAC As Float = 1
+Public DIMTDEC As Integer = 2
+Public DIMTOLJ As Integer = 1
+Public DIMTZIN As Integer = 0
+Public DIMALT As Integer = 0
+Public DIMALTD As Integer = 2
+Public DIMALTF As Float = 25.4
+Public DIMALTRND As Float = 0
+Public DIMALTU As Integer = 2
+Public DIMALTTD As Integer = 2
+Public DIMALTZ As Integer = 0
+Public DIMALTTZ As Integer = 0
+Public DIMFRAC As Integer = 0
+Public DIMUPT As Integer = 0
+Public DIMFIT As Integer = 3
+Public DIMUNIT As Integer = 2
+
+'' Los valores que esta cota cambia respecto de su estilo: nombre de la variable -> valor
+Public Overrides As Collection
+
+'' Codigo DXF -> nombre de la variable, en el orden en que se escriben en la tabla DIMSTYLE
+Static Private $cCodes As Collection
+Static Private $aCodes As Integer[]
+
+Static Private Sub InitCodes()
+
+    Dim aData As String[]
+    Dim i As Integer
+
+    If $cCodes Then Return
+    $cCodes = New Collection
+    $aCodes = New Integer[]
+    aData = ["3", "DIMPOST", "4", "DIMAPOST", "5", "DIMBLK", "6", "DIMBLK1", "7", "DIMBLK2",
+        "40", "DIMSCALE", "41", "DIMASZ", "42", "DIMEXO", "43", "DIMDLI", "44", "DIMEXE", "45", "DIMRND", "46", "DIMDLE", "47", "DIMTP", "48", "DIMTM",
+        "140", "DIMTXT", "141", "DIMCEN", "142", "DIMTSZ", "143", "DIMALTF", "144", "DIMLFAC", "145", "DIMTVP", "146", "DIMTFAC", "147", "DIMGAP", "148", "DIMALTRND",
+        "71", "DIMTOL", "72", "DIMLIM", "73", "DIMTIH", "74", "DIMTOH", "75", "DIMSE1", "76", "DIMSE2", "77", "DIMTAD", "78", "DIMZIN", "79", "DIMAZIN",
+        "170", "DIMALT", "171", "DIMALTD", "172", "DIMTOFL", "173", "DIMSAH", "174", "DIMTIX", "175", "DIMSOXD", "176", "DIMCLRD", "177", "DIMCLRE", "178", "DIMCLRT", "179", "DIMADEC",
+        "270", "DIMUNIT", "271", "DIMDEC", "272", "DIMTDEC", "273", "DIMALTU", "274", "DIMALTTD", "275", "DIMAUNIT", "276", "DIMFRAC", "277", "DIMLUNIT", "278", "DIMDSEP", "279", "DIMTMOVE",
+        "280", "DIMJUST", "281", "DIMSD1", "282", "DIMSD2", "283", "DIMTOLJ", "284", "DIMTZIN", "285", "DIMALTZ", "286", "DIMALTTZ", "287", "DIMFIT", "288", "DIMUPT", "289", "DIMATFIT",
+        "371", "DIMLWD", "372", "DIMLWE"]
+    For i = 0 To aData.Max Step 2
+        $cCodes.Add(aData[i + 1], aData[i])
+        $aCodes.Add(CInt(aData[i]))
+    Next
+
+End
+
+'' Los codigos DXF que conocemos, en orden de escritura
+Static Public Function DxfCodes() As Integer[]
+
+    InitCodes
+    Return $aCodes
+
+End
+
+'' El nombre de la variable para ese codigo DXF, o "" si no la manejamos
+Static Public Function FieldForCode(iCode As Integer) As String
+
+    InitCodes
+    If $cCodes.Exist(CStr(iCode)) Then Return $cCodes[CStr(iCode)]
+    Return ""
+
+End
+
+'' El codigo DXF de una variable, o 0
+Static Public Function CodeForField(sField As String) As Integer
+
+    Dim sCode As String
+
+    InitCodes
+    For Each sCode In $cCodes
+        If sCode = sField Then Return CInt($cCodes.Key)
+    Next
+    Return 0
+
+End
+
+'' Pone un valor leido de un DXF (siempre texto) en la variable que corresponde al codigo
+Public Function SetFromDxf(iCode As Integer, sValue As String) As Boolean
+
+    Dim sField As String
+
+    sField = FieldForCode(iCode)
+    If sField = "" Then Return False
+    Select Case Object.Class(Me)[sField].Type
+        Case "s"
+            If Left(sField, 6) = "DIMBLK" Then sValue = NormalizeMarker(sValue)
+            Object.SetProperty(Me, sField, sValue)
+        Case "f"            ' CFloat no depende del idioma, Val si
+            Object.SetProperty(Me, sField, CFloat(Trim(sValue)))
+        Case Else
+            Object.SetProperty(Me, sField, CInt(CFloat(Trim(sValue))))
+    End Select
+    Return True
+
+Catch
+    Return False
+
+End
+
+'' El valor como texto para el DXF
+Public Function DxfValue(sField As String) As String
+
+    Dim vValue As Variant
+
+    vValue = Object.GetProperty(Me, sField)
+    If IsNull(vValue) Then Return ""
+    Return CStr(vValue)
+
+End
+
+'' Los nombres de los marcadores en mayusculas, "" para la flecha rellena
+Static Public Function NormalizeMarker(sName As String) As String
+
+    Dim sUpper As String
+
+    sUpper = UCase(Trim(sName))
+    If sUpper = "_CLOSEDFILLED" Or If sUpper = "CLOSEDFILLED" Then Return ""
+    If Left(sUpper, 1) = "_" Then Return sUpper
+    ' los nombres viejos de GambasCAD
+    If sUpper = "_THICK1_ARROW" Or If sUpper = "_THICK2_ARROW" Or If sUpper = "OBLIQUE" Then Return MarkerOblique
+    Return Trim(sName)          ' un bloque del usuario, conservo el nombre
+
+End
+
+'' Lista de marcadores para mostrar al usuario: codigo y descripcion
+Static Public Function MarkerList() As String[]
+
+    Return [MarkerClosedFilled, ("Closed filled"), MarkerClosedBlank, ("Closed blank"), MarkerClosed, ("Closed"), MarkerOpen, ("Open"), MarkerOpen30, ("Open 30°"), MarkerOpen90, ("Right angle"), MarkerOblique, ("Oblique (tick)"), MarkerArchTick, ("Architectural tick"), MarkerDot, ("Dot"), MarkerDotSmall, ("Dot small"), MarkerDotBlank, ("Dot blank"), MarkerOrigin, ("Origin indicator"), MarkerBoxFilled, ("Box filled"), MarkerBoxBlank, ("Box blank"), MarkerIntegral, ("Integral"), MarkerNone, ("None")]
+
+End
+
+'' El marcador de cada extremo (1 o 2)
+Public Function Marker(iEnd As Integer) As String
+
+    If DIMTSZ > 0 Then Return MarkerOblique
+    If DIMSAH Then
+        If iEnd = 1 Then Return DIMBLK1
+        Return DIMBLK2
+    Endif
+    Return DIMBLK
+
+End
+
+'' Los marcadores tipo tick hacen que la linea de cota se prolongue DIMDLE
+Static Public Function IsTick(sMarker As String) As Boolean
+
+    Return sMarker = MarkerOblique Or sMarker = MarkerArchTick Or sMarker = MarkerIntegral
+
+End
+
+'' Las variables del estilo, sin name, id, Flags ni Overrides
+Static Public Function StyleFields() As String[]
+
+    Dim aFields As New String[]
+    Dim hClass As Class
+    Dim sSymbol As String
+
+    hClass = Class.Load("DimStyle")
+    For Each sSymbol In hClass.Symbols
+        If hClass[sSymbol].Kind <> Class.Variable Then Continue
+        If hClass[sSymbol].Static Then Continue
+        If Left(sSymbol, 3) <> "DIM" Then Continue
+        aFields.Add(sSymbol)
+    Next
+    Return aFields
+
+End
+
+'' Una copia, con Overrides propio
+Public Function Copy() As DimStyle
+
+    Dim d As DimStyle
+    Dim sField As String
+
+    d = New DimStyle
+    d.name = Me.name
+    d.id = Me.id
+    d.Flags = Me.Flags
+    For Each sField In StyleFields()
+        Object.SetProperty(d, sField, Object.GetProperty(Me, sField))
+    Next
+    If Me.Overrides Then
+        d.Overrides = New Collection
+        For Each vValue As Variant In Me.Overrides
+            d.Overrides.Add(vValue, Me.Overrides.Key)
+        Next
+    Endif
+    Return d
+
+End
+
+'' Las variables donde este estilo es distinto del base
+Public Function Differences(dBase As DimStyle) As Collection
+
+    Dim cDiff As New Collection
+    Dim sField As String
+    Dim vValue As Variant
+
+    For Each sField In StyleFields()
+        vValue = Object.GetProperty(Me, sField)
+        If vValue <> Object.GetProperty(dBase, sField) Then cDiff.Add(vValue, sField)
+    Next
+    Return cDiff
+
+End
+
+'' Aplica los Overrides a las variables
+Public Sub ApplyOverrides()
+
+    Dim vValue As Variant
+
+    If Not Me.Overrides Then Return
+    For Each vValue In Me.Overrides
+        Try Object.SetProperty(Me, Me.Overrides.Key, vValue)
+    Next
+
+End
+
+'' Agrega o cambia un override y lo aplica
+Public Sub SetOverride(sField As String, vValue As Variant)
+
+    If Not Me.Overrides Then Me.Overrides = New Collection
+    Me.Overrides[sField] = vValue
+    Object.SetProperty(Me, sField, vValue)
+
+End
 
 '' Datos para el archivo JSON nativo (ver JsonFile)
 Public Function ExportJson() As Collection
 
-    Return JsonFile.ObjectToJson(Me)
+    Return JsonFile.ObjectToJson(Me, Null, ["Overrides"])
 
 End
 
 Public Sub ImportJson(c As Collection)
 
-    JsonFile.JsonToObject(Me, c)
+    JsonFile.JsonToObject(Me, c, Null, ["Overrides"])
+    Me.DIMBLK = NormalizeMarker(Me.DIMBLK)
+    Me.DIMBLK1 = NormalizeMarker(Me.DIMBLK1)
+    Me.DIMBLK2 = NormalizeMarker(Me.DIMBLK2)
 
 End

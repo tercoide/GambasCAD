@@ -1458,18 +1458,33 @@ Fast Public Function SelectionCombine(cBase As Collection, cNew As Collection, s
 
 End
 
-Public Sub RebuildDimensions(Optional cDims As Collection)
+'' Rehace las cotas: toma de nuevo su estilo de la tabla (con sus overrides) y rearma el bloque.
+'' Sin cDims, todas las cotas del dibujo; con sStyle, solo las de ese estilo.
+Public Sub RebuildDimensions(Optional cDims As Collection, sStyle As String)
 
-    Dim c As Collection, e As Entity, sBlockName As String
+    Dim e As Entity
+    Dim s As Sheet
+    Dim cList As New Collection[]
+    Dim c As Collection
 
-    If cDims Then c = cDims Else c = gcd.Drawing.Sheet.Entities
+    If cDims Then
+        cList.Add(cDims)
+    Else
+        For Each s In gcd.Drawing.Sheets
+            cList.Add(s.Entities)
+        Next
+    Endif
 
-    For Each e In c
-        If e.Gender Like "DIM*" Then
-            sBlockName = e.pBlock.name
-            Try e.pBlock = gcd.CCC[e.Gender].RebuildBlock(e)
-            e.pBlock.name = sBlockName
-        Endif
+    For Each c In cList
+        For Each e In c
+            If Not cadDimension.IsDimension(e) Then Continue
+            If e.iParam[cadDimension.iiiRegen] < 0 Then Continue
+            If sStyle <> "" And If e.pDimStyle Then
+                If e.pDimStyle.name <> sStyle Then Continue
+            Endif
+            cadDimension.RefreshStyle(e)
+            cadDimension.Rebuild(e)
+        Next
     Next
 
 End
