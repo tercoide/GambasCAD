@@ -1,0 +1,582 @@
+' Gambas class file
+
+' GambasCAD
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+
+'' Crea y edita MTEXT escribiendo en el dibujo. Los TEXT son solo de lectura.
+'' Crear: el texto sigue al mouse hasta el primer click; arrastrando se dan los puntos 1 y 2 (caja y angulo).
+'' Editar: doble click sobre un MTEXT (cadSelection.DblClick). El original queda oculto hasta aceptar o cancelar.
+'' Teclas (las manda fMain.form_KeyPress a TypeKey): Enter termina, Control+Enter es un renglon nuevo,
+'' Escape cancela; flechas, Inicio, Fin, Borrar y Suprimir mueven y borran de a un caracter o codigo.
+'' El cursor titila con fMain.tmrSlash (Blink).
+'' La fuente, la altura, negrita, cursiva, tachado y el color vienen de la barra superior (fMain);
+'' Body es solo el cuerpo del texto, y Rebuild le pone alrededor el formato general.
+
+Inherits ToolsBase
+
+Public Const Gender As String = "TEXTBUILDER"
+
+Public eText As Entity                  '' el texto que se esta creando o editando
+Public eOriginal As Entity              '' al editar, la entidad del dibujo (para el undo y para cancelar)
+Public Editing As Boolean
+Public Placed As Boolean                '' ya tiene punto de insercion
+Public Body As String                   '' el texto del editor, sin el formato general de la barra superior
+Public Caret As Integer                 '' posicion del cursor en Body, en caracteres (siempre entre codigos)
+
+Private $bDragging As Boolean
+Private $iDownX As Integer
+Private $iDownY As Integer
+Private $pDown As Punto3d
+Private $fEditStart As Float            '' cuando empezo la edicion: el boton que suelta el doble click no la termina
+Private $bCaretOn As Boolean = True     '' el cursor titila
+Private $bCaretFound As Boolean
+Private $flxCaret As New Float[]        '' x0, y0, x1, y1 del cursor en el dibujo
+
+Public Function Start(Optional ElemToBuild As Variant, _mode As Integer = 0) As Boolean
+
+    Super.Start(ElemToBuild, _mode)
+
+    ' siempre MTEXT: los TEXT no se crean
+    eText = cadMText.NewEntity()
+    If gcd.Drawing.CurrTextStyle Then
+        eText.sParam[cadMText.sdaStyle] = gcd.Drawing.CurrTextStyle.Name
+    Else
+        eText.sParam[cadMText.sdaStyle] = "standard"
+    Endif
+    eText.fParam[cadMText.ipaAttchmPoint] = 1
+    eText.fParam[cadMText.ipaHorizJustif] = cadMText.ModeFree
+    eText.P[0] = Me.CurrentP.Copy()
+    eText.P.Add(Me.CurrentP.Copy())             ' el punto 2 lo ubica cadMText al final del texto
+    Body = ""
+    Caret = 0
+    ApplyFormat()
+
+    eOriginal = Null
+    Editing = False
+    Placed = False
+    $bDragging = False
+    gcd.DrawHoveredEntity = False
+    Me.Prompt = ("Type the text; click to place it, or drag from point 1 to point 2. Enter ends, Control+Enter adds a line")
+
+    fTextEditor.Run(eText, False)
+    gcd.redraw
+
+End
+
+'' Edita un texto del dibujo
+Public Sub StartEdit(e As Entity)
+
+    Super.Start(Null, 0)
+
+    clsEntities.DeSelection()
+    gcd.Drawing.Sheet.Grips.Clear
+
+    eOriginal = e
+    eText = clsEntities.ClonEntity(e, False)
+    LoadFormat()
+    Caret = String.Len(Body)
+    Editing = True
+    Placed = True
+    $bDragging = False
+    $fEditStart = Timer
+    gcd.DrawHoveredEntity = False
+
+    ' oculto el original mientras edito
+    eOriginal.Visible = False
+    clsEntities.glGenDrawVBO(eOriginal.pLayer)
+
+    gcd.clsJobPrevious = gcd.clsJob
+    gcd.clsJob = Me
+    Me.Prompt = ("Editing the text. Enter or a click in the drawing ends, Control+Enter adds a line")
+
+    fTextEditor.Run(eText, True)
+    gcd.redraw
+
+End
+
+Public Sub MouseDown()
+
+    If Not Mouse.Left Then Return
+    $iDownX = Mouse.X
+    $iDownY = Mouse.Y
+    $pDown = Me.CurrentP.Copy()
+    If Not Editing Then $bDragging = True
+
+End
+
+Public Sub MouseMove()
+
+    Super.MouseMove()           ' CurrentP con los snaps
+
+    If Not Editing Then
+        If $bDragging Then
+            If Dragged() Then SetDrag($pDown, Me.CurrentP)
+        Else If Not Placed Then
+            MoveTo(Me.CurrentP)
+        Endif
+    Endif
+    gcd.redraw
+
+End
+
+Public Sub MouseUp()
+
+    If Editing And If Timer - $fEditStart < 0.6 Then Return
+
+    If Mouse.Right Then         ' termino, o cancelo si no escribio nada
+        If Trim(Body) = "" Then Me.Cancel() Else Me.Finish()
+        Return
+    Endif
+
+    If Editing Then             ' un click afuera del editor termina la edicion
+        Me.Finish()
+        Return
+    Endif
+
+    Super.MouseUp()             ' LastP con los snaps
+
+    If $bDragging And Dragged() Then
+        SetDrag($pDown, Me.LastP)
+    Else
+        MoveTo(Me.LastP)
+    Endif
+    $bDragging = False
+    Placed = True
+    fTextEditor.LoadPlacement()
+    gcd.redraw
+
+End
+
+'' Se movio lo suficiente como para ser un arrastre
+Private Function Dragged() As Boolean
+
+    Return Abs(Mouse.X - $iDownX) + Abs(Mouse.Y - $iDownY) > 6
+
+End
+
+Public Sub NewParameter(tipo As String, vValor As Variant, Optional definitive As Boolean = False)
+
+    If Not definitive Then Return
+    Select Case tipo
+        Case "action"
+            If vValor = "_CANCEL" Then Me.Cancel()
+        Case "text"             ' escrito en la linea de comandos
+            If vValor = "" Then
+                Me.Finish()
+            Else
+                Insert(vValor)
+                ApplyFormat()
+            Endif
+    End Select
+
+End
+
+'' Lleva el texto a p, sin cambiar nada mas
+Public Sub MoveTo(p As Punto3d)
+
+    Dim pA As Punto3d
+
+    pA = eText.P[gcd.CCC[eText.Gender].AnchorIndex(eText)]
+    puntos.TranslateP(eText.P, p.x - pA.x, p.y - pA.y, p.z - pA.z)
+    Rebuild()
+
+End
+
+'' Arrastre: punto 1 y punto 2, con caja
+Private Sub SetDrag(p0 As Punto3d, p1 As Punto3d)
+
+    eText.P[0] = p0.Copy()
+    eText.P[1] = p1.Copy()
+    If cadMText.Mode(eText) = cadMText.ModeFree Then eText.fParam[cadMText.ipaHorizJustif] = cadMText.ModeBox
+    Rebuild()
+    fTextEditor.LoadPlacement()
+
+End
+
+'' Arma el texto (formato de la barra + Body) y su geometria. Para saber donde va el cursor
+'' lo arma con una marca (Chr$(3), sin letra ni ancho) en Caret, y despues deja el texto limpio.
+Public Sub Rebuild()
+
+    Dim sFont As String
+    Dim oStyle As TextStyle
+
+    If Not eText Then Return
+
+    sFont = gcd.TextFont
+    If sFont = "" And (gcd.TextBold Or gcd.TextItalic) Then
+        ' negrita o cursiva necesitan una fuente en el codigo \f: la del estilo
+        oStyle = gcd.Drawing.TextStyles[eText.sParam[cadMText.sdaStyle]]
+        If oStyle Then sFont = Utils.FileWithoutExtension(oStyle.sFont_3)
+    Endif
+
+    If Caret < 0 Or Caret > String.Len(Body) Then Caret = String.Len(Body)
+    eText.sParam[cadMText.sdaText] = cadMText.WrapFormat(String.Left(Body, Caret) & Chr$(3) & String.Mid(Body, Caret + 1), sFont, gcd.TextBold, gcd.TextItalic, gcd.TextStrike)
+    gcd.CCC[eText.Gender].BuildGeometry(eText)
+    $bCaretFound = cadMText.CaretFound
+    $flxCaret = [cadMText.CaretX0, cadMText.CaretY0, cadMText.CaretX1, cadMText.CaretY1]
+    eText.sParam[cadMText.sdaText] = cadMText.WrapFormat(Body, sFont, gcd.TextBold, gcd.TextItalic, gcd.TextStrike)
+
+End
+
+'' El cursor titila (lo llama fMain.tmrSlash_Timer)
+Public Sub Blink()
+
+    If gcd.clsJob <> Me Or If Not eText Then Return
+    $bCaretOn = Not $bCaretOn
+    gcd.redraw
+
+End
+
+'' Una tecla mientras se escribe el texto; devuelve True si la uso
+Public Function TypeKey(iCode As Integer, sText As String, bControl As Boolean) As Boolean
+
+    Dim aB As Integer[]
+    Dim i As Integer
+
+    If gcd.clsJob <> Me Or If Not eText Then Return False
+
+    Select Case iCode
+        Case Key.Return, Key.Enter
+            If bControl Then
+                Insert("\\P")              ' renglon nuevo
+            Else
+                Me.Finish()                 ' termine
+                Return True
+            Endif
+        Case Key.Escape
+            Me.Cancel()
+            Return True
+        Case Key.BackSpace
+            aB = Boundaries()
+            For i = aB.Max To 0 Step -1
+                If aB[i] < Caret Then
+                    Body = String.Left(Body, aB[i]) & String.Mid(Body, Caret + 1)
+                    Caret = aB[i]
+                    Break
+                Endif
+            Next
+        Case Key.Delete
+            aB = Boundaries()
+            For i = 0 To aB.Max
+                If aB[i] > Caret Then
+                    Body = String.Left(Body, Caret) & String.Mid(Body, aB[i] + 1)
+                    Break
+                Endif
+            Next
+        Case Key.Left
+            aB = Boundaries()
+            For i = aB.Max To 0 Step -1
+                If aB[i] < Caret Then
+                    Caret = aB[i]
+                    Break
+                Endif
+            Next
+        Case Key.Right
+            aB = Boundaries()
+            For i = 0 To aB.Max
+                If aB[i] > Caret Then
+                    Caret = aB[i]
+                    Break
+                Endif
+            Next
+        Case Key.Home
+            Caret = 0
+        Case Key.End
+            Caret = String.Len(Body)
+        Case Else
+            If bControl Or sText = "" Then Return False
+            If String.Code(sText) < 32 Then Return False
+            ' lo que se escribe es texto: escapo lo que en MTEXT es codigo
+            sText = Replace(sText, "\\", "\\\\")
+            sText = Replace(sText, "{", "\\{")
+            sText = Replace(sText, "}", "\\}")
+            Insert(sText)
+    End Select
+
+    $bCaretOn = True
+    Rebuild()
+    gcd.redraw
+    Return True
+
+End
+
+'' Pone s (texto o codigos) en el cursor
+Public Sub Insert(s As String)
+
+    If Caret < 0 Or Caret > String.Len(Body) Then Caret = String.Len(Body)
+    Body = String.Left(Body, Caret) & s & String.Mid(Body, Caret + 1)
+    Caret += String.Len(s)
+
+End
+
+'' Pone un par de codigos (ej \L y \l) y deja el cursor entre los dos
+Public Sub InsertPair(sOpen As String, sClose As String)
+
+    Insert(sOpen & sClose)
+    Caret -= String.Len(sClose)
+    ApplyFormat()
+
+End
+
+'' Pone un codigo en el cursor y redibuja
+Public Sub InsertCode(s As String)
+
+    Insert(s)
+    ApplyFormat()
+
+End
+
+'' Alineacion del parrafo del cursor (\pxql; \pxqc; \pxqr; \pxqj;), al principio del parrafo
+Public Sub SetParagraphAlign(sAlign As String)
+
+    Dim aB As Integer[]
+    Dim i, iStart As Integer
+    Dim sRest As String
+
+    aB = Boundaries()
+    For i = 0 To aB.Max - 1         ' el parrafo empieza despues del ultimo \P antes del cursor
+        If aB[i] >= Caret Then Break
+        If String.Mid(Body, aB[i] + 1, aB[i + 1] - aB[i]) = "\\P" Then iStart = aB[i + 1]
+    Next
+    sRest = String.Mid(Body, iStart + 1)
+    If Left$(sRest, 4) = "\\pxq" And Mid$(sRest, 6, 1) = ";" Then
+        sRest = Mid$(sRest, 7)
+        Caret -= 6
+    Endif
+    Body = String.Left(Body, iStart) & "\\pxq" & sAlign & ";" & sRest
+    Caret += 6
+    If Caret < iStart + 6 Then Caret = iStart + 6
+    ApplyFormat()
+
+End
+
+'' Saca los codigos del cuerpo (deja el texto, los %%, los \U+ y lo escapado)
+Public Sub ClearFormat()
+
+    Dim aB As Integer[]
+    Dim i As Integer
+    Dim sTok, sOut As String
+
+    aB = Boundaries()
+    For i = 0 To aB.Max - 1
+        sTok = String.Mid(Body, aB[i] + 1, aB[i + 1] - aB[i])
+        If sTok = "{" Or sTok = "}" Then Continue
+        If Left$(sTok, 1) = "\\" Then
+            Select Case Mid$(sTok, 2, 1)
+                Case "\\", "{", "}", "P", "~", "U"
+                Case "S"                                ' la fraccion queda como a/b
+                    sTok = Mid$(sTok, 3, Len(sTok) - 3)
+                Case Else
+                    Continue
+            End Select
+        Endif
+        sOut &= sTok
+    Next
+    Body = sOut
+    Caret = String.Len(Body)
+    ApplyFormat()
+
+End
+
+'' Limites entre caracteres y codigos de Body, en caracteres: 0, ..., Len
+Private Function Boundaries() As Integer[]
+
+    Dim aB As New Integer[]
+    Dim i As Integer
+
+    aB.Add(0)
+    i = 1
+    While i <= String.Len(Body)
+        i += TokenLen(Body, i)
+        aB.Add(Min(i - 1, String.Len(Body)))
+    Wend
+    Return aB
+
+End
+
+'' Largo del caracter o codigo que empieza en la posicion i (base 1, en caracteres)
+Private Function TokenLen(s As String, i As Integer) As Integer
+
+    Dim c, c2 As String
+    Dim p, n As Integer
+
+    c = String.Mid(s, i, 1)
+    If c = "\\" Then
+        c2 = String.Mid(s, i + 1, 1)
+        Select Case c2
+            Case ""
+                Return 1
+            Case "\\", "{", "}", "P", "~", "L", "l", "O", "o", "K", "k", "X", "N"
+                Return 2
+            Case "U"
+                Return 7
+            Case Else                       ' codigos con valor, terminan en ;
+                p = String.InStr(s, ";", i + 2)
+                If p = 0 Then Return 2
+                Return p - i + 1
+        End Select
+    Else If c = "%" And String.Mid(s, i + 1, 1) = "%" Then
+        n = 3
+        If IsDigit(String.Mid(s, i + 2, 1)) Then
+            While n < 5 And IsDigit(String.Mid(s, i + n, 1))
+                Inc n
+            Wend
+        Endif
+        Return n
+    Endif
+    Return 1
+
+End
+
+'' Arma el texto con el cuerpo del editor y el formato de la barra superior
+Public Sub ApplyFormat()
+
+    If Not eText Then Return
+    If gcd.TextHeight() > 0 Then eText.fParam[cadMText.ipaTextHeight] = gcd.TextHeight()
+    Rebuild()
+    gcd.redraw
+
+End
+
+'' Al editar: el formato general del texto pasa a la barra superior y el resto al editor
+Private Sub LoadFormat()
+
+    Dim cFormat As Collection
+    Dim oStyle As TextStyle
+
+    cFormat = cadMText.UnwrapFormat(eText.sParam[cadMText.sdaText])
+    Body = cFormat["body"]
+    gcd.TextFont = cFormat["font"]
+    oStyle = gcd.Drawing.TextStyles[eText.sParam[cadMText.sdaStyle]]
+    If oStyle Then
+        If LCase(gcd.TextFont) = LCase(Utils.FileWithoutExtension(oStyle.sFont_3)) Then gcd.TextFont = ""
+    Endif
+    gcd.TextBold = cFormat["bold"]
+    gcd.TextItalic = cFormat["italic"]
+    gcd.TextStrike = cFormat["strike"]
+    gcd.SetTextHeight(eText.fParam[cadMText.ipaTextHeight])
+    fMain.UpdateTextControls()
+
+End
+
+'' La barra superior cambio la fuente, la altura, negrita, cursiva o tachado
+Public Sub TopBarChanged()
+
+    If gcd.clsJob <> Me Or If Not eText Then Return
+    ApplyFormat()
+
+End
+
+'' La barra superior cambio el color
+Public Sub TopBarColor(iColor As Integer)
+
+    If gcd.clsJob <> Me Or If Not eText Then Return
+    eText.Colour = iColor
+    Rebuild()
+    gcd.redraw
+
+End
+
+Public Sub Draw()
+
+    Dim fSide As Float
+    Dim pA As Punto3d
+    Dim flxBox As New Float[]
+    Dim i As Integer
+
+    If Not eText Then Return
+
+    fSide = gcd.Metros(8)
+    pA = eText.P[gcd.CCC[eText.Gender].AnchorIndex(eText)]
+
+    ' la caja del texto, como segmentos
+    For i = 0 To eText.Polygon.Max - 3 Step 2
+        flxBox.Insert([eText.Polygon[i], eText.Polygon[i + 1], eText.Polygon[i + 2], eText.Polygon[i + 3]])
+    Next
+
+    glx.BeginVBO(Me.VBO, True)
+    gcd.CCC[eText.Gender].Draw(eText)
+    glx.DrawLines(flxBox, Color.Gray)
+    glx.Rectangle2D(pA.x - fSide / 2, pA.y - fSide / 2, fSide, fside, Color.DarkBlue,,,, Color.DarkBlue, 1,, 1)
+    If eText.P.Count > 1 Then glx.Rectangle2D(eText.P[1].x - fSide / 2, eText.P[1].y - fSide / 2, fSide, fside, Color.DarkBlue,,,, Color.DarkBlue, 1,, 1)
+    If $bCaretOn And $bCaretFound Then glx.DrawLines($flxCaret, gcd.GetGBColor(eText.Colour, eText.pLayer), 2)
+    If $bDragging Then glx.DrawLines([$pDown.x, $pDown.y, Me.CurrentP.x, Me.CurrentP.y], Color.Purple)
+    glx.EndVBO()
+    Me.VBO.Draw()
+    DrawingAids.DrawSnapText()
+
+End
+
+'' Acepta el texto: lo agrega al dibujo, o reemplaza al original si estaba editando
+Public Sub Finish()
+
+    Dim bVisible As Boolean
+    Dim sId As String
+
+    fTextEditor.Done()
+
+    If Trim(Body) = "" Then      ' un texto vacio no sirve
+        Me.Cancel()
+        Return
+    Endif
+
+    Rebuild()
+
+    If Editing Then
+        eOriginal.Visible = True
+        sId = eOriginal.id
+        eText.id = sId
+
+        gcd.Drawing.uUndo.OpenUndoStage(("Edit") & " " & eText.Gender, Undo.TypeModify)
+        gcd.Drawing.uUndo.AddUndoItem(eOriginal)
+        gcd.Drawing.uUndo.CloseUndoStage()
+
+        bVisible = gcd.Drawing.Sheet.EntitiesVisibles.Exist(sId)
+        gcd.Drawing.Sheet.Entities.Remove(sId)
+        If bVisible Then gcd.Drawing.Sheet.EntitiesVisibles.Remove(sId)
+        If gcd.Drawing.Sheet.EntitiesSelected.Exist(sId) Then gcd.Drawing.Sheet.EntitiesSelected.Remove(sId)
+        gcd.Drawing.Sheet.Entities.Add(eText, sId)
+        If bVisible Then gcd.Drawing.Sheet.EntitiesVisibles.Add(eText, sId)
+
+        eText = Null
+        eOriginal = Null
+        Editing = False
+        Super.Finish()          ' rehace los VBO y vuelve a la seleccion
+    Else
+        cadEntityBuilder.elem = eText
+        eText = Null
+        cadEntityBuilder.Finish()
+    Endif
+
+End
+
+Public Sub Cancel()
+
+    fTextEditor.Done()
+    If Editing And If eOriginal Then
+        eOriginal.Visible = True
+        clsEntities.glGenDrawVBO(eOriginal.pLayer)
+    Endif
+    eText = Null
+    eOriginal = Null
+    Editing = False
+    Super.Cancel()
+
+End

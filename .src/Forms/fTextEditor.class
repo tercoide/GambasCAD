@@ -1,0 +1,288 @@
+' Gambas class file
+
+' GambasCAD
+' A simple CAD made in Gambas
+'
+' Copyright (C) Ing Martin P Cristia
+'
+' This program is free software; you can redistribute it and/or modify
+' it under the terms of the GNU General Public License as published by
+' the Free Software Foundation; either version 3 of the License, or
+' (at your option) any later version.
+'
+' This program is distributed in the hope that it will be useful,
+' but WITHOUT ANY WARRANTY; without even the implied warranty of
+' MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+' GNU General Public License for more details.
+'
+' You should have received a copy of the GNU General Public License
+' along with this program; if not, write to the Free Software
+' Foundation, Inc., 51 Franklin St, Fifth Floor,
+' Boston, MA  02110-1301  USA
+
+'' Opciones del MTEXT que se escribe en el dibujo (cadTextBuilder). No es modal.
+'' El texto se escribe en el dibujo; los botones ponen codigos en el cursor.
+'' Las teclas que llegan a esta ventana (salvo en las cajas de numeros) se pasan al dibujo.
+'' La fuente, la altura, negrita, cursiva, tachado y el color vienen de la barra superior.
+'' Lo maneja cadTextBuilder: Run lo abre, Done lo cierra.
+'' https://ezdxf.readthedocs.io/en/stable/dxfentities/mtext.html
+
+Private $e As Entity                    '' el texto que se edita
+Private $bLoading As Boolean            '' para no reaccionar mientras lleno los controles
+Private $bClosing As Boolean
+
+' simbolos: lo que se ve y el codigo
+Private $aSymText As New String[]
+Private $aSymCode As New String[]
+
+Public Sub Form_Open()
+
+    Dim s As String
+
+    $bLoading = True
+
+    AddSymbol(("Symbols"), "")
+    AddSymbol(("Degree") & " °", "%%d")
+    AddSymbol(("Plus/minus") & " ±", "%%p")
+    AddSymbol(("Diameter") & " ∅", "%%c")
+    AddSymbol(("Non-breaking space"), "\\~")
+    AddSymbol(("Squared") & " ²", "\\U+00B2")
+    AddSymbol(("Cubed") & " ³", "\\U+00B3")
+    AddSymbol(("Almost equal") & " ≈", "\\U+2248")
+    AddSymbol(("Not equal") & " ≠", "\\U+2260")
+    AddSymbol(("Delta") & " Δ", "\\U+0394")
+    AddSymbol(("Ohm") & " Ω", "\\U+03A9")
+    AddSymbol(("Angle") & " ∠", "\\U+2220")
+    AddSymbol(("Center line") & " ℄", "\\U+2104")
+    For Each s In $aSymText
+        cmbSymbol.Add(s)
+    Next
+    cmbSymbol.Index = 0
+
+    $bLoading = False
+
+End
+
+Private Sub AddSymbol(sText As String, sCode As String)
+
+    $aSymText.Add(sText)
+    $aSymCode.Add(sCode)
+
+End
+
+'' Abre las opciones para el MTEXT e (que cadTextBuilder dibuja mientras tanto)
+Public Sub Run(e As Entity, bEditing As Boolean)
+
+    $e = e
+    If Not Me.Visible Then Me.Show       ' antes de cargar: Form_Open llena los combos
+
+    $bLoading = True
+    If bEditing Then
+        Me.Text = ("Edit text")
+        btnOK.Text = ("OK")
+    Else
+        Me.Text = ("New text")
+        btnOK.Text = ("Add")
+    Endif
+    lblPrompt.Text = ("Type the text in the drawing.") & "\n" & ("Enter: finish.  Control+Enter: new line.  Escape: cancel.") & "\n" & ("Arrows, Home, End, Backspace and Delete move and erase.")
+    FillStyles()
+    vbWF.Value = 1
+    vbOblique.Value = 0
+    vbTrack.Value = 1
+    $bLoading = False
+    LoadPlacement()
+    fMain.SetFocus                       ' las teclas van al dibujo
+
+End
+
+'' Vuelve a leer angulo, ancho y punto de insercion (cambian en el dibujo)
+Public Sub LoadPlacement()
+
+    Dim tbt As ToolButton
+
+    If Not $e Then Return
+    $bLoading = True
+    vbAngle.Value = Round(Deg($e.fParam[cadMText.ipaTextAngle]), -4)
+    If cadMText.Mode($e) = cadMText.ModeFree Then
+        vbWidth.Value = 0
+    Else
+        vbWidth.Value = Round(puntos.distancia($e.P[0].x, $e.P[0].y, $e.P[1].x, $e.P[1].y), -4)
+    Endif
+    tbt = pnlAttach.Children[cadMText.AttachRow($e) * 3 + cadMText.AttachCol($e)]
+    tbt.Value = True
+    $bLoading = False
+
+End
+
+'' Lo cierra cadTextBuilder al terminar o cancelar
+Public Sub Done()
+
+    $e = Null
+    $bClosing = True
+    Me.Hide
+    $bClosing = False
+
+End
+
+Public Sub Form_Close()
+
+    If $bClosing Then Return
+    If $e Then cadTextBuilder.Cancel()
+
+End
+
+Public Sub Form_KeyPress()
+
+    ' en las cajas de numeros se escribe ahi; lo demas va al texto del dibujo
+    If Object.Type(Application.ActiveControl) = "ValueBox" Then
+        If Key.Code = Key.Escape Then
+            cadTextBuilder.Cancel()
+            Stop Event
+        Endif
+        Return
+    Endif
+    If cadTextBuilder.TypeKey(Key.Code, Key.Text, Key.Control) Then Stop Event
+
+End
+
+Private Sub FillStyles()
+
+    Dim ts As TextStyle
+    Dim i As Integer
+
+    cmbStyle.Clear
+    For Each ts In gcd.Drawing.TextStyles
+        cmbStyle.Add(gcd.Drawing.TextStyles.Key)
+    Next
+    For i = 0 To cmbStyle.Count - 1
+        If LCase(cmbStyle[i].Text) = LCase($e.sParam[cadMText.sdaStyle]) Then
+            cmbStyle.Index = i
+            Return
+        Endif
+    Next
+    ' un estilo que no esta en la tabla
+    cmbStyle.Add($e.sParam[cadMText.sdaStyle])
+    cmbStyle.Index = cmbStyle.Count - 1
+
+End
+
+Public Sub cmbStyle_Click()
+
+    If $bLoading Or If Not $e Then Return
+    $e.sParam[cadMText.sdaStyle] = cmbStyle.Text
+    cadTextBuilder.ApplyFormat()
+
+End
+
+'' El angulo gira el punto 2 alrededor del 1
+Public Sub vbAngle_Change()
+
+    Dim d As Float
+
+    If $bLoading Or If Not $e Then Return
+    d = Max(puntos.distancia($e.P[0].x, $e.P[0].y, $e.P[1].x, $e.P[1].y), $e.fParam[cadMText.ipaTextHeight])
+    $e.P[1].x = $e.P[0].x + d * Cos(Rad(vbAngle.Value))
+    $e.P[1].y = $e.P[0].y + d * Sin(Rad(vbAngle.Value))
+    cadTextBuilder.ApplyFormat()
+
+End
+
+'' El ancho mueve el punto 2; 0 = sin caja
+Public Sub vbWidth_Change()
+
+    Dim fAng As Float
+
+    If $bLoading Or If Not $e Then Return
+    If vbWidth.Value <= 0 Then
+        $e.fParam[cadMText.ipaHorizJustif] = cadMText.ModeFree
+    Else
+        If cadMText.Mode($e) = cadMText.ModeFree Then $e.fParam[cadMText.ipaHorizJustif] = cadMText.ModeBox
+        fAng = $e.fParam[cadMText.ipaTextAngle]
+        $e.P[1].x = $e.P[0].x + vbWidth.Value * Cos(fAng)
+        $e.P[1].y = $e.P[0].y + vbWidth.Value * Sin(fAng)
+    Endif
+    cadTextBuilder.ApplyFormat()
+
+End
+
+Public Sub Att_Click()
+
+    Dim i As Integer
+
+    If $bLoading Or If Not $e Then Return
+    i = CInt(Last.Tag) - 1
+    cadMText.SetAttach($e, i \ 3, i Mod 3)
+    cadTextBuilder.ApplyFormat()
+    fMain.SetFocus
+
+End
+
+Public Sub Fmt_Click()
+
+    Select Case Last.Tag
+        Case "U"
+            cadTextBuilder.InsertPair("\\L", "\\l")
+        Case "O"
+            cadTextBuilder.InsertPair("\\O", "\\o")
+    End Select
+    fMain.SetFocus
+
+End
+
+Public Sub btnStack_Click()
+
+    cadTextBuilder.InsertCode("\\S1/2;")
+    fMain.SetFocus
+
+End
+
+Public Sub cmbSymbol_Click()
+
+    If $bLoading Or If Not $e Then Return
+    If cmbSymbol.Index <= 0 Then Return
+    cadTextBuilder.InsertCode($aSymCode[cmbSymbol.Index])
+    $bLoading = True
+    cmbSymbol.Index = 0
+    $bLoading = False
+    fMain.SetFocus
+
+End
+
+Public Sub btnClear_Click()
+
+    cadTextBuilder.ClearFormat()
+    fMain.SetFocus
+
+End
+
+Public Sub btnApplyChar_Click()
+
+    Dim s As String
+
+    If vbWF.Value > 0 And vbWF.Value <> 1 Then s &= "\\W" & CStr(vbWF.Value) & ";"
+    If vbOblique.Value <> 0 Then s &= "\\Q" & CStr(vbOblique.Value) & ";"
+    If vbTrack.Value > 0 And vbTrack.Value <> 1 Then s &= "\\T" & CStr(vbTrack.Value) & ";"
+    If s = "" Then Return
+    cadTextBuilder.InsertPair("{" & s, "}")
+    fMain.SetFocus
+
+End
+
+Public Sub Par_Click()
+
+    cadTextBuilder.SetParagraphAlign(Last.Tag)
+    fMain.SetFocus
+
+End
+
+Public Sub btnOK_Click()
+
+    cadTextBuilder.Finish()
+
+End
+
+Public Sub btnCancel_Click()
+
+    cadTextBuilder.Cancel()
+
+End

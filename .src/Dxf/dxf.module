@@ -945,9 +945,9 @@ Private Function Save1HeadersAndVarsDirect(drw As Drawing) As Integer
     Print #hFIle, "HEADER"
 
     'Intento guardar algunas cosas utiles para cuando abra de nuevo este archivo
-    drw.Headers.CLAYER = drw.CurrLayer.Name             ' Current LAYER
+    gcd.HeaderSet(drw.Headers, "CLAYER", drw.CurrLayer.Name)     ' Current LAYER
 
-    cHeaders = drw.Headers.cExport()
+    cHeaders = Object.Call(drw.Headers, "cExport")     ' por nombre, ver gcd.HeaderGet
 
     For Each cDato In cHeaders
         vDato = cDato["dato"]
@@ -1598,6 +1598,7 @@ Private Function Save4BlocksDirect(drw As Drawing) As Integer
 
             For Each eEnty In eBlock.entities
                 If Not Gcd.CCC[eEnty.gender].DXF_Export Then Continue     ' la clase no sabe guardarse en DXF
+                If eEnty.Gender = "TEXT" Then eEnty = cadText.ToMText(eEnty)    ' los TEXT se graban como MTEXT
                 eEnty.id = NewHandle()
                 DXFSaveCommonEntityData(eEnty)
                 Gcd.CCC[eEnty.gender].SaveDxfData(eEnty)
@@ -1656,6 +1657,7 @@ Private Function Save5EntitiesDirect(drwToSAve As Drawing) As Integer
         For Each eEnty In s.Entities
 
             If Not Gcd.CCC[eEnty.gender].DXF_Export Then Continue     ' la clase no sabe guardarse en DXF
+            If eEnty.Gender = "TEXT" Then eEnty = cadText.ToMText(eEnty)    ' los TEXT se graban como MTEXT
             eEnty.id = NewHandle() 'FIXME: el problema es que ahora el Key en la Colection <> Id
 
             DXFSaveCommonEntityData(eEnty)
@@ -2185,7 +2187,7 @@ Public Sub ReadLayers(cLaydata As Collection, drw As Drawing)
     Drw.CurrLayer = Drw.Layers[Drw.Layers.First]
 
     ' o mejor este, pero puede fallar
-    Try drw.CurrLayer = drw.Layers[drw.Headers.CLAYER]
+    Try drw.CurrLayer = drw.Layers[gcd.HeaderGet(drw.Headers, "CLAYER")]
 
 End
 
@@ -2260,7 +2262,7 @@ Public Sub ReadStyles(cData As Collection, drw As Drawing)
             If c.Exist("342") Then Try hdim.DIMBLK = DimStyle.NormalizeMarker(cData["TABLES"]["BLOCK_RECORD"][c["342"]]["2"])
             If c.Exist("343") Then Try hdim.DIMBLK1 = DimStyle.NormalizeMarker(cData["TABLES"]["BLOCK_RECORD"][c["343"]]["2"])
             If c.Exist("344") Then Try hdim.DIMBLK2 = DimStyle.NormalizeMarker(cData["TABLES"]["BLOCK_RECORD"][c["344"]]["2"])
-            If Not c.Exist("342") And Not c.Exist("5") Then hdim.DIMBLK = DimStyle.NormalizeMarker("_" & gcd.Drawing.Headers.DIMBLK)
+            If Not c.Exist("342") And Not c.Exist("5") Then hdim.DIMBLK = DimStyle.NormalizeMarker("_" & gcd.HeaderGet(gcd.Drawing.Headers, "DIMBLK"))
             If hdim.DIMBLK = "_" Then hdim.DIMBLK = ""
 
             ' el estilo de texto viene como handle a STYLE
@@ -2347,7 +2349,7 @@ Public Sub ReadLTypes(cData As Collection, drw As Drawing)
 
     End If
 
-    gcd.SetLTScale(drw.Headers.LTSCALE)
+    gcd.SetLTScale(gcd.HeaderGet(drw.Headers, "LTSCALE"))
 
     Drw.CurrLineType = Drw.LineTypes[Drw.LineTypes.First]
 

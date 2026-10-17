@@ -2669,7 +2669,7 @@ Public Sub Rectangle2D(x1 As Float, y1 As Float, w As Float, h As Float, Optiona
 
     If mode >= 1 Then                                      ' solo recuadro
 
-        PolyLines([x1, y1, x1 + w, y1, x1 + w, y1 + h, x1, y1 + h, x1, y1], BoundingColor, BoundingWIdth, dashes)
+        PolyLines(puntos.Create3dXYZFrom2dXY([x1, y1, x1 + w, y1, x1 + w, y1 + h, x1, y1 + h, x1, y1]), BoundingColor, BoundingWIdth, dashes)
 
     End If
 
@@ -3960,7 +3960,7 @@ End
 
 '' Devuelve una poly con el texto en el contexto actual de acuerdo a los parametros pasados
 '' Debe estar definida la Font con nombre y altura
-Fast Unsafe Public Function DrawTextPoly(UTFstring As String, Optional textH As Float = 1, sRotationRad As Single = 0, sItalicAngle As Single = 0, fScaleX As Float = 1) As Float[]
+Fast Unsafe Public Function DrawTextPoly(UTFstring As String, Optional textH As Float = 1, sRotationRad As Single = 0, sItalicAngle As Single = 0, fScaleX As Float = 1, fTracking As Float = 1) As Float[]
 
     Dim i, iii, i2, UTFcode, LetterIndex As Integer, Xadvance, xMax As Float
     Dim fArcParams As New Single[]
@@ -4042,7 +4042,7 @@ Fast Unsafe Public Function DrawTextPoly(UTFstring As String, Optional textH As 
 
                 Inc iBulge
             Next
-            Xadvance += xMax + ActualFont.LetterSpacing                                       ' muevo el puntero a la siguiente posicion
+            Xadvance += xMax + ActualFont.LetterSpacing + (fTracking - 1) * ActualFont.WordSpacing / 3   ' muevo el puntero a la siguiente posicion (fTracking = \T del MTEXT)
 
             xMax = 0
             '================================================================================
@@ -4178,6 +4178,43 @@ End
 
 '' devuelve un rectangulo que contiene al texto
 '' [ancho,alto]
+'' Avance horizontal de un texto en unidades de dibujo, incluyendo los espacios del final.
+'' Usa la fuente actual, igual que DrawTextPoly.
+Fast Unsafe Public Function TextAdvance(UTFstring As String, Optional textH As Float = 1, fScaleX As Float = 1, fTracking As Float = 1) As Float
+
+    Dim i, i2, UTFcode As Integer
+    Dim Xadvance, xMax As Float
+    Dim TGlyps As Single[][]
+    Dim Glyps As Single[]
+
+    For i = 1 To String.Len(UTFstring)
+        UTFcode = String.Code(UTFstring, i)
+        If UTFcode = 32 Then
+            Xadvance += ActualFont.WordSpacing
+            Continue
+        Endif
+
+        If ActualFont.Letter.Exist(UTFcode) Then
+            TGlyps = ActualFont.Letter[UTFcode].FontGlyps
+        Else If UnicodeFont.Letter.Exist(UTFcode) Then
+            TGlyps = UnicodeFont.Letter[UTFcode].FontGlyps
+        Else
+            Continue                ' la letra no existe, DrawTextPoly tampoco la dibuja
+        Endif
+
+        xMax = 0
+        For Each Glyps In TGlyps
+            For i2 = 0 To Glyps.Max Step 2
+                If Glyps[i2] > xMax Then xMax = Glyps[i2]
+            Next
+        Next
+        Xadvance += xMax + ActualFont.LetterSpacing + (fTracking - 1) * ActualFont.WordSpacing / 3
+    Next
+
+    Return Xadvance * textH * FontScale * fScaleX
+
+End
+
 Fast Unsafe Public Function TextExtends(UTFstring As String, Optional textH As Float = 1, sRotationRad As Single = 0, sItalicAngle As Single = 0) As Float[]
 
     Dim flxText, tRect As New Float[]

@@ -22,7 +22,7 @@
 Create Static
 ' Fast
 Inherits EntityBase
-'Public Const USEWITH As String = "MTEXTBUILDER"
+Public Const USEWITH As String = "TEXTBUILDER"    ' MTEXT y TEXT se crean con el editor fTextEditor (cadTextBuilder)
 Public Const Gender As String = "MTEXT"
 Public Const DrawingOrder As Integer = 100 ' 1 a 32.724 esto debe Drawse primero y ser sobreescrito por el resto
 Public Const PointsToDraw As Integer = 1             ' minimal point requered for drawing something usefull
@@ -31,57 +31,46 @@ Public Const ParamType As String = "point"
 Public Const ParamHelper As String = "start"     ' a little text that is shown at the prompt waiting for user input during build
 Public Const ParamDefault As String = " ; 0 ; 10 ; "
 Public Const Regenerable As Boolean = True
-Public TextAngle As Float
 
-Public TextLines As New String[]
-Public TextHeigth As New Float[]
-Public TextPosX As New Float[]
-Public TextBoxWidth As New Float[]
-Public TextPosY As New Float[]
-Public TextBoxHeight As New Float[]
-Public TextAlignment As New Integer[]
-Public TextFont As New String[]
-Public TextBold As New Boolean[]
-
-Public CurrentTextLines As String
-Public CurrentTextHeigth As Float
-Public OriginalTextHeigth As Float
-Public CurrentTextPosX As Float
-Public OriginalTextPosX As Float
+' variables del motor de texto; cadText las carga antes de llamar a ProcessText3
+Public CurrentTextHeigth As Float           '' altura base
+Public OriginalTextPosX As Float            '' punto de insercion
 Public OriginalTextPosY As Float
-Public CurrentTextBoxWidth As Float
-Public CurrentTextPosY As Float
-Public CurrentTextBoxHeight As Float
-Public CurrentTextAlignment As Integer                 ' horizontal alignment 0 left/1 center/2 right
-Public CurrentTextAlignmentVertical As Integer         '
-Public CurrentParagraphAlignment As Integer         '
-Public CurrentTextRelScaleX As Float = 1
-
+Public CurrentTextBoxWidth As Float         '' ancho de la caja del MTEXT, 0 = sin caja
+Public CurrentTextAlignment As Integer      '' horizontal: 0 = izq, 1 = centro, 2 = der
+Public CurrentTextAlignmentVertical As Integer  '' 0 = arriba, 1 = medio, 2 = abajo (ultima linea base), 3 = linea base (TEXT), 4 = abajo de las letras (TEXT)
+Public CurrentTextRelScaleX As Float = 1    '' factor de ancho
+Public CurrentTextItalic As Float           '' angulo oblicuo, grados
 Public CurrentTextFont As String
-Public CurrentTextBold As Boolean
-Public CurrentTextItalic As Single
-Public CurrentTextCrossed As Boolean
-Public CurrentTextUnderline As Boolean
-Public CurrentTextOverline As Boolean
+Public CurrentTextAngle As Float            '' grados
+Public TrimText As Boolean                  '' cortar en renglones al ancho de la caja
+Public PlainText As Boolean                 '' TEXT: solo codigos %%, sin codigos en linea
 
-Public CurrentTextAngle As Float
-Public CurrentTextColor As Integer
+' resultados del ultimo armado
+Public TextOriginX As Float                 '' inicio de la linea base del primer renglon
+Public TextOriginY As Float
+Public LastLineWidth As Float               '' ancho del primer renglon
+Public LastTextHeight As Float              '' alto total del texto
+Public LastBoxWidth As Float                '' ancho de la caja, o del renglon mas largo si no hay caja
 
-Public Lines As Integer
-Public NewLine As Boolean
-Public Trimmed As Boolean
-Public TrimText As Boolean
+' el cursor del editor: cadTextBuilder pone CaretMark en el texto y ProcessText3 dice donde quedo
+Public CaretFound As Boolean
+Public CaretX0 As Float                     '' abajo del cursor
+Public CaretY0 As Float
+Public CaretX1 As Float                     '' arriba del cursor
+Public CaretY1 As Float
 
-Public LastTextLengh As Integer
+' MTEXT de dos puntos: P0 = punto 1, P1 = punto 2 (ver los grips). El modo va en fParam[ipaHorizJustif]
+Public Const ModeBox As Integer = 0         '' caja de P0 a P1: corta los renglones y alinea a izq (P0), centro o der (P1)
+Public Const ModeFree As Integer = 1        '' sin caja: cuelga de P0 (a izq, centro o der); P1 solo da la direccion
+Public Const ModeFit As Integer = 5         '' el texto se estira para ir de P0 a P1
 
-' to create the contour
+Public Const LineSpacingFactor As Float = 1.6667    '' distancia entre renglones en alturas de texto, como AutoCAD
+Public Const StackScale As Float = 0.7              '' tamaño de los numeros de una fraccion
+Public Const BoldOffset As Float = 0.04             '' la negrita se simula repitiendo el trazo corrido
 
-Public flxText As New Float[]
-
-Public TxtStyles As New TextStyle[] ' creados a partir de {}
-Public TxtStyle As TextStyle ' el que estoy usando
-
-Public esperar As Boolean
+Private $sRunBuf As String                  '' texto acumulado mientras leo los codigos
+Private $flxAll As New Float[]              '' geometria del texto
 
 ' fParam helpers
 Public Const TotalParams As Integer = 13
@@ -184,10 +173,29 @@ Public Sub Rotate(e As Entity, radians As Float)
 
     puntos.RotateP(e.P, radians)
 
-    ' el parametro lo tengo que pasar a grados porque la rutina que dibuja el texto usa eso
-    E.fParam[Me.ipaTextAngle] += radians
+    Me.SetAngleRad(e, Me.AngleRad(e) + radians)
     puntos.Rotate(e.PolyLine, radians)
     puntos.Rotate(e.Polygon, radians)
+
+End
+
+'' Angulo del texto en radianes. El MTEXT lo guarda en radianes, el TEXT en grados (ver cadText)
+Public Function AngleRad(e As Entity) As Float
+
+    Return e.fParam[Me.ipaTextAngle]
+
+End
+
+Public Sub SetAngleRad(e As Entity, fRad As Float)
+
+    e.fParam[Me.ipaTextAngle] = fRad
+
+End
+
+'' El punto que sostiene al texto: P0 en el MTEXT; en el TEXT justificado es P1 (ver cadText)
+Public Function AnchorIndex(e As Entity) As Integer
+
+    Return 0
 
 End
 
@@ -247,624 +255,931 @@ Public Sub Draw(oE As Entity)
 End
 
 '' Builds the geometry of the entity wthout drwing it
-
 Public Sub makepolyline(oe As Entity)
 
-    flxText.Clear ' limpio los glyphs
+    Dim d, fAng As Float
 
-    'If oe.id = "1B4571" Then Stop
-    TextAngle = oe.fParam[Me.ipaTextAngle]
-    ' voy a procesar texto
-    OriginalTextPosX = oE.P[0].x
-    OriginalTextPosY = oE.P[0].y
+    cadMText.SetupMText(oe)
 
-    ' ' para chequear los aligments
-    ' gl.PointSize(3)
-    ' gl.Begin(gl.POINTS)
-    ' gl.Vertex2f(oe.P[0], oe.P[1])
-    ' gl.End
+    If oe.Gender = "MTEXT" And If oe.P.Count > 1 Then
+        d = puntos.distancia(oe.P[0].x, oe.P[0].y, oe.P[1].x, oe.P[1].y)
+        If cadMText.Mode(oe) = ModeFit And d > 1e-9 Then
+            ' Fit: mido sin caja y estiro el ancho de las letras para llenar de P0 a P1
+            cadMText.TrimText = False
+            cadMText.CurrentTextBoxWidth = 0
+            cadMText.ProcessText3(oe)
+            If cadMText.LastBoxWidth > 0 Then cadMText.CurrentTextRelScaleX *= d / cadMText.LastBoxWidth
+        Endif
+        cadMText.ProcessText3(oe)
 
+        ' sin caja, si el punto 2 quedo encima del 1 lo pongo al final del texto
+        If cadMText.Mode(oe) = ModeFree And d < 1e-9 Then
+            fAng = oe.fParam[Me.ipaTextAngle]
+            d = Max(cadMText.LastBoxWidth, cadMText.CurrentTextHeigth)
+            oe.P[1].x = oe.P[0].x + d * Cos(fAng)
+            oe.P[1].y = oe.P[0].y + d * Sin(fAng)
+        Endif
+        Return
+    Endif
+
+    cadMText.ProcessText3(oe)
+
+End
+
+'' Modo del MTEXT de dos puntos: ModeBox, ModeFree o ModeFit
+Public Function Mode(e As Entity) As Integer
+
+    If e.Gender <> "MTEXT" Then Return ModeBox
+    Return CInt(e.fParam[Me.ipaHorizJustif])
+
+End
+
+'' Columna (0 izq, 1 centro, 2 der) y fila (0 arriba, 1 medio, 2 abajo) del punto de insercion
+Public Function AttachCol(e As Entity) As Integer
+
+    Dim i As Integer
+
+    i = CInt(e.fParam[Me.ipaAttchmPoint])
+    If i < 1 Or i > 9 Then i = 1
+    Return (i - 1) Mod 3
+
+End
+
+Public Function AttachRow(e As Entity) As Integer
+
+    Dim i As Integer
+
+    i = CInt(e.fParam[Me.ipaAttchmPoint])
+    If i < 1 Or i > 9 Then i = 1
+    Return (i - 1) \ 3
+
+End
+
+Public Sub SetAttach(e As Entity, iRow As Integer, iCol As Integer)
+
+    e.fParam[Me.ipaAttchmPoint] = iRow * 3 + iCol + 1
+
+End
+
+'' MTEXT de un solo punto (el de insercion, como viene del DXF): armo los dos puntos con el ancho y el angulo
+Public Sub MakeTwoPoints(e As Entity)
+
+    Dim fW, fAng, c, s As Float
+    Dim iCol As Integer
+    Dim p1 As Punto3d
+
+    fW = e.fParam[Me.ipaRectangleWIdth]
+    fAng = e.fParam[Me.ipaTextAngle]
+    c = Cos(fAng)
+    s = Sin(fAng)
+    iCol = AttachCol(e)
+    If fW > 0 Then
+        e.fParam[Me.ipaHorizJustif] = ModeBox
+        p1 = puntos.P3d(e.P[0].x - fW * iCol / 2 * c, e.P[0].y - fW * iCol / 2 * s, e.P[0].z)
+    Else
+        e.fParam[Me.ipaHorizJustif] = ModeFree       ' el punto 2 lo ubica makepolyline al final del texto
+        p1 = e.P[0].Copy()
+    Endif
+    e.P[0] = p1
+    e.P.Add(puntos.P3d(p1.x + fW * c, p1.y + fW * s, p1.z))
+
+End
+
+'' Angulo y ancho de la caja salen de los dos puntos
+Public Sub SyncFields(e As Entity)
+
+    Dim d As Float
+
+    d = puntos.distancia(e.P[0].x, e.P[0].y, e.P[1].x, e.P[1].y)
+    If d > 1e-9 Then e.fParam[Me.ipaTextAngle] = Ang(e.P[1].x - e.P[0].x, e.P[1].y - e.P[0].y)
+    If Mode(e) = ModeFree Then
+        e.fParam[Me.ipaRectangleWIdth] = 0
+    Else
+        e.fParam[Me.ipaRectangleWIdth] = d
+    Endif
+
+End
+
+'' El punto de insercion del DXF: en la caja depende de la columna; sin caja y en Fit es el punto 1
+Public Function InsertionOf(e As Entity) As Punto3d
+
+    Dim iCol As Integer
+
+    If e.Gender <> "MTEXT" Or e.P.Count < 2 Then Return e.P[0]
+    If Mode(e) <> ModeBox Then Return e.P[0]
+    iCol = AttachCol(e)
+    Return puntos.P3d(e.P[0].x + (e.P[1].x - e.P[0].x) * iCol / 2, e.P[0].y + (e.P[1].y - e.P[0].y) * iCol / 2, e.P[0].z)
+
+End
+
+'' Carga las variables del motor de texto con los datos de un MTEXT
+Public Sub SetupMText(oe As Entity)
+
+    Dim iAttach As Integer
+    Dim pIns As Punto3d
+
+    If oe.Gender = "MTEXT" Then
+        If oe.P.Count < 2 Then MakeTwoPoints(oe)
+        SyncFields(oe)
+    Endif
+    pIns = InsertionOf(oe)
+    OriginalTextPosX = pIns.x
+    OriginalTextPosY = pIns.y
     CurrentTextHeigth = oE.fParam[Me.ipaTextHeight]
-    OriginalTextHeigth = CurrentTextHeigth
+    If CurrentTextHeigth <= 0 Then CurrentTextHeigth = 1
     CurrentTextBoxWidth = oE.fParam[Me.ipaRectangleWidth]
+    TrimText = CurrentTextBoxWidth > 0          ' sin ancho de caja no se corta en renglones (como en AutoCAD)
     CurrentTextRelScaleX = 1
-    If CurrentTextHeigth = 0 Then CurrentTextHeigth = 1
-    'CurrentTextPosY -= CurrentTextHeigth
-    Select Case oe.fParam[Me.ipaAttchmPoint]
+    CurrentTextItalic = 0
+    PlainText = False
 
-        Case 1      ' Top/Left
-            'CurrentTextPosY -= CurrentTextHeigth
-            CurrentTextAlignment = 0
-            CurrentTextAlignmentVertical = 0            ' top
-        Case 2      ' Top/Center
-            'CurrentTextPosY -= CurrentTextHeigth
-            CurrentTextAlignment = 1
-            CurrentTextAlignmentVertical = 0            ' top
-        Case 3      ' Top/Right
-            'CurrentTextPosY -= CurrentTextHeigth
-            CurrentTextAlignment = 2
-            CurrentTextAlignmentVertical = 0            ' top
-        Case 4      ' Middle/Left
-            'CurrentTextPosY -= CurrentTextHeigth / 2
-            CurrentTextAlignment = 0
-            CurrentTextAlignmentVertical = 1            ' mid
-        Case 5      ' Middle/Center
-            'CurrentTextPosY -= CurrentTextHeigth / 2
-            CurrentTextAlignment = 1
-            CurrentTextAlignmentVertical = 1            ' mid
-        Case 6      ' Middle/Right
-            'CurrentTextPosY -= CurrentTextHeigth / 2
-            CurrentTextAlignment = 2
-            CurrentTextAlignmentVertical = 1            ' mid
-        Case 7      ' Bottom/Left
-            'CurrentTextPosY -= 0
-            CurrentTextAlignment = 0
-            CurrentTextAlignmentVertical = 2            ' bottom
-        Case 8      ' Bottom/Center
-            'CurrentTextPosY -= 0
-            CurrentTextAlignment = 1
-            CurrentTextAlignmentVertical = 2            ' bottom
-        Case 9      ' Bottom/Right
-            'CurrentTextPosY -= 0
-            CurrentTextAlignment = 2
-            CurrentTextAlignmentVertical = 2            ' bottom
-
-    End Select
+    ' 1 2 3 arriba, 4 5 6 medio, 7 8 9 abajo; izq, centro, der
+    iAttach = CInt(oe.fParam[Me.ipaAttchmPoint])
+    If iAttach < 1 Or iAttach > 9 Then iAttach = 1
+    CurrentTextAlignment = (iAttach - 1) Mod 3
+    CurrentTextAlignmentVertical = (iAttach - 1) \ 3
+    If Mode(oe) = ModeFit Then CurrentTextAlignment = 0       ' Fit va de P0 a P1
 
     CurrentTextAngle = Deg(oE.fParam[Me.ipaTextAngle])
-    CurrentTextColor = gcd.GetGBColor(oE.Colour, oe.pLayer)
-    TrimText = CurrentTextBoxWidth > 0          ' sin ancho de caja no se corta en renglones (como en AutoCAD)
-
-    ' https://ezdxf.readthedocs.io/en/stable/tutorials/mtext.html
-    ' https://ezdxf.readthedocs.io/en/stable/dxfentities/mtext.html#mtext-inline-codes
-
-    ' MTEXT tiene in-line formatting, ver esa web
-
-    TxtStyle = gcd.Drawing.CurrTextStyle
-    If Not TxtStyle Then TxtStyle = New TextStyle
-    TxtStyles.Add(TxtStyle)
 
     oe.pStyle = gcd.Drawing.TextStyles[oE.sParam[Me.sdaStyle]]
     If Not oe.pStyle Then oe.pStyle = gcd.Drawing.CurrTextStyle
-    TxtStyle = oe.pStyle
-
-    CurrentTextFont = Utils.FileWithoutExtension(oe.pStyle.sFont_3)
-    'If oe.id = "1B45BD" Then esperar = True Else esperar = False
-    oE.Polygon.Clear
-
-    cadMText.ProcessText3(oE)
+    CurrentTextFont = StyleFont(oe.pStyle, "romans")
 
 End
-' Public Function BuildGeometry(oE As Entity, Optional density As Float)
-'
-'     Me.DeExtrude(oe)
-'     Me.Limits(oe)
-'
-' End
 
+'' Fuente de dibujo de un estilo de texto
+Public Function StyleFont(oStyle As TextStyle, sDefault As String) As String
+
+    If Not oStyle Then Return sDefault
+    Return ResolveFont(oStyle.sFont_3, sDefault)
+
+End
+
+'' Las fuentes que no tengo (TTF, SHX raras) se reemplazan por sDefault
+Public Function ResolveFont(sFont As String, sDefault As String) As String
+
+    sFont = Lower(Utils.FileWithoutExtension(Trim(sFont)))
+    If sFont <> "" And If gcd.FontReplacements.Exist(sFont) Then Return gcd.FontReplacements[sFont]
+    Return sDefault
+
+End
+
+'' Pone el formato general de la barra superior alrededor de todo el texto: {\fFuente|b1|i0;\K...\k}
+'' (asi lo guarda AutoCAD; la altura y el color son de la entidad)
+Public Function WrapFormat(sBody As String, sFont As String, bBold As Boolean, bItalic As Boolean, bStrike As Boolean) As String
+
+    Dim s As String
+
+    If sFont = "" And Not bBold And Not bItalic And Not bStrike Then Return sBody
+
+    s = "{"
+    If sFont <> "" Or bBold Or bItalic Then s &= "\\f" & sFont & "|b" & IIf(bBold, "1", "0") & "|i" & IIf(bItalic, "1", "0") & ";"
+    If bStrike Then s &= "\\K"
+    s &= sBody
+    If bStrike Then s &= "\\k"
+    Return s & "}"
+
+End
+
+'' Separa el formato general que pone WrapFormat.
+'' Devuelve "body", "font", "bold", "italic" y "strike"; si el texto no lo tiene, body es todo el texto.
+Public Function UnwrapFormat(sText As String) As Collection
+
+    Dim cRet As New Collection
+    Dim aParts As String[]
+    Dim s As String
+    Dim i, p, iDepth As Integer
+    Dim bFound As Boolean
+
+    cRet["body"] = sText
+    cRet["font"] = ""
+    cRet["bold"] = False
+    cRet["italic"] = False
+    cRet["strike"] = False
+
+    If Left$(sText, 1) <> "{" Or Right$(sText, 1) <> "}" Then Return cRet
+
+    ' la llave del principio tiene que ser la que cierra al final
+    i = 1
+    While i <= Len(sText)
+        Select Case Mid$(sText, i, 1)
+            Case "\\"
+                Inc i               ' salteo el caracter escapado
+            Case "{"
+                Inc iDepth
+            Case "}"
+                Dec iDepth
+                If iDepth = 0 And i < Len(sText) Then Return cRet
+        End Select
+        Inc i
+    Wend
+
+    s = Mid$(sText, 2, Len(sText) - 2)
+    If Left$(s, 2) = "\\f" Then
+        p = InStr(s, ";")
+        If p = 0 Then Return cRet
+        aParts = Split(Mid$(s, 3, p - 3), "|")
+        cRet["font"] = aParts[0]
+        For i = 1 To aParts.Max
+            If aParts[i] = "b1" Then cRet["bold"] = True
+            If aParts[i] = "i1" Then cRet["italic"] = True
+        Next
+        s = Mid$(s, p + 1)
+        bFound = True
+    Endif
+    If Left$(s, 2) = "\\K" And Right$(s, 2) = "\\k" Then
+        cRet["strike"] = True
+        s = Mid$(s, 3, Len(s) - 4)
+        bFound = True
+    Endif
+    If bFound Then cRet["body"] = s
+    Return cRet
+
+End
+
+'' Arma el texto: lee los codigos, corta los renglones, alinea, gira y lo lleva al punto de insercion.
+'' Usa las variables cargadas por SetupMText (o por cadText.SetMtextVars).
 Public Sub ProcessText3(oe As Entity)
 
-    ' voy a hacer una gran division
-    ' separo el texto a imprimir en lineas \P
-    ' busco lo que esta entre {}
-    Dim sLines As New String[]
-    Dim rtf, sRemains As String
-    Dim fRect As New Float[]
-    Dim px, py, dx, dy, dy2 As Float
+    Dim aRuns As MTextRun[]
+    Dim aPieces As New MTextRun[]
+    Dim r, rPar As MTextRun
+    Dim aParEnd As New Integer[]
+    Dim aLineFrom, aLineTo, aLinePar As New Integer[]
+    Dim aLineWidth, aLineH, aBase As New Float[]
+    Dim aLineFirst, aLineLast As New Boolean[]
+    Dim i, j, iLine, iSpaces, iAlign As Integer
+    Dim fW, fH, fAvail, fBoxW, fLeft, fX, fExtra, fIndL, fIndR, dy, fTotal, fBottom As Float
+    Dim fAng, c, s As Float
+    Dim bFirst As Boolean
 
-    rtf = oE.sParam[Me.sdaText]
+    $flxAll.Clear
+    CaretFound = False
 
-    Trimmed = False
+    aRuns = ParseRuns(oe.sParam[Me.sdaText], PlainText)
 
-    sLines = Utils.SplitComplex(rtf, "\\P")
-    Lines = 0
-    'If InStr(LCase(rtf), "pxqc;11") > 0 Then Stop
-
-    'If sLines.Count > 1 Then Stop
-
-    ' con esto los glyps vienen hacia abajo
-    CurrentTextPosY = 0'-CurrentTextHeigth * 1.4
-    CurrentParagraphAlignment = -1
-
-    For Each sRemains In sLines
-        'Print sRemains
-        ProcessPart3(sRemains)
-        lines += 1
+    ' parto los tramos en palabras y espacios si tengo que cortar renglones
+    For Each r In aRuns
+        If TrimText And r.Kind = MTextRun.KindText Then
+            SplitWords(r, aPieces)
+        Else
+            aPieces.Add(r)
+        Endif
     Next
 
-    If flxText.Count > 0 Then
-        fRect = puntos.Limits(flxText)
+    For Each r In aPieces
+        MeasureRun(r)
+    Next
 
-        'dy = Abs(fRect[3] - fRect[1])
-        dy = fRect[3] - fRect[1]
-        'dy = Lines * CurrentTextHeigth * 1.4 ' la altura total del texto
-        dy2 = dy / Lines
-        dx = fRect[2] - fRect[0]
-        ' ' but
-        ' If Trimmed Then dy = CurrentTextHeigth * 1.2
-        If CurrentTextAlignmentVertical = 2 Then py = OriginalTextPosY + dy - fRect[3]              ' BOTTOM
-        If CurrentTextAlignmentVertical = 1 Then py = OriginalTextPosY + dy / 2 - fRect[3]            ' MID
-        If CurrentTextAlignmentVertical = 0 Then py = OriginalTextPosY - fRect[3] '* sLines.Count     ' TOP
+    ' cada parte sabe donde termina su parrafo, que tiene las sangrias y la alineacion
+    aParEnd.Resize(aPieces.Count)
+    j = aPieces.Max
+    For i = aPieces.Max To 0 Step -1
+        If aPieces[i].Kind = MTextRun.KindParagraph Then j = i
+        aParEnd[i] = j
+    Next
 
-        If CurrentTextAlignment = 0 Then px = OriginalTextPosX
-        'px = OriginalTextPosX
-        ' TODO: ver cual de los dos es valido
-        'If CurrentTextAlignment = 1 Then px = OriginalTextPosX + CurrentTextBoxWidth / 2 - dx / 2
-        If CurrentTextAlignment = 1 Then px = OriginalTextPosX '- dx / 2
+    ' renglones
+    j = 0           ' primera parte del renglon
+    fW = 0
+    bFirst = True
+    For i = 0 To aPieces.Max
+        r = aPieces[i]
+        If r.Kind = MTextRun.KindParagraph Then
+            aLineFrom.Add(j)
+            aLineTo.Add(i - 1)
+            aLinePar.Add(i)
+            aLineFirst.Add(bFirst)
+            aLineLast.Add(True)
+            j = i + 1
+            fW = 0
+            bFirst = True
+            Continue
+        Endif
 
-        ' TODO: ver cual de los dos es valido
-        'If CurrentTextAlignment = 2 Then px = OriginalTextPosX + CurrentTextBoxWidth - dx
-        If CurrentTextAlignment = 2 Then px = OriginalTextPosX '- dx
+        If fW = 0 And Not bFirst And r.IsSpace() Then   ' un renglon cortado no empieza con espacios
+            r.Text = ""
+            r.Width = 0
+            Continue
+        Endif
 
-        puntos.Translate(flxText, px, py)
+        If TrimText And fW > 0 And Not r.IsSpace() Then
+            rPar = aPieces[aParEnd[i]]
+            fAvail = CurrentTextBoxWidth - (rPar.IndentLeft + rPar.IndentRight + IIf(bFirst, rPar.IndentFirst, 0)) * CurrentTextHeigth
+            If fW + r.Width > fAvail Then
+                aLineFrom.Add(j)
+                aLineTo.Add(i - 1)
+                aLinePar.Add(aParEnd[i])
+                aLineFirst.Add(bFirst)
+                aLineLast.Add(False)
+                j = i
+                fW = 0
+                bFirst = False
+            Endif
+        Endif
+        fW += r.Width
+    Next
 
-        fRect = puntos.Limits(flxText)
+    ' ancho y alto de cada renglon, sin los espacios del final
+    For iLine = 0 To aLineFrom.Max
+        j = aLineTo[iLine]
+        While j >= aLineFrom[iLine]
+            If Not aPieces[j].IsSpace() Then Break
+            Dec j
+        Wend
+        aLineTo[iLine] = j
+        fW = 0
+        fH = 0
+        For i = aLineFrom[iLine] To j
+            fW += aPieces[i].Width
+            If aPieces[i].Height > fH Then fH = aPieces[i].Height
+        Next
+        If fH = 0 Then fH = aPieces[aLinePar[iLine]].Height     ' renglon vacio
+        aLineWidth.Add(fW)
+        aLineH.Add(fH)
+        If iLine = 0 Then
+            aBase.Add(-fH)
+        Else
+            aBase.Add(aBase[iLine - 1] - fH * LineSpacingFactor)
+        Endif
+    Next
+    fTotal = -aBase[aBase.Max]
+    fBottom = fTotal + aLineH[aLineH.Max] / 3        ' con las colas de las letras
+
+    ' la caja
+    If TrimText Then
+        fBoxW = CurrentTextBoxWidth
     Else
+        fBoxW = 0
+        For iLine = 0 To aLineFrom.Max
+            rPar = aPieces[aLinePar[iLine]]
+            fW = aLineWidth[iLine] + (rPar.IndentLeft + rPar.IndentRight + IIf(aLineFirst[iLine], rPar.IndentFirst, 0)) * CurrentTextHeigth
+            If fW > fBoxW Then fBoxW = fW
+        Next
+    Endif
+    LastBoxWidth = fBoxW
+    fLeft = -fBoxW * CurrentTextAlignment / 2
 
-        fRect = [OriginalTextPosX, OriginalTextPosY, OriginalTextPosX, OriginalTextPosY]
-    End If
+    Select Case CurrentTextAlignmentVertical
+        Case 0      ' arriba
+            dy = 0
+        Case 1      ' medio
+            dy = fTotal / 2
+        Case 2      ' abajo (linea base del ultimo renglon)
+            dy = fTotal
+        Case 3      ' linea base (TEXT)
+            dy = aLineH[0]
+        Case 4      ' abajo de las colas (TEXT)
+            dy = fBottom
+    End Select
 
-    ' Armo el polygono que lo rodea
+    ' dibujo los renglones
+    For iLine = 0 To aLineFrom.Max
+        rPar = aPieces[aLinePar[iLine]]
+        iAlign = rPar.ParAlign
+        If iAlign < 0 Then iAlign = CurrentTextAlignment
+        fIndL = (rPar.IndentLeft + IIf(aLineFirst[iLine], rPar.IndentFirst, 0)) * CurrentTextHeigth
+        fIndR = rPar.IndentRight * CurrentTextHeigth
+        fAvail = fBoxW - fIndL - fIndR
+        fX = fLeft + fIndL
+        fExtra = 0
+        Select Case iAlign
+            Case 1
+                fX += (fAvail - aLineWidth[iLine]) / 2
+            Case 2
+                fX += fAvail - aLineWidth[iLine]
+            Case 3      ' justificado, menos el ultimo renglon del parrafo
+                If Not aLineLast[iLine] Then
+                    iSpaces = 0
+                    For i = aLineFrom[iLine] To aLineTo[iLine]
+                        If aPieces[i].IsSpace() And aPieces[i].Width > 0 Then Inc iSpaces
+                    Next
+                    If iSpaces > 0 Then fExtra = (fAvail - aLineWidth[iLine]) / iSpaces
+                Endif
+        End Select
+
+        If iLine = 0 Then
+            TextOriginX = fX
+            TextOriginY = aBase[0] + dy
+            LastLineWidth = aLineWidth[0]
+        Endif
+
+        For i = aLineFrom[iLine] To aLineTo[iLine]
+            r = aPieces[i]
+            DrawRun(r, fX, aBase[iLine] + dy, aLineH[iLine])
+            fX += r.Width
+            If fExtra > 0 And r.IsSpace() And r.Width > 0 Then fX += fExtra
+        Next
+    Next
+    LastTextHeight = fTotal
+
+    ' giro y llevo al punto de insercion
+    fAng = Rad(CurrentTextAngle)
+    c = Cos(fAng)
+    s = Sin(fAng)
+    puntos.Rotate($flxAll, fAng)
+    puntos.Translate($flxAll, OriginalTextPosX, OriginalTextPosY)
+
+    fX = TextOriginX
+    TextOriginX = OriginalTextPosX + fX * c - TextOriginY * s
+    TextOriginY = OriginalTextPosY + fX * s + TextOriginY * c
+
+    If CaretFound Then          ' el cursor tambien se gira y se lleva al punto de insercion
+        fX = CaretX0
+        fW = CaretY0
+        CaretX0 = OriginalTextPosX + fX * c - fW * s
+        CaretY0 = OriginalTextPosY + fX * s + fW * c
+        fX = CaretX1
+        fW = CaretY1
+        CaretX1 = OriginalTextPosX + fX * c - fW * s
+        CaretY1 = OriginalTextPosY + fX * s + fW * c
+    Endif
+
+    ' el poligono que lo rodea, para seleccionarlo
+    If fBoxW = 0 Then fBoxW = CurrentTextHeigth
     oe.Polygon.Clear
-    oE.Polygon.Insert([fRect[0], fRect[1]])
-    oE.Polygon.Insert([fRect[0], fRect[3]])
-    oE.Polygon.Insert([fRect[2], fRect[3]])
-    oE.Polygon.Insert([fRect[2], fRect[1]])
-    oE.Polygon.Insert([fRect[0], fRect[1]])
+    oE.Polygon.Insert([fLeft, dy, fLeft, dy - fBottom, fLeft + fBoxW, dy - fBottom, fLeft + fBoxW, dy, fLeft, dy])
+    puntos.Rotate(oe.Polygon, fAng)
+    puntos.Translate(oe.Polygon, OriginalTextPosX, OriginalTextPosY)
 
-    puntos.RotatePointsFromBase(OriginalTextPosX, OriginalTextPosY, Rad(CurrentTextAngle), flxText)
-
-    puntos.RotatePointsFromBase(OriginalTextPosX, OriginalTextPosY, Rad(CurrentTextAngle), oE.Polygon)
-
-    ' FIXME:  esto falla porque la entidad esta translated al momento de dibujar
     oe.PolyLine.Clear
-    oe.PolyLine.Insert(flxText.Copy())
-    flxText.Clear
-
-    ' Code   Description
-    ' \L   Start underline
-    ' \l   Stop underline
-    ' \O   Start overline
-    ' \o   Stop overline
-    ' \K   Start strike-through
-    ' \k   Stop strike-through
-    ' \P   New paragraph (new line)
-    ' \p   Paragraphs properties: indentation, alignment, tabulator stops
-    ' \pi \pxi \pxt    Control codes for bullets, numbered paragraphs, tab stops and columns - e.g. bullets: \pxi-3,l3,t3;, tab stops: \pxt10,t12;
-    ' \X    Paragraph wrap on the dimension line (only in dimensions)
-
-    ' \X   Paragraph wrap on the dimension line (only in dimensions)
-    ' \Q   Slanting (oblique) text by angle - e.g. \Q30;
-    ' \H   Text height - e.g. relative \H3x; absolut \H3;
-    ' \W   Text width - e.g. relative \W0.8x; absolut \W0.8;
-    ' \T   Tracking, character spacing - e.g. relative \T0.5x; absolut \T2;
-    ' \F   Font selection e.g. \Fgdt;o - GDT-tolerance
-    ' \S   Stacking, fractions e.g. \SA^ B; space after “^” is required to avoid caret decoding, \SX/Y; \S1#4;
-    ' \A   Alignment
-    '
-    '     \A0; = bottom
-    '     \A1; = center
-    '     \A2; = top
-    '
-    ' \C   Color change
-    '
-    '     \C1; = red
-    '     \C2; = yellow
-    '     \C3; = green
-    '     \C4; = cyan
-    '     \C5; = blue
-    '     \C6; = magenta
-    '     \C7; = white
-    '
-    ' \~   Non breaking space
-    ' {}   Braces - define the text area influenced by the code, codes and braces can be nested up to 8 levels deep
-    ' \   Escape character - e.g. \{ = “{”
+    oe.PolyLine.Insert($flxAll)
+    $flxAll.Clear
 
 End
 
-' procesa una linea de MText con todos sus modificadores
-Public Function ProcessPart3(sLine As String) As String
+'' Lee los codigos en linea del MTEXT y devuelve los tramos con su formato.
+'' Siempre termina con un tramo de fin de parrafo. Plain = TEXT, que solo tiene codigos %%.
+'' https://ezdxf.readthedocs.io/en/stable/dxfentities/mtext.html
+Public Function ParseRuns(sText As String, Optional Plain As Boolean = False) As MTextRun[]
 
-    Dim s2, s3, s4 As String
-    Dim p1, p2, p3, p4 As Integer
-    Dim fRect As New Float[]
+    Dim aRuns As New MTextRun[]
+    Dim aSaved As New MTextRun[]
+    Dim st, r As MTextRun
+    Dim c, sCode, sArg As String
+    Dim i, p, iLen As Integer
 
-    Dim iSpace As Integer
-    Dim s5 As String
-    Dim stxWords As String[]
-    Dim dx, LineOffsetX As Float
-    Dim SaltoHecho As Boolean
+    st = New MTextRun
+    st.Height = CurrentTextHeigth
+    st.Font = CurrentTextFont
+    st.WidthFactor = CurrentTextRelScaleX
+    st.Oblique = CurrentTextItalic
+    $sRunBuf = ""
 
-    Dim flxWords, flxPAragraph, flxTemp As New Float[]
+    iLen = Len(sText)
+    i = 1
+    While i <= iLen
+        c = Mid$(sText, i, 1)
 
-    s2 = Utils.RemoveUnicodes(sLine)
-
-    'If InStr(s2, "por lado") > 0 Then Stop
-
-    ' reemplazo caracteres especiales
-    s2 = Replace(s2, "%%D", "°", gb.IgnoreCase)
-    s2 = Replace(s2, "%%P", "±", gb.IgnoreCase)
-    s2 = Replace(s2, "%%C", "∅", gb.IgnoreCase)
-    If InStr(s2, "%%U") > 0 Then CurrentTextUnderline = True
-    s2 = Replace(s2, "%%U", "", gb.IgnoreCase)
-
-    Do ' proceso la linea hasta que no me queden mas caracteres
-        If Left$(s2, 1) = "{" Then  ' voy a modificar los parametros del estilo de texto
-            TxtStyle = New TextStyle
-            TxtStyles.Add(TxtStyle)
-            s2 = Mid(s2, 2)
-        End If
-
-        If Left$(s2, 1) = "}" Then  ' vuelvo al estilo anterior
-
-            CurrentTextHeigth = OriginalTextHeigth
-            If TxtStyles.Count > 1 Then
-                TxtStyles.Remove(TxtStyles.max)
-                TxtStyle = TxtStyles.Last
-            End If
-            s2 = Mid(s2, 2)
-        End If
-
-        If Left(s2, 1) = "\\" Then
-            Select Case Mid$(s2, 2, 1)
-
-                Case "U" ' ej \U+0045
-                    p2 = InStr(s2, "\\", 1)
-                    If p2 > 0 Then
-                        s2 = Mid(s2, p2 + 1)
+        If c = "%" And Mid$(sText, i + 1, 1) = "%" Then       ' codigos de control %%
+            sCode = LCase(Mid$(sText, i + 2, 1))
+            i += 3
+            Select Case sCode
+                Case "d"
+                    $sRunBuf &= String.Chr(176)                 ' grados
+                Case "p"
+                    $sRunBuf &= String.Chr(177)                 ' mas/menos
+                Case "c"
+                    $sRunBuf &= String.Chr(&H2205)              ' diametro
+                Case "%"
+                    $sRunBuf &= "%"
+                Case "u", "o", "k"
+                    FlushRun(aRuns, st)
+                    If sCode = "u" Then st.Underline = Not st.Underline
+                    If sCode = "o" Then st.Overline = Not st.Overline
+                    If sCode = "k" Then st.Strike = Not st.Strike
+                Case Else
+                    If IsDigit(sCode) Then                      ' %%nnn = caracter por su codigo
+                        p = i
+                        While p < i + 2 And IsDigit(Mid$(sText, p, 1))
+                            Inc p
+                        Wend
+                        Try $sRunBuf &= String.Chr(CInt(Mid$(sText, i - 1, p - i + 1)))
+                        i = p
                     Else
-                        s2 = Mid(s2, 8)
-                    End If
-                    ' es un caracter utf, no hago nada
-
-                Case "f"            ' esta indicado un cambio en la fuente
-                    '  \fVerdana|b0|i0|cxxx|p34;
-                    p1 = InStr(s2, "|")
-                    TxtStyle.FontName = Mid$(s2, 3, p1 - 3)
-                    CurrentTextFont = Lower(TxtStyle.FontName)
-
-                    p1 = InStr(s2, "|b")
-                    If p1 > 0 Then
-                        CurrentTextBold = (Mid$(s2, p1 + 2, 1) = "1")
-                        TxtStyle.Bold = (Mid$(s2, p1 + 2, 1) = "1")
-                    End If
-                    p1 = InStr(s2, "|i")
-                    If p1 > 0 Then
-                        CurrentTextItalic = (Mid$(s2, p1 + 2, 1) = "1")
-                        TxtStyle.Italic = (Mid$(s2, p1 + 2, 1) = "1")
-                    End If
-
-                    p1 = InStr(s2, "|c")    ' codepage
-                    If p1 > 0 Then
-
-                        p2 = InStr(s2, "|", p1 + 1)
-                        ' Try CurrentTextColor = Mid$(s2, p1 + 2, p2 - p1 - 1) = "1"
-                    End If
-                    p1 = p2 + 1
-
-                    p1 = InStr(s2, "|p") ' paragraph
-                    p2 = InStr(s2, ";", p1)
-                    If p1 > 0 Then
-
-                        'CurrentTextHeigth = CFloat(Mid$(s2, p1 + 2, p2 - p1 - 2)) / 100
-                    End If
-
-                    s2 = Mid(s2, p2 + 1)
-
-                Case "C"            ' cambio de color
-
-                    p2 = InStr(s2, ";", 1)
-
-                    TxtStyle.cadColor = gcd.GetGBColor(CInt(Mid(s2, 3, p2 - 3)))
-
-                    s2 = Mid(s2, p2 + 1)
-
-                    ' Case "\\P"            ' New line
-                    '     CurrentTextPosY -= glx.TextExtends("XXX", CurrentTextHeigth)[1] * 1.2
-                    '     CurrentTextPosX = OriginalTextPosX
-                    '     NewLine = True
-                    '     s2 = Mid(s2, 3)
-                    '     If Len(s2) > 0 Then ProcessPart(s2)
-
-                Case "p"            ' no se que significa esto, suele venir \p12.55;
-                    ' \pxqc = centered
-                    ' \pxqr = right
-                    ' \pxql = left
-                    If Left(s2, 5) = "\\pxql" Then CurrentParagraphAlignment = 0
-                    If Left(s2, 5) = "\\pxqc" Then CurrentParagraphAlignment = 1
-                    If Left(s2, 5) = "\\pxqr" Then CurrentParagraphAlignment = 2
-
-                    p2 = InStr(s2, ";", 1)
-                    s2 = Mid(s2, p2 + 1)
-
-                    ' Case "\\t", "^I"            ' tab avanzo 4-texto anterior
-                    '   ' TODO: verificar sin Tab=4 espacios
-                    '   If LastTextLengh > 4 Then sTab = "    " Else sTab = Space(4 - LastTextLengh)
-                    '   s2 = stab & Mid(s2, 3)
-                    '   If Len(s2) > 0 Then ProcessPart(s2)
-                    '   LastTextLengh = 0
-
-                Case "T" 'Adjusts the space between characters. Valid values range from a minimum of .75 to 4 times the original spacing between characters.
-                    p2 = InStr(s2, ";", 1)
-                    s2 = Mid(s2, p2 + 1)
-
-                Case "Q"  '\Q angle; changes obliquing angle
-                    s2 = Mid(s2, 3)
-                Case "O"  '\O changes to overline
-                    s2 = Mid(s2, 3)
-                    CurrentTextOverline = True
-                Case "o"  '\O changes to overline
-                    s2 = Mid(s2, 3)
-                    CurrentTextOverline = False
-
-                Case "L"  '\O changes to underline
-                    s2 = Mid(s2, 3)
-                    CurrentTextUnderline = True
-                Case "l"  'changes to underline
-                    s2 = Mid(s2, 3)
-                    CurrentTextUnderline = False
-
-                Case "W"            ' \W value; changes width factor To produce wide text
-                    p2 = InStr(s2, ";", 1)
-                    CurrentTextPosX += CFloat(Mid(s2, 3, p2 - 3))
-                    s2 = Mid(s2, p2 + 1)
-                Case "S"            ' fracciones
-                    p2 = InStr(s2, ";", 1)
-
-                    s2 = Mid(s2, 3, p2 - 3) & " " & Mid(s2, p2 + 1)
-                Case "A"            ' Sets the alignment value; valid values: 0, 1, 2(bottom, center, top)
-
-                    ' extraigo el texto puro para poder calcular bien el centrado
-                    'CurrentTextAlignmentVertical = CInt(Mid(s2, 3, 1))
-                    p2 = InStr(s2, ";", 1)
-                    s2 = Mid(s2, p2 + 1)
-                    '     If CurrentTextAlignmentVertical = 1 Then ' es mid
-                    '
-                    '
-                    '     fAlign = glx.TextExtends(s2, CurrentTextHeigth)
-                    '     'fAlign[0] *= -1
-                    '     'fAlign[1] *= 1
-                    '
-                    '     puntos.Rotate(fAlign, CurrentTextAngle / 180 * Pi)
-                    '     'CurrentTextPosX -= fAlign[0] * 0.5
-                    '
-                    '     ' alineo Y
-                    '     CurrentTextPosY += fAlign[1] * 0.5
-                    '
-                    '     ' pero , y si esta rotado el texto???
-                    '
-                    '     ' Else
-                    '     '   Stop
-                    '
-                    ' End If
-
-                Case "H"            ' cambia la altura del texto
-
-                    p2 = InStr(s2, ";", 1)
-                    s3 = Mid(s2, 3, p2 - 3)
-                    If InStr(s3, "x") > 0 Then  ' cambia x veces la altura actual
-                        CurrentTextHeigth *= CFloat(Left(s3, -1))
-                    Else
-                        CurrentTextHeigth = CFloat(s3)
+                        $sRunBuf &= "%%" & sCode
                     Endif
-                    s2 = Mid(s2, p2 + 1)
-
-                Case Else            ' codigo no imprementado, lo paso de largo;
-                    p2 = InStr(s2, ";", 1)
-                    If p2 > 0 Then
-                        s2 = Mid(s2, p2 + 1)
-                    Else
-                        s2 = Mid(s2, 3)
-                    End If
             End Select
-        Else ' es texto
 
-            ' es un texto, pero puede terminar en un scape o cambio de TeextStyles
-            p2 = InStr(s2, "\\")
-            If p2 = 0 Then p2 = 1000 'Else Stop
-            p3 = InStr(s2, "}")
-            If p3 = 0 Then p3 = 1000 'Else Stop
-            p4 = InStr(s2, "{")
-            If p4 = 0 Then p4 = 1000
-
-            If p3 < p2 Then p2 = p3
-            If p4 < p2 Then p2 = p4
-
-            If p2 < 1000 Then
-
-                s5 = Left(s2, p2 - 1)       ' s5 es el texto puro
-                s2 = Mid(s2, p2)            ' s2 es el resto , a procesar
-            Else
-                s5 = s2
-                s2 = ""
-            Endif
-
-            '
-            ' If p2 = 1 Then ' es un escape desconocido
-            '     p2 = InStr(s2, ";")
-            '     If p2 = 0 Then
-            '         s2 = Mid(s2, 3)
-            '     Else
-            '         s2 = Mid(s2, p2 + 1)
-            '     End If
-            '     If Len(s2) > 0 Then ProcessPart(s2)
-            '
-            ' Else
-            'If InStr(s5, "C(1)") > 0 Then Stop
-            s5 = Utils.ProcessTabs(s5)
-            s5 = Trim(s5)
-            If gcd.FontReplacements.Exist(CurrentTextFont) Then
-                CurrentTextFont = gcd.FontReplacements[CurrentTextFont]
-            Else
-                CurrentTextFont = "romans"
-            Endif
-
-            glx.SelectFont(CurrentTextFont)
-            If esperar Then Stop
-            ' tengo que trimar?
-            If TrimText Then
-                stxWords = Split(s5, " ")
-                Dim iWordsFit As Integer
-                iWordsFit = stxWords.Max
-                ' voy testeando a ver cuantas palabras entran
-                Do ' hasta que no tenga mas palabras
-                    If stxWords.Count = 0 Then
-                        s5 = ""
-
-                        Break
-                    Endif
-                    ' armo la frase con las palabras
-
-                    s4 = ""
-                    For iSpace = 0 To iWordsFit - 1
-                        s4 &= stxWords[iSpace] & " "
-                    Next
-                    s4 &= stxWords[iWordsFit]
-
-                    'veo si entra
-                    fRect = glx.TextExtends(s4, CurrentTextHeigth,, CurrentTextItalic)
-                    'bug fix para fRect nulo
-                    If fRect = Null Then frect = [0, 0, 0, 0]
-                    If fRect.Count = 0 Then frect = [0, 0, 0, 0]
-                    If (CurrentTextBoxWidth > (fRect[2] - fRect[0])) Or (iWordsFit = 0) Then '  entra o no me queda otra opcion
-                        s5 = s4 ' s5 es el texto a trazar
-
-                        ' armo lo que me falta, pero primero verifico que me queden palabras
-                        If iWordsFit < stxWords.Max Then
-                            NewLine = True  ' me faltaron palabras
-                            Trimmed = True
-                            s2 = ""
-                            For iSpace = iWordsFit + 1 To stxWords.Max - 1
-
-                                s2 &= stxWords[iSpace] & " "
-                            Next
-                            s2 &= stxWords[stxWords.Max]
-
-                        Endif
-
-                        Break
+        Else If c = "\\" And Not Plain Then
+            sCode = Mid$(sText, i + 1, 1)
+            Select Case sCode
+                Case "P", "X", "N"                              ' nuevo parrafo (X: en cotas, N: columna)
+                    FlushRun(aRuns, st)
+                    r = st.Copy()
+                    r.Kind = MTextRun.KindParagraph
+                    aRuns.Add(r)
+                    i += 2
+                Case "~"
+                    $sRunBuf &= Chr$(1)                         ' espacio que no corta el renglon
+                    i += 2
+                Case "\\", "{", "}"
+                    $sRunBuf &= sCode
+                    i += 2
+                Case "L", "l", "O", "o", "K", "k"
+                    FlushRun(aRuns, st)
+                    If sCode = "L" Then st.Underline = True
+                    If sCode = "l" Then st.Underline = False
+                    If sCode = "O" Then st.Overline = True
+                    If sCode = "o" Then st.Overline = False
+                    If sCode = "K" Then st.Strike = True
+                    If sCode = "k" Then st.Strike = False
+                    i += 2
+                Case "U"                                        ' \U+00B0
+                    If Mid$(sText, i + 2, 1) = "+" Then
+                        Try $sRunBuf &= String.Chr(Val("&H" & Mid$(sText, i + 3, 4) & "&"))
+                        i += 7
                     Else
-                        Dec iWordsFit
+                        i += 2
+                    Endif
+                Case "M"                                        ' \M+nXXXX multibyte, no lo soporto
+                    i += 8
+                Case Else                                       ' codigos con valor, terminan en ;
+                    p = InStr(sText, ";", i + 2)
+                    If p = 0 Then
+                        i += 2
+                        Continue
+                    Endif
+                    sArg = Mid$(sText, i + 2, p - i - 2)
+                    i = p + 1
+                    FlushRun(aRuns, st)
+                    Select Case sCode
+                        Case "H"
+                            st.Height = RelValue(sArg, st.Height)
+                        Case "W"
+                            st.WidthFactor = RelValue(sArg, st.WidthFactor)
+                        Case "T"
+                            st.Tracking = RelValue(sArg, st.Tracking)
+                        Case "Q"
+                            st.Oblique = ToFloat(sArg, 0)
+                        Case "A"
+                            st.VAlign = CInt(ToFloat(sArg, 0))
+                            ' \C y \c (colores) no se usan: todo el texto va del color de la entidad
+                        Case "f", "F"
+                            ParseFont(sArg, st)
+                        Case "p"
+                            ParseParagraph(sArg, st)
+                        Case "S"
+                            aRuns.Add(MakeStack(sArg, st))
+                    End Select
+            End Select
 
-                    End If
+        Else If c = "{" And Not Plain Then
+            FlushRun(aRuns, st)
+            aSaved.Add(st.Copy())
+            Inc i
 
-                Loop
+        Else If c = "}" And Not Plain Then
+            FlushRun(aRuns, st)
+            If aSaved.Count > 0 Then st = aSaved.Pop()
+            Inc i
 
-            End If
-            If s5 = "" Then Break
-            SaltoHecho = False
+        Else If c = "\t" Then
+            $sRunBuf &= "    "
+            Inc i
 
-            flxTemp = glx.DrawTextPoly(s5, CurrentTextHeigth,, -15 * CurrentTextItalic, CurrentTextRelScaleX)
-            fRect = puntos.Limits(flxTemp)
+        Else If c = "^" And Mid$(sText, i + 1, 1) = "I" Then  ' tab en notacion caret
+            $sRunBuf &= "    "
+            i += 2
 
-            If CurrentTextUnderline Then
-                flxTemp.Insert([fRect[0], fRect[1] - CurrentTextHeigth * 0.2, fRect[2], fRect[1] - CurrentTextHeigth * 0.2])
+        Else If c = "\n" Then
+            FlushRun(aRuns, st)
+            r = st.Copy()
+            r.Kind = MTextRun.KindParagraph
+            aRuns.Add(r)
+            Inc i
+
+        Else If c = "\r" Then
+            Inc i
+
+        Else
+            $sRunBuf &= c
+            Inc i
+        Endif
+    Wend
+
+    FlushRun(aRuns, st)
+    r = st.Copy()
+    r.Kind = MTextRun.KindParagraph
+    aRuns.Add(r)
+
+    Return aRuns
+
+End
+
+Private Sub FlushRun(aRuns As MTextRun[], st As MTextRun)
+
+    Dim r As MTextRun
+
+    If $sRunBuf = "" Then Return
+    r = st.Copy()
+    r.Kind = MTextRun.KindText
+    r.Text = $sRunBuf
+    aRuns.Add(r)
+    $sRunBuf = ""
+
+End
+
+'' Valor de un codigo: "2" absoluto, "0.5x" relativo al actual
+Private Function RelValue(sArg As String, fCurrent As Float) As Float
+
+    Dim f As Float
+
+    If LCase(Right$(sArg, 1)) = "x" Then
+        f = ToFloat(Left$(sArg, -1), 1) * fCurrent
+    Else
+        f = ToFloat(sArg, fCurrent)
+    Endif
+    If f <= 0 Then Return fCurrent
+    Return f
+
+End
+
+Private Function ToFloat(sValue As String, fDefault As Float) As Float
+
+    Dim f As Float
+
+    Try f = CFloat(Trim(sValue))
+    If Error Then Return fDefault
+    Return f
+
+End
+
+'' \fArial|b1|i0|c0|p34;  o  \Fromans;
+Private Sub ParseFont(sArg As String, st As MTextRun)
+
+    Dim aParts As String[]
+    Dim i As Integer
+
+    aParts = Split(sArg, "|")
+    If aParts.Count = 0 Then Return
+    st.Font = ResolveFont(aParts[0], CurrentTextFont)
+    For i = 1 To aParts.Max
+        Select Case Left$(aParts[i], 1)
+            Case "b"
+                st.Bold = Mid$(aParts[i], 2) = "1"
+            Case "i"
+                st.Italic = Mid$(aParts[i], 2) = "1"
+        End Select
+    Next
+
+End
+
+'' \pxqc;  \pi-3,l3,t3;  \pxql,i1,l2;  (las sangrias van en alturas de texto)
+Private Sub ParseParagraph(sArg As String, st As MTextRun)
+
+    Dim s As String
+
+    For Each s In Split(sArg, ",")
+        If Left$(s, 1) = "x" Then s = Mid$(s, 2)
+        Select Case Left$(s, 1)
+            Case "q"
+                Select Case Mid$(s, 2, 1)
+                    Case "l"
+                        st.ParAlign = 0
+                    Case "c"
+                        st.ParAlign = 1
+                    Case "r"
+                        st.ParAlign = 2
+                    Case "j", "d"
+                        st.ParAlign = 3
+                    Case Else
+                        st.ParAlign = -1
+                End Select
+            Case "i"
+                st.IndentFirst = ToFloat(Mid$(s, 2), 0)
+            Case "l"
+                st.IndentLeft = ToFloat(Mid$(s, 2), 0)
+            Case "r"
+                st.IndentRight = ToFloat(Mid$(s, 2), 0)
+        End Select
+    Next
+
+End
+
+'' \S1/2;  \S1#4;  \S+0.1^ -0.2;
+Private Function MakeStack(sArg As String, st As MTextRun) As MTextRun
+
+    Dim r As MTextRun
+    Dim i As Integer
+    Dim c As String
+
+    r = st.Copy()
+    r.Kind = MTextRun.KindStack
+    r.Text = ""
+    r.StackType = "^"
+    r.StackTop = sArg
+    r.StackBottom = ""
+
+    i = 1
+    While i <= Len(sArg)
+        c = Mid$(sArg, i, 1)
+        If c = "\\" Then                        ' caracter escapado
+            i += 2
+            Continue
+        Endif
+        If c = "^" Or c = "/" Or c = "#" Then
+            r.StackType = c
+            r.StackTop = Unescape(Left$(sArg, i - 1))
+            r.StackBottom = Unescape(Mid$(sArg, i + 1))
+            If c = "^" And Left$(r.StackBottom, 1) = " " Then r.StackBottom = Mid$(r.StackBottom, 2)
+            Break
+        Endif
+        Inc i
+    Wend
+
+    Return r
+
+End
+
+Private Function Unescape(s As String) As String
+
+    s = Replace(s, "\\/", "/")
+    s = Replace(s, "\\#", "#")
+    s = Replace(s, "\\^", "^")
+    Return s
+
+End
+
+'' Parte un tramo en palabras y espacios para poder cortar renglones
+Private Sub SplitWords(r As MTextRun, aPieces As MTextRun[])
+
+    Dim rPart As MTextRun
+    Dim i As Integer
+    Dim c, sPart As String
+    Dim bSpace As Boolean
+
+    For i = 1 To Len(r.Text)
+        c = Mid$(r.Text, i, 1)
+        If sPart <> "" And (c = " ") <> bSpace Then
+            rPart = r.Copy()
+            rPart.Text = sPart
+            aPieces.Add(rPart)
+            sPart = ""
+        Endif
+        bSpace = c = " "
+        sPart &= c
+    Next
+    If sPart <> "" Then
+        rPart = r.Copy()
+        rPart.Text = sPart
+        aPieces.Add(rPart)
+    Endif
+
+End
+
+Private Sub MeasureRun(r As MTextRun)
+
+    Dim hs, wTop, wBottom As Float
+
+    r.Width = 0
+    If r.Kind = MTextRun.KindParagraph Then Return
+
+    glx.SelectFont(r.Font)
+    If r.Kind = MTextRun.KindText Then
+        r.Width = glx.TextAdvance(Replace(r.Text, Chr$(1), " "), r.Height, r.WidthFactor, r.Tracking)
+        If r.Bold And Not r.IsSpace() Then r.Width += r.Height * BoldOffset
+    Else
+        hs = r.Height * StackScale
+        wTop = glx.TextAdvance(r.StackTop, hs, r.WidthFactor, r.Tracking)
+        wBottom = glx.TextAdvance(r.StackBottom, hs, r.WidthFactor, r.Tracking)
+        If r.StackType = "#" Then
+            r.Width = wTop + wBottom + r.Height * 0.5
+        Else
+            r.Width = Max(wTop, wBottom) + r.Height * 0.1
+        Endif
+    Endif
+
+End
+
+Private Function RunOblique(r As MTextRun) As Float
+
+    If r.Italic Then Return r.Oblique + 15
+    Return r.Oblique
+
+End
+
+'' Genera la geometria de un tramo con su linea base en fBase
+Private Sub DrawRun(r As MTextRun, fX As Float, fBase As Float, fLineH As Float)
+
+    Dim fY, h, hs, wTop, wBottom, fW As Float
+    Dim sText As String
+
+    h = r.Height
+    fY = fBase
+    If h < fLineH Then                          ' \A: tramos mas chicos que el renglon
+        If r.VAlign = 1 Then fY += (fLineH - h) / 2
+        If r.VAlign = 2 Then fY += fLineH - h
+    Endif
+
+    glx.SelectFont(r.Font)
+
+    If r.Kind = MTextRun.KindText Then
+        sText = Replace(r.Text, Chr$(1), " ")
+        If InStr(sText, Chr$(3)) Then           ' aca esta el cursor del editor (coordenadas locales, antes del giro)
+            CaretFound = True
+            CaretX0 = fX + glx.TextAdvance(Left$(sText, InStr(sText, Chr$(3)) - 1), h, r.WidthFactor, r.Tracking)
+            CaretY0 = fY - h * 0.25
+            CaretX1 = CaretX0
+            CaretY1 = fY + h * 1.1
+        Endif
+        If Trim(sText) <> "" Then AddGlyphs(glx.DrawTextPoly(sText, h, 0, RunOblique(r), r.WidthFactor, r.Tracking), fX, fY, r)
+
+    Else If r.Kind = MTextRun.KindStack Then
+        hs = h * StackScale
+        wTop = glx.TextAdvance(r.StackTop, hs, r.WidthFactor, r.Tracking)
+        wBottom = glx.TextAdvance(r.StackBottom, hs, r.WidthFactor, r.Tracking)
+        If r.StackType = "#" Then                   ' fraccion en diagonal
+            AddGlyphs(glx.DrawTextPoly(r.StackTop, hs, 0, RunOblique(r), r.WidthFactor, r.Tracking), fX, fY + h * 0.45, r)
+            AddGeom([fX + wTop + h * 0.05, fY - h * 0.15, fX + wTop + h * 0.45, fY + h * 1.15])
+            AddGlyphs(glx.DrawTextPoly(r.StackBottom, hs, 0, RunOblique(r), r.WidthFactor, r.Tracking), fX + wTop + h * 0.5, fY - h * 0.15, r)
+        Else
+            fW = Max(wTop, wBottom)
+            If r.StackType = "/" Then               ' centrada, con raya
+                AddGlyphs(glx.DrawTextPoly(r.StackTop, hs, 0, RunOblique(r), r.WidthFactor, r.Tracking), fX + h * 0.05 + (fW - wTop) / 2, fY + h * 0.65, r)
+                AddGlyphs(glx.DrawTextPoly(r.StackBottom, hs, 0, RunOblique(r), r.WidthFactor, r.Tracking), fX + h * 0.05 + (fW - wBottom) / 2, fY - h * 0.35, r)
+                AddGeom([fX, fY + h * 0.5, fX + fW + h * 0.1, fY + h * 0.5])
+            Else                                    ' ^ tolerancias: a la izquierda, sin raya
+                AddGlyphs(glx.DrawTextPoly(r.StackTop, hs, 0, RunOblique(r), r.WidthFactor, r.Tracking), fX + h * 0.05, fY + h * 0.6, r)
+                AddGlyphs(glx.DrawTextPoly(r.StackBottom, hs, 0, RunOblique(r), r.WidthFactor, r.Tracking), fX + h * 0.05, fY - h * 0.3, r)
             Endif
+        Endif
+    Endif
 
-            If CurrentTextOverline Then
-                flxTemp.Insert([fRect[0], fRect[3] + CurrentTextHeigth * 0.2, fRect[2], fRect[3] + CurrentTextHeigth * 0.2])
-            Endif
+    If r.Underline Then AddGeom([fX, fY - h * 0.2, fX + r.Width, fY - h * 0.2])
+    If r.Overline Then AddGeom([fX, fY + h * 1.2, fX + r.Width, fY + h * 1.2])
+    If r.Strike Then AddGeom([fX, fY + h * 0.45, fX + r.Width, fY + h * 0.45])
 
-            If CurrentTextCrossed Then
-                flxTemp.Insert([fRect[0], (fRect[3] + fRect[1]) / 2, fRect[2], (fRect[3] + fRect[1]) / 2])
-            Endif
+End
 
-            flxWords.Insert(flxTemp)
-            'puntos.Translate(flxWords, LineOffsetX, CurrentTextPosY)
+Private Sub AddGlyphs(flx As Float[], fX As Float, fY As Float, r As MTextRun)
 
-            'If NewLine Or trimmed Or s2 = "" Or s2 = "}" Then         ' necesito una nueva linea porque tuve que ajustar el texto
-            fRect = puntos.Limits(flxWords)
-            If CurrentParagraphAlignment = -1 Then  ' no specification
-                If CurrentTextAlignment = 0 Then
-                    dx = 0
-                Else If CurrentTextAlignment = 1 Then
-                    dx = -(fRect[2] - fRect[0]) / 2
-                Else If CurrentTextAlignment = 2 Then
-                    dx = -(fRect[2] - fRect[0])
-                End If
-            End If
-            If CurrentParagraphAlignment = 0 Then
-                If CurrentTextAlignment = 0 Then
-                    dx = 0
-                Else If CurrentTextAlignment = 1 Then
-                    dx = -CurrentTextBoxWidth / 2
-                Else If CurrentTextAlignment = 2 Then
-                    dx = -CurrentTextBoxWidth
-                End If
-            End If
-            If CurrentParagraphAlignment = 1 Then
-                If CurrentTextAlignment = 0 Then
-                    dx = CurrentTextBoxWidth / 2 - (fRect[2] - fRect[0]) / 2
-                Else If CurrentTextAlignment = 1 Then
-                    dx = -(fRect[2] - fRect[0]) / 2
-                Else If CurrentTextAlignment = 2 Then
-                    dx = -CurrentTextBoxWidth / 2 - (fRect[2] - fRect[0]) / 2
-                End If
-            End If
-            If CurrentParagraphAlignment = 2 Then
-                If CurrentTextAlignment = 0 Then
-                    dx = CurrentTextBoxWidth - (fRect[2] - fRect[0])
-                Else If CurrentTextAlignment = 1 Then
-                    dx = CurrentTextBoxWidth / 2 - (fRect[2] - fRect[0])
-                Else If CurrentTextAlignment = 2 Then
-                    dx = -(fRect[2] - fRect[0])
-                End If
-            End If
+    Dim flxBold As Float[]
 
-            'Endif
-            puntos.Translate(flxWords, dx + LineOffsetX, CurrentTextPosY)
-            LineOffsetX += fRect[2]
-            flxPAragraph.Insert(flxWords)
-            flxWords.Clear
+    puntos.Translate(flx, fX, fY)
+    If r.Bold Then                              ' negrita: repito el trazo un poco corrido
+        flxBold = flx.Copy()
+        puntos.Translate(flxBold, r.Height * BoldOffset, 0)
+        flx.Insert(flxBold)
+    Endif
+    AddGeom(flx)
 
-            If NewLine Then         ' necesito una nueva linea porque tuve que ajustar el texto
-                CurrentTextPosY -= CurrentTextHeigth * 1.4
-                SaltoHecho = True
-                Lines += 1
-                LineOffsetX = 0
+End
 
-            Endif
+Private Sub AddGeom(flx As Float[])
 
-        End If
-
-    Loop Until s2 = ""
-    ' alinemaiento produce problemas porque se refiere a todo el texto y no a la parte
-
-    flxText.insert(flxPAragraph)
-    If Not SaltoHecho Then CurrentTextPosY -= CurrentTextHeigth * 1.4
-
-    Return ""
+    $flxAll.Insert(flx)
 
 End
 
 Public Function SaveDxfData(e As Entity) As Boolean
 
-    Dim i As Integer, sText As String
+    Dim i As Integer, sText, sFull As String
+    Dim pIns As Punto3d
+    Dim fWidth As Float
+    Dim iAttach As Integer
 
-    ' stxExport.insert(["MTEXT", dxf.codEntity])
+    ' el DXF no tiene los dos puntos: va el punto de insercion, el ancho y el angulo que salen de ellos
+    sFull = e.sParam[Me.sdaText]
+    iAttach = CInt(e.fParam[Me.ipaAttchmPoint])
+    If e.Gender = "MTEXT" Then
+        If e.P.Count < 2 Then MakeTwoPoints(e)
+        SyncFields(e)
+        If Mode(e) = ModeFit Then
+            ' Fit no existe en el DXF: guardo el factor de ancho que lo estira, en una caja un poco mas ancha
+            Me.BuildGeometry(e)
+            sFull = "{\\W" & CStr(Round(cadMText.CurrentTextRelScaleX, -6)) & ";" & sFull & "}"
+            iAttach = AttachRow(e) * 3 + 1
+        Endif
+    Endif
+    pIns = InsertionOf(e)
+    fWidth = e.fParam[Me.ipaRectangleWidth]
+    If Mode(e) = ModeFit Then fWidth *= 1.001
+
     ' Los datos comunes a todas las entidades son guardados por la rutina que llama a esta
     dxf.SaveCodeInv("AcDbMText", "100")
 
-    dxf.SaveCodeInv(CStr(e.P[0].x), dxf.codX0)                    ' insertion point
-    dxf.SaveCodeInv(CStr(e.P[0].y), dxf.codY0)
+    dxf.SaveCodeInv(CStr(pIns.x), dxf.codX0)                    ' insertion point
+    dxf.SaveCodeInv(CStr(pIns.y), dxf.codY0)
     dxf.SaveCodeInv("0", dxf.codZ0)
 
     dxf.SaveCodeInv(CStr(e.fParam[Me.ipaTextHeight]), "40")       ' heigth
-    dxf.SaveCodeInv(CStr(e.fParam[Me.ipaRectangleWidth]), "41")   ' Rectang width
-    dxf.SaveCodeInv(e.fParam[Me.ipaAttchmPoint], "71")            ' attchm point
+    dxf.SaveCodeInv(CStr(fWidth), "41")                           ' Rectang width
+    dxf.SaveCodeInv(iAttach, "71")                                ' attchm point
     dxf.SaveCodeInv(e.fParam[Me.ipaDrawingDirec], "72")           ' drawing direction
 
-    If e.sParam[0].Len > 250 Then
-        dxf.SaveCodeInv(Left(e.sParam[Me.sdaText], 250), "1")                ' Texti = 250
+    If sFull.Len > 250 Then
+        dxf.SaveCodeInv(Left(sFull, 250), "1")                ' Texti = 250
         i = 251         ' next offset
         Do
 
-            If e.sParam[0].Len - i > 250 Then
-                sText = Mid(e.sParam[0], i, 250)
+            If sFull.Len - i > 250 Then
+                sText = Mid(sFull, i, 250)
                 dxf.SaveCodeInv(sText, "3")                ' Texti += 250
                 i += 250
             Else
-                sText = Mid(e.sParam[0], i)
+                sText = Mid(sFull, i)
                 dxf.SaveCodeInv(sText, "3")                ' Texti += 250
                 Break
 
@@ -872,7 +1187,7 @@ Public Function SaveDxfData(e As Entity) As Boolean
 
         Loop
     Else
-        dxf.SaveCodeInv(e.sParam[Me.sdaText], "1")                ' Text
+        dxf.SaveCodeInv(sFull, "1")                ' Text
     Endif
 
     dxf.SaveCodeInv(e.sParam[Me.sdaStyle], "7")               ' text style
@@ -932,7 +1247,7 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     Endif
     e.sParam[Me.sdaStyle] = Lower(e.sParam[Me.sdaStyle])
     If e.sParam[Me.sdaStyle] = "" Then e.sParam[Me.sdaStyle] = "standard"
-    'If e.id = "1B45BD" Then Stop
+    If e.Gender = "MTEXT" Then MakeTwoPoints(e)        ' punto 1 y punto 2, ver los grips
 
     Return True
 
@@ -942,13 +1257,18 @@ End
 Public Function GenerateGrips(e As Entity) As Integer
 
     Dim g As Grip
-    Dim iCount As Integer
-    Dim OffsetWidth As Float
-    Dim flxGrip As New Float[]
+    Dim pA As Punto3d
+    Dim fAng, fH, OffsetWidth As Float
+
+    If e.Gender = "MTEXT" Then Return GripsTwoPoints(e)       ' el ATTDEF sigue con los de antes
+
+    pA = e.P[Me.AnchorIndex(e)]
+    fAng = Me.AngleRad(e)
+    fH = e.fParam[Me.ipaTextHeight]
 
     g = New Grip
     g.Shape = 0
-    g.p = e.P[0].Copy()
+    g.p = pA.Copy()
     g.pRef = g.P.Copy()
     g.Action = 0 ' mover
     g.AsociatedEntity = e
@@ -956,39 +1276,34 @@ Public Function GenerateGrips(e As Entity) As Integer
     gcd.Drawing.Sheet.Grips.Add(g)
     g.ToolTip = ("Move base")
 
-    ' GRIP PARA EL ANCHO DEL AREA DEL TEXTO
-    ' tengo que ver el attch point
-    Select Case e.fParam[Me.ipaAttchmPoint]
-        Case 1, 4, 7  ' left
-            OffsetWidth = e.fParam[Me.ipaRectangleWIdth]
-        Case 2, 5, 8  ' mid
-            OffsetWidth = e.fParam[Me.ipaRectangleWIdth] / 2
-        Case Else ' rigth
-            OffsetWidth = 0
-    End Select
-    g = New Grip
-    g.Shape = 1
-    flxGrip.Clear
-    flxGrip.Insert([OffsetWidth, 0])
-    puntos.Rotate(flxGrip, e.fParam[Me.ipaTextAngle])
-    g.p = puntos.P3d(e.P[0].x + flxGrip[0], e.P[0].y + flxGrip[1], e.P[0].z)
-    g.pRef = g.P.Copy()
-    g.Action = 1 ' este dato es propio de la clase
-    g.AsociatedEntity = e
-    g.AsociatedPoint = 0
-    g.DrawLineToAsociatedGrip = True
-    g.ToolTip = ("Change width")
-    gcd.Drawing.Sheet.Grips.Add(g)
+    ' GRIP PARA EL ANCHO DEL AREA DEL TEXTO (solo MTEXT); depende del punto de insercion
+    If e.Gender = "MTEXT" Then
+        Select Case CInt(e.fParam[Me.ipaAttchmPoint])
+            Case 2, 5, 8  ' mid
+                OffsetWidth = e.fParam[Me.ipaRectangleWIdth] / 2
+            Case 3, 6, 9  ' rigth
+                OffsetWidth = -e.fParam[Me.ipaRectangleWIdth]
+            Case Else ' left
+                OffsetWidth = e.fParam[Me.ipaRectangleWIdth]
+        End Select
+        g = New Grip
+        g.Shape = 1
+        g.p = puntos.P3d(pA.x + OffsetWidth * Cos(fAng), pA.y + OffsetWidth * Sin(fAng), pA.z)
+        g.pRef = g.P.Copy()
+        g.Action = 1 ' este dato es propio de la clase
+        g.AsociatedEntity = e
+        g.AsociatedPoint = 0
+        g.DrawLineToAsociatedGrip = True
+        g.ToolTip = ("Change width")
+        gcd.Drawing.Sheet.Grips.Add(g)
+    Endif
 
     ' GRIP PARA CAMBIAR LA ALTURA DEL TEXTO
     g = New Grip
     g.Shape = 1
-    flxGrip.Clear
-    flxGrip.Insert([0, e.fParam[Me.ipaTextHeight]])
-    puntos.Rotate(flxGrip, e.fParam[Me.ipaTextAngle])
-    g.p = puntos.P3d(e.P[0].x + flxGrip[0], e.P[0].y + flxGrip[1], e.P[0].z)
+    g.p = puntos.P3d(pA.x - fH * Sin(fAng), pA.y + fH * Cos(fAng), pA.z)
     g.pRef = g.P.Copy()
-    g.Value = e.fParam[Me.ipaTextHeight]
+    g.Value = fH
     g.Action = 2
     g.AsociatedEntity = e
     g.AsociatedPoint = 0
@@ -996,12 +1311,10 @@ Public Function GenerateGrips(e As Entity) As Integer
     g.ToolTip = ("Text height")
     gcd.Drawing.Sheet.Grips.Add(g)
 
+    ' GRIP PARA GIRAR, del lado opuesto al texto
     g = New Grip
     g.Shape = 2
-    flxGrip.Clear
-    flxGrip.Insert([-e.fParam[Me.ipaTextHeight], 0])
-    puntos.Rotate(flxGrip, e.fParam[Me.ipaTextAngle])
-    g.p = puntos.P3d(e.P[0].x + flxGrip[0], e.P[0].y + flxGrip[1], e.P[0].z)
+    g.p = puntos.P3d(pA.x - fH * Cos(fAng), pA.y - fH * Sin(fAng), pA.z)
     g.pRef = g.P.Copy()
     g.Action = 3
     g.AsociatedEntity = e
@@ -1011,67 +1324,140 @@ Public Function GenerateGrips(e As Entity) As Integer
     g.DrawLineToAsociatedGrip = True
     g.ToolTip = ("Rotate text")
     gcd.Drawing.Sheet.Grips.Add(g)
-    '
-    ' g = New Grip
-    ' g.Shape = 1
-    ' g.X = e.P[0]
-    ' g.Y = e.P[1] + e.fParam[0]
-    ' g.Action = 1
-    ' g.AsociatedEntity = e
-    ' g.AsociatedPoint = 0
-    ' g.ToolTip = ("Change radius")
-    ' gcd.Drawing.Sheet.Grips.Add(g)
-    '
-    ' g = New Grip
-    ' g.Shape = 1
-    ' g.X = e.P[0]
-    ' g.Y = e.P[1] - e.fParam[0]
-    ' g.Action = 1
-    ' g.AsociatedEntity = e
-    ' g.AsociatedPoint = 0
-    ' g.ToolTip = ("Change radius")
-    ' gcd.Drawing.Sheet.Grips.Add(g)
-
-    Return iCount
 
 End
 
 Public Function GripEdit(g As Grip) As Boolean
 
     Dim e As Entity
-    Dim r1 As Float
-    Dim fAngle As Float
+    Dim pA As Punto3d
+    Dim fAng, dx, dy, fProj As Float
+
+    e = g.AsociatedEntity
+    If e.Gender = "MTEXT" Then
+        GripEditTwoPoints(g)
+        Return
+    Endif
+    pA = e.P[Me.AnchorIndex(e)]
+    fAng = Me.AngleRad(e)
+    dx = g.P.x - pA.x
+    dy = g.P.y - pA.y
+
+    Select Case g.Action
+        Case 0 ' muevo todo el texto; el z se conserva
+            puntos.TranslateP(e.P, dx, dy, 0)
+
+        Case 1 ' cambiar el ancho: proyeccion sobre la direccion del texto
+            fProj = dx * Cos(fAng) + dy * Sin(fAng)
+            Select Case CInt(e.fParam[Me.ipaAttchmPoint])
+                Case 2, 5, 8
+                    fProj *= 2
+                Case 3, 6, 9
+                    fProj = -fProj
+            End Select
+            If fProj < 0 Then fProj = 0
+            e.fParam[Me.ipaRectangleWIdth] = fProj
+
+        Case 2 ' cambiar la altura: proyeccion sobre la perpendicular
+            fProj = -dx * Sin(fAng) + dy * Cos(fAng)
+            If fProj > 0 Then e.fParam[Me.ipaTextHeight] = fProj
+
+        Case 3 ' rotar
+            Me.SetAngleRad(e, Ang(dx, dy) - Pi)
+
+    End Select
+    Me.BuildGeometry(e)
+    gcd.Drawing.Sheet.Grips.Clear
+    Me.GenerateGrips(e)
+
+End
+
+' Grips del MTEXT (ver "grips for mtext.jpg"):
+'   cuadrado 1: mueve todo el texto        cuadrado 2: direccion y ancho de la caja
+'   triangulo a la derecha de 1: alinear a la izquierda
+'   triangulo a la izquierda de 1: alinear a la derecha en el punto 1, sin usar el punto 2
+'   triangulo arriba de 1: alinear abajo   triangulo abajo de 1: alinear arriba
+'   triangulo junto a 2: alinear a la derecha (en el punto 2)
+'   barra entre 1 y 2: Fit
+Public Const GripMove As Integer = 0
+Public Const GripPoint2 As Integer = 10
+Public Const GripAlignLeft As Integer = 11
+Public Const GripAlignRightFree As Integer = 12
+Public Const GripAlignBottom As Integer = 13
+Public Const GripAlignTop As Integer = 14
+Public Const GripAlignRight As Integer = 15
+Public Const GripFit As Integer = 16
+
+Private Function GripsTwoPoints(e As Entity) As Integer
+
+    Dim g As Grip
+    Dim fAng, fOff As Float
+    Dim iFirst As Integer
+
+    If e.P.Count < 2 Then Me.BuildGeometry(e)       ' arma los dos puntos
+    fAng = e.fParam[Me.ipaTextAngle]
+    fOff = Config.GripSize * 1.4                     ' pixels desde el punto
+    iFirst = gcd.Drawing.Sheet.Grips.Count
+
+    AddGrip(e, e.P[0], GripMove, 0, 0, 0, ("Move text"))
+    g = AddGrip(e, e.P[1], GripPoint2, 0, 0, 0, ("Direction and width of the text"))
+    g.DrawLineToAsociatedGrip = True
+    g.AsociatedGrip = iFirst
+    AddGrip(e, e.P[0], GripAlignLeft, 3, fOff, fAng, ("Align left"))
+    AddGrip(e, e.P[0], GripAlignRightFree, 3, fOff, fAng + Pi, ("Align right, without point 2"))
+    AddGrip(e, e.P[0], GripAlignBottom, 3, fOff, fAng + Pi / 2, ("Align bottom"))
+    AddGrip(e, e.P[0], GripAlignTop, 3, fOff, fAng - Pi / 2, ("Align top"))
+    AddGrip(e, e.P[1], GripAlignRight, 3, fOff, fAng + Pi, ("Align right"))
+    AddGrip(e, puntos.P3d((e.P[0].x + e.P[1].x) / 2, (e.P[0].y + e.P[1].y) / 2, e.P[0].z), GripFit, 4, 0, fAng, ("Fit between the points"))
+
+End
+
+Private Function AddGrip(e As Entity, p As Punto3d, iAction As Integer, iShape As Integer, fOffset As Float, fDirection As Float, sTip As String) As Grip
+
+    Dim g As New Grip
+
+    g.Shape = iShape
+    g.p = p.Copy()
+    g.pRef = g.P.Copy()
+    g.Action = iAction
+    g.Offset = fOffset
+    g.Direction = fDirection
+    g.AsociatedEntity = e
+    g.AsociatedPoint = -1
+    g.ToolTip = sTip
+    gcd.Drawing.Sheet.Grips.Add(g)
+    Return g
+
+End
+
+'' Los triangulos y la barra cambian la alineacion con un click (no importa donde se suelte el mouse)
+Private Sub GripEditTwoPoints(g As Grip)
+
+    Dim e As Entity
 
     e = g.AsociatedEntity
     Select Case g.Action
-        Case 0 ' mover la base
-            ' el texto se construye en XY, el z de la base se conserva
-            e.P[0].x = g.P.x
-            e.P[0].y = g.P.y
-        Case 1 ' cambiar el ancho
-            ' Angulo entre la posicion del grip original y la nueva
-            fAngle = Ang((g.P.x - e.P[0].x), (g.P.y - e.P[0].y)) - Ang((g.pRef.x - e.P[0].x), (g.pRef.y - e.P[0].y))
-            ' la nueva altura del texto sera
-            r1 = puntos.distancia(e.P[0].x, e.P[0].y, g.P.x, g.P.y)
-
-            e.fParam[Me.ipaRectangleWIdth] = r1 * Cos(fAngle)
-
-        Case 2 ' cambiar la altura
-            ' Angulo entre la posicion del grip original y la nueva
-            fAngle = Ang((g.P.x - e.P[0].x), (g.P.y - e.P[0].y)) - Ang((g.pRef.x - e.P[0].x), (g.pRef.y - e.P[0].y))
-            ' la nueva altura del texto sera
-            r1 = puntos.distancia(e.P[0].x, e.P[0].y, g.P.x, g.P.y)
-
-            e.fParam[Me.ipaTextHeight] = r1 * Cos(fAngle)
-
-        Case 3 ' rotar
-            fAngle = Ang((g.P.x - e.P[0].x), (g.P.y - e.P[0].y)) - Ang((g.pRef.x - e.P[0].x), (g.pRef.y - e.P[0].y))
-
-            fAngle = Ang((g.P.x - e.P[0].x), (g.P.y - e.P[0].y))
-
-            'rotate(e, fAngle - e.fParam[Me.ipaTextAngle])
-            e.fParam[Me.ipaTextAngle] = fAngle - Pi'- e.fParam[Me.ipaTextAngle]
-
+        Case GripMove           ' muevo todo el texto; el z se conserva
+            puntos.TranslateP(e.P, g.P.x - e.P[0].x, g.P.y - e.P[0].y, 0)
+        Case GripPoint2         ' el punto 2: si no habia caja, ahora la hay
+            e.P[1].x = g.P.x
+            e.P[1].y = g.P.y
+            If Mode(e) = ModeFree Then e.fParam[Me.ipaHorizJustif] = ModeBox
+        Case GripAlignLeft
+            e.fParam[Me.ipaHorizJustif] = ModeBox
+            SetAttach(e, AttachRow(e), 0)
+        Case GripAlignRightFree
+            e.fParam[Me.ipaHorizJustif] = ModeFree
+            SetAttach(e, AttachRow(e), 2)
+        Case GripAlignBottom
+            SetAttach(e, 2, AttachCol(e))
+        Case GripAlignTop
+            SetAttach(e, 0, AttachCol(e))
+        Case GripAlignRight
+            e.fParam[Me.ipaHorizJustif] = ModeBox
+            SetAttach(e, AttachRow(e), 2)
+        Case GripFit
+            e.fParam[Me.ipaHorizJustif] = ModeFit
     End Select
     Me.BuildGeometry(e)
     gcd.Drawing.Sheet.Grips.Clear

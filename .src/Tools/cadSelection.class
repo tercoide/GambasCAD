@@ -135,46 +135,24 @@ Public Function Start(Optional ElemToBuild As Variant, Optional _Mode As Integer
 
 End
 
-' Public Sub DblClick()
-'
-'     Dim k As Single
-'     Dim e As Entity
-'     Dim te As Entity
-'
-'
-'
-'     Me.EntityForEdit = clsMouseTracking.CheckAboveEntity(gcd.Xreal(Mouse.x), gcd.Yreal(Mouse.y))
-'     Return
-'
+'' Doble click: sobre un MTEXT abre el editor (los TEXT son solo de lectura); si no, lo de siempre (viewports)
+Public Sub DblClick()
 
-'         gcd.Drawing.iEntity = clsMouseTracking.CheckBestPOI(gcd.Xreal(mouse.x), gcd.Yreal(mouse.Y))
-'
-'     If gcd.Drawing.iEntity[3] >= 0 Then
-'
-'         'Stop
-'         ' I comment the abobe line because its stop my tool also. What is the idea whit stop?
-'         '  aca podes lanzar tu editor de texto u otras propiedades
-'         k = gcd.Drawing.iEntity[3]
-'         e = gcd.Drawing.Entities[k]
-'
-'         ' Select e.Gender
-'         '   Case "Text"
-'         '     If EditingText = False Then
-'         '       ' Copying the entity for undo
-'         '       te = clsEntities.ClonEntity(e)
-'         '       te.Handle = e.Handle
-'         '       ftx = New FText([pnlDrawing.ScreenX + 7, pnlDrawing.ScreenY + pnlDrawing.H - 7], e)
-'         '       ftx.Run()
-'         '       While EditingText = False
-'         '         Wait 0.1
-'         '       Wend
-'         '       gcd.regen
-'         '       EditingText = False
-'         '     Endif
-'         ' End Select
-'     Endif
-'
-' End
+    Dim e As Entity
+
+    e = gcd.Drawing.HoveredEntity
+    If e Then
+        If e.Gender = "MTEXT" Then
+            RectActive = False
+            GripPoint = Null
+            cadTextBuilder.StartEdit(e)
+            Return
+        Endif
+    Endif
+
+    Super.DblClick()
+
+End
 
 Public Function MouseDown()
 
@@ -919,6 +897,8 @@ Public Function FindGrip(x As Float, y As Float) As Grip
 
         If Not p2 Then
             p2 = glx.XYZ(x, y)
+        Else If g.Offset <> 0 Then          ' el grip se ve corrido de su punto (vista en planta)
+            p2 = New Punto3d(p2.x + g.Offset * Cos(g.Direction), p2.y + g.Offset * Sin(g.Direction), p2.z)
         Endif
 
         ' gcd.Metros(Config.GripProximityDistance)

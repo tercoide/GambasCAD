@@ -78,93 +78,231 @@ End
 
 Public Sub SetMtextVars(oe As Entity)
 
-    'If oe.StringData[Me.sdaText] = "DESTINO:" Then Stop
-    cadMText.CurrentTextAngle = oE.fParam[Me.ipaTextAngle]
-    cadMText.CurrentTextItalic = oE.fParam[Me.ipaHorizAngle]
-    cadMText.CurrentTextHeigth = oE.fParam[Me.ipaTextHeight]
-    cadMText.CurrentTextRelScaleX = oE.fParam[Me.ipaRelativeFactor]
-    If cadMText.CurrentTextRelScaleX = 0 Then cadMText.CurrentTextRelScaleX = 1
-    cadMText.CurrentTextColor = gcd.GetGBColor(oE.Colour, oe.pLayer)
-    cadMText.TrimText = False
-    If cadMText.CurrentTextHeigth = 0 Then cadMText.CurrentTextHeigth = 1
+    Dim iH, iV As Integer
 
-    cadMText.OriginalTextPosX = oE.P[0].x    ' nada que corregir
-    cadMText.OriginalTextPosY = oE.P[0].y
-    cadMText.CurrentTextOverline = False
-    cadMText.CurrentTextUnderline = False
-    cadMText.CurrentTextCrossed = False
+    cadMText.PlainText = True                   ' el TEXT no tiene codigos en linea, solo %%
+    cadMText.CurrentTextAngle = oE.fParam[Me.ipaTextAngle]         ' grados
+    cadMText.CurrentTextItalic = oE.fParam[Me.ipaHorizAngle]       ' oblicuo, grados
+    cadMText.CurrentTextHeigth = oE.fParam[Me.ipaTextHeight]
+    If cadMText.CurrentTextHeigth <= 0 Then cadMText.CurrentTextHeigth = 1
+    cadMText.CurrentTextRelScaleX = oE.fParam[Me.ipaRelativeFactor]
+    If cadMText.CurrentTextRelScaleX <= 0 Then cadMText.CurrentTextRelScaleX = 1
+    cadMText.TrimText = False
+    cadMText.CurrentTextBoxWidth = 0
 
     oe.pStyle = gcd.Drawing.TextStyles[oE.sParam[Me.sdaStyle]]
     If Not oe.pStyle Then oe.pStyle = gcd.Drawing.TextStyles[gcd.Drawing.TextStyles.First]
+    cadMText.CurrentTextFont = cadMText.StyleFont(oe.pStyle, "romans")     ' la misma que el MTEXT, porque al guardar pasa a MTEXT
 
-    cadMText.CurrentTextFont = Utils.FileWithoutExtension(oe.pStyle.sFont_3)
+    ' Group 72 and 73 integer codes
+    '
+    ' Group 73/72         0     1       2       3       4     5
+    ' 3 (top)          TLeft TCenter TRight
+    ' 2 (middle)       MLeft MCenter MRight
+    ' 1 (bottom)       BLeft BCenter BRight
+    ' 0 (baseline)     Left  Center  Right  Aligned  Middle Fit
 
-    If gcd.FontReplacements.Exist(cadMText.CurrentTextFont) Then
-        cadMText.CurrentTextFont = gcd.FontReplacements[cadMText.CurrentTextFont]
-    Else
-        cadMText.CurrentTextFont = "romand"
+    iH = CInt(oe.fParam[Me.ipaHorizJustif])
+    iV = CInt(oe.fParam[Me.ipaVertJustif])
+    If iH < 0 Then iH = 0
+
+    With oE.P[Me.AnchorIndex(oe)]
+        cadMText.OriginalTextPosX = .x
+        cadMText.OriginalTextPosY = .y
+    End With
+
+    Select Case iH
+        Case 1      ' Center
+            cadMText.CurrentTextAlignment = 1
+        Case 2      ' Right
+            cadMText.CurrentTextAlignment = 2
+        Case 4      ' Middle: centrado en las dos direcciones
+            cadMText.CurrentTextAlignment = 1
+            iV = 2
+        Case Else   ' Left, y Aligned y Fit que se arman desde P0 (ver makepolyline)
+            cadMText.CurrentTextAlignment = 0
+    End Select
+
+    Select Case iV
+        Case 1      ' bottom, debajo de las colas de las letras
+            cadMText.CurrentTextAlignmentVertical = 4
+        Case 2      ' middle
+            cadMText.CurrentTextAlignmentVertical = 1
+        Case 3      ' top
+            cadMText.CurrentTextAlignmentVertical = 0
+        Case Else   ' baseline
+            cadMText.CurrentTextAlignmentVertical = 3
+    End Select
+
+End
+
+'' El TEXT guarda el angulo en grados
+Public Function AngleRad(e As Entity) As Float
+
+    Return Rad(e.fParam[Me.ipaTextAngle])
+
+End
+
+Public Sub SetAngleRad(e As Entity, fRad As Float)
+
+    e.fParam[Me.ipaTextAngle] = Deg(fRad)
+
+End
+
+'' Con justificacion distinta de Left/Baseline el texto cuelga de P1 (Aligned y Fit usan P0 y P1)
+Public Function AnchorIndex(e As Entity) As Integer
+
+    Dim iH As Integer
+
+    If e.P.Count < 2 Then Return 0
+    iH = CInt(e.fParam[Me.ipaHorizJustif])
+    If iH = 3 Or iH = 5 Then Return 0
+    If iH <= 0 And CInt(e.fParam[Me.ipaVertJustif]) = 0 Then Return 0
+    Return 1
+
+End
+
+'' Los TEXT son solo de lectura: al guardar (DXF o GCD) se graban como un MTEXT que se ve igual.
+'' Devuelve un MTEXT nuevo con el mismo id; el TEXT no cambia.
+Public Function ToMText(e As Entity) As Entity
+
+    Dim m As Entity
+    Dim iH, iV, iCol, iRow, i As Integer
+    Dim pA As Punto3d
+    Dim fAng, fH, fWF, fUp As Float
+    Dim sText, sOut, c, sCode, sPrefix As String
+    Dim bUnder, bOver, bStrike As Boolean
+
+    ' armo el TEXT: deja en cadMText la altura, el angulo y el ancho finales (Aligned y Fit los cambian)
+    Me.BuildGeometry(e)
+    fH = cadMText.CurrentTextHeigth
+    fWF = cadMText.CurrentTextRelScaleX
+    fAng = Rad(cadMText.CurrentTextAngle)
+
+    iH = Max(0, CInt(e.fParam[Me.ipaHorizJustif]))
+    iV = CInt(e.fParam[Me.ipaVertJustif])
+    If e.P.Count < 2 Then
+        iH = 0
+        iV = 0
+    Endif
+    pA = e.P[Me.AnchorIndex(e)].Copy()
+
+    Select Case iH
+        Case 1, 4                   ' Center, Middle
+            iCol = 1
+        Case 2                      ' Right
+            iCol = 2
+        Case Else                   ' Left, Aligned, Fit
+            iCol = 0
+    End Select
+    If iH = 4 Then iV = 2
+    If iH = 3 Or iH = 5 Then iV = 0
+    Select Case iV
+        Case 3                      ' top
+            iRow = 0
+        Case 2                      ' middle
+            iRow = 1
+        Case 1                      ' bottom: el MTEXT va sobre la linea base, que esta un tercio de la altura mas arriba
+            iRow = 2
+            fUp = fH / 3
+        Case Else                   ' baseline
+            iRow = 2
+    End Select
+    pA.x -= fUp * Sin(fAng)
+    pA.y += fUp * Cos(fAng)
+
+    ' el texto: escapo lo que en MTEXT es codigo, y paso %%u %%o %%k a \L \O \K
+    sText = e.sParam[Me.sdaText]
+    i = 1
+    While i <= Len(sText)
+        c = Mid$(sText, i, 1)
+        If c = "\\" Or c = "{" Or c = "}" Then
+            sOut &= "\\" & c
+            Inc i
+        Else If c = "%" And Mid$(sText, i + 1, 1) = "%" Then
+            sCode = LCase(Mid$(sText, i + 2, 1))
+            Select Case sCode
+                Case "u"
+                    bUnder = Not bUnder
+                    sOut &= IIf(bUnder, "\\L", "\\l")
+                Case "o"
+                    bOver = Not bOver
+                    sOut &= IIf(bOver, "\\O", "\\o")
+                Case "k"
+                    bStrike = Not bStrike
+                    sOut &= IIf(bStrike, "\\K", "\\k")
+                Case Else
+                    sOut &= "%%" & sCode        ' %%d %%p %%c %%nnn quedan igual
+            End Select
+            i += 3
+        Else
+            sOut &= c
+            Inc i
+        Endif
+    Wend
+
+    If Abs(fWF - 1) > 1e-9 Then sPrefix &= "\\W" & CStr(Round(fWF, -6)) & ";"
+    If e.fParam[Me.ipaHorizAngle] <> 0 Then sPrefix &= "\\Q" & CStr(Round(e.fParam[Me.ipaHorizAngle], -6)) & ";"
+    If sPrefix <> "" Then sOut = "{" & sPrefix & sOut & "}"
+
+    m = cadMText.NewEntity()
+    m.id = e.id
+    m.pLayer = e.pLayer
+    m.Colour = e.Colour
+    m.LineType = e.LineType
+    m.LineWidth = e.LineWidth
+    m.Container = e.Container
+    m.PaperSpace = e.PaperSpace
+    m.Visible = e.Visible
+    m.pStyle = e.pStyle
+    m.Extrusion[0] = e.Extrusion[0]
+    m.Extrusion[1] = e.Extrusion[1]
+    m.Extrusion[2] = e.Extrusion[2]
+    m.P[0] = pA
+    m.sParam[cadMText.sdaText] = sOut
+    m.sParam[cadMText.sdaStyle] = e.sParam[Me.sdaStyle]
+    m.fParam[cadMText.ipaTextHeight] = fH
+    m.fParam[cadMText.ipaTextAngle] = fAng
+    m.fParam[cadMText.ipaAttchmPoint] = iRow * 3 + iCol + 1
+    m.fParam[cadMText.ipaRectangleWIdth] = 0
+    cadMText.BuildGeometry(m)
+
+    Return m
+
+End
+
+'' Builds the geometry of the entity wthout drwing it
+Public Function makepolyline(oE As Entity)
+
+    Dim iH As Integer
+    Dim fDist As Float
+
+    SetMtextVars(oe)
+    iH = CInt(oe.fParam[Me.ipaHorizJustif])
+
+    If (iH = 3 Or iH = 5) And oe.P.Count > 1 Then
+        ' Aligned y Fit: el texto ocupa de P0 a P1; Aligned cambia la altura, Fit el ancho
+        fDist = puntos.distancia(oe.P[0].x, oe.P[0].y, oe.P[1].x, oe.P[1].y)
+        If fDist > 0 Then cadMText.CurrentTextAngle = Deg(Ang(oe.P[1].x - oe.P[0].x, oe.P[1].y - oe.P[0].y))
+        cadMText.ProcessText3(oE)
+        If fDist > 0 And cadMText.LastLineWidth > 0 Then
+            If iH = 3 Then
+                cadMText.CurrentTextHeigth *= fDist / cadMText.LastLineWidth
+            Else
+                cadMText.CurrentTextRelScaleX *= fDist / cadMText.LastLineWidth
+            Endif
+            cadMText.ProcessText3(oE)
+        Endif
+        Return
     Endif
 
-    If oe.P.Count = 1 Then          ' hay solo un punto, la alineacion es Baseline/Left
+    cadMText.ProcessText3(oE)
 
-        cadMText.CurrentTextAlignmentVertical = 2
-        cadMText.CurrentTextAlignment = 0
-
-    Else    ' tengo dos puntos
-
-        ' veo la alineacion vertical
-        If oe.fParam[Me.ipaVertJustif] = 0 Then       'es Baseline/Bottom que es casi lo mismo
-
-            cadMText.CurrentTextAlignmentVertical = 2
-
-        Else If oe.fParam[Me.ipaVertJustif] = 1 Then   'Center
-            cadMText.OriginalTextPosX = oE.P[1].x    ' nada que corregir
-            cadMText.OriginalTextPosY = oE.P[1].y
-            cadMText.CurrentTextAlignmentVertical = 1
-
-        Else If oe.fParam[Me.ipaVertJustif] = 2
-            cadMText.OriginalTextPosX = oE.P[1].x    ' nada que corregir
-            cadMText.OriginalTextPosY = oE.P[1].y                                   ' middle
-            cadMText.CurrentTextAlignmentVertical = 1
-        End If
-
-        ' veo la alineacion horizontal
-        If oe.fParam[Me.ipaHorizJustif] < 0 Then       'es Left
-
-            cadMText.CurrentTextAlignment = 0
-            cadMText.CurrentTextAlignmentVertical = 2
-
-        Else If oe.fParam[Me.ipaHorizJustif] = 0 Then       'es Left
-
-            cadMText.CurrentTextAlignment = 0
-
-        Else If oe.fParam[Me.ipaHorizJustif] = 1 Then   'Center
-            cadMText.CurrentTextAlignment = 1
-            cadMText.CurrentTextBoxWIdth = (oe.P[1].x - oe.P[0].x)
-            'cadMText.OriginalTextPosX = oE.p[0] + (oe.P[2] - oe.P[0]) / 2
-
-        Else If oe.fParam[Me.ipaHorizJustif] = 2 Then   'Right
-            cadMText.CurrentTextAlignment = 2
-        Else If oe.fParam[Me.ipaHorizJustif] = 3 Then   'Aligned , pero no se que es:  me parece que texto confinado al espacio asignado
-            cadMText.CurrentTextAlignment = 1
-            cadMText.CurrentTextBoxWIdth = 0
-            cadMText.OriginalTextPosX = oE.P[0].x + (oe.P[1].x - oe.P[0].x) / 2
-
-        Else If oe.fParam[Me.ipaHorizJustif] = 4 Then   ' Middle, se calcula en base al segunto punto.
-            cadMText.CurrentTextAlignment = 1
-            cadMText.CurrentTextAlignmentVertical = 1
-            cadMText.CurrentTextBoxWIdth = 0
-            cadMText.OriginalTextPosX = oE.P[1].x    ' nada que corregir
-            cadMText.OriginalTextPosY = oE.P[1].y
-            'cadMText.CurrentTextPosX = oE.p[0] + (oe.P[2] - oe.P[0]) / 2
-
-        Else If oe.fParam[Me.ipaHorizJustif] = 5 Then   ' Fit, pero no tengo esta capability en glx.DrawTExt
-            cadMText.CurrentTextAlignment = 0
-            cadMText.OriginalTextPosX = oE.P[0].x '+ (oe.P[1].x - oe.P[0].x) / 2
-            cadMText.CurrentTextBoxWIdth = oe.P[1].x - oe.P[0].x            ' FIXME: activar el box fit
-            cadMText.TrimText = True
-        End If
-    End If
+    ' el TEXT justificado guarda en P0 el comienzo de la linea base, como AutoCAD
+    If oe.P.Count > 1 And Me.AnchorIndex(oe) = 1 Then
+        oe.P[0].x = cadMText.TextOriginX
+        oe.P[0].y = cadMText.TextOriginY
+    Endif
 
 End
 
@@ -189,7 +327,7 @@ Public Function SaveDxfData(e As Entity) As Boolean
     dxf.SaveCodeInv(CStr(e.fParam[Me.ipaHorizAngle]), "51")
     dxf.SaveCodeInv(e.sParam[Me.sdaStyle], "7")             ' text style
     dxf.SaveCodeInv(e.fParam[Me.ipaGenerationFlags], "71")      ' generation flags
-    dxf.SaveCodeInv(e.fParam[Me.ipaHorizJustif], "72")          ' horiz justiff
+    dxf.SaveCodeInv(CStr(Max(0, CInt(e.fParam[Me.ipaHorizJustif]))), "72")    ' horiz justiff (-1 = no vino en el DXF)
 
     If e.P.Count = 2 Then   ' some DXF come with z, some with
         dxf.SaveCodeInv(CStr(e.P[1].x), dxf.codX1)                    ' second point
@@ -244,28 +382,5 @@ Public Function ImportDXF(e As Entity, sClaves As String[], sValues As String[])
     ' catch
 
     Return False
-
-End
-
-' Group 72 and 73 integer codes
-'
-' Group 73/72         0     1       2       3       4     5
-' 3 (top)          TLeft TCenter TRight
-' 2 (middle)       MLeft MCenter MRight
-' 1 (bottom)       BLeft BCenter BRight
-' 0 (baseline)     Left  Center  Right  Aligned  Middle Fit
-
-' '' Return if that position is over the entity within the tolerance
-' fast Public Function OverMe(e As Entity, Xr As Float, Yr As Float, tolerance As Float) As Boolean
-'
-'     Return False
-'
-' End
-
-'' Builds the geometry of the entity wthout drwing it
-Public Function makepolyline(oE As Entity)
-
-    SetMtextVars(oe)
-    cadMText.ProcessText3(oE)
 
 End

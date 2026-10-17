@@ -646,10 +646,37 @@ Public Sub DrawGrips(glxGrips As Grip[])
 
     Dim g As Grip
     Dim side As Float, half As Float
+    Dim pC As Punto3d
+    Dim c, s, fOff As Float
+    Dim flx As Float[]
 
     For Each g In glxGrips
         side = PixelsToWorld(g.P.x, g.P.y, g.P.z, config.GripSize)' gcd.Metros(Config.GripSize)
         half = side / 2
+        c = Cos(g.Direction)
+        s = Sin(g.Direction)
+        fOff = PixelsToWorld(g.P.x, g.P.y, g.P.z, g.Offset)
+        pC = New Punto3d(g.P.x + fOff * c, g.P.y + fOff * s, g.P.z)      ' donde se ve el grip
+
+        Select Case g.Shape
+            Case 3      ' triangulo que apunta hacia Direction
+                flx = [pC.x + side * 0.6 * c, pC.y + side * 0.6 * s, pC.z,
+                    pC.x - side * 0.4 * c - side * 0.55 * s, pC.y - side * 0.4 * s + side * 0.55 * c, pC.z,
+                    pC.x - side * 0.4 * c + side * 0.55 * s, pC.y - side * 0.4 * s - side * 0.55 * c, pC.z]
+                glx.DrawTriangles3D(flx, g.iFillColor)
+                flx.Insert([flx[0], flx[1], flx[2]])
+                glx.PolyLines(flx, g.iColor)
+                Continue
+            Case 4      ' barra a lo largo de Direction
+                flx = [pC.x - side * c - half * 0.5 * s, pC.y - side * s + half * 0.5 * c, pC.z,
+                    pC.x + side * c - half * 0.5 * s, pC.y + side * s + half * 0.5 * c, pC.z,
+                    pC.x + side * c + half * 0.5 * s, pC.y + side * s - half * 0.5 * c, pC.z,
+                    pC.x - side * c + half * 0.5 * s, pC.y - side * s - half * 0.5 * c, pC.z]
+                glx.DrawTriangles3D([flx[0], flx[1], flx[2], flx[3], flx[4], flx[5], flx[6], flx[7], flx[8], flx[0], flx[1], flx[2], flx[6], flx[7], flx[8], flx[9], flx[10], flx[11]], g.iFillColor)
+                flx.Insert([flx[0], flx[1], flx[2]])
+                glx.PolyLines(flx, g.iColor)
+                Continue
+        End Select
 
         Select Case g.Shape
             Case 0
@@ -672,7 +699,7 @@ End
 
 Public Sub FontTest()
 
-    Dim s As String = "the quick brown fox jumps over the lazy dog"
+    Dim s As String = "Jovencillo emponzoñado de whisky: ¡que figurota exhibe!"
     Dim h As Float = 1
     Dim t As Float
 

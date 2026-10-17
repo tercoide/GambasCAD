@@ -32,6 +32,7 @@ Private RawFlag As Boolean = False
 Public flgWheelCounter As Integer
 Public InUse As Boolean                         ' variable auxiliar para evitar eventos indeseados
 Public $hDrawTimer As New Timer As "DrawTimer"
+Private $bTextLoading As Boolean             '' para no reaccionar mientras lleno los controles de texto
 Public $hRecollectTimer As New Timer As "RecollectTimer"
 Private $hOneSecondTimer As New Timer As "OneSecondTimer"
 
@@ -1180,6 +1181,12 @@ Public Sub form_KeyPress()
     ' Print Key.Code
     Dim t As Float = Timer
 
+    ' escribiendo un MTEXT en el dibujo: las teclas van al texto (Enter termina, Control+Enter es renglon nuevo)
+    If cadTextBuilder.TypeKey(Key.Code, Key.Text, Key.Control) Then
+        Stop Event
+        Return
+    Endif
+
     If Key.Control Then KeyControl = True
     If Key.Alt Then KeyAlt = True
     If Key.Shift Then KeyShift = True
@@ -1619,6 +1626,88 @@ Public Function UpdatDimTypeTypeCombo()
     Next
     If i = 0 Then i = 1
     If fMain.cmbDimStyle.Count > 0 Then fMain.cmbDimStyle.Index = i - 1
+    UpdateTextControls()
+
+End
+
+'' Pone en la barra superior el formato de texto actual (gcd.TextFont, etc. y la altura del dibujo)
+Public Sub UpdateTextControls()
+
+    Dim s As String
+    Dim i As Integer
+
+    $bTextLoading = True
+    If cmbTextFont.Count = 0 Then
+        cmbTextFont.Add(("(style font)"))
+        For Each s In gcd.FontList
+            cmbTextFont.Add(s)
+        Next
+    Endif
+    cmbTextFont.Index = 0
+    For i = 1 To cmbTextFont.Count - 1
+        If LCase(cmbTextFont[i].Text) = LCase(gcd.TextFont) Then cmbTextFont.Index = i
+    Next
+    If gcd.Drawing Then cmbTextHeight.Text = CStr(gcd.TextHeight())
+    tbtTextBold.Value = gcd.TextBold
+    tbtTextItalic.Value = gcd.TextItalic
+    tbtTextStrike.Value = gcd.TextStrike
+    $bTextLoading = False
+
+End
+
+Public Sub cmbTextFont_Click()
+
+    If $bTextLoading Then Return
+    If cmbTextFont.Index <= 0 Then gcd.TextFont = "" Else gcd.TextFont = cmbTextFont.Text
+    cadTextBuilder.TopBarChanged()
+
+End
+
+Public Sub cmbTextHeight_Click()
+
+    TextHeightChanged()
+
+End
+
+Public Sub cmbTextHeight_Activate()
+
+    TextHeightChanged()
+
+End
+
+Private Sub TextHeightChanged()
+
+    Dim f As Float
+
+    If $bTextLoading Or If Not gcd.Drawing Then Return
+    Try f = CFloat(Replace(Trim(cmbTextHeight.Text), ",", "."))     ' acepta coma o punto
+    If Error Or If f <= 0 Then Return
+    gcd.SetTextHeight(f)
+    cadTextBuilder.TopBarChanged()
+
+End
+
+Public Sub tbtTextBold_Click()
+
+    If $bTextLoading Then Return
+    gcd.TextBold = tbtTextBold.Value
+    cadTextBuilder.TopBarChanged()
+
+End
+
+Public Sub tbtTextItalic_Click()
+
+    If $bTextLoading Then Return
+    gcd.TextItalic = tbtTextItalic.Value
+    cadTextBuilder.TopBarChanged()
+
+End
+
+Public Sub tbtTextStrike_Click()
+
+    If $bTextLoading Then Return
+    gcd.TextStrike = tbtTextStrike.Value
+    cadTextBuilder.TopBarChanged()
 
 End
 
@@ -2202,7 +2291,6 @@ Public Sub LoadButtons(Optional iSize As Integer = 32, iColumns As Integer = 2)
     Utils.TBNCreator(panentities, "cad/draw-arc", "cadArc3point",,, ("Arc 3 point"))
     Utils.TBNCreator(panentities, "cad/draw-polyline", "cadLWPolyline",,, ("Polyline"))
     Utils.TBNCreator(panentities, "cad/draw-ellipse", "cadEllipse",,, ("Ellipse"))
-    Utils.TBNCreator(panentities, "cad/draw-text", "cadMText",,, ("Text"))
     Utils.TBNCreator(panentities, "cad/alter-attdef", "cadAttdef",,, "Attdef")
     Utils.TBNCreator(panentities, "cad/draw-mtext", "cadMtext",,, "M-Text")
     Utils.TBNCreator(panentities, "cad/draw-leader", "cadLeader",,, ("Leader"))
@@ -2384,6 +2472,7 @@ Public Sub tmrSlash_Timer()
         End If
     End If
     If PromtSlash = "|" Then PromtSlash = "" Else PromtSlash = "|"
+    cadTextBuilder.Blink()          ' el cursor del texto que se esta escribiendo
 
     fMain.lblPromp.Text = SCB & sJO
     fMain.lblPromp.Refresh

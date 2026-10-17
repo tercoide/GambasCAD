@@ -57,8 +57,8 @@ Public Function SaveFile(sName As String, drw As Drawing) As Integer
     Inc Application.Busy
 
     ' cosas utiles para cuando abra de nuevo este archivo
-    Try drw.Headers.CLAYER = drw.CurrLayer.Name
-    drw.Headers.HANDSEED = Hex(drw.HandSeed)
+    Try gcd.HeaderSet(drw.Headers, "CLAYER", drw.CurrLayer.Name)
+    gcd.HeaderSet(drw.Headers, "HANDSEED", Hex(drw.HandSeed))
 
     Print #hFile, "{"
     WriteKey("format", FileFormat)
@@ -226,7 +226,11 @@ Public Function EntitiesToJson(vEntities As Variant) As Collection[]
             gcd.debugInfo("JSON: no puedo guardar entidades " & e.Gender)
             Continue
         Endif
-        aList.Add(EntityToJson(e))
+        If e.Gender = "TEXT" Then
+            aList.Add(EntityToJson(cadText.ToMText(e)))     ' los TEXT se graban como MTEXT
+        Else
+            aList.Add(EntityToJson(e))
+        Endif
     Next
     Return aList
 
@@ -326,7 +330,7 @@ Public Function LoadFile(sFile As String, drw As Drawing) As Boolean
     ' armar los INSERT gasta handles en sus partes, que no se guardan; vuelvo al seed guardado
     ' salvo que alguna entidad o tabla que si se guarda haya recibido una handle nueva
     drw.HandSeed = Max(iSavedSeed, MaxUsedId(drw))
-    drw.Headers.HANDSEED = Hex(drw.HandSeed)
+    gcd.HeaderSet(drw.Headers, "HANDSEED", Hex(drw.HandSeed))
 
     drwLoading = Null                ' de aqui en mas JsonToEntity usa gcd.Drawing
     Return False
@@ -520,7 +524,7 @@ End
 Private Sub LoadCurrent(c As Collection, drw As Drawing)
 
     drw.CurrLayer = drw.Layers[drw.Layers.First]
-    Try drw.CurrLayer = drw.Layers[drw.Headers.CLAYER]
+    Try drw.CurrLayer = drw.Layers[gcd.HeaderGet(drw.Headers, "CLAYER")]
     drw.CurrLineType = drw.LineTypes[drw.LineTypes.First]
     drw.CurrTextStyle = drw.TextStyles[drw.TextStyles.First]
     drw.CurrDimStyle = drw.DimStyles[drw.DimStyles.First]

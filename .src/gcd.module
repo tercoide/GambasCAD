@@ -60,6 +60,11 @@ Public Const drwOpenGLClass As Integer = 4
 
 Public LoadingFinished As Boolean = False
 Public FontList As New String[]                     '' esto deberia estar en otro lado
+' formato de los textos, se elije en la barra superior (la altura es Drawing.Headers.TEXTSIZE)
+Public TextFont As String                           '' "" = la fuente del estilo de texto
+Public TextBold As Boolean
+Public TextItalic As Boolean
+Public TextStrike As Boolean
 Public TextureList As New String[]                     '' esto deberia estar en otro lado
 Public FileName As String                           '' current work filename
 Public LineTypes As String[]
@@ -714,7 +719,7 @@ Public Function NewId(Optional d As Drawing) As String
     If Not d Then d = Drawing
     Inc D.HandSeed             ' esta es la ultima handle utilizada, le sumo 1
     hHex = Hex(D.HandSeed)
-    d.Headers.HANDSEED = hHex
+    HeaderSet(d.Headers, "HANDSEED", hHex)
 
     Return hHex     ' devuelvo la Hex del numero
 
@@ -1464,5 +1469,37 @@ Public Sub RegenID(d As Drawing)
     For Each v As Viewport In d.Viewports
         v.Id = NewId()
     Next
+
+End
+
+'' Lee una variable de Headers por nombre.
+'' Headers tiene mas de 256 simbolos y el acceso compilado (d.Headers.TEXTSIZE) a los que
+'' tienen indice mayor que 255 (TEXTSIZE es el 274) devuelve basura desde la segunda vez:
+'' fuera de la clase Headers, siempre usar HeaderGet y HeaderSet.
+Public Function HeaderGet(oHeaders As Headers, sName As String) As Variant
+
+    Return Object.GetProperty(oHeaders, sName)
+
+End
+
+'' Escribe una variable de Headers por nombre (ver HeaderGet)
+Public Sub HeaderSet(oHeaders As Headers, sName As String, vValue As Variant)
+
+    Object.SetProperty(oHeaders, sName, vValue)
+
+End
+
+'' Altura de los textos nuevos (Headers.TEXTSIZE)
+Public Function TextHeight() As Float
+
+    If Not Drawing Then Return 0
+    Return HeaderGet(Drawing.Headers, "TEXTSIZE")
+
+End
+
+Public Sub SetTextHeight(fHeight As Float)
+
+    If Not Drawing Then Return
+    HeaderSet(Drawing.Headers, "TEXTSIZE", fHeight)
 
 End
